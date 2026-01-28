@@ -4,6 +4,7 @@ from service.ifind import refresh_token, choose_stocks
 from get_client_token import THSTokenClient
 from service.ifind.get_real_time_quotation import RealTimeQuotation
 from service.ifind.smart_stock_picking import SmartStockPicking
+from service.ifind.get_announcement_query import AnnouncementQuery
 
 
 async def main():
@@ -30,6 +31,19 @@ async def main():
         codes = [stock['股票代码'] for stock in stock_lists]
         quotation_result = await real_time_quotation.get_quotation(codes=codes)
         print(f"实时行情: {quotation_result}")
+
+        # 调用公告查询接口
+        announcement = AnnouncementQuery(access_token)
+        announcement_result = await announcement.query(
+            codes=codes,
+            functionpara={
+                "beginrDate": "2025-10-01",
+                "endrDate": "2026-01-31",
+                "keyWord": "半年度报告"
+            }
+        )
+        print(announcement_result)
+        # print(f"公告查询: {announcement.parse_tables(announcement_result)}")
         
         # 如果需要获取新的access_token（会使旧token失效）
         # print("获取新的access_token...")
