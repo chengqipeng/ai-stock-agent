@@ -1,5 +1,7 @@
 import aiohttp
 from typing import Optional, List, Dict, Any
+import asyncio
+from common.utils.pdf_parser import PDFParser
 
 
 class AnnouncementQuery:
@@ -25,9 +27,40 @@ class AnnouncementQuery:
         return ",".join(codes)
 
     @staticmethod
-    def parse_tables(data: List[Dict[str, Any]], field_mapping: Dict[str, str]) -> List[Dict[str, Any]]:
-        """将字段名转换为中文"""
-        return [{field_mapping.get(k, k): v for k, v in row.items()} for row in data]
+    def parse_result(result: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """转换为列表形式，每个元素为一条公告记录"""
+        field_mapping = AnnouncementQuery.get_field_mapping()
+        
+        if not result.get("tables") or len(result["tables"]) == 0:
+            return []
+        
+        table_data = result["tables"][0].get("table", {})
+        if not table_data:
+            return []
+        
+        keys = list(table_data.keys())
+        length = len(table_data[keys[0]]) if keys else 0
+        
+        return [
+            {field_mapping.get(k, k): table_data[k][i] for k in keys}
+            for i in range(length)
+        ]
+
+    @staticmethod
+    async def parse_result_with_pdf(result: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """转换为列表形式，并将PDF链接转换为文本"""
+        records = AnnouncementQuery.parse_result(result)
+        
+        async def process_record(index: int, record: Dict[str, Any]):
+            if "公告链接" in record:
+                print(f"正在处理第 {index + 1} 条")
+                pdf_text = await PDFParser.download_and_parse(record["公告链接"])
+                if pdf_text:
+                    record["公告内容"] = pdf_text
+                print(f"第 {index + 1} 条处理完成")
+        
+        await asyncio.gather(*[process_record(i, record) for i, record in enumerate(records)])
+        return records
 
     async def query(
         self,
@@ -56,7 +89,7 @@ class AnnouncementQuery:
             包含查询结果的字典
         """
         if outputpara is None:
-            outputpara = ["reportDate", "thscode", "secName", "ctime", "reportTitle", "pdfURL", "seq"]
+            outputpara = ["reportDate:Y", "thscode:Y", "secName:Y", "ctime:Y", "reportTitle:Y", "pdfURL:Y", "seq:Y"]
 
         data = {
             "codes": self.convert_codes(codes) if codes else "",

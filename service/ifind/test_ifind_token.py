@@ -37,18 +37,20 @@ async def main():
         announcement_result = await announcement.query(
             codes=codes,
             functionpara={
-                "beginrDate": "2025-10-01",
+                #"mode": "allAStock",
+                "beginrDate": "2025-12-31",
                 "endrDate": "2026-01-31",
-                "keyWord": "半年度报告"
+                "keyWord": "半年度报告",
+                "reportType": "903-全部"
             }
         )
-        print(announcement_result)
-        # print(f"公告查询: {announcement.parse_tables(announcement_result)}")
+        print(f"公告查询: {await AnnouncementQuery.parse_result_with_pdf(announcement_result)}")
         
         # 如果需要获取新的access_token（会使旧token失效）
         # print("获取新的access_token...")
         # result = await client.update_access_token()
         # print(f"结果: {result}")
+        print("0000")
         
     except Exception as e:
         print(f"请求失败: {e}")
