@@ -53,17 +53,17 @@ class RealTimeQuotation:
         'activebuy_volume': '主买总量', 'activesell_volume': '主卖总量',
         'activebuy_amt': '主买总额', 'activesell_amt': '主卖总额',
         'post_lastest': '盘后最新成交价', 'post_latestVolume': '盘后现量',
-        'post_volume': '盘后成交量', 'post_amt': '盘后成交额', 'post_dealnum': '盘后成交笔数',
-        'priceDiff': '买卖价差', 'sharesPerHand': '每手股数', 'expiryDate': '到期日',
-        'iopv': 'IOPV净值估值', 'premium': '折价',
-        'riseCount': '上涨家数', 'fallCount': '下跌家数', 'upLimitCount': '涨停家数',
-        'downLimitCount': '跌停家数', 'suspensionCount': '停牌家数',
-        'pure_bond_value_cb': '纯债价值', 'surplus_term': '剩余期限天',
-        'dealDirection': '成交方向', 'dealtype': '成交性质',
-        'impliedVolatility': '隐含波动率', 'historyVolatility': '历史波动率',
-        'delta': 'Delta', 'gamma': 'Gamma', 'vega': 'Vega', 'theta': 'Theta', 'rho': 'Rho',
-        'pre_open_interest': '前持仓量', 'pre_implied_volatility': '前隐含波动率',
-        'volume_pcr_total': '成交量pcr品种', 'volume_pcr_month': '成交量pcr同月',
+        #'post_volume': '盘后成交量', 'post_amt': '盘后成交额', 'post_dealnum': '盘后成交笔数',
+        #'priceDiff': '买卖价差', 'sharesPerHand': '每手股数', 'expiryDate': '到期日',
+        #'iopv': 'IOPV净值估值', 'premium': '折价',
+        #'riseCount': '上涨家数', 'fallCount': '下跌家数', 'upLimitCount': '涨停家数',
+        #'downLimitCount': '跌停家数', 'suspensionCount': '停牌家数',
+        #'pure_bond_value_cb': '纯债价值', 'surplus_term': '剩余期限天',
+        #'dealDirection': '成交方向', 'dealtype': '成交性质',
+        #'impliedVolatility': '隐含波动率', 'historyVolatility': '历史波动率',
+        #'delta': 'Delta', 'gamma': 'Gamma', 'vega': 'Vega', 'theta': 'Theta', 'rho': 'Rho',
+        #'pre_open_interest': '前持仓量', 'pre_implied_volatility': '前隐含波动率',
+        #'volume_pcr_total': '成交量pcr品种', 'volume_pcr_month': '成交量pcr同月',
         'thscode': '股票代码', 'marketCategory': '市场类别', 'pricetype': '价格类型', 'time': '时间'
     }
     
@@ -72,23 +72,35 @@ class RealTimeQuotation:
         self.access_token = access_token
     
     def translate_to_chinese(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """将返回结果中的英文字段转换为中文"""
+        """将返回结果中的英文字段转换为中文，不在映射中的字段不返回"""
         if 'tables' not in data:
             return data
         
         translated_tables = []
         for table in data['tables']:
             translated_table = {}
-            # 转换顶层字段
             for key, value in table.items():
                 if key == 'table':
-                    # 转换table内的字段
-                    translated_table['数据'] = {self.FIELD_MAPPING.get(k, k): v for k, v in value.items()}
-                else:
-                    translated_table[self.FIELD_MAPPING.get(key, key)] = value
+                    translated_table['数据'] = {self.FIELD_MAPPING[k]: v for k, v in value.items() if k in self.FIELD_MAPPING}
+                elif key in self.FIELD_MAPPING:
+                    translated_table[self.FIELD_MAPPING[key]] = value
             translated_tables.append(translated_table)
         
         return {**data, 'tables': translated_tables}
+    
+    @staticmethod
+    def parse_tables(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """解析tables数据，只保留股票代码、时间和数据"""
+        tables = data.get('tables', [])
+        result = []
+        for table in tables:
+            parsed = {
+                '股票代码': table.get('股票代码', table.get('thscode')),
+                '时间': table.get('时间', table.get('time')),
+                '数据': table.get('数据', table.get('table', {}))
+            }
+            result.append(parsed)
+        return result
     
     async def get_quotation(
         self, 
