@@ -1,6 +1,6 @@
 import asyncio
 
-from iFinD import refresh_token
+from service.ifind import refresh_token
 from token_client import THSTokenClient
 
 async def main():

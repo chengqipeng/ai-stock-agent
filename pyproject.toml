@@ -2,7 +2,7 @@
 name = "ai-stock-agent"
 version = "0.1.0"
 description = ""
-authors = ["chengqp < chengqp@neocrm.com>"]
+authors = ["test < test@neocrm.com>"]
 readme = "README.md"
 package-mode = false
 
@@ -15,8 +15,6 @@ pycryptodome = "3.18.0"
 cachetools = "5.3.1"
 requests = "^2.32.3"
 numpy = "~1.26.4"
-gmpy2 = "~2.1.5"
-langchain = "^1.0.2"
 
 
 [tool.poetry.dev-dependencies]
@@ -29,9 +27,4 @@ build-backend = "poetry.core.masonry.api"
 [[tool.poetry.source]]
 name = "tencent"
 url = "https://mirrors.cloud.tencent.com/pypi/simple"
-priority = "supplemental"
-
-[[tool.poetry.source]]
-name = "neocrm"
-url = "http://10.60.1.10:8282/repository/pypi-group/simple/"
 priority = "supplemental"
