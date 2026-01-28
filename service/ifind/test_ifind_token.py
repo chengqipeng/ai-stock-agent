@@ -1,7 +1,10 @@
 import asyncio
 
-from service.ifind import refresh_token
+from service.ifind import refresh_token, choose_stocks
 from get_client_token import THSTokenClient
+from service.ifind.get_real_time_quotation import RealTimeQuotation
+from service.ifind.smart_stock_picking import SmartStockPicking
+
 
 async def main():
     # 替换为您的refresh_token
@@ -11,8 +14,22 @@ async def main():
     try:
         # 获取当前有效的access_token
         print("获取当前access_token...")
-        result = await client.get_access_token()
-        print(f"结果: {result}")
+        token_result = await client.get_access_token()
+        print(f"结果: {token_result}")
+
+        access_token = token_result.get("data", {}).get("access_token")
+
+        # 调用智能选股接口
+        stock_picker = SmartStockPicking(access_token)
+        result = await stock_picker.search(searchstring=choose_stocks, searchtype="stock")
+
+        stock_lists = stock_picker.parse_tables(result.get('tables'))
+        print(stock_lists)
+
+        real_time_quotation = RealTimeQuotation(access_token)
+        codes = [stock['股票代码'] for stock in stock_lists]
+        quotation_result = await real_time_quotation.get_quotation(codes=codes)
+        print(f"实时行情: {quotation_result}")
         
         # 如果需要获取新的access_token（会使旧token失效）
         # print("获取新的access_token...")

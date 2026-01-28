@@ -1,5 +1,6 @@
 import aiohttp
-from typing import Dict, Any
+from typing import Dict, Any, List
+
 
 class SmartStockPicking:
     """智能选股接口"""
@@ -42,3 +43,23 @@ class SmartStockPicking:
             async with session.post(self.url, headers=headers, data=data) as response:
                 text = await response.text()
                 return json.loads(text)
+
+    @staticmethod
+    def parse_tables(tables: List[Dict]) -> List[Dict[str, Any]]:
+        """转换tables数据为列表字典格式
+
+        Args:
+            tables: API返回的tables数据
+
+        Returns:
+            转换后的列表，每个元素是一行数据的字典
+        """
+        if not tables or not tables[0].get('table'):
+            return []
+
+        table = tables[0]['table']
+        keys = list(table.keys())
+        row_count = len(table[keys[0]])
+
+        return [{key: table[key][i] for key in keys} for i in range(row_count)]
+
