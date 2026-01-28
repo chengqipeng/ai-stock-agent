@@ -1,6 +1,6 @@
 import asyncio
 
-from service.ifind import refresh_token, choose_stocks
+from common.constants.stock_constants import refresh_token, choose_stocks
 from get_client_token import THSTokenClient
 from service.ifind.get_real_time_quotation import RealTimeQuotation
 from service.ifind.smart_stock_picking import SmartStockPicking

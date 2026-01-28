@@ -1,8 +1,8 @@
 import asyncio
 
+from common.constants.stock_constants import refresh_token, choose_stocks
 from common.prompt.stock_analysis_prompt import STOCK_ANALYSIS_PROMPT
 from common.utils.string_formatter import StringFormatter
-from service.ifind import refresh_token, choose_stocks
 from service.ifind.get_client_token import THSTokenClient
 from service.ifind.get_real_time_quotation import RealTimeQuotation
 from service.ifind.smart_stock_picking import SmartStockPicking
