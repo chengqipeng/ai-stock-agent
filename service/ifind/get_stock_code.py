@@ -1,7 +1,7 @@
 import asyncio
 
 from service.ifind import refresh_token
-from token_client import THSTokenClient
+from get_client_token import THSTokenClient
 from smart_stock_picking import SmartStockPicking
 
 async def main():
@@ -18,7 +18,7 @@ async def main():
     
     # 调用智能选股接口
     stock_picker = SmartStockPicking(access_token)
-    result = await stock_picker.search(searchstring="万科和隆基绿能", searchtype="stock")
+    result = await stock_picker.search(searchstring="万科A、隆基绿能、北方华创", searchtype="stock")
     
     print(f"错误码: {result.get('errorcode')}")
     print(f"错误信息: {result.get('errmsg')}")

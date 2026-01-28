@@ -1,7 +1,7 @@
 import asyncio
 
 from service.ifind import refresh_token
-from token_client import THSTokenClient
+from get_client_token import THSTokenClient
 
 async def main():
     # 替换为您的refresh_token
