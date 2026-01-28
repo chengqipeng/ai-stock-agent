@@ -39,9 +39,9 @@ async def main():
             functionpara={
                 #"mode": "allAStock",
                 "beginrDate": "2025-12-31",
-                "endrDate": "2026-01-31",
-                "keyWord": "半年度报告",
-                "reportType": "903-全部"
+                "endrDate": "2026-01-28",
+                #"keyWord": "半年度报告",
+                #"reportType": "901"
             }
         )
         print(f"公告查询: {await AnnouncementQuery.parse_result_with_pdf(announcement_result)}")

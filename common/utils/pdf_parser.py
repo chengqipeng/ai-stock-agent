@@ -9,9 +9,10 @@ import aiofiles
 
 class PDFParser:
     @staticmethod
-    async def download_pdf(pdf_url: str, save_dir: str = "/tmp") -> Optional[str]:
+    async def download_pdf(pdf_url: str, save_dir: str = "temp_files") -> Optional[str]:
         """下载PDF文件"""
         try:
+            os.makedirs(save_dir, exist_ok=True)
             file_hash = hashlib.md5(pdf_url.encode()).hexdigest()
             file_path = os.path.join(save_dir, f"{file_hash}.pdf")
             
@@ -47,41 +48,54 @@ class PDFParser:
             return None
     
     @staticmethod
-    def parse_pdf(file_path: str) -> Optional[str]:
-        """解析PDF文件为文本"""
+    async def parse_pdf(file_path: str) -> Optional[str]:
+        """解析PDF文件为文本并保存"""
         try:
+            text = ""
             with open(file_path, 'rb') as f:
-                reader = PyPDF2.PdfReader(f)
-                text = ""
-                for page in reader.pages:
-                    text += page.extract_text()
-            return text
+                try:
+                    reader = PyPDF2.PdfReader(f, strict=False)
+                    for page in reader.pages:
+                        try:
+                            text += page.extract_text()
+                        except Exception:
+                            continue
+                except Exception as e:
+                    print(f"PDF解析警告: {file_path}, 错误: {e}, 尝试保存已读取内容")
+            
+            if not text:
+                return None
+            
+            txt_path = file_path.replace('.pdf', '.txt')
+            async with aiofiles.open(txt_path, 'w', encoding='utf-8') as f:
+                await f.write(text)
+            
+            return txt_path
         except Exception as e:
             print(f"PDF解析失败: {file_path}, 错误: {e}")
             return None
     
     @staticmethod
-    async def download_and_parse(pdf_url: str, max_retries: int = 3) -> Optional[str]:
-        """下载PDF并转换为文本"""
+    async def download_and_parse(pdf_url: str, max_retries: int = 3) -> tuple[Optional[str], str]:
+        """下载PDF并转换为文本文件，返回(txt路径, 状态)"""
         for attempt in range(max_retries):
             file_path = await PDFParser.download_pdf(pdf_url)
             if not file_path:
                 if attempt < max_retries - 1:
                     await asyncio.sleep(2)
                     continue
-                return None
+                return None, "download_failed"
             
-            text = PDFParser.parse_pdf(file_path)
+            txt_path = await PDFParser.parse_pdf(file_path)
             
             try:
                 os.remove(file_path)
             except Exception as e:
                 print(f"删除文件失败: {file_path}, 错误: {e}")
             
-            if text:
-                return text
-            
-            if attempt < max_retries - 1:
-                await asyncio.sleep(2)
+            if txt_path:
+                return txt_path, "success"
+            else:
+                return None, "parse_failed"
         
-        return None
+        return None, "download_failed"

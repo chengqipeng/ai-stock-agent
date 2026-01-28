@@ -51,15 +51,30 @@ class AnnouncementQuery:
         """转换为列表形式，并将PDF链接转换为文本"""
         records = AnnouncementQuery.parse_result(result)
         
+        download_success = 0
+        download_failed = 0
+        parse_success = 0
+        parse_failed = 0
+        
         async def process_record(index: int, record: Dict[str, Any]):
+            nonlocal download_success, download_failed, parse_success, parse_failed
             if "公告链接" in record:
                 print(f"正在处理第 {index + 1} 条")
-                pdf_text = await PDFParser.download_and_parse(record["公告链接"])
-                if pdf_text:
-                    record["公告内容"] = pdf_text
-                print(f"第 {index + 1} 条处理完成")
+                txt_path, status = await PDFParser.download_and_parse(record["公告链接"])
+                if status == "success":
+                    download_success += 1
+                    parse_success += 1
+                    record["公告内容"] = txt_path
+                elif status == "download_failed":
+                    download_failed += 1
+                elif status == "parse_failed":
+                    download_success += 1
+                    parse_failed += 1
         
         await asyncio.gather(*[process_record(i, record) for i, record in enumerate(records)])
+        
+        print(f"\n统计结果: 总数={len(records)}, 下载成功={download_success}, 下载失败={download_failed}, PDF解析成功={parse_success}, PDF解析失败={parse_failed}")
+        
         return records
 
     async def query(
