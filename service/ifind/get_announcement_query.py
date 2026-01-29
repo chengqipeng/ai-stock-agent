@@ -1,6 +1,7 @@
 import aiohttp
 from typing import Optional, List, Dict, Any
 import asyncio
+from datetime import datetime, timedelta
 from common.utils.pdf_parser import PDFParser
 
 
@@ -77,11 +78,64 @@ class AnnouncementQuery:
         
         return records
 
+    async def query_with_performance_forecast_report(
+            self,
+            codes: Optional[List[str]] = None,
+            beginrDate: Optional[str] = None,
+            endrDate: Optional[str] = None,
+            **kwargs
+    ) -> Dict[str, Any]:
+        reportType = "901001005,901001006,901001007"
+        return self.query_with_defaults(codes=codes, beginrDate=beginrDate, endrDate=endrDate, reportType=reportType, **kwargs)
+
+    async def query_with_financial_report(
+        self,
+        codes: Optional[List[str]] = None,
+        beginrDate: Optional[str] = None,
+        endrDate: Optional[str] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """带默认查询条件的查询方法"""
+        today = datetime.now()
+        if endrDate is None:
+            endrDate = today.strftime("%Y-%m-%d")
+        if beginrDate is None:
+            beginrDate = (today - timedelta(days=365)).strftime("%Y-%m-%d")
+
+        reportType = "901001001,901001002,901001003,901001004"
+        
+        return self.query_with_defaults(codes=codes, beginrDate=beginrDate, endrDate=endrDate, reportType=reportType, **kwargs)
+
+    async def query_with_defaults(
+            self,
+            codes: Optional[List[str]],
+            beginrDate: Optional[str],
+            endrDate: Optional[str],
+            reportType: Optional[str],
+            **kwargs
+    ) -> Dict[str, Any]:
+        """带默认查询条件的查询方法"""
+        today = datetime.now()
+        if endrDate is None:
+            endrDate = today.strftime("%Y-%m-%d")
+        if beginrDate is None:
+            beginrDate = (today - timedelta(days=365)).strftime("%Y-%m-%d")
+
+        return await self.query(
+            codes=codes,
+            functionpara={"reportType": reportType},
+            mode="allAStock",
+            beginrDate=beginrDate,
+            endrDate=endrDate,
+            **kwargs
+        )
+
     async def query(
         self,
         codes: Optional[List[str]] = None,
         functionpara: Optional[Dict[str, Any]] = None,
-        outputpara: Optional[List[str]] = None
+        outputpara: Optional[List[str]] = None,
+        **kwargs
     ) -> Dict[str, Any]:
         """
         查询公告信息
@@ -105,11 +159,17 @@ class AnnouncementQuery:
         """
         if outputpara is None:
             outputpara = ["reportDate:Y", "thscode:Y", "secName:Y", "ctime:Y", "reportTitle:Y", "pdfURL:Y", "seq:Y"]
+        else:
+            outputpara = [p if ":" in p else f"{p}:Y" for p in outputpara]
+        
+        processed_functionpara = functionpara or {}
+        processed_functionpara = {k: v for k, v in processed_functionpara.items() if v is not None}
 
         data = {
             "codes": self.convert_codes(codes) if codes else "",
-            "functionpara": functionpara or {},
-            "outputpara": ",".join(outputpara)
+            "functionpara": processed_functionpara,
+            "outputpara": ",".join(outputpara),
+            **kwargs
         }
 
         headers = {

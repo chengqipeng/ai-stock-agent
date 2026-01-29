@@ -51,6 +51,10 @@ class PDFParser:
     async def parse_pdf(file_path: str) -> Optional[str]:
         """解析PDF文件为文本并保存"""
         try:
+            if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+                print(f"PDF文件为空或不存在: {file_path}")
+                return None
+            
             text = ""
             with open(file_path, 'rb') as f:
                 try:
