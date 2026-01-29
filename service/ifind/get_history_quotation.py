@@ -1,6 +1,7 @@
 import aiohttp
 import json
 from typing import List, Dict, Any, Optional
+from datetime import datetime, timedelta
 
 
 class HistoryQuotationService:
@@ -53,6 +54,34 @@ class HistoryQuotationService:
         return {**data, 'tables': translated_tables}
     
     @staticmethod
+    def get_default_params() -> Dict[str, Any]:
+        """生成默认参数
+        
+        Returns:
+            Dict包含默认的start_date(今天)、end_date(去年今天)和indicators(所有指标)
+        """
+        today = datetime.now()
+        last_year = today - timedelta(days=365)
+        
+        return {
+            'start_date': last_year.strftime('%Y-%m-%d'),
+            'end_date': today.strftime('%Y-%m-%d'),
+            'indicators': [
+                "preClose", "open", "high", "low", "close", "avgPrice", "change", "changeRatio",
+                "volume", "amount", "turnoverRatio", "transactionAmount",
+                "totalShares", "totalCapital", "floatSharesOfAShares", "floatSharesOfBShares",
+                "floatCapitalOfAShares", "floatCapitalOfBShares",
+                "pe_ttm", "pe", "pb", "ps", "pcf",
+                "ths_trading_status_stock", "ths_up_and_down_status_stock", "ths_af_stock", "ths_vaild_turnover_stock",
+                "ths_vol_after_trading_stock", "ths_trans_num_after_trading_stock", "ths_amt_after_trading_stock",
+                "netAssetValue", "adjustedNAV", "accumulatedNAV", "premium", "premiumRatio", "estimatedPosition",
+                "floatCapital", "pe_ttm_index", "pb_mrq", "pe_indexPublisher",
+                "yieldMaturity", "remainingTerm", "maxwellDuration", "modifiedDuration", "convexity", "close_2330",
+                "preSettlement", "settlement", "change_settlement", "chg_settlement", "openInterest", "positionChange", "amplitude"
+            ]
+        }
+    
+    @staticmethod
     def parse_tables(data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """解析tables数据，只保留股票代码、时间和数据"""
         tables = data.get('tables', [])
@@ -65,6 +94,38 @@ class HistoryQuotationService:
             }
             result.append(parsed)
         return result
+    
+    async def get_history_quotation_with_defaults(
+        self,
+        codes: List[str],
+        start_date: str = None,
+        end_date: str = None,
+        indicators: List[str] = None,
+        function_para: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        获取历史行情数据（带默认参数）
+        
+        Args:
+            codes: 股票代码列表，如["300033.SZ", "600030.SH"]
+            start_date: 开始日期，默认为去年今天
+            end_date: 结束日期，默认为今天
+            indicators: 指标列表，默认包含所有指标
+            function_para: 可选参数
+        
+        Returns:
+            Dict包含历史行情数据
+        """
+        defaults = self.get_default_params()
+        
+        if start_date is None:
+            start_date = defaults['start_date']
+        if end_date is None:
+            end_date = defaults['end_date']
+        if indicators is None:
+            indicators = defaults['indicators']
+        
+        return await self.get_history_quotation(codes, start_date, end_date, indicators, function_para)
     
     async def get_history_quotation(
         self,

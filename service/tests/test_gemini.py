@@ -4,6 +4,7 @@ from common.constants.stock_constants import refresh_token, choose_stocks
 from common.prompt.stock_analysis_prompt import STOCK_ANALYSIS_PROMPT
 from common.utils.string_formatter import StringFormatter
 from service.ifind.get_client_token import THSTokenClient
+from service.ifind.get_history_quotation import HistoryQuotationService
 from service.ifind.get_real_time_quotation import RealTimeQuotation
 from service.ifind.smart_stock_picking import SmartStockPicking
 from service.ifind.get_announcement_query import AnnouncementQuery
@@ -31,11 +32,23 @@ async def main():
 
         real_time_quotation = RealTimeQuotation(access_token)
         codes = [stock['股票代码'] for stock in stock_lists]
+
+        start_date = "2025-10-01"
+        end_date = "2026-01-28"
+        history_quotation_service = HistoryQuotationService(access_token)
+        history_result = await history_quotation_service.get_history_quotation(codes, start_date, end_date)
+        print(f"历史行情1: {history_result}")
+        _history_result = history_quotation_service.parse_tables(history_result)
+
+        print(f"历史行情2: {_history_result}")
         quotation_result = await real_time_quotation.get_quotation(codes=codes)
         quotation_result = real_time_quotation.parse_tables(quotation_result)
         print(f"实时行情: {quotation_result}")
 
-        prompt = StringFormatter.format(STOCK_ANALYSIS_PROMPT, codes[0], quotation_result)
+        prompt = StringFormatter.format(STOCK_ANALYSIS_PROMPT, choose_stocks, codes[0],
+                                        quotation_result,
+                                        start_date, end_date,
+                                        _history_result)
         print(prompt)
         
     except Exception as e:
