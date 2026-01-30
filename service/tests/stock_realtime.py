@@ -1,0 +1,646 @@
+import aiohttp
+import asyncio
+import json
+import re
+
+
+from datetime import datetime
+
+
+def format_amount(amount):
+    """格式化金额为亿或千万单位"""
+    if amount is None:
+        return "--"
+    if abs(amount) >= 100000000:  # >= 1亿
+        return f"{round(amount / 100000000, 2)}亿"
+    else:  # 千万
+        return f"{round(amount / 10000000, 2)}千万"
+
+
+async def get_stock_realtime(secid="1.601698"):
+    """
+    获取股票实时数据
+    secid格式: 市场代码.股票代码
+    1 = 上海, 0 = 深圳
+    """
+    url = "https://push2delay.eastmoney.com/api/qt/stock/get"
+    
+    params = {
+        "fltt": "2",
+        "invt": "2",
+        "secid": secid,
+        "fields": "f57,f58,f43,f47,f48,f168,f169,f170,f152",
+        "ut": "b2884a393a59ad64002292a3e90d46a5"
+    }
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://quote.eastmoney.com/"
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, headers=headers) as response:
+            text = await response.text()
+            
+            # 移除 JSONP 回调函数包装
+            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
+            json_text = re.sub(r'\)$', '', json_text)
+            
+            data = json.loads(json_text)
+            
+            if data.get("data"):
+                stock_data = data["data"]
+
+                return stock_data
+            else:
+                raise Exception(f"未获取到股票 {secid} 的实时数据")
+
+
+async def get_main_fund_flow(secids="0.002371"):
+    """
+    获取主力资金流向数据
+    secids格式: 市场代码.股票代码，多个用逗号分隔
+    1 = 上海, 0 = 深圳
+    """
+    url = "https://push2delay.eastmoney.com/api/qt/ulist.np/get"
+    
+    params = {
+        "fltt": "2",
+        "secids": secids,
+        "fields": "f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f64,f65,f70,f71,f76,f77,f82,f83,f164,f166,f168,f170,f172,f252,f253,f254,f255,f256,f124,f6,f278,f279,f280,f281,f282",
+        "ut": "b2884a393a59ad64002292a3e90d46a5"
+    }
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://quote.eastmoney.com/"
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, headers=headers) as response:
+            text = await response.text()
+            
+            # 移除 JSONP 回调函数包装
+            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
+            json_text = re.sub(r'\)$', '', json_text)
+            
+            data = json.loads(json_text)
+            
+            if data.get("data") and data["data"].get("diff"):
+                result = []
+                for stock in data["data"]["diff"]:
+                    # 获取成交额用于计算净比
+                    amount = stock.get('f6', 1)  # f6是成交额，避免除0
+                    
+                    # 计算各单净比 = 净流入 / 成交额 * 100
+                    super_ratio = round(stock.get('f66', 0) / amount * 100, 2) if amount else 0
+                    big_ratio = round(stock.get('f72', 0) / amount * 100, 2) if amount else 0
+                    mid_ratio = round(stock.get('f78', 0) / amount * 100, 2) if amount else 0
+                    small_ratio = round(stock.get('f84', 0) / amount * 100, 2) if amount else 0
+                    
+                    stock_info = {
+                        #"股票代码": stock.get('f12'),
+                        #"股票名称": stock.get('f14'),
+                        #"最新价": stock.get('f2'),
+                        #"涨跌幅": f"{stock.get('f3')}%",
+                        "成交额": format_amount(amount),
+                        "主力净流入": format_amount(stock.get('f62')),
+                        "主力净流入占比": f"{stock.get('f184')}%",
+                        "超大单净流入": format_amount(stock.get('f66')),
+                        "超大单净比": f"{super_ratio}%",
+                        "大单净流入": format_amount(stock.get('f72')),
+                        "大单净比": f"{big_ratio}%",
+                        "中单净流入": format_amount(stock.get('f78')),
+                        "中单净比": f"{mid_ratio}%",
+                        "小单净流入": format_amount(stock.get('f84')),
+                        "小单净比": f"{small_ratio}%",
+
+                        "超大单流入": f"{format_amount(stock.get('f64'))}",
+                        "超大单流出": f"{format_amount(stock.get('f65'))}",
+                        "大单流入": f"{format_amount(stock.get('f70'))}",
+                        "大单流出": f"{format_amount(stock.get('f71'))}",
+                        "中单流入": f"{format_amount(stock.get('f76'))}",
+                        "中单流出": f"{format_amount(stock.get('f77'))}",
+                        "小单流入": f"{format_amount(stock.get('f82'))}",
+                        "小单流出": f"{format_amount(stock.get('f83'))}"
+                    }
+                    result.append(stock_info)
+                
+
+                return result
+            else:
+                raise Exception(f"未获取到股票 {secids} 的主力资金流向数据")
+
+
+async def get_financial_data(stock_code="002371", page_size=5, page_number=1):
+    """获取财务数据"""
+    url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+    
+    params = {
+        "sortColumns": "REPORTDATE",
+        "sortTypes": "-1",
+        "pageSize": str(page_size),
+        "pageNumber": str(page_number),
+        "columns": "ALL",
+        "filter": f"(SECURITY_CODE=\"{stock_code}\")",
+        "reportName": "RPT_LICO_FN_CPD"
+    }
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://datacenter.eastmoney.com/"
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, headers=headers) as response:
+            text = await response.text()
+            
+            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
+            json_text = re.sub(r'\)$', '', json_text)
+            
+            data = json.loads(json_text)
+            
+            if data.get("result") and data["result"].get("data"):
+                return data["result"]["data"]
+            else:
+                raise Exception(f"未获取到股票 {stock_code} 的财务数据")
+
+async def get_financial_report(stock_code="002371", page_size=15, page_number=1):
+    """业绩报表明细"""
+    url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+    
+    params = {
+        "sortColumns": "REPORTDATE",
+        "sortTypes": "-1",
+        "pageSize": str(page_size),
+        "pageNumber": str(page_number),
+        "columns": "ALL",
+        "filter": f"(SECURITY_CODE=\"{stock_code}\")",
+        "reportName": "RPT_LICO_FN_CPD"
+    }
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://datacenter.eastmoney.com/"
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, headers=headers) as response:
+            text = await response.text()
+            
+            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
+            json_text = re.sub(r'\)$', '', json_text)
+            
+            data = json.loads(json_text)
+            
+            if data.get("result") and data["result"].get("data"):
+                return data["result"]["data"]
+            else:
+                raise Exception(f"未获取到股票 {stock_code} 的财务报表数据")
+
+async def get_financial_fast_report(stock_code="002371", page_size=15, page_number=1):
+    """获取业绩预告数据"""
+    url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+    
+    params = {
+        "sortColumns": "REPORT_DATE",
+        "sortTypes": "-1",
+        "pageSize": str(page_size),
+        "pageNumber": str(page_number),
+        "columns": "ALL",
+        "filter": f"(SECURITY_CODE=\"{stock_code}\")",
+        "reportName": "RPT_FCI_PERFORMANCEE"
+    }
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://datacenter.eastmoney.com/"
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, headers=headers) as response:
+            text = await response.text()
+            
+            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
+            json_text = re.sub(r'\)$', '', json_text)
+            
+            data = json.loads(json_text)
+            
+            if data.get("result") and data["result"].get("data"):
+                return data["result"]["data"]
+            else:
+                raise Exception(f"未获取到股票 {stock_code} 的业绩预告数据")
+
+async def get_performance_forecast(stock_code="002371", page_size=15, page_number=1):
+    """获取业绩预告数据"""
+    url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+    
+    params = {
+        "sortColumns": "REPORT_DATE",
+        "sortTypes": "-1",
+        "pageSize": str(page_size),
+        "pageNumber": str(page_number),
+        "columns": "ALL",
+        "filter": f"(SECURITY_CODE=\"{stock_code}\")",
+        "reportName": "RPT_PUBLIC_OP_NEWPREDICT"
+    }
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://datacenter.eastmoney.com/"
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, headers=headers) as response:
+            text = await response.text()
+            
+            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
+            json_text = re.sub(r'\)$', '', json_text)
+            
+            data = json.loads(json_text)
+            
+            if data.get("result") and data["result"].get("data"):
+                return data["result"]["data"]
+            else:
+                raise Exception(f"未获取到股票 {stock_code} 的业绩预告数据")
+
+async def get_shareholder_increase(stock_code="002371", page_size=50, page_number=1):
+    """获取股东增持数据"""
+    url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+    
+    params = {
+        "sortColumns": "END_DATE,SECURITY_CODE,EITIME",
+        "sortTypes": "-1,-1,-1",
+        "pageSize": str(page_size),
+        "pageNumber": str(page_number),
+        "reportName": "RPT_SHARE_HOLDER_INCREASE",
+        "quoteColumns": "f2~01~SECURITY_CODE~NEWEST_PRICE,f3~01~SECURITY_CODE~CHANGE_RATE_QUOTES",
+        "quoteType": "0",
+        "columns": "ALL",
+        "source": "WEB",
+        "client": "WEB",
+        "filter": f"(SECURITY_CODE=\"{stock_code}\")"
+    }
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://datacenter.eastmoney.com/"
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, headers=headers) as response:
+            text = await response.text()
+            
+            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
+            json_text = re.sub(r'\)$', '', json_text)
+            
+            data = json.loads(json_text)
+            
+            if data.get("result") and data["result"].get("data"):
+                items = data["result"]["data"]
+                if not items:
+                    return ""
+                
+                markdown = f"## 股东增减持明细 (股票代码: {stock_code})\n\n"
+                markdown += "| 股东名称 | 增减 | 变动数量(万股) | 占总股本比例 | 占流通股比例 | 持股总数(万股) | 占总股本比例 | 持流通股数(万股) | 占流通股比例 | 变动开始日 | 变动截止日 | 公告日 |\n"
+                markdown += "|---------|------|--------------|------------|------------|--------------|------------|----------------|------------|----------|----------|--------|\n"
+                
+                for item in items:
+                    holder_name = item.get('HOLDER_NAME', '--')
+                    direction = item.get('DIRECTION', '--')
+                    change_num = round(item.get('CHANGE_NUM') or 0, 2)
+                    change_rate = f"{item.get('CHANGE_RATE', 0)}%" if item.get('CHANGE_RATE') else '--'
+                    change_free_ratio = f"{item.get('CHANGE_FREE_RATIO', 0)}%" if item.get('CHANGE_FREE_RATIO') else '--'
+                    after_holder_num = round(item.get('AFTER_HOLDER_NUM') or 0, 2)
+                    hold_ratio = f"{item.get('HOLD_RATIO', 0)}%" if item.get('HOLD_RATIO') else '--'
+                    free_shares = round(item.get('FREE_SHARES') or 0, 2)
+                    free_shares_ratio = f"{item.get('FREE_SHARES_RATIO', 0)}%" if item.get('FREE_SHARES_RATIO') else '--'
+                    start_date = item.get('START_DATE', '--')[:10] if item.get('START_DATE') else '--'
+                    end_date = item.get('END_DATE', '--')[:10] if item.get('END_DATE') else '--'
+                    notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
+                    
+                    markdown += f"| {holder_name} | {direction} | {change_num} | {change_rate} | {change_free_ratio} | {after_holder_num} | {hold_ratio} | {free_shares} | {free_shares_ratio} | {start_date} | {end_date} | {notice_date} |\n"
+                
+                return markdown
+            else:
+                raise Exception(f"未获取到股票 {stock_code} 的股东增持数据")
+
+async def get_holder_detail(scode, report_date=None, page_num=1, page_size=100, sh_type="", sh_code="", sort_field="HOLDER_CODE", sort_direc=1):
+    """获取股票主力持仓明细"""
+    # 如果没有提供report_date，使用当前日期
+    if report_date is None:
+        report_date = datetime.now().strftime("%Y-%m-%d")
+    
+    url = "https://data.eastmoney.com/dataapi/zlsj/detail"
+    
+    params = {
+        "SHType": sh_type,
+        "SHCode": sh_code,
+        "SCode": scode,
+        "ReportDate": report_date,
+        "sortField": sort_field,
+        "sortDirec": sort_direc,
+        "pageNum": page_num,
+        "pageSize": page_size
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params) as response:
+            if response.status != 200:
+                text = await response.text()
+                raise Exception(f"请求失败: {response.status}, 响应: {text}")
+            result = await response.json()
+            
+            if not result or 'data' not in result:
+                return ""
+            
+            data = result['data']
+            if not data:
+                return ""
+            
+            markdown = f"## 主力持仓明细 (报告日期: {report_date})\n\n"
+            markdown += "| 序号 | 机构名称 | 机构属性 | 持股总数(万股) | 持股市值(亿元) | 占总股本比例(%) | 占流通股本比例(%) |\n"
+            markdown += "|------|---------|---------|--------------|--------------|----------------|-----------------|\n"
+            
+            for idx, item in enumerate(data, 1):
+                holder_name = item.get('HOLDER_NAME', '--')
+                org_type = item.get('ORG_TYPE', '--')
+                total_shares = round(item.get('TOTAL_SHARES', 0) / 10000, 2)
+                market_cap = round(item.get('HOLD_MARKET_CAP', 0) / 100000000, 2)
+                total_ratio = round(item.get('TOTAL_SHARES_RATIO', 0), 2)
+                free_ratio = round(item.get('FREE_SHARES_RATIO', 0), 2)
+                
+                markdown += f"| {idx} | {holder_name} | {org_type} | {total_shares} | {market_cap} | {total_ratio} | {free_ratio} |\n"
+            
+            return markdown
+
+def format_realtime_markdown(realtime_data):
+    """格式化实时交易信息为markdown"""
+    return f"""## 当日交易信息
+- **股票代码**: {realtime_data.get('f57', '--')}
+- **最新价**: {realtime_data.get('f43', '--')}
+- **涨跌幅**: {realtime_data.get('f170', '--')}%
+- **涨跌额**: {realtime_data.get('f169', '--')}
+- **成交量**: {realtime_data.get('f47', '--')}
+- **成交额**: {realtime_data.get('f48', '--')}
+- **换手率**: {realtime_data.get('f168', '--')}%"""
+
+def format_fund_flow_markdown(fund_flow_data):
+    """格式化资金流向为markdown"""
+    if not fund_flow_data:
+        return ""
+    flow_data = fund_flow_data[0]
+    return f"""## 主力当日资金流向
+- **成交额**: {flow_data.get('成交额', '--')}
+- **主力净流入**: {flow_data.get('主力净流入', '--')}
+- **主力净流入占比**: {flow_data.get('主力净流入占比', '--')}
+- **超大单净流入**: {flow_data.get('超大单净流入', '--')} ({flow_data.get('超大单净比', '--')})
+- **大单净流入**: {flow_data.get('大单净流入', '--')} ({flow_data.get('大单净比', '--')})
+- **中单净流入**: {flow_data.get('中单净流入', '--')} ({flow_data.get('中单净比', '--')})
+- **小单净流入**: {flow_data.get('小单净流入', '--')} ({flow_data.get('小单净比', '--')})
+
+## 实时成交分布
+- **超大单流入**: {flow_data.get('超大单流入', '--')}
+- **超大单流出**: {flow_data.get('超大单流出', '--')}
+- **大单流入**: {flow_data.get('大单流入', '--')}
+- **大单流出**: {flow_data.get('大单流出', '--')}
+- **中单流入**: {flow_data.get('中单流入', '--')}
+- **中单流出**: {flow_data.get('中单流出', '--')}
+- **小单流入**: {flow_data.get('小单流入', '--')}
+- **小单流出**: {flow_data.get('小单流出', '--')}"""
+
+async def get_fund_flow_history(secid="0.002371"):
+    """获取资金流向历史数据"""
+    url = "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get"
+    
+    params = {
+        "lmt": "0",
+        "klt": "101",
+        "fields1": "f1,f2,f3,f7",
+        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65",
+        "ut": "b2884a393a59ad64002292a3e90d46a5",
+        "secid": secid
+    }
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://quote.eastmoney.com/"
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, headers=headers) as response:
+            text = await response.text()
+            
+            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
+            json_text = re.sub(r'\)$', '', json_text)
+            
+            data = json.loads(json_text)
+            
+            if data.get("data") and data["data"].get("klines"):
+                klines = data["data"]["klines"]
+                klines.reverse()
+                return klines
+            else:
+                raise Exception(f"未获取到股票 {secid} 的资金流向历史数据")
+
+
+async def get_fund_flow_history_markdown(secid="0.002371"):
+    """获取资金流向历史数据并转换为markdown"""
+    klines = await get_fund_flow_history(secid)
+    markdown = f"""## 历史资金流向
+
+股票代码: {secid} | 总数据: {len(klines)}条
+
+| 日期 | 收盘价 | 涨跌幅 | 主力净流入 | | 超大单净流入 | | 大单净流入 | | 中单净流入 | | 小单净流入 | |
+|------|------|------|----------|------|------------|------|----------|------|----------|------|----------|------|
+| | | | 净额 | 净占比 | 净额 | 净占比 | 净额 | 净占比 | 净额 | 净占比 | 净额 | 净占比 |
+"""
+    for kline in klines:
+        fields = kline.split(',')
+        if len(fields) >= 15:
+            date = fields[0]
+            close_price = fields[11]
+            change_pct = f"{fields[12]}%"
+            super_net = float(fields[1]) if fields[1] != '-' else 0
+            big_net = float(fields[3]) if fields[3] != '-' else 0
+            main_net = super_net + big_net
+            main_net_str = format_amount(main_net * 10000)
+            main_pct = f"{fields[6]}%" if fields[6] != '-' else "--"
+            super_net_str = format_amount(super_net * 10000)
+            super_pct = f"{fields[2]}%" if fields[2] != '-' else "--"
+            big_net_str = format_amount(big_net * 10000)
+            big_pct = f"{fields[4]}%" if fields[4] != '-' else "--"
+            mid_net = float(fields[5]) if fields[5] != '-' else 0
+            mid_net_str = format_amount(mid_net * 10000)
+            mid_pct = f"{fields[7]}%" if fields[7] != '-' else "--"
+            small_net = float(fields[9]) if fields[9] != '-' else 0
+            small_net_str = format_amount(small_net * 10000)
+            small_pct = f"{fields[10]}%" if fields[10] != '-' else "--"
+            markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} |\n"
+    return markdown
+
+async def get_financial_report_markdown(stock_code, page_size=15):
+    """获取业绩报表明细并转换为markdown"""
+    report_data = await get_financial_report(stock_code, page_size)
+    if not report_data:
+        return ""
+    markdown = """## 业绩报表明细
+
+| 截止日期 | 每股收益(元) | 每股收益(扣除)(元) | 营业总收入 | | | 净利润 | | | 每股净资产(元) | 净资产收益率(%) | 每股经营现金流量(元) | 销售毛利率(%) | 利润分配 | 首次公告日期 |
+|----------|-------------|-------------------|-----------|---------|---------|--------|---------|---------|---------------|----------------|-------------------|--------------|---------|-------------|
+| | | | 营业总收入(元) | 同比增长(%) | 季度环比增长(%) | 净利润(元) | 同比增长(%) | 季度环比增长(%) | | | | | | |
+"""
+    for item in report_data:
+        report_date = item.get('REPORTDATE', '--')[:10] if item.get('REPORTDATE') else '--'
+        basic_eps = item.get('BASIC_EPS', '--')
+        deduct_eps = item.get('DEDUCT_BASIC_EPS', '-') if item.get('DEDUCT_BASIC_EPS') else '-'
+        total_income = item.get('TOTAL_OPERATE_INCOME')
+        income_str = f"{round(total_income / 100000000, 2)}亿" if total_income else '--'
+        ystz = item.get('YSTZ', '--')
+        yshz = item.get('YSHZ', '--')
+        net_profit = item.get('PARENT_NETPROFIT')
+        profit_str = f"{round(net_profit / 100000000, 2)}亿" if net_profit else '--'
+        sjltz = item.get('SJLTZ', '--')
+        sjlhz = item.get('SJLHZ', '--')
+        bps = item.get('BPS', '--')
+        roe = item.get('WEIGHTAVG_ROE', '--')
+        mgjyxjje = item.get('MGJYXJJE', '--')
+        xsmll = item.get('XSMLL', '--')
+        assigndscrpt = item.get('ASSIGNDSCRPT', '-') if item.get('ASSIGNDSCRPT') else '-'
+        notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
+        markdown += f"| {report_date} | {basic_eps} | {deduct_eps} | {income_str} | {ystz} | {yshz} | {profit_str} | {sjltz} | {sjlhz} | {bps} | {roe} | {mgjyxjje} | {xsmll} | {assigndscrpt} | {notice_date} |\n"
+    return markdown
+
+async def get_financial_fast_report_markdown(stock_code, page_size=15):
+    """获取业绩快报明细并转换为markdown"""
+    forecast_data = await get_financial_fast_report(stock_code, page_size)
+    if not forecast_data:
+        return ""
+    markdown = """## 业绩快报明细
+
+| 截止日期 | 每股收益(元) | 营业总收入 | | | | 净利润 | | | | 每股净资产(元) | 净资产收益率(%) | 公告日期 |
+|----------|-------------|-----------|---------|---------|---------|--------|---------|---------|---------|---------------|----------------|----------|
+| | | 营业收入(元) | 去年同期(元) | 同比增长(%) | 季度环比增长(%) | 净利润(元) | 去年同期(元) | 同比增长(%) | 季度环比增长(%) | | | |
+"""
+    for item in forecast_data:
+        report_date = item.get('REPORT_DATE', '--')[:10] if item.get('REPORT_DATE') else '--'
+        basic_eps = item.get('BASIC_EPS', '--')
+        total_income = item.get('TOTAL_OPERATE_INCOME')
+        income_str = f"{round(total_income / 100000000, 2)}亿" if total_income else '--'
+        total_income_sq = item.get('TOTAL_OPERATE_INCOME_SQ')
+        income_sq_str = f"{round(total_income_sq / 100000000, 2)}亿" if total_income_sq else '--'
+        ystz = item.get('YSTZ', '--')
+        djdyshz = item.get('DJDYSHZ', '--')
+        net_profit = item.get('PARENT_NETPROFIT')
+        profit_str = f"{round(net_profit / 100000000, 2)}亿" if net_profit else '--'
+        net_profit_sq = item.get('PARENT_NETPROFIT_SQ')
+        profit_sq_str = f"{round(net_profit_sq / 100000000, 2)}亿" if net_profit_sq else '--'
+        jlrtbzcl = item.get('JLRTBZCL', '--')
+        djdjlhz = item.get('DJDJLHZ', '--')
+        bvps = item.get('PARENT_BVPS', '--')
+        roe = item.get('WEIGHTAVG_ROE', '--')
+        notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
+        markdown += f"| {report_date} | {basic_eps} | {income_str} | {income_sq_str} | {ystz} | {djdyshz} | {profit_str} | {profit_sq_str} | {jlrtbzcl} | {djdjlhz} | {bvps} | {roe} | {notice_date} |\n"
+    return markdown
+
+async def get_performance_forecast_markdown(stock_code, page_size=15):
+    """获取业绩预告明细并转换为markdown"""
+    forecast_data = await get_performance_forecast(stock_code, page_size)
+    if not forecast_data:
+        return ""
+    markdown = """## 业绩预告明细
+
+| 截止日期 | 预测指标 | 业绩变动 | 预测数值(元) | 业绩变动同比 | 业绩变动环比 | 业绩变动原因 | 预告类型 | 上年同期值(元) | 公告日期 |
+|----------|---------|---------|------------|------------|------------|------------|---------|--------------|----------|
+"""
+    for item in forecast_data:
+        report_date = item.get('REPORT_DATE', '--')[:10] if item.get('REPORT_DATE') else '--'
+        predict_finance = item.get('PREDICT_FINANCE', '--')
+        predict_content = item.get('PREDICT_CONTENT', '--')
+        amt_lower = item.get('PREDICT_AMT_LOWER')
+        amt_upper = item.get('PREDICT_AMT_UPPER')
+        if predict_finance == '每股收益':
+            predict_value = f"{amt_lower}～{amt_upper}" if amt_lower and amt_upper else '--'
+        else:
+            predict_value = f"{round(amt_lower/100000000, 2)}亿～{round(amt_upper/100000000, 2)}亿" if amt_lower and amt_upper else '--'
+        add_lower = item.get('ADD_AMP_LOWER')
+        add_upper = item.get('ADD_AMP_UPPER')
+        add_amp = f"{add_lower}%～{add_upper}%" if add_lower and add_upper else '-'
+        ratio_lower = item.get('PREDICT_RATIO_LOWER')
+        ratio_upper = item.get('PREDICT_RATIO_UPPER')
+        predict_ratio = f"{round(ratio_lower, 2)}%～{round(ratio_upper, 2)}%" if ratio_lower is not None and ratio_upper is not None else '-'
+        change_reason = item.get('CHANGE_REASON_EXPLAIN', '--')
+        predict_type = item.get('PREDICT_TYPE', '--')
+        preyear = item.get('PREYEAR_SAME_PERIOD')
+        if predict_finance == '每股收益':
+            preyear_str = str(preyear) if preyear else '--'
+        else:
+            preyear_str = f"{round(preyear/100000000, 2)}亿" if preyear else '--'
+        notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
+        markdown += f"| {report_date} | {predict_finance} | {predict_content} | {predict_value} | {add_amp} | {predict_ratio} | {change_reason} | {predict_type} | {preyear_str} | {notice_date} |\n"
+    return markdown
+
+
+async def get_stock_markdown(secid="0.002371"):
+    """获取股票数据并返回格式化的markdown"""
+    try:
+        stock_code = secid.split('.')[-1]
+        realtime_data = await get_stock_realtime(secid)
+        fund_flow_data = await get_main_fund_flow(secid)
+        
+        markdown = (""
+                    "# 请务必不要假设数据"
+                    "# 如果没有数据就中止分析， 并反馈给我。"
+                    "# 禁止从网络搜索交易数据，只使用下面给到的数据"
+                    "# 需要从网络搜索行业动态、国家政策、公司负面信息等公开内容"
+                    "# 使用欧奈尔CAN SLIM规则分析一下"
+                    f"# <{stock_code}>。"
+                    "# 是否符合买入条件：基于模型的最终判断。稳健买入价格区间：基于技术形态（如杯柄形态、突破点）给出的建议。"
+                    "# 以下是资金流向数据\n\n")
+        markdown += format_realtime_markdown(realtime_data) + "\n\n"
+        markdown += format_fund_flow_markdown(fund_flow_data) + "\n\n"
+        
+        try:
+            markdown += await get_fund_flow_history_markdown(secid) + "\n\n"
+        except Exception as e:
+            markdown += f"## 历史资金流向错误\n\n获取失败: {str(e)}\n\n"
+        
+        try:
+            markdown += await get_financial_report_markdown(stock_code) + "\n\n"
+        except Exception as e:
+            markdown += f"## 业绩报表明细错误\n\n获取失败: {str(e)}\n\n"
+        
+        try:
+            markdown += await get_financial_fast_report_markdown(stock_code) + "\n\n"
+        except Exception as e:
+            markdown += f"## 业绩快报明细错误\n\n获取失败: {str(e)}\n\n"
+        
+        try:
+            markdown += await get_performance_forecast_markdown(stock_code) + "\n\n"
+        except Exception as e:
+            markdown += f"## 业绩预告明细错误\n\n获取失败: {str(e)}\n\n"
+        
+        try:
+            holder_markdown = await get_holder_detail(stock_code)
+            if holder_markdown:
+                markdown += holder_markdown + "\n\n"
+        except Exception as e:
+            markdown += f"## 主力持仓明细错误\n\n获取失败: {str(e)}\n\n"
+        
+        try:
+            increase_markdown = await get_shareholder_increase(stock_code)
+            if increase_markdown:
+                markdown += increase_markdown
+        except Exception as e:
+            markdown += f"## 股东增减持明细错误\n\n获取失败: {str(e)}"
+        
+        return markdown
+    except Exception as e:
+        return f"# 错误\n\n获取股票数据失败: {str(e)}"
+
+
+if __name__ == "__main__":
+    # SH  1
+    # SZ  0  300274 002371
+    result = asyncio.run(get_stock_markdown("0.002371"))
+    print(result)
