@@ -266,7 +266,7 @@ async def get_performance_forecast(stock_code="002371", page_size=15, page_numbe
             else:
                 raise Exception(f"未获取到股票 {stock_code} 的业绩预告数据")
 
-async def get_shareholder_increase(stock_code="601698", page_size=50, page_number=1):
+async def get_shareholder_increase(stock_code="601698", page_size=300, page_number=1):
     """获取股东增持数据"""
     url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
     
@@ -591,13 +591,12 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
         fund_flow_data = await get_main_fund_flow(secid)
         
         markdown = (""
-                    "# 请务必不要假设数据"
-                    "# 如果没有数据就中止分析， 并反馈给我。"
+                    "# 请务必不要假设数据，如果没有数据就中止分析， 并反馈给我。"
                     "# 禁止从网络搜索交易数据，只使用下面给到的数据"
                     "# 需要从网络搜索行业动态、国家政策、公司负面信息等公开内容"
                     "# 使用欧奈尔CAN SLIM规则分析一下"
                     f"# <{stock_code} {stock_name}>。"
-                    "# 是否符合买入条件：基于模型的最终判断。稳健买入价格区间：基于技术形态（如杯柄形态、突破点）给出的建议。"
+                    "# 是否符合买入条件：基于模型的最终判断。稳健买入价格区间：基于技术形态（如杯柄形态、突破点）给出的建议。需要在结果中备注使用的数据"
                     "# 以下是资金流向数据\n\n")
         markdown += format_realtime_markdown(realtime_data) + "\n\n"
         markdown += format_fund_flow_markdown(fund_flow_data) + "\n\n"
