@@ -2,9 +2,11 @@ import aiohttp
 import asyncio
 import json
 import re
-
-
 from datetime import datetime
+
+from common.constants.stock_constants import refresh_token, choose_stocks
+from service.ifind.get_client_token import THSTokenClient
+from service.ifind.smart_stock_picking import SmartStockPicking
 
 
 def format_amount(amount):
@@ -264,7 +266,7 @@ async def get_performance_forecast(stock_code="002371", page_size=15, page_numbe
             else:
                 raise Exception(f"未获取到股票 {stock_code} 的业绩预告数据")
 
-async def get_shareholder_increase(stock_code="002371", page_size=50, page_number=1):
+async def get_shareholder_increase(stock_code="601698", page_size=50, page_number=1):
     """获取股东增持数据"""
     url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
     
@@ -581,7 +583,7 @@ async def get_performance_forecast_markdown(stock_code, page_size=15):
     return markdown
 
 
-async def get_stock_markdown(secid="0.002371"):
+async def get_stock_markdown(secid="0.002371", stock_name=None):
     """获取股票数据并返回格式化的markdown"""
     try:
         stock_code = secid.split('.')[-1]
@@ -594,7 +596,7 @@ async def get_stock_markdown(secid="0.002371"):
                     "# 禁止从网络搜索交易数据，只使用下面给到的数据"
                     "# 需要从网络搜索行业动态、国家政策、公司负面信息等公开内容"
                     "# 使用欧奈尔CAN SLIM规则分析一下"
-                    f"# <{stock_code}>。"
+                    f"# <{stock_code} {stock_name}>。"
                     "# 是否符合买入条件：基于模型的最终判断。稳健买入价格区间：基于技术形态（如杯柄形态、突破点）给出的建议。"
                     "# 以下是资金流向数据\n\n")
         markdown += format_realtime_markdown(realtime_data) + "\n\n"
@@ -632,15 +634,50 @@ async def get_stock_markdown(secid="0.002371"):
             if increase_markdown:
                 markdown += increase_markdown
         except Exception as e:
-            markdown += f"## 股东增减持明细错误\n\n获取失败: {str(e)}"
+            markdown += f"## 股东增减持明细错误\n: {str(e)}"
         
         return markdown
     except Exception as e:
         return f"# 错误\n\n获取股票数据失败: {str(e)}"
 
 
+def normalize_stock_code(code):
+    """自动添加市场前缀: SH结尾添加1., SZ结尾添加0."""
+    code = code.strip()
+    if code.endswith('.SH'):
+        return f"1.{code.split('.')[0]}"
+    elif code.endswith('.SZ'):
+        return f"0.{code.split('.')[0]}"
+    return code
+
+async def get_stock_with_search(searchstring=choose_stocks):
+    """获取access_token并调用智能选股"""
+    client = THSTokenClient(refresh_token)
+    
+    #print("获取当前access_token...")
+    token_result = await client.get_access_token()
+    #print(f"结果: {token_result}")
+    
+    access_token = token_result.get("data", {}).get("access_token")
+    
+    stock_picker = SmartStockPicking(access_token)
+    result = await stock_picker.search(searchstring=searchstring, searchtype="stock")
+    
+    stock_lists = stock_picker.parse_tables(result.get('tables'))
+    #print(f"选股结果: {stock_lists}")
+    
+    return stock_lists
+
+async def main():
+    stock_lists = await get_stock_with_search()
+    for stock in stock_lists:
+        stock_code = stock['股票代码']
+        stock_name = stock['股票简称']
+        result = await get_stock_markdown(normalize_stock_code(stock_code), stock_name)
+
+        print(result)
+
+        print("\n\n\n\n ------------------------------------------\n\n\n\n")
+
 if __name__ == "__main__":
-    # SH  1
-    # SZ  0  300274 002371
-    result = asyncio.run(get_stock_markdown("0.002371"))
-    print(result)
+    asyncio.run(main())
