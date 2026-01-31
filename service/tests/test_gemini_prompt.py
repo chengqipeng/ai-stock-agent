@@ -481,7 +481,7 @@ async def get_fund_flow_history_markdown(secid="0.002371"):
             markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} |\n"
     return markdown
 
-async def get_financial_report_markdown(stock_code, page_size=15):
+async def get_financial_report_markdown(stock_code, page_size=5):
     """获取业绩报表明细并转换为markdown"""
     report_data = await get_financial_report(stock_code, page_size)
     if not report_data:
@@ -591,13 +591,11 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
         fund_flow_data = await get_main_fund_flow(secid)
         
         markdown = (""
-                    "# 请务必不要假设数据，如果没有数据就中止分析， 并反馈给我。"
-                    "# 禁止从网络搜索交易数据，只使用下面给到的数据"
-                    "# 需要从网络搜索行业动态、国家政策、公司负面信息等公开内容"
-                    "# 使用欧奈尔CAN SLIM规则分析一下"
-                    f"# <{stock_code} {stock_name}>。"
-                    "# 是否符合买入条件：基于模型的最终判断。稳健买入价格区间：基于技术形态（如杯柄形态、突破点）给出的建议。需要在结果中备注使用的数据"
-                    "# 以下是资金流向数据\n\n")
+                    f"# 使用欧奈尔CAN SLIM规则分析一下<{stock_code} {stock_name}>，是否符合买入条件：基于模型的最终判断，稳健买入价格区间：基于技术形态（如杯柄形态、突破点）给出的建议。\n"
+                    "# 禁止从网络搜索资金流向、业绩报表、业绩预告、高管减持等数据\n"
+                    f"# 从网络搜索 <{stock_code} {stock_name}> 行业动态、未来销售预测、欧美同级别产品限制政策等公开内容，网络数据必须备注来源\n"
+                    "# 必须在结果中备注分析的数据依据来源\n"
+                    "# 以下是资金流向、业绩报表、业绩预告、高管减持等数据\n\n")
         markdown += format_realtime_markdown(realtime_data) + "\n\n"
         markdown += format_fund_flow_markdown(fund_flow_data) + "\n\n"
         
