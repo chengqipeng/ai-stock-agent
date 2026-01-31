@@ -685,10 +685,10 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
 
         markdown = (""
                     f"# 使用欧奈尔CAN SLIM规则分析一下<{stock_code} {stock_name}>，是否符合买入条件：基于模型的最终判断，稳健买入价格区间：基于技术形态（如杯柄形态、突破点）给出的建议。\n"
-                    "# 禁止从网络搜索资金流向、业绩报表、业绩预告、高管减持等数据\n"
+                    "# 禁止从网络搜索资金流向、业绩报表、业绩预告、高管减持、机构持仓变化等数据\n"
                     f"# 从网络搜索 <{stock_code} {stock_name}> 行业动态、未来销售预测、欧美同级别产品限制政策等公开内容，网络数据必须备注来源\n"
                     "# 必须在结果中备注分析的数据依据来源\n"
-                    "# 以下是资金流向、业绩报表、业绩预告、高管减持等数据\n\n")
+                    "# 以下是资金流向、业绩报表、业绩预告、高管减持、机构持仓变化等数据\n\n")
         markdown += format_realtime_markdown(realtime_data) + "\n\n"
         markdown += format_fund_flow_markdown(fund_flow_data) + "\n\n"
 
