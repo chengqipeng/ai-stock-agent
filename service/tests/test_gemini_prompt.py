@@ -109,15 +109,15 @@ async def get_main_fund_flow(secids="0.002371"):
                         #"涨跌幅": f"{stock.get('f3')}%",
                         "成交额": convert_amount_unit(amount),
                         "主力净流入": convert_amount_unit(stock.get('f62')),
-                        "主力净流入占比": f"{stock.get('f184')}%",
+                        "主力净流入占比": f"{round(stock.get('f184', 0), 2)}%",
                         "超大单净流入": convert_amount_unit(stock.get('f66')),
-                        "超大单净比": f"{super_ratio}%",
+                        "超大单净比": f"{round(super_ratio, 2)}%",
                         "大单净流入": convert_amount_unit(stock.get('f72')),
-                        "大单净比": f"{big_ratio}%",
+                        "大单净比": f"{round(big_ratio, 2)}%",
                         "中单净流入": convert_amount_unit(stock.get('f78')),
-                        "中单净比": f"{mid_ratio}%",
+                        "中单净比": f"{round(mid_ratio, 2)}%",
                         "小单净流入": convert_amount_unit(stock.get('f84')),
-                        "小单净比": f"{small_ratio}%",
+                        "小单净比": f"{round(small_ratio, 2)}%",
 
                         "超大单流入": f"{convert_amount_unit(stock.get('f64'))}",
                         "超大单流出": f"{convert_amount_unit(stock.get('f65'))}",
@@ -313,12 +313,12 @@ async def get_shareholder_increase(stock_code="601698", page_size=300, page_numb
                     holder_name = item.get('HOLDER_NAME', '--')
                     direction = item.get('DIRECTION', '--')
                     change_num = convert_amount_unit((item.get('CHANGE_NUM') or 0) * 10000)
-                    change_rate = f"{item.get('CHANGE_RATE', 0)}%" if item.get('CHANGE_RATE') else '--'
-                    change_free_ratio = f"{item.get('CHANGE_FREE_RATIO', 0)}%" if item.get('CHANGE_FREE_RATIO') else '--'
+                    change_rate = f"{round(item.get('AFTER_CHANGE_RATE', 0), 2)}%" if item.get('AFTER_CHANGE_RATE') else '--'
+                    change_free_ratio = f"{round(item.get('CHANGE_FREE_RATIO', 0), 2)}%" if item.get('CHANGE_FREE_RATIO') else '--'
                     after_holder_num = convert_amount_unit((item.get('AFTER_HOLDER_NUM') or 0) * 10000)
-                    hold_ratio = f"{item.get('HOLD_RATIO', 0)}%" if item.get('HOLD_RATIO') else '--'
+                    hold_ratio = f"{round(item.get('HOLD_RATIO', 0), 2)}%" if item.get('HOLD_RATIO') else '--'
                     free_shares = convert_amount_unit((item.get('FREE_SHARES') or 0) * 10000)
-                    free_shares_ratio = f"{item.get('FREE_SHARES_RATIO', 0)}%" if item.get('FREE_SHARES_RATIO') else '--'
+                    free_shares_ratio = f"{round(item.get('FREE_SHARES_RATIO', 0), 2)}%" if item.get('FREE_SHARES_RATIO') else '--'
                     start_date = item.get('START_DATE', '--')[:10] if item.get('START_DATE') else '--'
                     end_date = item.get('END_DATE', '--')[:10] if item.get('END_DATE') else '--'
                     notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
@@ -452,7 +452,6 @@ async def get_fund_flow_history(secid="0.002371"):
             else:
                 raise Exception(f"未获取到股票 {secid} 的资金流向历史数据")
 
-
 async def get_fund_flow_history_markdown(secid="0.002371"):
     """获取资金流向历史数据并转换为markdown"""
     klines = await get_fund_flow_history(secid)
@@ -465,37 +464,37 @@ async def get_fund_flow_history_markdown(secid="0.002371"):
         if len(fields) >= 15:
             date = fields[0]
             #收盘价
-            close_price = fields[11]
+            close_price = round(float(fields[11]), 2) if fields[11] != '-' else '--'
             # 涨跌幅
-            change_pct = f"{fields[12]}%"
+            change_pct = f"{round(float(fields[12]), 2)}%" if fields[12] != '-' else "--"
 
             #超大单
             super_net = float(fields[5]) if fields[5] != '-' else 0
 
             #000
-            super_pct = f"{fields[10]}%" if fields[10] != '-' else "--"
+            super_pct = f"{round(float(fields[10]), 2)}%" if fields[10] != '-' else "--"
             super_net_str = convert_amount_unit(super_net)
 
             # 大单
             big_net = float(fields[4]) if fields[4] != '-' else 0
             big_net_str = convert_amount_unit(big_net)
-            big_pct = f"{fields[9]}%" if fields[9] != '-' else "--"
+            big_pct = f"{round(float(fields[9]), 2)}%" if fields[9] != '-' else "--"
 
             #中单
             mid_net = float(fields[3]) if fields[3] != '-' else 0
             mid_net_str = convert_amount_unit(mid_net)
-            mid_pct = f"{fields[8]}%" if fields[8] != '-' else "--"
+            mid_pct = f"{round(float(fields[8]), 2)}%" if fields[8] != '-' else "--"
 
             #小单
             small_net = float(fields[2]) if fields[2] != '-' else 0
             small_net_str = convert_amount_unit(small_net)
-            small_pct = f"{fields[7]}%" if fields[7] != '-' else "--"
+            small_pct = f"{round(float(fields[7]), 2)}%" if fields[7] != '-' else "--"
 
             # 主力净流入净额
             main_net = super_net + big_net
             # 主力净流入净占比
             main_net_str = convert_amount_unit(main_net)
-            main_pct = f"{fields[6]}%" if fields[6] != '-' else "--"
+            main_pct = f"{round(float(fields[6]), 2)}%" if fields[6] != '-' else "--"
             markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} |\n"
     return markdown
 
@@ -512,20 +511,20 @@ async def get_financial_report_markdown(stock_code, page_size=5):
 """
     for item in report_data:
         report_date = item.get('REPORTDATE', '--')[:10] if item.get('REPORTDATE') else '--'
-        basic_eps = item.get('BASIC_EPS', '--')
-        deduct_eps = item.get('DEDUCT_BASIC_EPS', '-') if item.get('DEDUCT_BASIC_EPS') else '-'
+        basic_eps = round(item.get('BASIC_EPS', 0), 2) if item.get('BASIC_EPS') else '--'
+        deduct_eps = round(item.get('DEDUCT_BASIC_EPS', 0), 2) if item.get('DEDUCT_BASIC_EPS') else '-'
         total_income = item.get('TOTAL_OPERATE_INCOME')
         income_str = convert_amount_unit(total_income) if total_income else '--'
-        ystz = item.get('YSTZ', '--')
-        yshz = item.get('YSHZ', '--')
+        ystz = f"{round(item.get('YSTZ', 0), 2)}%" if item.get('YSTZ') else '--'
+        yshz = f"{round(item.get('YSHZ', 0), 2)}%" if item.get('YSHZ') else '--'
         net_profit = item.get('PARENT_NETPROFIT')
         profit_str = convert_amount_unit(net_profit) if net_profit else '--'
-        sjltz = item.get('SJLTZ', '--')
-        sjlhz = item.get('SJLHZ', '--')
-        bps = item.get('BPS', '--')
-        roe = item.get('WEIGHTAVG_ROE', '--')
-        mgjyxjje = item.get('MGJYXJJE', '--')
-        xsmll = item.get('XSMLL', '--')
+        sjltz = f"{round(item.get('SJLTZ', 0), 2)}%" if item.get('SJLTZ') else '--'
+        sjlhz = f"{round(item.get('SJLHZ', 0), 2)}%" if item.get('SJLHZ') else '--'
+        bps = round(item.get('BPS', 0), 2) if item.get('BPS') else '--'
+        roe = f"{round(item.get('WEIGHTAVG_ROE', 0), 2)}%" if item.get('WEIGHTAVG_ROE') else '--'
+        mgjyxjje = round(item.get('MGJYXJJE', 0), 2) if item.get('MGJYXJJE') else '--'
+        xsmll = f"{round(item.get('XSMLL', 0), 2)}%" if item.get('XSMLL') else '--'
         assigndscrpt = item.get('ASSIGNDSCRPT', '-') if item.get('ASSIGNDSCRPT') else '-'
         notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
         markdown += f"| {report_date} | {basic_eps} | {deduct_eps} | {income_str} | {ystz} | {yshz} | {profit_str} | {sjltz} | {sjlhz} | {bps} | {roe} | {mgjyxjje} | {xsmll} | {assigndscrpt} | {notice_date} |\n"
@@ -544,21 +543,21 @@ async def get_financial_fast_report_markdown(stock_code, page_size=15):
 """
     for item in forecast_data:
         report_date = item.get('REPORT_DATE', '--')[:10] if item.get('REPORT_DATE') else '--'
-        basic_eps = item.get('BASIC_EPS', '--')
+        basic_eps = round(item.get('BASIC_EPS', 0), 2) if item.get('BASIC_EPS') else '--'
         total_income = item.get('TOTAL_OPERATE_INCOME')
         income_str = convert_amount_unit(total_income) if total_income else '--'
         total_income_sq = item.get('TOTAL_OPERATE_INCOME_SQ')
         income_sq_str = convert_amount_unit(total_income_sq) if total_income_sq else '--'
-        ystz = item.get('YSTZ', '--')
-        djdyshz = item.get('DJDYSHZ', '--')
+        ystz = f"{round(item.get('YSTZ', 0), 2)}%" if item.get('YSTZ') else '--'
+        djdyshz = f"{round(item.get('DJDYSHZ', 0), 2)}%" if item.get('DJDYSHZ') else '--'
         net_profit = item.get('PARENT_NETPROFIT')
         profit_str = convert_amount_unit(net_profit) if net_profit else '--'
         net_profit_sq = item.get('PARENT_NETPROFIT_SQ')
         profit_sq_str = convert_amount_unit(net_profit_sq) if net_profit_sq else '--'
-        jlrtbzcl = item.get('JLRTBZCL', '--')
-        djdjlhz = item.get('DJDJLHZ', '--')
-        bvps = item.get('PARENT_BVPS', '--')
-        roe = item.get('WEIGHTAVG_ROE', '--')
+        jlrtbzcl = f"{round(item.get('JLRTBZCL', 0), 2)}%" if item.get('JLRTBZCL') else '--'
+        djdjlhz = f"{round(item.get('DJDJLHZ', 0), 2)}%" if item.get('DJDJLHZ') else '--'
+        bvps = round(item.get('PARENT_BVPS', 0), 2) if item.get('PARENT_BVPS') else '--'
+        roe = f"{round(item.get('WEIGHTAVG_ROE', 0), 2)}%" if item.get('WEIGHTAVG_ROE') else '--'
         notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
         markdown += f"| {report_date} | {basic_eps} | {income_str} | {income_sq_str} | {ystz} | {djdyshz} | {profit_str} | {profit_sq_str} | {jlrtbzcl} | {djdjlhz} | {bvps} | {roe} | {notice_date} |\n"
     return markdown
@@ -585,7 +584,7 @@ async def get_performance_forecast_markdown(stock_code, page_size=15):
             predict_value = f"{convert_amount_unit(amt_lower)}～{convert_amount_unit(amt_upper)}" if amt_lower and amt_upper else '--'
         add_lower = item.get('ADD_AMP_LOWER')
         add_upper = item.get('ADD_AMP_UPPER')
-        add_amp = f"{add_lower}%～{add_upper}%" if add_lower and add_upper else '-'
+        add_amp = f"{round(add_lower, 2)}%～{round(add_upper, 2)}%" if add_lower is not None and add_upper is not None else '-'
         ratio_lower = item.get('PREDICT_RATIO_LOWER')
         ratio_upper = item.get('PREDICT_RATIO_UPPER')
         predict_ratio = f"{round(ratio_lower, 2)}%～{round(ratio_upper, 2)}%" if ratio_lower is not None and ratio_upper is not None else '-'
