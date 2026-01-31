@@ -9,4 +9,7 @@ def get_stock_name(code):
 NAME_DICT = {stock['name']: stock['code'] for stock in STOCKS}
 
 def get_stock_code(name):
-    return NAME_DICT.get(name)
+    code = NAME_DICT.get(name)
+    if code is None:
+        raise ValueError(f"股票名称 '{name}' 不存在")
+    return code
