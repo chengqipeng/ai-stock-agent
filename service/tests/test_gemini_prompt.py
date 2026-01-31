@@ -657,7 +657,7 @@ async def get_org_holder_markdown(stock_code, page_size=8):
     
     markdown = ""
     for report_date, items in grouped_data.items():
-        markdown += f"""## {report_date} 机构持仓变化明细
+        markdown += f"""## {report_date} 机构持仓明细
 
 | 机构名称 | 持股家数(家) | 持股总数(万股) | 持股市值(亿元) |占总股本比例(%) | 占流通股比例(%) |
 |---------|------------|--------------|--------------|--------------|---------------|
