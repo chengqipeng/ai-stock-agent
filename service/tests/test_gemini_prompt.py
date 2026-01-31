@@ -20,13 +20,11 @@ def convert_amount_unit(amount):
     else:
         return str(amount)
 
-def convert_amount_without_unit(amount):
+def convert_amount_org_holder(amount):
     """根据金额大小自动转换单位：大于亿转换为亿，大于万转换为万"""
     if amount is None:
         return "--"
-    if abs(amount) >= 100000000:  # >= 1亿
-        return f"{round(amount / 100000000, 4)}"
-    elif abs(amount) >= 10000:  # >= 1万
+    if abs(amount) >= 10000:  # >= 1万
         return f"{round(amount / 10000, 4)}"
     else:
         return str(amount)
@@ -667,8 +665,8 @@ async def get_org_holder_markdown(stock_code, page_size=8):
         for item in items:
             org_name = item.get('ORG_TYPE_NAME', '--')
             hold_num = item.get('HOULD_NUM')
-            free_share = f"{convert_amount_without_unit(item.get('FREE_SHARES', 0))}" if item.get('FREE_SHARES') else '--'
-            free_market_cap = f"{convert_amount_without_unit(item.get('FREE_MARKET_CAP', 0))}" if item.get('FREE_MARKET_CAP') else '--'
+            free_share = f"{convert_amount_org_holder(item.get('FREE_SHARES', 0))}" if item.get('FREE_SHARES') else '--'
+            free_market_cap = f"{convert_amount_org_holder(item.get('FREE_MARKET_CAP', 0))}" if item.get('FREE_MARKET_CAP') else '--'
             free_total_ratio = f"{round(item.get('TOTALSHARES_RATIO', 0), 2)}%" if item.get('TOTALSHARES_RATIO') else '--'
             free_share_ratio = f"{round((item.get('FREESHARES_RATIO') or 0), 2)}%"
             markdown += f"| {org_name} | {hold_num} | {free_share} | {free_market_cap} | {free_total_ratio} | {free_share_ratio} |\n"
