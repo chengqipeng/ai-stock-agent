@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 
 from common.constants.stock_constants import refresh_token, choose_stocks
+from common.constants.stocks_data import get_stock_code
 from service.ifind.get_client_token import THSTokenClient
 from service.ifind.smart_stock_picking import SmartStockPicking
 
@@ -666,15 +667,12 @@ async def get_stock_with_search(searchstring=choose_stocks):
     return stock_lists
 
 async def main():
-    stock_lists = await get_stock_with_search()
-    for stock in stock_lists:
-        stock_code = stock['股票代码']
-        stock_name = stock['股票简称']
-        result = await get_stock_markdown(normalize_stock_code(stock_code), stock_name)
+    stock_name = "北方华创"
+    stock_code = get_stock_code(stock_name)
+    result = await get_stock_markdown(normalize_stock_code(stock_code), stock_name)
+    print(result)
 
-        print(result)
-
-        print("\n\n\n\n ------------------------------------------\n\n\n\n")
+    print("\n\n\n\n ------------------------------------------\n\n\n\n")
 
 if __name__ == "__main__":
     asyncio.run(main())
