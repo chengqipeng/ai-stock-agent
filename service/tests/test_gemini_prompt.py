@@ -711,7 +711,7 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
             markdown += f"## 业绩预告明细错误\n\n获取失败: {str(e)}\n\n"
 
         try:
-            markdown += await get_org_holder_markdown(stock_code) + "\n\n"
+            markdown += await get_org_holder_markdown(stock_code) + "\n"
         except Exception as e:
             markdown += f"## 机构持仓明细错误\n\n获取失败: {str(e)}\n\n"
 
@@ -720,7 +720,7 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
             if increase_markdown:
                 markdown += increase_markdown
         except Exception as e:
-            markdown += f"## 股东增减持明细错误\n: {str(e)}"
+            markdown += f"## 股东增减持明细\n: {str(e)}"
 
         return markdown
     except Exception as e:
@@ -755,7 +755,7 @@ async def get_stock_with_search(searchstring=choose_stocks):
     return stock_lists
 
 async def main():
-    stock_name = "北方华创"
+    stock_name = "澜起科技"
     stock_code = get_stock_code(stock_name)
     result = await get_stock_markdown(normalize_stock_code(stock_code), stock_name)
     print(result)
