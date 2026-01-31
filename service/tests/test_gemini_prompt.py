@@ -20,6 +20,16 @@ def convert_amount_unit(amount):
     else:
         return str(amount)
 
+def convert_amount_without_unit(amount):
+    """根据金额大小自动转换单位：大于亿转换为亿，大于万转换为万"""
+    if amount is None:
+        return "--"
+    if abs(amount) >= 100000000:  # >= 1亿
+        return f"{round(amount / 100000000, 4)}"
+    elif abs(amount) >= 10000:  # >= 1万
+        return f"{round(amount / 10000, 4)}"
+    else:
+        return str(amount)
 
 async def get_stock_realtime(secid="1.601698"):
     """
@@ -28,7 +38,7 @@ async def get_stock_realtime(secid="1.601698"):
     1 = 上海, 0 = 深圳
     """
     url = "https://push2delay.eastmoney.com/api/qt/stock/get"
-    
+
     params = {
         "fltt": "2",
         "invt": "2",
@@ -36,22 +46,22 @@ async def get_stock_realtime(secid="1.601698"):
         "fields": "f57,f58,f43,f47,f48,f168,f169,f170,f152",
         "ut": "b2884a393a59ad64002292a3e90d46a5"
     }
-    
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Referer": "https://quote.eastmoney.com/"
     }
-    
+
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, headers=headers) as response:
             text = await response.text()
-            
+
             # 移除 JSONP 回调函数包装
             json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
             json_text = re.sub(r'\)$', '', json_text)
-            
+
             data = json.loads(json_text)
-            
+
             if data.get("data"):
                 stock_data = data["data"]
 
@@ -67,41 +77,41 @@ async def get_main_fund_flow(secids="0.002371"):
     1 = 上海, 0 = 深圳
     """
     url = "https://push2delay.eastmoney.com/api/qt/ulist.np/get"
-    
+
     params = {
         "fltt": "2",
         "secids": secids,
         "fields": "f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f64,f65,f70,f71,f76,f77,f82,f83,f164,f166,f168,f170,f172,f252,f253,f254,f255,f256,f124,f6,f278,f279,f280,f281,f282",
         "ut": "b2884a393a59ad64002292a3e90d46a5"
     }
-    
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Referer": "https://quote.eastmoney.com/"
     }
-    
+
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, headers=headers) as response:
             text = await response.text()
-            
+
             # 移除 JSONP 回调函数包装
             json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
             json_text = re.sub(r'\)$', '', json_text)
-            
+
             data = json.loads(json_text)
-            
+
             if data.get("data") and data["data"].get("diff"):
                 result = []
                 for stock in data["data"]["diff"]:
                     # 获取成交额用于计算净比
                     amount = stock.get('f6', 1)  # f6是成交额，避免除0
-                    
+
                     # 计算各单净比 = 净流入 / 成交额 * 100
                     super_ratio = round(stock.get('f66', 0) / amount * 100, 2) if amount else 0
                     big_ratio = round(stock.get('f72', 0) / amount * 100, 2) if amount else 0
                     mid_ratio = round(stock.get('f78', 0) / amount * 100, 2) if amount else 0
                     small_ratio = round(stock.get('f84', 0) / amount * 100, 2) if amount else 0
-                    
+
                     stock_info = {
                         #"股票代码": stock.get('f12'),
                         #"股票名称": stock.get('f14'),
@@ -129,7 +139,7 @@ async def get_main_fund_flow(secids="0.002371"):
                         "小单流出": f"{convert_amount_unit(stock.get('f83'))}"
                     }
                     result.append(stock_info)
-                
+
 
                 return result
             else:
@@ -139,7 +149,7 @@ async def get_main_fund_flow(secids="0.002371"):
 async def get_financial_data(stock_code="002371", page_size=5, page_number=1):
     """获取财务数据"""
     url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
-    
+
     params = {
         "sortColumns": "REPORTDATE",
         "sortTypes": "-1",
@@ -149,21 +159,21 @@ async def get_financial_data(stock_code="002371", page_size=5, page_number=1):
         "filter": f"(SECURITY_CODE=\"{stock_code}\")",
         "reportName": "RPT_LICO_FN_CPD"
     }
-    
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Referer": "https://datacenter.eastmoney.com/"
     }
-    
+
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, headers=headers) as response:
             text = await response.text()
-            
+
             json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
             json_text = re.sub(r'\)$', '', json_text)
-            
+
             data = json.loads(json_text)
-            
+
             if data.get("result") and data["result"].get("data"):
                 return data["result"]["data"]
             else:
@@ -172,7 +182,7 @@ async def get_financial_data(stock_code="002371", page_size=5, page_number=1):
 async def get_financial_report(stock_code="002371", page_size=15, page_number=1):
     """业绩报表明细"""
     url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
-    
+
     params = {
         "sortColumns": "REPORTDATE",
         "sortTypes": "-1",
@@ -182,21 +192,21 @@ async def get_financial_report(stock_code="002371", page_size=15, page_number=1)
         "filter": f"(SECURITY_CODE=\"{stock_code}\")",
         "reportName": "RPT_LICO_FN_CPD"
     }
-    
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Referer": "https://datacenter.eastmoney.com/"
     }
-    
+
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, headers=headers) as response:
             text = await response.text()
-            
+
             json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
             json_text = re.sub(r'\)$', '', json_text)
-            
+
             data = json.loads(json_text)
-            
+
             if data.get("result") and data["result"].get("data"):
                 return data["result"]["data"]
             else:
@@ -205,7 +215,7 @@ async def get_financial_report(stock_code="002371", page_size=15, page_number=1)
 async def get_financial_fast_report(stock_code="002371", page_size=15, page_number=1):
     """获取业绩预告数据"""
     url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
-    
+
     params = {
         "sortColumns": "REPORT_DATE",
         "sortTypes": "-1",
@@ -215,21 +225,21 @@ async def get_financial_fast_report(stock_code="002371", page_size=15, page_numb
         "filter": f"(SECURITY_CODE=\"{stock_code}\")",
         "reportName": "RPT_FCI_PERFORMANCEE"
     }
-    
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Referer": "https://datacenter.eastmoney.com/"
     }
-    
+
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, headers=headers) as response:
             text = await response.text()
-            
+
             json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
             json_text = re.sub(r'\)$', '', json_text)
-            
+
             data = json.loads(json_text)
-            
+
             if data.get("result") and data["result"].get("data"):
                 return data["result"]["data"]
             else:
@@ -238,7 +248,7 @@ async def get_financial_fast_report(stock_code="002371", page_size=15, page_numb
 async def get_performance_forecast(stock_code="002371", page_size=15, page_number=1):
     """获取业绩预告数据"""
     url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
-    
+
     params = {
         "sortColumns": "REPORT_DATE",
         "sortTypes": "-1",
@@ -248,6 +258,42 @@ async def get_performance_forecast(stock_code="002371", page_size=15, page_numbe
         "filter": f"(SECURITY_CODE=\"{stock_code}\")",
         "reportName": "RPT_PUBLIC_OP_NEWPREDICT"
     }
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://datacenter.eastmoney.com/"
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, headers=headers) as response:
+            text = await response.text()
+
+            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
+            json_text = re.sub(r'\)$', '', json_text)
+
+            data = json.loads(json_text)
+
+            if data.get("result") and data["result"].get("data"):
+                return data["result"]["data"]
+            else:
+                raise Exception(f"未获取到股票 {stock_code} 的业绩预告数据")
+
+async def get_org_holder(stock_code="002371", page_size=8, page_number=1):
+    """获取机构持仓数据"""
+    url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+    
+    params = {
+        "reportName": "RPT_MAIN_ORGHOLD",
+        "columns": "ALL",
+        "quoteColumns": "",
+        "filter": f"(SECURITY_CODE=\"{stock_code}\")",
+        "pageNumber": str(page_number),
+        "pageSize": str(page_size),
+        "sortTypes": "",
+        "sortColumns": "",
+        "source": "WEB",
+        "client": "WEB"
+    }
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -266,12 +312,12 @@ async def get_performance_forecast(stock_code="002371", page_size=15, page_numbe
             if data.get("result") and data["result"].get("data"):
                 return data["result"]["data"]
             else:
-                raise Exception(f"未获取到股票 {stock_code} 的业绩预告数据")
+                return []
 
 async def get_shareholder_increase(stock_code="601698", page_size=300, page_number=1):
     """获取股东增持数据"""
     url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
-    
+
     params = {
         "sortColumns": "END_DATE,SECURITY_CODE,EITIME",
         "sortTypes": "-1,-1,-1",
@@ -285,30 +331,30 @@ async def get_shareholder_increase(stock_code="601698", page_size=300, page_numb
         "client": "WEB",
         "filter": f"(SECURITY_CODE=\"{stock_code}\")"
     }
-    
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Referer": "https://datacenter.eastmoney.com/"
     }
-    
+
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, headers=headers) as response:
             text = await response.text()
-            
+
             json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
             json_text = re.sub(r'\)$', '', json_text)
-            
+
             data = json.loads(json_text)
-            
+
             if data.get("result") and data["result"].get("data"):
                 items = data["result"]["data"]
                 if not items:
                     return ""
-                
+
                 markdown = f"## 股东增减持明细 (股票代码: {stock_code})\n\n"
                 markdown += "| 股东名称 | 增减 | 变动数量(万股) | 占总股本比例 | 占流通股比例 | 持股总数(万股) | 占总股本比例 | 持流通股数(万股) | 占流通股比例 | 变动开始日 | 变动截止日 | 公告日 |\n"
                 markdown += "|---------|------|--------------|------------|------------|--------------|------------|----------------|------------|----------|----------|--------|\n"
-                
+
                 for item in items:
                     holder_name = item.get('HOLDER_NAME', '--')
                     direction = item.get('DIRECTION', '--')
@@ -322,9 +368,9 @@ async def get_shareholder_increase(stock_code="601698", page_size=300, page_numb
                     start_date = item.get('START_DATE', '--')[:10] if item.get('START_DATE') else '--'
                     end_date = item.get('END_DATE', '--')[:10] if item.get('END_DATE') else '--'
                     notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
-                    
+
                     markdown += f"| {holder_name} | {direction} | {change_num} | {change_rate} | {change_free_ratio} | {after_holder_num} | {hold_ratio} | {free_shares} | {free_shares_ratio} | {start_date} | {end_date} | {notice_date} |\n"
-                
+
                 return markdown
             else:
                 raise Exception(f"未获取到股票 {stock_code} 的股东增持数据")
@@ -334,9 +380,9 @@ async def get_holder_detail(scode, report_date=None, page_num=1, page_size=100, 
     # 如果没有提供report_date，使用当前日期
     if report_date is None:
         report_date = datetime.now().strftime("%Y-%m-%d")
-    
+
     url = "https://data.eastmoney.com/dataapi/zlsj/detail"
-    
+
     params = {
         "SHType": sh_type,
         "SHCode": sh_code,
@@ -347,25 +393,25 @@ async def get_holder_detail(scode, report_date=None, page_num=1, page_size=100, 
         "pageNum": page_num,
         "pageSize": page_size
     }
-    
+
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params) as response:
             if response.status != 200:
                 text = await response.text()
                 raise Exception(f"请求失败: {response.status}, 响应: {text}")
             result = await response.json()
-            
+
             if not result or 'data' not in result:
                 return ""
-            
+
             data = result['data']
             if not data:
                 return ""
-            
+
             markdown = f"## 主力持仓明细 (报告日期: {report_date})\n\n"
             markdown += "| 序号 | 机构名称 | 机构属性 | 持股总数(万股) | 持股市值(亿元) | 占总股本比例(%) | 占流通股本比例(%) |\n"
             markdown += "|------|---------|---------|--------------|--------------|----------------|-----------------|\n"
-            
+
             for idx, item in enumerate(data, 1):
                 holder_name = item.get('HOLDER_NAME', '--')
                 org_type = item.get('ORG_TYPE', '--')
@@ -373,9 +419,9 @@ async def get_holder_detail(scode, report_date=None, page_num=1, page_size=100, 
                 market_cap = convert_amount_unit(item.get('HOLD_MARKET_CAP', 0))
                 total_ratio = round(item.get('TOTAL_SHARES_RATIO', 0), 2)
                 free_ratio = round(item.get('FREE_SHARES_RATIO', 0), 2)
-                
+
                 markdown += f"| {idx} | {holder_name} | {org_type} | {total_shares} | {market_cap} | {total_ratio} | {free_ratio} |\n"
-            
+
             return markdown
 
 def format_realtime_markdown(realtime_data):
@@ -421,7 +467,7 @@ def format_fund_flow_markdown(fund_flow_data):
 async def get_fund_flow_history(secid="0.002371"):
     """获取资金流向历史数据"""
     url = "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get"
-    
+
     params = {
         "lmt": "0",
         "klt": "101",
@@ -430,21 +476,21 @@ async def get_fund_flow_history(secid="0.002371"):
         "ut": "b2884a393a59ad64002292a3e90d46a5",
         "secid": secid
     }
-    
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Referer": "https://quote.eastmoney.com/"
     }
-    
+
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, headers=headers) as response:
             text = await response.text()
-            
+
             json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
             json_text = re.sub(r'\)$', '', json_text)
-            
+
             data = json.loads(json_text)
-            
+
             if data.get("data") and data["data"].get("klines"):
                 klines = data["data"]["klines"]
                 klines.reverse()
@@ -599,6 +645,36 @@ async def get_performance_forecast_markdown(stock_code, page_size=15):
         markdown += f"| {report_date} | {predict_finance} | {predict_content} | {predict_value} | {add_amp} | {predict_ratio} | {change_reason} | {predict_type} | {preyear_str} | {notice_date} |\n"
     return markdown
 
+async def get_org_holder_markdown(stock_code, page_size=8):
+    """获取机构持仓明细并转换为markdown"""
+    holder_data = await get_org_holder(stock_code, page_size)
+    if not holder_data:
+        return ""
+    
+    from collections import defaultdict
+    grouped_data = defaultdict(list)
+    for item in holder_data:
+        report_date = item.get('REPORT_DATE', '--')[:10] if item.get('REPORT_DATE') else '--'
+        grouped_data[report_date].append(item)
+    
+    markdown = ""
+    for report_date, items in grouped_data.items():
+        markdown += f"""## {report_date} 机构持仓变化明细
+
+| 机构名称 | 持股家数(家) | 持股总数(万股) | 持股市值(亿元) |占总股本比例(%) | 占流通股比例(%) |
+|---------|------------|--------------|--------------|--------------|---------------|
+"""
+        for item in items:
+            org_name = item.get('ORG_TYPE_NAME', '--')
+            hold_num = item.get('HOULD_NUM')
+            free_share = f"{convert_amount_without_unit(item.get('FREE_SHARES', 0))}" if item.get('FREE_SHARES') else '--'
+            free_market_cap = f"{convert_amount_without_unit(item.get('FREE_MARKET_CAP', 0))}" if item.get('FREE_MARKET_CAP') else '--'
+            free_total_ratio = f"{round(item.get('TOTALSHARES_RATIO', 0), 2)}%" if item.get('TOTALSHARES_RATIO') else '--'
+            free_share_ratio = f"{round((item.get('FREESHARES_RATIO') or 0), 2)}%"
+            markdown += f"| {org_name} | {hold_num} | {free_share} | {free_market_cap} | {free_total_ratio} | {free_share_ratio} |\n"
+        markdown += "\n"
+    return markdown
+
 
 async def get_stock_markdown(secid="0.002371", stock_name=None):
     """获取股票数据并返回格式化的markdown"""
@@ -606,7 +682,7 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
         stock_code = secid.split('.')[-1]
         realtime_data = await get_stock_realtime(secid)
         fund_flow_data = await get_main_fund_flow(secid)
-        
+
         markdown = (""
                     f"# 使用欧奈尔CAN SLIM规则分析一下<{stock_code} {stock_name}>，是否符合买入条件：基于模型的最终判断，稳健买入价格区间：基于技术形态（如杯柄形态、突破点）给出的建议。\n"
                     "# 禁止从网络搜索资金流向、业绩报表、业绩预告、高管减持等数据\n"
@@ -615,41 +691,39 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
                     "# 以下是资金流向、业绩报表、业绩预告、高管减持等数据\n\n")
         markdown += format_realtime_markdown(realtime_data) + "\n\n"
         markdown += format_fund_flow_markdown(fund_flow_data) + "\n\n"
-        
+
         try:
             markdown += await get_fund_flow_history_markdown(secid) + "\n\n"
         except Exception as e:
             markdown += f"## 历史资金流向错误\n\n获取失败: {str(e)}\n\n"
-        
+
         try:
             markdown += await get_financial_report_markdown(stock_code) + "\n\n"
         except Exception as e:
             markdown += f"## 业绩报表明细错误\n\n获取失败: {str(e)}\n\n"
-        
+
         try:
             markdown += await get_financial_fast_report_markdown(stock_code) + "\n\n"
         except Exception as e:
             markdown += f"## 业绩快报明细错误\n\n获取失败: {str(e)}\n\n"
-        
+
         try:
             markdown += await get_performance_forecast_markdown(stock_code) + "\n\n"
         except Exception as e:
             markdown += f"## 业绩预告明细错误\n\n获取失败: {str(e)}\n\n"
-        
+
         try:
-            holder_markdown = await get_holder_detail(stock_code)
-            if holder_markdown:
-                markdown += holder_markdown + "\n\n"
+            markdown += await get_org_holder_markdown(stock_code) + "\n\n"
         except Exception as e:
-            markdown += f"## 主力持仓明细错误\n\n获取失败: {str(e)}\n\n"
-        
+            markdown += f"## 机构持仓明细错误\n\n获取失败: {str(e)}\n\n"
+
         try:
             increase_markdown = await get_shareholder_increase(stock_code)
             if increase_markdown:
                 markdown += increase_markdown
         except Exception as e:
             markdown += f"## 股东增减持明细错误\n: {str(e)}"
-        
+
         return markdown
     except Exception as e:
         return f"# 错误\n\n获取股票数据失败: {str(e)}"
@@ -667,19 +741,19 @@ def normalize_stock_code(code):
 async def get_stock_with_search(searchstring=choose_stocks):
     """获取access_token并调用智能选股"""
     client = THSTokenClient(refresh_token)
-    
+
     #print("获取当前access_token...")
     token_result = await client.get_access_token()
     #print(f"结果: {token_result}")
-    
+
     access_token = token_result.get("data", {}).get("access_token")
-    
+
     stock_picker = SmartStockPicking(access_token)
     result = await stock_picker.search(searchstring=searchstring, searchtype="stock")
-    
+
     stock_lists = stock_picker.parse_tables(result.get('tables'))
     #print(f"选股结果: {stock_lists}")
-    
+
     return stock_lists
 
 async def main():
