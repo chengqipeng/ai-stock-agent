@@ -9,15 +9,16 @@ from common.constants.stocks_data import get_stock_code
 from service.ifind.get_client_token import THSTokenClient
 from service.ifind.smart_stock_picking import SmartStockPicking
 
-
-def format_amount(amount):
-    """格式化金额为亿或千万单位"""
+def convert_amount_unit(amount):
+    """根据金额大小自动转换单位：大于亿转换为亿，大于万转换为万"""
     if amount is None:
         return "--"
     if abs(amount) >= 100000000:  # >= 1亿
-        return f"{round(amount / 100000000, 2)}亿"
-    else:  # 千万
-        return f"{round(amount / 10000000, 2)}千万"
+        return f"{round(amount / 100000000, 4)}亿"
+    elif abs(amount) >= 10000:  # >= 1万
+        return f"{round(amount / 10000, 4)}万"
+    else:
+        return str(amount)
 
 
 async def get_stock_realtime(secid="1.601698"):
@@ -106,26 +107,26 @@ async def get_main_fund_flow(secids="0.002371"):
                         #"股票名称": stock.get('f14'),
                         #"最新价": stock.get('f2'),
                         #"涨跌幅": f"{stock.get('f3')}%",
-                        "成交额": format_amount(amount),
-                        "主力净流入": format_amount(stock.get('f62')),
+                        "成交额": convert_amount_unit(amount),
+                        "主力净流入": convert_amount_unit(stock.get('f62')),
                         "主力净流入占比": f"{stock.get('f184')}%",
-                        "超大单净流入": format_amount(stock.get('f66')),
+                        "超大单净流入": convert_amount_unit(stock.get('f66')),
                         "超大单净比": f"{super_ratio}%",
-                        "大单净流入": format_amount(stock.get('f72')),
+                        "大单净流入": convert_amount_unit(stock.get('f72')),
                         "大单净比": f"{big_ratio}%",
-                        "中单净流入": format_amount(stock.get('f78')),
+                        "中单净流入": convert_amount_unit(stock.get('f78')),
                         "中单净比": f"{mid_ratio}%",
-                        "小单净流入": format_amount(stock.get('f84')),
+                        "小单净流入": convert_amount_unit(stock.get('f84')),
                         "小单净比": f"{small_ratio}%",
 
-                        "超大单流入": f"{format_amount(stock.get('f64'))}",
-                        "超大单流出": f"{format_amount(stock.get('f65'))}",
-                        "大单流入": f"{format_amount(stock.get('f70'))}",
-                        "大单流出": f"{format_amount(stock.get('f71'))}",
-                        "中单流入": f"{format_amount(stock.get('f76'))}",
-                        "中单流出": f"{format_amount(stock.get('f77'))}",
-                        "小单流入": f"{format_amount(stock.get('f82'))}",
-                        "小单流出": f"{format_amount(stock.get('f83'))}"
+                        "超大单流入": f"{convert_amount_unit(stock.get('f64'))}",
+                        "超大单流出": f"{convert_amount_unit(stock.get('f65'))}",
+                        "大单流入": f"{convert_amount_unit(stock.get('f70'))}",
+                        "大单流出": f"{convert_amount_unit(stock.get('f71'))}",
+                        "中单流入": f"{convert_amount_unit(stock.get('f76'))}",
+                        "中单流出": f"{convert_amount_unit(stock.get('f77'))}",
+                        "小单流入": f"{convert_amount_unit(stock.get('f82'))}",
+                        "小单流出": f"{convert_amount_unit(stock.get('f83'))}"
                     }
                     result.append(stock_info)
                 
@@ -311,12 +312,12 @@ async def get_shareholder_increase(stock_code="601698", page_size=300, page_numb
                 for item in items:
                     holder_name = item.get('HOLDER_NAME', '--')
                     direction = item.get('DIRECTION', '--')
-                    change_num = round(item.get('CHANGE_NUM') or 0, 2)
+                    change_num = convert_amount_unit((item.get('CHANGE_NUM') or 0) * 10000)
                     change_rate = f"{item.get('CHANGE_RATE', 0)}%" if item.get('CHANGE_RATE') else '--'
                     change_free_ratio = f"{item.get('CHANGE_FREE_RATIO', 0)}%" if item.get('CHANGE_FREE_RATIO') else '--'
-                    after_holder_num = round(item.get('AFTER_HOLDER_NUM') or 0, 2)
+                    after_holder_num = convert_amount_unit((item.get('AFTER_HOLDER_NUM') or 0) * 10000)
                     hold_ratio = f"{item.get('HOLD_RATIO', 0)}%" if item.get('HOLD_RATIO') else '--'
-                    free_shares = round(item.get('FREE_SHARES') or 0, 2)
+                    free_shares = convert_amount_unit((item.get('FREE_SHARES') or 0) * 10000)
                     free_shares_ratio = f"{item.get('FREE_SHARES_RATIO', 0)}%" if item.get('FREE_SHARES_RATIO') else '--'
                     start_date = item.get('START_DATE', '--')[:10] if item.get('START_DATE') else '--'
                     end_date = item.get('END_DATE', '--')[:10] if item.get('END_DATE') else '--'
@@ -368,8 +369,8 @@ async def get_holder_detail(scode, report_date=None, page_num=1, page_size=100, 
             for idx, item in enumerate(data, 1):
                 holder_name = item.get('HOLDER_NAME', '--')
                 org_type = item.get('ORG_TYPE', '--')
-                total_shares = round(item.get('TOTAL_SHARES', 0) / 10000, 2)
-                market_cap = round(item.get('HOLD_MARKET_CAP', 0) / 100000000, 2)
+                total_shares = convert_amount_unit(item.get('TOTAL_SHARES', 0))
+                market_cap = convert_amount_unit(item.get('HOLD_MARKET_CAP', 0))
                 total_ratio = round(item.get('TOTAL_SHARES_RATIO', 0), 2)
                 free_ratio = round(item.get('FREE_SHARES_RATIO', 0), 2)
                 
@@ -384,8 +385,8 @@ def format_realtime_markdown(realtime_data):
 - **最新价**: {realtime_data.get('f43', '--')}
 - **涨跌幅**: {realtime_data.get('f170', '--')}%
 - **涨跌额**: {realtime_data.get('f169', '--')}
-- **成交量**: {realtime_data.get('f47', '--')}
-- **成交额**: {realtime_data.get('f48', '--')}
+- **成交量**: {convert_amount_unit(realtime_data.get('f47'))}
+- **成交额**: {convert_amount_unit(realtime_data.get('f48'))}
 - **换手率**: {realtime_data.get('f168', '--')}%"""
 
 def format_fund_flow_markdown(fund_flow_data):
@@ -396,11 +397,16 @@ def format_fund_flow_markdown(fund_flow_data):
     return f"""## 主力当日资金流向
 - **成交额**: {flow_data.get('成交额', '--')}
 - **主力净流入**: {flow_data.get('主力净流入', '--')}
+- **超大单净流入**: {flow_data.get('超大单净流入', '--')}
+- **大单净流入**: {flow_data.get('大单净流入', '--')}
+- **中单净流入**: {flow_data.get('中单净流入', '--')}
+- **小单净流入**: {flow_data.get('小单净流入', '--')}
+
 - **主力净流入占比**: {flow_data.get('主力净流入占比', '--')}
-- **超大单净流入**: {flow_data.get('超大单净流入', '--')} ({flow_data.get('超大单净比', '--')})
-- **大单净流入**: {flow_data.get('大单净流入', '--')} ({flow_data.get('大单净比', '--')})
-- **中单净流入**: {flow_data.get('中单净流入', '--')} ({flow_data.get('中单净比', '--')})
-- **小单净流入**: {flow_data.get('小单净流入', '--')} ({flow_data.get('小单净比', '--')})
+- **超大单净流入占比**: {flow_data.get('超大单净比', '--')}
+- **大单净流入占比**: {flow_data.get('大单净比', '--')}
+- **中单净流入占比**: {flow_data.get('中单净比', '--')}
+- **小单净流入占比**: {flow_data.get('小单净比', '--')}
 
 ## 实时成交分布
 - **超大单流入**: {flow_data.get('超大单流入', '--')}
@@ -451,34 +457,45 @@ async def get_fund_flow_history_markdown(secid="0.002371"):
     """获取资金流向历史数据并转换为markdown"""
     klines = await get_fund_flow_history(secid)
     markdown = f"""## 历史资金流向
-
-股票代码: {secid} | 总数据: {len(klines)}条
-
-| 日期 | 收盘价 | 涨跌幅 | 主力净流入 | | 超大单净流入 | | 大单净流入 | | 中单净流入 | | 小单净流入 | |
-|------|------|------|----------|------|------------|------|----------|------|----------|------|----------|------|
-| | | | 净额 | 净占比 | 净额 | 净占比 | 净额 | 净占比 | 净额 | 净占比 | 净额 | 净占比 |
+| 日期 | 收盘价 | 涨跌幅 | 主力净流入净额 | 主力净流入净占比 | 超大单净流入净额 | 超大单净流入净占比 | 大单净流入净额 | 大单净流入净占比 | 中单净流入净额 | 中单净流入占比 | 小单净流入净额 | 小单净流入净占比 |
+|-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|
 """
     for kline in klines:
         fields = kline.split(',')
         if len(fields) >= 15:
             date = fields[0]
+            #收盘价
             close_price = fields[11]
+            # 涨跌幅
             change_pct = f"{fields[12]}%"
-            super_net = float(fields[1]) if fields[1] != '-' else 0
-            big_net = float(fields[3]) if fields[3] != '-' else 0
+
+            #超大单
+            super_net = float(fields[5]) if fields[5] != '-' else 0
+
+            #000
+            super_pct = f"{fields[10]}%" if fields[10] != '-' else "--"
+            super_net_str = convert_amount_unit(super_net)
+
+            # 大单
+            big_net = float(fields[4]) if fields[4] != '-' else 0
+            big_net_str = convert_amount_unit(big_net)
+            big_pct = f"{fields[9]}%" if fields[9] != '-' else "--"
+
+            #中单
+            mid_net = float(fields[3]) if fields[3] != '-' else 0
+            mid_net_str = convert_amount_unit(mid_net)
+            mid_pct = f"{fields[8]}%" if fields[8] != '-' else "--"
+
+            #小单
+            small_net = float(fields[2]) if fields[2] != '-' else 0
+            small_net_str = convert_amount_unit(small_net)
+            small_pct = f"{fields[7]}%" if fields[7] != '-' else "--"
+
+            # 主力净流入净额
             main_net = super_net + big_net
-            main_net_str = format_amount(main_net * 10000)
+            # 主力净流入净占比
+            main_net_str = convert_amount_unit(main_net)
             main_pct = f"{fields[6]}%" if fields[6] != '-' else "--"
-            super_net_str = format_amount(super_net * 10000)
-            super_pct = f"{fields[2]}%" if fields[2] != '-' else "--"
-            big_net_str = format_amount(big_net * 10000)
-            big_pct = f"{fields[4]}%" if fields[4] != '-' else "--"
-            mid_net = float(fields[5]) if fields[5] != '-' else 0
-            mid_net_str = format_amount(mid_net * 10000)
-            mid_pct = f"{fields[7]}%" if fields[7] != '-' else "--"
-            small_net = float(fields[9]) if fields[9] != '-' else 0
-            small_net_str = format_amount(small_net * 10000)
-            small_pct = f"{fields[10]}%" if fields[10] != '-' else "--"
             markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} |\n"
     return markdown
 
@@ -498,11 +515,11 @@ async def get_financial_report_markdown(stock_code, page_size=5):
         basic_eps = item.get('BASIC_EPS', '--')
         deduct_eps = item.get('DEDUCT_BASIC_EPS', '-') if item.get('DEDUCT_BASIC_EPS') else '-'
         total_income = item.get('TOTAL_OPERATE_INCOME')
-        income_str = f"{round(total_income / 100000000, 2)}亿" if total_income else '--'
+        income_str = convert_amount_unit(total_income) if total_income else '--'
         ystz = item.get('YSTZ', '--')
         yshz = item.get('YSHZ', '--')
         net_profit = item.get('PARENT_NETPROFIT')
-        profit_str = f"{round(net_profit / 100000000, 2)}亿" if net_profit else '--'
+        profit_str = convert_amount_unit(net_profit) if net_profit else '--'
         sjltz = item.get('SJLTZ', '--')
         sjlhz = item.get('SJLHZ', '--')
         bps = item.get('BPS', '--')
@@ -529,15 +546,15 @@ async def get_financial_fast_report_markdown(stock_code, page_size=15):
         report_date = item.get('REPORT_DATE', '--')[:10] if item.get('REPORT_DATE') else '--'
         basic_eps = item.get('BASIC_EPS', '--')
         total_income = item.get('TOTAL_OPERATE_INCOME')
-        income_str = f"{round(total_income / 100000000, 2)}亿" if total_income else '--'
+        income_str = convert_amount_unit(total_income) if total_income else '--'
         total_income_sq = item.get('TOTAL_OPERATE_INCOME_SQ')
-        income_sq_str = f"{round(total_income_sq / 100000000, 2)}亿" if total_income_sq else '--'
+        income_sq_str = convert_amount_unit(total_income_sq) if total_income_sq else '--'
         ystz = item.get('YSTZ', '--')
         djdyshz = item.get('DJDYSHZ', '--')
         net_profit = item.get('PARENT_NETPROFIT')
-        profit_str = f"{round(net_profit / 100000000, 2)}亿" if net_profit else '--'
+        profit_str = convert_amount_unit(net_profit) if net_profit else '--'
         net_profit_sq = item.get('PARENT_NETPROFIT_SQ')
-        profit_sq_str = f"{round(net_profit_sq / 100000000, 2)}亿" if net_profit_sq else '--'
+        profit_sq_str = convert_amount_unit(net_profit_sq) if net_profit_sq else '--'
         jlrtbzcl = item.get('JLRTBZCL', '--')
         djdjlhz = item.get('DJDJLHZ', '--')
         bvps = item.get('PARENT_BVPS', '--')
@@ -565,7 +582,7 @@ async def get_performance_forecast_markdown(stock_code, page_size=15):
         if predict_finance == '每股收益':
             predict_value = f"{amt_lower}～{amt_upper}" if amt_lower and amt_upper else '--'
         else:
-            predict_value = f"{round(amt_lower/100000000, 2)}亿～{round(amt_upper/100000000, 2)}亿" if amt_lower and amt_upper else '--'
+            predict_value = f"{convert_amount_unit(amt_lower)}～{convert_amount_unit(amt_upper)}" if amt_lower and amt_upper else '--'
         add_lower = item.get('ADD_AMP_LOWER')
         add_upper = item.get('ADD_AMP_UPPER')
         add_amp = f"{add_lower}%～{add_upper}%" if add_lower and add_upper else '-'
@@ -578,7 +595,7 @@ async def get_performance_forecast_markdown(stock_code, page_size=15):
         if predict_finance == '每股收益':
             preyear_str = str(preyear) if preyear else '--'
         else:
-            preyear_str = f"{round(preyear/100000000, 2)}亿" if preyear else '--'
+            preyear_str = convert_amount_unit(preyear) if preyear else '--'
         notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
         markdown += f"| {report_date} | {predict_finance} | {predict_content} | {predict_value} | {add_amp} | {predict_ratio} | {change_reason} | {predict_type} | {preyear_str} | {notice_date} |\n"
     return markdown
