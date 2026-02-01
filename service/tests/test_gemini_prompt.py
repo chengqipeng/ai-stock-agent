@@ -837,5 +837,6 @@ async def main():
     result = await get_stock_markdown(normalize_stock_code(stock_code), stock_name)
     print(result)
 
+
 if __name__ == "__main__":
     asyncio.run(main())
