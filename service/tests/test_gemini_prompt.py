@@ -40,6 +40,50 @@ def convert_amount_org_holder_1(amount):
     else:
         return str(amount)
 
+async def get_stock_detail(secid="0.002371"):
+    """获取股票详细数据"""
+    url = "https://push2.eastmoney.com/api/qt/stock/get"
+    params = {
+        "invt": "2",
+        "fltt": "1",
+        "fields": "f58,f734,f107,f57,f43,f59,f169,f301,f60,f170,f152,f177,f111,f46,f44,f45,f47,f260,f48,f261,f279,f277,f278,f288,f19,f17,f531,f15,f13,f11,f20,f18,f16,f14,f12,f39,f37,f35,f33,f31,f40,f38,f36,f34,f32,f211,f212,f213,f214,f215,f210,f209,f208,f207,f206,f161,f49,f171,f50,f86,f84,f85,f168,f108,f116,f167,f164,f162,f163,f92,f71,f117,f292,f51,f52,f191,f192,f262,f294,f181,f295,f269,f270,f256,f257,f285,f286,f748,f747",
+        "secid": secid,
+        "ut": "fa5fd1943c7b386f172d6893dbfba10b",
+        "wbp2u": "|0|0|0|web",
+        "dect": "1"
+    }
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://quote.eastmoney.com/"
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, headers=headers) as response:
+            text = await response.text()
+            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
+            json_text = re.sub(r'\)$', '', json_text)
+            data = json.loads(json_text)
+            if data.get("data"):
+                return data["data"]
+            else:
+                raise Exception(f"未获取到股票 {secid} 的详细数据")
+
+async def get_stock_base_info(secid="0.002371"):
+    """获取股票基本信息并转换为markdown"""
+    detail_data = await get_stock_detail(secid)
+    markdown = """## 股票基本信息\n\n"""
+    markdown += f"- **股票代码**: {detail_data.get('f57', '--')}\n"
+    markdown += f"- **股票名称**: {detail_data.get('f58', '--')}\n"
+    markdown += f"- **最新价**: {round(detail_data.get('f43', 0) / 100, 2) if detail_data.get('f43') else '--'}%\n"
+    markdown += f"- **涨跌幅**: {round(detail_data.get('f170', 0) / 100, 2) if detail_data.get('f170') else '--'}%\n"
+    markdown += f"- **涨跌额**: {round(detail_data.get('f169', 0) / 100, 2) if detail_data.get('f169') else '--'}\n"
+    markdown += f"- **成交量**: {convert_amount_unit(detail_data.get('f47'))}\n"
+    markdown += f"- **成交额**: {convert_amount_unit(detail_data.get('f48'))}\n"
+    markdown += f"- **换手率**: {round(detail_data.get('f168', 0) / 100, 2) if detail_data.get('f168') else '--'}%\n"
+    markdown += f"- **市盈率**: {round(detail_data.get('f162', 0) / 100, 2) if detail_data.get('f162') else '--'}\n"
+    markdown += f"- **总市值**: {convert_amount_unit(detail_data.get('f116'))}\n"
+    markdown += f"- **流通市值**: {convert_amount_unit(detail_data.get('f117'))}\n"
+    return markdown
+
 async def get_stock_realtime(secid="1.601698"):
     """
     获取股票实时数据
@@ -696,7 +740,7 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
                     f"# 使用欧奈尔CAN SLIM规则分析一下<{stock_code} {stock_name}>，是否符合买入条件：基于模型的最终判断，稳健买入价格区间：基于技术形态（如杯柄形态、突破点）给出的建议\n"
                     "# 1.分析涉及的资金流向、业绩报表、业绩预告、高管减持、机构持仓变化数据必须严格使用已提供的【东方财富数据集】\n"
                     #f"# 从网络搜索 <{stock_code} {stock_name}> 行业动态、未来销售预测、欧美同级别产品限制政策等公开内容，网络数据必须备注来源\n"
-                    "# 2.同时针对股票<{stock_code} {stock_name}>执行深度行业调研，要求如下：\n"
+                    f"# 2.同时针对股票<{stock_code} {stock_name}>执行深度行业调研，要求如下：\n"
                     "## 2.1.**行业动态**： 检索近 6 个月内该行业的核心技术变革、重大投融资事件及市场格局变化。\n"
                     "## 2.2.**销售预测**： 搜集权威机构（如券商研报、咨询公司）对该企业或所属细分赛道的未来3-5年营收增速、出货量或市场份额的预测数据。\n"
                     "## 2.3.**政策环境**： 重点调研欧美市场对同类产品的准入门槛、关税政策、环保指令或技术性贸易壁垒（如反倾销、出口管制）。\n"
@@ -704,8 +748,14 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
                     "# 3.呈现形式：请以表格或分级标题的形式输出。\n"
                     "# 4.必须在明细结论中备注数据来源。\n"
                     "# 5.以下是【东方财富数据集】:资金流向、业绩报表、业绩预告、高管减持、机构持仓变化\n\n")
+        
         markdown += format_realtime_markdown(realtime_data) + "\n\n"
         markdown += format_fund_flow_markdown(fund_flow_data) + "\n\n"
+
+        try:
+            markdown += await get_stock_base_info(secid) + "\n\n"
+        except Exception as e:
+            markdown += f"## 股票基本信息错误\n\n获取失败: {str(e)}\n\n"
 
         try:
             markdown += await get_fund_flow_history_markdown(secid) + "\n\n"
