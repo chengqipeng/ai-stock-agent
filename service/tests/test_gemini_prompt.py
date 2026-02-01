@@ -745,7 +745,7 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
 
         markdown = (""
                     f"# 使用欧奈尔CAN SLIM规则分析一下<{stock_code} {stock_name}>，是否符合买入条件：基于模型的最终判断，稳健买入价格区间：基于技术形态（如杯柄形态、突破点）给出的建议\n"
-                    "# 1.分析涉及的资金流向、业绩报表、业绩预告、高管减持、机构持仓变化数据必须严格使用已提供的【东方财富数据集】\n"
+                    "# 1.分析涉及当日交易信息、主力当日资金流向、实时成交分布、股票基本信息、业绩报表、业绩预告、高管减持、机构持仓变化等数据必须严格使用已提供的【东方财富数据集】\n"
                     #f"# 从网络搜索 <{stock_code} {stock_name}> 行业动态、未来销售预测、欧美同级别产品限制政策等公开内容，网络数据必须备注来源\n"
                     f"# 2.同时针对股票<{stock_code} {stock_name}>执行深度行业调研，要求如下：\n"
                     "## 2.1.**行业动态**： 检索近 6 个月内该行业的核心技术变革、重大投融资事件及市场格局变化。\n"
@@ -754,7 +754,7 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
                     "## 2.4.**数据规范**： 所有的核心事实、数据点必须紧跟 [来源链接/机构名称]。\n"
                     "# 3.呈现形式：请以表格或分级标题的形式输出。\n"
                     "# 4.必须在明细结论中备注数据来源。\n"
-                    "# 5.以下是【东方财富数据集】:资金流向、业绩报表、业绩预告、高管减持、机构持仓变化\n\n")
+                    "# 5.以下是【东方财富数据集】：\n")
         
         markdown += format_realtime_markdown(realtime_data) + "\n\n"
         markdown += format_fund_flow_markdown(fund_flow_data) + "\n\n"
@@ -832,7 +832,7 @@ async def main():
     """
     我目前不持有该股票，结合已提供的数据和你的分析，下周一我该如何操作
     """
-    stock_name = "北方华创"
+    stock_name = "晶科能源"
     stock_code = get_stock_code(stock_name)
     result = await get_stock_markdown(normalize_stock_code(stock_code), stock_name)
     print(result)
