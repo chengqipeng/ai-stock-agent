@@ -832,7 +832,7 @@ async def main():
     """
     我目前不持有该股票，结合已提供的数据和你的分析，下周一我该如何操作
     """
-    stock_name = "晶科能源"
+    stock_name = "新易盛"
     stock_code = get_stock_code(stock_name)
     result = await get_stock_markdown(normalize_stock_code(stock_code), stock_name)
     print(result)
