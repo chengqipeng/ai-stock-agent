@@ -24,8 +24,19 @@ def convert_amount_org_holder(amount):
     """根据金额大小自动转换单位：大于亿转换为亿，大于万转换为万"""
     if amount is None:
         return "--"
+    if abs(amount) >= 100000000:  # >= 1亿
+        return f"{round(amount / 100000000, 4)}"
     if abs(amount) >= 10000:  # >= 1万
         return f"{round(amount / 10000, 4)}"
+    else:
+        return str(amount)
+
+def convert_amount_org_holder_1(amount):
+    """根据金额大小自动转换单位：大于亿转换为亿，大于万转换为万"""
+    if amount is None:
+        return "--"
+    if abs(amount) >= 10000:  # >= 1亿
+        return f"{round(amount / 100000000, 4)}"
     else:
         return str(amount)
 
@@ -666,7 +677,7 @@ async def get_org_holder_markdown(stock_code, page_size=8):
             org_name = item.get('ORG_TYPE_NAME', '--')
             hold_num = item.get('HOULD_NUM')
             free_share = f"{convert_amount_org_holder(item.get('FREE_SHARES', 0))}" if item.get('FREE_SHARES') else '--'
-            free_market_cap = f"{convert_amount_org_holder(item.get('FREE_MARKET_CAP', 0))}" if item.get('FREE_MARKET_CAP') else '--'
+            free_market_cap = f"{convert_amount_org_holder_1(item.get('FREE_MARKET_CAP', 0))}" if item.get('FREE_MARKET_CAP') else '--'
             free_total_ratio = f"{round(item.get('TOTALSHARES_RATIO', 0), 2)}%" if item.get('TOTALSHARES_RATIO') else '--'
             free_share_ratio = f"{round((item.get('FREESHARES_RATIO') or 0), 2)}%"
             markdown += f"| {org_name} | {hold_num} | {free_share} | {free_market_cap} | {free_total_ratio} | {free_share_ratio} |\n"
@@ -764,7 +775,7 @@ async def main():
     """
     我目前不持有该股票，结合已提供的数据和你的分析，下周一我该如何操作
     """
-    stock_name = "中际旭创"
+    stock_name = "北方华创"
     stock_code = get_stock_code(stock_name)
     result = await get_stock_markdown(normalize_stock_code(stock_code), stock_name)
     print(result)
