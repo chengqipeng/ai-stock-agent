@@ -508,7 +508,6 @@ def format_fund_flow_markdown(fund_flow_data):
 - **大单净流入**: {flow_data.get('大单净流入', '--')}
 - **中单净流入**: {flow_data.get('中单净流入', '--')}
 - **小单净流入**: {flow_data.get('小单净流入', '--')}
-
 - **主力净流入占比**: {flow_data.get('主力净流入占比', '--')}
 - **超大单净流入占比**: {flow_data.get('超大单净比', '--')}
 - **大单净流入占比**: {flow_data.get('大单净比', '--')}
