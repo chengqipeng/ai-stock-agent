@@ -817,22 +817,22 @@ async def get_similar_companies_data(stock_name, stock_code):
     generator = SimilarCompaniesGenerator()
     similar_result = await generator.generate(stock_name, stock_code.split('.')[-1])
 
-    similar_prompt = f"以下是检索A股市场中和<{stock_code} {stock_name}>业务相关性最高的上市公司的资金流向数据\n"
+    similar_prompt = f"\n**以下是A股市场中和<{stock_code} {stock_name}>业务相关性最高的上市公司的资金流向数据**\n"
     for company in similar_result.get('similar_companies', []):
         #print(f"排名: {company['rank']}, 公司: {company['name']}, 代码: {company['code']}, 原因: {company['similarity_reason']}")
         
         similar_secid = normalize_stock_code(f"{company['code']}.SZ" if company['code'].startswith(('0', '3')) else f"{company['code']}.SH")
         try:
             fund_flow = await get_main_fund_flow(similar_secid)
-            fund_flow_md = f"## <{company['code']} {company['name']}> - 主力当日资金流向\n" + format_fund_flow_markdown(fund_flow).replace("主力当日资金流向", "").replace("实时成交分布", f"<{company['code']} {company['name']}> - 实时成交分布\n")
-            similar_prompt += fund_flow_md
+            fund_flow_md = f"## <{company['code']} {company['name']}> - 主力当日资金流向\n" + format_fund_flow_markdown(fund_flow).replace("主力当日资金流向", "").replace("实时成交分布", f"<{company['code']} {company['name']}> - 实时成交分布")
+            similar_prompt += fund_flow_md + "\n"
         except Exception as e:
             print(f"  <{company['code']} {company['name']}> 主力当日资金流向: 获取失败 - {str(e)}\n")
         
         try:
             history_md = await get_fund_flow_history_markdown(similar_secid, 20)
-            history_md = f"## <{company['code']} {company['name']}> - 历史资金流向\n" + history_md.replace("历史资金流向", "") + "\n"
-            similar_prompt += history_md
+            history_md = f"## <{company['code']} {company['name']}> - 历史资金流向\n" + history_md.replace("历史资金流向", "")
+            similar_prompt += history_md + "\n"
         except Exception as e:
             print(f"  <{company['code']} {company['name']}> 历史资金流向: 获取失败 - {str(e)}")
     
