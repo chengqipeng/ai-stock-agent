@@ -609,6 +609,37 @@ async def get_fund_flow_history_markdown(secid="0.002371", limit=60):
             markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} |\n"
     return markdown
 
+async def get_industry_market_data(secucode="002371.SZ", page_size=5):
+    """获取同行业公司市场数据"""
+    url = "https://datacenter.eastmoney.com/securities/api/data/v1/get"
+    
+    params = {
+        "reportName": "RPT_PCF10_INDUSTRY_MARKET",
+        "columns": "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,ORG_CODE,CORRE_SECUCODE,CORRE_SECURITY_CODE,CORRE_SECURITY_NAME,CORRE_ORG_CODE,TOTAL_CAP,FREECAP,TOTAL_OPERATEINCOME,NETPROFIT,REPORT_TYPE,TOTAL_CAP_RANK,FREECAP_RANK,TOTAL_OPERATEINCOME_RANK,NETPROFIT_RANK",
+        "quoteColumns": "",
+        "filter": f"(SECUCODE=\"{secucode}\")(CORRE_SECUCODE<>\"{secucode}\")(CORRE_SECUCODE<>\"行业平均\")(CORRE_SECUCODE<>\"行业中值\")",
+        "pageNumber": "1",
+        "pageSize": str(page_size),
+        "sortTypes": "-1",
+        "sortColumns": "FREECAP",
+        "source": "HSF10",
+        "client": "PC"
+    }
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://datacenter.eastmoney.com/"
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, headers=headers) as response:
+            text = await response.text()
+            data = json.loads(text)
+            if data.get("result") and data["result"].get("data"):
+                return data["result"]["data"]
+            else:
+                raise Exception(f"未获取到股票 {secucode} 的同行业公司数据")
+
 async def get_financial_report_markdown(stock_code, page_size=5):
     """获取业绩报表明细并转换为markdown"""
     report_data = await get_financial_report(stock_code, page_size)
@@ -819,28 +850,29 @@ def normalize_stock_code(code):
 
 async def get_similar_companies_data(stock_name, stock_code, similar_company_num = 5):
     """获取相似公司的资金流向数据"""
-    generator = SimilarCompaniesGenerator()
-    similar_result = await generator.generate(stock_name, stock_code.split('.')[-1], similar_company_num)
+    #secucode = f"{stock_code.split('.')[-1]}.SZ" if stock_code.startswith(('0', '3')) else f"{stock_code.split('.')[-1]}.SH"
+    industry_data = await get_industry_market_data(stock_code, similar_company_num)
 
     similar_prompt = f"\n**以下是A股市场中和<{stock_code} {stock_name}>业务相关性最高的{similar_company_num}家上市公司的资金流向数据**\n"
-    for company in similar_result.get('similar_companies', []):
-        #print(f"排名: {company['rank']}, 公司: {company['name']}, 代码: {company['code']}, 原因: {company['similarity_reason']}")
+    for company in industry_data:
+        code = company.get('SECUCODE')
+        name = company.get('CORRE_SECURITY_NAME')
         
-        similar_secid = normalize_stock_code(f"{company['code']}.SZ" if company['code'].startswith(('0', '3')) else f"{company['code']}.SH")
+        similar_secid = normalize_stock_code(f"{code}")
         try:
             fund_flow = await get_main_fund_flow(similar_secid)
-            fund_flow_md = f"## <{company['code']} {company['name']}>：\n#" + format_fund_flow_markdown(fund_flow) + "\n\n"
-            fund_flow_md += f"## <{company['code']} {company['name']}>: \n#" + format_trade_distribution_markdown(fund_flow)
+            fund_flow_md = f"## <{code} {name}>：\n#" + format_fund_flow_markdown(fund_flow) + "\n\n"
+            fund_flow_md += f"## <{code} {name}>: \n#" + format_trade_distribution_markdown(fund_flow)
             similar_prompt += fund_flow_md + "\n\n"
         except Exception as e:
-            print(f"  <{company['code']} {company['name']}> 主力当日资金流向: 获取失败 - {str(e)}\n")
+            print(f"  <{code} {name}> 主力当日资金流向: 获取失败 - {str(e)}\n")
         
         try:
             history_md = await get_fund_flow_history_markdown(similar_secid, 20)
-            history_md = f"## <{company['code']} {company['name']}>：\n#" + history_md
+            history_md = f"## <{code} {name}>：\n#" + history_md
             similar_prompt += history_md + "\n\n"
         except Exception as e:
-            print(f"  <{company['code']} {company['name']}> 历史资金流向: 获取失败 - {str(e)}")
+            print(f"  <{code} {name}> 历史资金流向: 获取失败 - {str(e)}")
     
     return similar_prompt
 
@@ -850,7 +882,7 @@ async def main():
     """
     stock_name = "三花智控"
     stock_code = get_stock_code(stock_name)
-    similar_company_num = 6
+    similar_company_num = 5
 
     similar_prompt = await get_similar_companies_data(stock_name, stock_code, similar_company_num)
 
