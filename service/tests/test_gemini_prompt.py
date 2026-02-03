@@ -791,7 +791,7 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
                     "# 5.必须在明细结论中备注数据来源。\n"
                     "# 6.以下是【东方财富数据集】：\n")
         
-        markdown += f"## <{stock_code} {stock_name}> - 当日交易信息\n" + format_realtime_markdown(realtime_data).replace("## 当日交易信息", "") + "\n"
+        markdown += f"## <{stock_code} {stock_name}> - 当日交易信息\n" + format_realtime_markdown(realtime_data).replace("## 当日交易信息", "") + "\n\n"
         markdown += f"## <{stock_code} {stock_name}> - 主力当日资金流向\n" + format_fund_flow_markdown(fund_flow_data).replace("## 主力当日资金流向", "") + "\n\n"
         markdown += f"## <{stock_code} {stock_name}> - 实时成交分布\n" + format_trade_distribution_markdown(fund_flow_data).replace("## 实时成交分布", "") + "\n\n"
 
@@ -880,7 +880,7 @@ async def main():
     """
     目前不持有该股票，结合已提供的数据和你的分析，本周我该如何操作
     """
-    stock_name = "三花智控"
+    stock_name = "北方华创"
     stock_code = get_stock_code(stock_name)
     similar_company_num = 5
 
