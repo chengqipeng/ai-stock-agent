@@ -817,7 +817,7 @@ async def get_similar_companies_data(stock_name, stock_code):
     generator = SimilarCompaniesGenerator()
     similar_result = await generator.generate(stock_name, stock_code.split('.')[-1])
 
-    similar_prompt = f"以下获<{stock_code} {stock_name}>取相似公司的资金流向数据"
+    similar_prompt = f"以下是检索A股市场中和<{stock_code} {stock_name}>业务相关性最高的上市公司的资金流向数据\n"
     for company in similar_result.get('similar_companies', []):
         #print(f"排名: {company['rank']}, 公司: {company['name']}, 代码: {company['code']}, 原因: {company['similarity_reason']}")
         
