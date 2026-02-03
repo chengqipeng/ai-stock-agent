@@ -559,14 +559,14 @@ async def get_fund_flow_history(secid="0.002371"):
             else:
                 raise Exception(f"未获取到股票 {secid} 的资金流向历史数据")
 
-async def get_fund_flow_history_markdown(secid="0.002371"):
+async def get_fund_flow_history_markdown(secid="0.002371", limit=60):
     """获取资金流向历史数据并转换为markdown"""
     klines = await get_fund_flow_history(secid)
     markdown = f"""## 历史资金流向
 | 日期 | 收盘价 | 涨跌幅 | 主力净流入净额 | 主力净流入净占比 | 超大单净流入净额 | 超大单净流入净占比 | 大单净流入净额 | 大单净流入净占比 | 中单净流入净额 | 中单净流入占比 | 小单净流入净额 | 小单净流入净占比 |
 |-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|
 """
-    for kline in klines[:60]:
+    for kline in klines[:limit]:
         fields = kline.split(',')
         if len(fields) >= 15:
             date = fields[0]
@@ -746,14 +746,15 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
                     f"# 使用欧奈尔CAN SLIM规则分析一下<{stock_code} {stock_name}>，是否符合买入条件：基于模型的最终判断，稳健买入价格区间：基于技术形态（如杯柄形态、突破点）给出的建议\n"
                     "# 1.分析涉及当日交易信息、主力当日资金流向、实时成交分布、股票基本信息、业绩报表、业绩预告、高管减持、机构持仓变化等数据必须严格使用已提供的【东方财富数据集】\n"
                     #f"# 从网络搜索 <{stock_code} {stock_name}> 行业动态、未来销售预测、欧美同级别产品限制政策等公开内容，网络数据必须备注来源\n"
-                    f"# 2.同时针对股票<{stock_code} {stock_name}>执行深度行业调研，要求如下：\n"
-                    "## 2.1.**行业动态**： 检索近 6 个月内该行业的核心技术变革、重大投融资事件及市场格局变化。\n"
-                    "## 2.2.**销售预测**： 搜集权威机构（如券商研报、咨询公司）对该企业或所属细分赛道的未来3-5年营收增速、出货量或市场份额的预测数据。\n"
-                    "## 2.3.**政策环境**： 重点调研欧美市场对同类产品的准入门槛、关税政策、环保指令或技术性贸易壁垒（如反倾销、出口管制）。\n"
-                    "## 2.4.**数据规范**： 所有的核心事实、数据点必须紧跟 [来源链接/机构名称]。\n"
-                    "# 3.呈现形式：请以表格或分级标题的形式输出。\n"
-                    "# 4.必须在明细结论中备注数据来源。\n"
-                    "# 5.以下是【东方财富数据集】：\n")
+                    "# 2.参考【东方财富数据集】中A股市场中业务相关性最高的上市公司的交易信息\n"
+                    f"# 3.同时针对股票<{stock_code} {stock_name}>执行深度行业调研，要求如下：\n"
+                    "## 3.1.**行业动态**： 检索近 6 个月内该行业的核心技术变革、重大投融资事件及市场格局变化。\n"
+                    "## 3.2.**销售预测**： 搜集权威机构（如券商研报、咨询公司）对该企业或所属细分赛道的未来3-5年营收增速、出货量或市场份额的预测数据。\n"
+                    "## 3.3.**政策环境**： 重点调研欧美市场对同类产品的准入门槛、关税政策、环保指令或技术性贸易壁垒（如反倾销、出口管制）。\n"
+                    "## 3.4.**数据规范**： 所有的核心事实、数据点必须紧跟 [来源链接/机构名称]。\n"
+                    "# 4.呈现形式：请以表格或分级标题的形式输出。\n"
+                    "# 5.必须在明细结论中备注数据来源。\n"
+                    "# 6.以下是【东方财富数据集】：\n")
         
         markdown += f"## <{stock_code} {stock_name}> - 当日交易信息\n" + format_realtime_markdown(realtime_data).replace("## 当日交易信息", "") + "\n"
         markdown += f"## <{stock_code} {stock_name}> - 主力当日资金流向\n" + format_fund_flow_markdown(fund_flow_data).replace("## 主力当日资金流向", "").replace("## 实时成交分布", f"### <{stock_code} {stock_name}> - 实时成交分布") + "\n\n"
@@ -805,6 +806,32 @@ def normalize_stock_code(code):
         return f"0.{code.split('.')[0]}"
     return code
 
+async def get_similar_companies_data(stock_name, stock_code):
+    """获取相似公司的资金流向数据"""
+    generator = SimilarCompaniesGenerator()
+    similar_result = await generator.generate(stock_name, stock_code.split('.')[-1])
+
+    similar_prompt = f"以下获<{stock_code} {stock_name}>取相似公司的资金流向数据"
+    for company in similar_result.get('similar_companies', []):
+        #print(f"排名: {company['rank']}, 公司: {company['name']}, 代码: {company['code']}, 原因: {company['similarity_reason']}")
+        
+        similar_secid = normalize_stock_code(f"{company['code']}.SZ" if company['code'].startswith(('0', '3')) else f"{company['code']}.SH")
+        try:
+            fund_flow = await get_main_fund_flow(similar_secid)
+            fund_flow_md = f"## <{company['code']} {company['name']}> - 主力当日资金流向\n" + format_fund_flow_markdown(fund_flow).replace("主力当日资金流向", "").replace("实时成交分布", f"<{company['code']} {company['name']}> - 实时成交分布\n")
+            similar_prompt += fund_flow_md
+        except Exception as e:
+            print(f"  <{company['code']} {company['name']}> 主力当日资金流向: 获取失败 - {str(e)}\n")
+        
+        try:
+            history_md = await get_fund_flow_history_markdown(similar_secid, 20)
+            history_md = f"## <{company['code']} {company['name']}> - 历史资金流向\n" + history_md.replace("历史资金流向", "") + "\n"
+            similar_prompt += history_md
+        except Exception as e:
+            print(f"  <{company['code']} {company['name']}> 历史资金流向: 获取失败 - {str(e)}")
+    
+    return similar_prompt
+
 async def main():
     """
     目前不持有该股票，结合已提供的数据和你的分析，本周我该如何操作
@@ -812,13 +839,12 @@ async def main():
     stock_name = "三花智控"
     stock_code = get_stock_code(stock_name)
 
-    generator = SimilarCompaniesGenerator()
-    similar_result = await generator.generate(stock_name, stock_code.split('.')[-1])
-    print("相似公司推荐结果:")
-    print(json.dumps(similar_result, ensure_ascii=False, indent=2))
+    similar_prompt = await get_similar_companies_data(stock_name, stock_code)
 
-    result = await get_stock_markdown(normalize_stock_code(stock_code), stock_name)
-    print(result)
+    main_stock_result = await get_stock_markdown(normalize_stock_code(stock_code), stock_name)
+    main_stock_result += similar_prompt
+    print("\n\n")
+    print(main_stock_result)
 
 
 if __name__ == "__main__":
