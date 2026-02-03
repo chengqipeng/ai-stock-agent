@@ -415,7 +415,7 @@ async def get_shareholder_increase(stock_code="601698", page_size=300, page_numb
                 markdown += "| 股东名称 | 增减 | 变动数量(万股) | 占总股本比例 | 占流通股比例 | 持股总数(万股) | 占总股本比例 | 持流通股数(万股) | 占流通股比例 | 变动开始日 | 变动截止日 | 公告日 |\n"
                 markdown += "|---------|------|--------------|------------|------------|--------------|------------|----------------|------------|----------|----------|--------|\n"
 
-                for item in items:
+                for item in items[:20]:
                     holder_name = item.get('HOLDER_NAME', '--')
                     direction = item.get('DIRECTION', '--')
                     change_num = convert_amount_unit((item.get('CHANGE_NUM') or 0) * 10000)
@@ -565,7 +565,7 @@ async def get_fund_flow_history_markdown(secid="0.002371"):
 | 日期 | 收盘价 | 涨跌幅 | 主力净流入净额 | 主力净流入净占比 | 超大单净流入净额 | 超大单净流入净占比 | 大单净流入净额 | 大单净流入净占比 | 中单净流入净额 | 中单净流入占比 | 小单净流入净额 | 小单净流入净占比 |
 |-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|
 """
-    for kline in klines:
+    for kline in klines[:60]:
         fields = kline.split(',')
         if len(fields) >= 15:
             date = fields[0]
@@ -830,9 +830,9 @@ async def get_stock_with_search(searchstring=choose_stocks):
 
 async def main():
     """
-    我目前不持有该股票，结合已提供的数据和你的分析，下周一我该如何操作
+    目前不持有该股票，结合已提供的数据和你的分析，本周我该如何操作
     """
-    stock_name = "新易盛"
+    stock_name = "三花智控"
     stock_code = get_stock_code(stock_name)
     result = await get_stock_markdown(normalize_stock_code(stock_code), stock_name)
     print(result)
