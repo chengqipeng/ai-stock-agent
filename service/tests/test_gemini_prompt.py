@@ -8,6 +8,7 @@ from common.constants.stock_constants import refresh_token, choose_stocks
 from common.constants.stocks_data import get_stock_code
 from service.ifind.get_client_token import THSTokenClient
 from service.ifind.smart_stock_picking import SmartStockPicking
+from service.generate.similar_companies import SimilarCompaniesGenerator
 
 def convert_amount_unit(amount):
     """根据金额大小自动转换单位：大于亿转换为亿，大于万转换为万"""
@@ -774,10 +775,10 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
         except Exception as e:
             markdown += f"## 业绩报表明细错误\n\n获取失败: {str(e)}\n\n"
 
-        try:
-            markdown += await get_financial_fast_report_markdown(stock_code) + "\n\n"
-        except Exception as e:
-            markdown += f"## 业绩快报明细错误\n\n获取失败: {str(e)}\n\n"
+        # try:
+        #     markdown += await get_financial_fast_report_markdown(stock_code) + "\n\n"
+        # except Exception as e:
+        #     markdown += f"## 业绩快报明细错误\n\n获取失败: {str(e)}\n\n"
 
         try:
             markdown += await get_performance_forecast_markdown(stock_code) + "\n\n"
@@ -810,30 +811,18 @@ def normalize_stock_code(code):
         return f"0.{code.split('.')[0]}"
     return code
 
-async def get_stock_with_search(searchstring=choose_stocks):
-    """获取access_token并调用智能选股"""
-    client = THSTokenClient(refresh_token)
-
-    #print("获取当前access_token...")
-    token_result = await client.get_access_token()
-    #print(f"结果: {token_result}")
-
-    access_token = token_result.get("data", {}).get("access_token")
-
-    stock_picker = SmartStockPicking(access_token)
-    result = await stock_picker.search(searchstring=searchstring, searchtype="stock")
-
-    stock_lists = stock_picker.parse_tables(result.get('tables'))
-    #print(f"选股结果: {stock_lists}")
-
-    return stock_lists
-
 async def main():
     """
     目前不持有该股票，结合已提供的数据和你的分析，本周我该如何操作
     """
     stock_name = "三花智控"
     stock_code = get_stock_code(stock_name)
+
+    # generator = SimilarCompaniesGenerator()
+    # similar_result = await generator.generate(stock_name, stock_code.split('.')[-1])
+    # print("相似公司推荐结果:")
+    # print(json.dumps(similar_result, ensure_ascii=False, indent=2))
+
     result = await get_stock_markdown(normalize_stock_code(stock_code), stock_name)
     print(result)
 
