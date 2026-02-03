@@ -6,11 +6,12 @@ class SimilarCompaniesGenerator:
     def __init__(self):
         self.client = DeepSeekClient()
     
-    async def generate(self, company_name: str, stock_code: str) -> dict:
+    async def generate(self, company_name: str, stock_code: str, company_num: int = 5) -> dict:
         """生成相似公司推荐"""
         prompt = SIMILAR_COMPANIES_PROMPT.format(
             company_name=company_name,
-            stock_code=stock_code
+            stock_code=stock_code,
+            company_num=company_num
         )
         
         messages = [{"role": "user", "content": prompt}]

@@ -497,7 +497,7 @@ def format_realtime_markdown(realtime_data):
 - **换手率**: {realtime_data.get('f168', '--')}%"""
 
 def format_fund_flow_markdown(fund_flow_data):
-    """格式化资金流向为markdown"""
+    """格式化主力资金流向为markdown"""
     if not fund_flow_data:
         return ""
     flow_data = fund_flow_data[0]
@@ -513,9 +513,14 @@ def format_fund_flow_markdown(fund_flow_data):
 - **超大单净流入占比**: {flow_data.get('超大单净比', '--')}
 - **大单净流入占比**: {flow_data.get('大单净比', '--')}
 - **中单净流入占比**: {flow_data.get('中单净比', '--')}
-- **小单净流入占比**: {flow_data.get('小单净比', '--')}
+- **小单净流入占比**: {flow_data.get('小单净比', '--')}"""
 
-## 实时成交分布
+def format_trade_distribution_markdown(fund_flow_data):
+    """格式化实时成交分布为markdown"""
+    if not fund_flow_data:
+        return ""
+    flow_data = fund_flow_data[0]
+    return f"""## 实时成交分布
 - **超大单流入**: {flow_data.get('超大单流入', '--')}
 - **超大单流出**: {flow_data.get('超大单流出', '--')}
 - **大单流入**: {flow_data.get('大单流入', '--')}
@@ -757,7 +762,8 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
                     "# 6.以下是【东方财富数据集】：\n")
         
         markdown += f"## <{stock_code} {stock_name}> - 当日交易信息\n" + format_realtime_markdown(realtime_data).replace("## 当日交易信息", "") + "\n"
-        markdown += f"## <{stock_code} {stock_name}> - 主力当日资金流向\n" + format_fund_flow_markdown(fund_flow_data).replace("## 主力当日资金流向", "").replace("## 实时成交分布", f"### <{stock_code} {stock_name}> - 实时成交分布") + "\n\n"
+        markdown += f"## <{stock_code} {stock_name}> - 主力当日资金流向\n" + format_fund_flow_markdown(fund_flow_data).replace("## 主力当日资金流向", "") + "\n\n"
+        markdown += f"## <{stock_code} {stock_name}> - 实时成交分布\n" + format_trade_distribution_markdown(fund_flow_data).replace("## 实时成交分布", "") + "\n\n"
 
         try:
             markdown += f"## <{stock_code} {stock_name}> - 股票基本信息\n" + (await get_stock_base_info(secid)).replace("## 股票基本信息", "") + "\n"
@@ -812,27 +818,28 @@ def normalize_stock_code(code):
         return f"0.{code.split('.')[0]}"
     return code
 
-async def get_similar_companies_data(stock_name, stock_code):
+async def get_similar_companies_data(stock_name, stock_code, similar_company_num = 5):
     """获取相似公司的资金流向数据"""
     generator = SimilarCompaniesGenerator()
-    similar_result = await generator.generate(stock_name, stock_code.split('.')[-1])
+    similar_result = await generator.generate(stock_name, stock_code.split('.')[-1], similar_company_num)
 
-    similar_prompt = f"\n**以下是A股市场中和<{stock_code} {stock_name}>业务相关性最高的上市公司的资金流向数据**\n"
+    similar_prompt = f"\n**以下是A股市场中和<{stock_code} {stock_name}>业务相关性最高的{similar_company_num}家上市公司的资金流向数据**\n"
     for company in similar_result.get('similar_companies', []):
         #print(f"排名: {company['rank']}, 公司: {company['name']}, 代码: {company['code']}, 原因: {company['similarity_reason']}")
         
         similar_secid = normalize_stock_code(f"{company['code']}.SZ" if company['code'].startswith(('0', '3')) else f"{company['code']}.SH")
         try:
             fund_flow = await get_main_fund_flow(similar_secid)
-            fund_flow_md = f"## <{company['code']} {company['name']}> - 主力当日资金流向\n" + format_fund_flow_markdown(fund_flow).replace("主力当日资金流向", "").replace("实时成交分布", f"<{company['code']} {company['name']}> - 实时成交分布")
-            similar_prompt += fund_flow_md + "\n"
+            fund_flow_md = f"## <{company['code']} {company['name']}>：\n#" + format_fund_flow_markdown(fund_flow) + "\n\n"
+            fund_flow_md += f"## <{company['code']} {company['name']}>: \n#" + format_trade_distribution_markdown(fund_flow)
+            similar_prompt += fund_flow_md + "\n\n"
         except Exception as e:
             print(f"  <{company['code']} {company['name']}> 主力当日资金流向: 获取失败 - {str(e)}\n")
         
         try:
             history_md = await get_fund_flow_history_markdown(similar_secid, 20)
-            history_md = f"## <{company['code']} {company['name']}> - 历史资金流向\n" + history_md.replace("历史资金流向", "")
-            similar_prompt += history_md + "\n"
+            history_md = f"## <{company['code']} {company['name']}>：\n#" + history_md
+            similar_prompt += history_md + "\n\n"
         except Exception as e:
             print(f"  <{company['code']} {company['name']}> 历史资金流向: 获取失败 - {str(e)}")
     
@@ -844,8 +851,9 @@ async def main():
     """
     stock_name = "三花智控"
     stock_code = get_stock_code(stock_name)
+    similar_company_num = 6
 
-    similar_prompt = await get_similar_companies_data(stock_name, stock_code)
+    similar_prompt = await get_similar_companies_data(stock_name, stock_code, similar_company_num)
 
     main_stock_result = await get_stock_markdown(normalize_stock_code(stock_code), stock_name)
     main_stock_result += similar_prompt
