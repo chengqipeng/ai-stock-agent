@@ -774,6 +774,12 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
         except Exception as e:
             markdown += f"## <{stock_code} {stock_name}> - 业绩报表明细错误\n\n获取失败: {str(e)}\n"
 
+        # try:
+        #     markdown += f"## <{stock_code} {stock_name}> - 业绩报表明细\n" + (await get_financial_fast_report_markdown(stock_code)).replace("## 业绩快报明细", "") + "\n\n"
+        # except Exception as e:
+        #     markdown += f"## 业绩快报明细错误\n\n获取失败: {str(e)}\n\n"
+
+
         try:
             markdown += f"## <{stock_code} {stock_name}> - 业绩预告明细\n" + (await get_performance_forecast_markdown(stock_code)).replace("## 业绩预告明细", "") + "\n"
         except Exception as e:
