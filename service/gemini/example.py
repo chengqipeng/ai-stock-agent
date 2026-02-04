@@ -14,9 +14,9 @@ async def main():
     
     raw_result = await service.stream_generate(prompt="CRM系统在中国最知名的前3加企业前3个")
     
-    with open("raw_result.txt", "w", encoding="utf-8") as f:
-        f.write(raw_result)
-    print("原始结果已保存到 raw_result.txt")
+    # with open("raw_result.txt", "w", encoding="utf-8") as f:
+    #     f.write(raw_result)
+    # print("原始结果已保存到 raw_result.txt")
     
     result = parse_gemini_stream_response(raw_result)
     print("\n解析后的文本:")
