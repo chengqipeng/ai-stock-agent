@@ -1,6 +1,7 @@
 import aiohttp
 import json
 import re
+from common.utils.amount_utils import convert_amount_unit
 
 
 async def get_stock_realtime(secid="1.601698"):
@@ -40,3 +41,15 @@ async def get_stock_realtime(secid="1.601698"):
                 return stock_data
             else:
                 raise Exception(f"未获取到股票 {secid} 的实时数据")
+
+
+def format_realtime_markdown(realtime_data):
+    """格式化实时交易信息为markdown"""
+    return f"""## 当日交易信息
+- **股票代码**: {realtime_data.get('f57', '--')}
+- **最新价**: {realtime_data.get('f43', '--')}
+- **涨跌幅**: {realtime_data.get('f170', '--')}%
+- **涨跌额**: {realtime_data.get('f169', '--')}
+- **成交量**: {convert_amount_unit(realtime_data.get('f47'))}
+- **成交额**: {convert_amount_unit(realtime_data.get('f48'))}
+- **换手率**: {realtime_data.get('f168', '--')}%"""

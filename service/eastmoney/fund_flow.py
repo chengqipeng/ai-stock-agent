@@ -107,3 +107,70 @@ async def get_fund_flow_history(secid="0.002371"):
                 return klines
             else:
                 raise Exception(f"未获取到股票 {secid} 的资金流向历史数据")
+
+
+def format_fund_flow_markdown(fund_flow_data):
+    """格式化主力资金流向为markdown"""
+    if not fund_flow_data:
+        return ""
+    flow_data = fund_flow_data[0]
+    return f"""## 主力当日资金流向
+- **成交额**: {flow_data.get('成交额', '--')}
+- **主力净流入**: {flow_data.get('主力净流入', '--')}
+- **超大单净流入**: {flow_data.get('超大单净流入', '--')}
+- **大单净流入**: {flow_data.get('大单净流入', '--')}
+- **中单净流入**: {flow_data.get('中单净流入', '--')}
+- **小单净流入**: {flow_data.get('小单净流入', '--')}
+- **主力净流入占比**: {flow_data.get('主力净流入占比', '--')}
+- **超大单净流入占比**: {flow_data.get('超大单净比', '--')}
+- **大单净流入占比**: {flow_data.get('大单净比', '--')}
+- **中单净流入占比**: {flow_data.get('中单净比', '--')}
+- **小单净流入占比**: {flow_data.get('小单净比', '--')}"""
+
+
+def format_trade_distribution_markdown(fund_flow_data):
+    """格式化实时成交分布为markdown"""
+    if not fund_flow_data:
+        return ""
+    flow_data = fund_flow_data[0]
+    return f"""## 实时成交分布
+- **超大单流入**: {flow_data.get('超大单流入', '--')}
+- **超大单流出**: {flow_data.get('超大单流出', '--')}
+- **大单流入**: {flow_data.get('大单流入', '--')}
+- **大单流出**: {flow_data.get('大单流出', '--')}
+- **中单流入**: {flow_data.get('中单流入', '--')}
+- **中单流出**: {flow_data.get('中单流出', '--')}
+- **小单流入**: {flow_data.get('小单流入', '--')}
+- **小单流出**: {flow_data.get('小单流出', '--')}"""
+
+
+async def get_fund_flow_history_markdown(secid="0.002371", limit=60):
+    """获取资金流向历史数据并转换为markdown"""
+    klines = await get_fund_flow_history(secid)
+    markdown = f"""## 历史资金流向
+| 日期 | 收盘价 | 涨跌幅 | 主力净流入净额 | 主力净流入净占比 | 超大单净流入净额 | 超大单净流入净占比 | 大单净流入净额 | 大单净流入净占比 | 中单净流入净额 | 中单净流入占比 | 小单净流入净额 | 小单净流入净占比 |
+|-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|
+"""
+    for kline in klines[:limit]:
+        fields = kline.split(',')
+        if len(fields) >= 15:
+            date = fields[0]
+            close_price = round(float(fields[11]), 2) if fields[11] != '-' else '--'
+            change_pct = f"{round(float(fields[12]), 2)}%" if fields[12] != '-' else "--"
+            super_net = float(fields[5]) if fields[5] != '-' else 0
+            super_pct = f"{round(float(fields[10]), 2)}%" if fields[10] != '-' else "--"
+            super_net_str = convert_amount_unit(super_net)
+            big_net = float(fields[4]) if fields[4] != '-' else 0
+            big_net_str = convert_amount_unit(big_net)
+            big_pct = f"{round(float(fields[9]), 2)}%" if fields[9] != '-' else "--"
+            mid_net = float(fields[3]) if fields[3] != '-' else 0
+            mid_net_str = convert_amount_unit(mid_net)
+            mid_pct = f"{round(float(fields[8]), 2)}%" if fields[8] != '-' else "--"
+            small_net = float(fields[2]) if fields[2] != '-' else 0
+            small_net_str = convert_amount_unit(small_net)
+            small_pct = f"{round(float(fields[7]), 2)}%" if fields[7] != '-' else "--"
+            main_net = super_net + big_net
+            main_net_str = convert_amount_unit(main_net)
+            main_pct = f"{round(float(fields[6]), 2)}%" if fields[6] != '-' else "--"
+            markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} |\n"
+    return markdown

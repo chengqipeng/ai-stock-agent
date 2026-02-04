@@ -1,7 +1,7 @@
 import aiohttp
 import json
 import re
-from common.utils.amount_utils import convert_amount_unit
+from common.utils.amount_utils import convert_amount_unit, convert_amount_org_holder, convert_amount_org_holder_1
 
 
 async def get_org_holder(stock_code="002371", page_size=8, page_number=1):
@@ -152,3 +152,34 @@ async def get_holder_detail(scode, report_date=None, page_num=1, page_size=100, 
                 markdown += f"| {idx} | {holder_name} | {org_type} | {total_shares} | {market_cap} | {total_ratio} | {free_ratio} |\n"
 
             return markdown
+
+
+async def get_org_holder_markdown(stock_code, page_size=8):
+    """获取机构持仓明细并转换为markdown"""
+    holder_data = await get_org_holder(stock_code, page_size)
+    if not holder_data:
+        return ""
+    
+    from collections import defaultdict
+    grouped_data = defaultdict(list)
+    for item in holder_data:
+        report_date = item.get('REPORT_DATE', '--')[:10] if item.get('REPORT_DATE') else '--'
+        grouped_data[report_date].append(item)
+    
+    markdown = ""
+    for report_date, items in grouped_data.items():
+        markdown += f"""## {report_date} 机构持仓明细
+
+| 机构名称 | 持股家数(家) | 持股总数(万股) | 持股市值(亿元) |占总股本比例(%) | 占流通股比例(%) |
+|---------|------------|--------------|--------------|--------------|---------------|
+"""
+        for item in items:
+            org_name = item.get('ORG_TYPE_NAME', '--')
+            hold_num = item.get('HOULD_NUM')
+            free_share = f"{convert_amount_org_holder(item.get('FREE_SHARES', 0))}" if item.get('FREE_SHARES') else '--'
+            free_market_cap = f"{convert_amount_org_holder_1(item.get('FREE_MARKET_CAP', 0))}" if item.get('FREE_MARKET_CAP') else '--'
+            free_total_ratio = f"{round(item.get('TOTALSHARES_RATIO', 0), 2)}%" if item.get('TOTALSHARES_RATIO') else '--'
+            free_share_ratio = f"{round((item.get('FREESHARES_RATIO') or 0), 2)}%"
+            markdown += f"| {org_name} | {hold_num} | {free_share} | {free_market_cap} | {free_total_ratio} | {free_share_ratio} |\n"
+        markdown += "\n"
+    return markdown
