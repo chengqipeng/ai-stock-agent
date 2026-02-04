@@ -868,7 +868,7 @@ async def get_similar_companies_data(stock_name, stock_code, similar_company_num
             print(f"  <{code} {name}> 主力当日资金流向: 获取失败 - {str(e)}\n")
         
         try:
-            history_md = await get_fund_flow_history_markdown(similar_secid, 20)
+            history_md = await get_fund_flow_history_markdown(similar_secid, 12)
             history_md = f"## <{code} {name}>：\n#" + history_md
             similar_prompt += history_md + "\n\n"
         except Exception as e:
@@ -880,7 +880,7 @@ async def main():
     """
     目前不持有该股票，结合已提供的数据和你的分析，本周我该如何操作
     """
-    stock_name = "三花智控"
+    stock_name = "中航成飞"
     stock_code = get_stock_code(stock_name)
     similar_company_num = 5
 
