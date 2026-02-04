@@ -1,7 +1,8 @@
+from common.utils.amount_utils import convert_amount_unit
+from .common_utils import EASTMONEY_PUSH_API_URL, clean_jsonp_response
 import aiohttp
 import json
 import re
-from common.utils.amount_utils import convert_amount_unit
 
 
 async def get_stock_realtime(secid="1.601698"):
@@ -10,7 +11,7 @@ async def get_stock_realtime(secid="1.601698"):
     secid格式: 市场代码.股票代码
     1 = 上海, 0 = 深圳
     """
-    url = "https://push2delay.eastmoney.com/api/qt/stock/get"
+    url = f"{EASTMONEY_PUSH_API_URL}/stock/get"
 
     params = {
         "fltt": "2",
@@ -28,16 +29,11 @@ async def get_stock_realtime(secid="1.601698"):
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, headers=headers) as response:
             text = await response.text()
-
-            # 移除 JSONP 回调函数包装
-            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
-            json_text = re.sub(r'\)$', '', json_text)
-
+            json_text = clean_jsonp_response(text)
             data = json.loads(json_text)
 
             if data.get("data"):
                 stock_data = data["data"]
-
                 return stock_data
             else:
                 raise Exception(f"未获取到股票 {secid} 的实时数据")

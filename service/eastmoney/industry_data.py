@@ -1,11 +1,10 @@
 import aiohttp
 import json
+from .common_utils import EASTMONEY_DATA_API_URL
 
 
 async def get_industry_market_data(secucode="002371.SZ", page_size=5):
     """获取同行业公司市场数据"""
-    url = "https://datacenter.eastmoney.com/securities/api/data/v1/get"
-    
     params = {
         "reportName": "RPT_PCF10_INDUSTRY_MARKET",
         "columns": "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,ORG_CODE,CORRE_SECUCODE,CORRE_SECURITY_CODE,CORRE_SECURITY_NAME,CORRE_ORG_CODE,TOTAL_CAP,FREECAP,TOTAL_OPERATEINCOME,NETPROFIT,REPORT_TYPE,TOTAL_CAP_RANK,FREECAP_RANK,TOTAL_OPERATEINCOME_RANK,NETPROFIT_RANK",
@@ -25,7 +24,7 @@ async def get_industry_market_data(secucode="002371.SZ", page_size=5):
     }
     
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params, headers=headers) as response:
+        async with session.get(EASTMONEY_DATA_API_URL, params=params, headers=headers) as response:
             text = await response.text()
             data = json.loads(text)
             if data.get("result") and data["result"].get("data"):

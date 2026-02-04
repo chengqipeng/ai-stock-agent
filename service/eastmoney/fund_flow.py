@@ -1,7 +1,8 @@
 import aiohttp
+from common.utils.amount_utils import convert_amount_unit
+from .common_utils import EASTMONEY_PUSH_API_URL, EASTMONEY_PUSH2HIS_API_URL, fetch_eastmoney_api, clean_jsonp_response, get_default_headers
 import json
 import re
-from common.utils.amount_utils import convert_amount_unit
 
 
 async def get_main_fund_flow(secids="0.002371"):
@@ -10,7 +11,7 @@ async def get_main_fund_flow(secids="0.002371"):
     secids格式: 市场代码.股票代码，多个用逗号分隔
     1 = 上海, 0 = 深圳
     """
-    url = "https://push2delay.eastmoney.com/api/qt/ulist.np/get"
+    url = f"{EASTMONEY_PUSH_API_URL}/ulist.np/get"
 
     params = {
         "fltt": "2",
@@ -27,11 +28,7 @@ async def get_main_fund_flow(secids="0.002371"):
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, headers=headers) as response:
             text = await response.text()
-
-            # 移除 JSONP 回调函数包装
-            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
-            json_text = re.sub(r'\)$', '', json_text)
-
+            json_text = clean_jsonp_response(text)
             data = json.loads(json_text)
 
             if data.get("data") and data["data"].get("diff"):
@@ -76,7 +73,7 @@ async def get_main_fund_flow(secids="0.002371"):
 
 async def get_fund_flow_history(secid="0.002371"):
     """获取资金流向历史数据"""
-    url = "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get"
+    url = f"{EASTMONEY_PUSH2HIS_API_URL}/stock/fflow/daykline/get"
 
     params = {
         "lmt": "0",
@@ -87,18 +84,13 @@ async def get_fund_flow_history(secid="0.002371"):
         "secid": secid
     }
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://quote.eastmoney.com/"
-    }
+    headers = get_default_headers()
+    headers["Referer"] = "https://quote.eastmoney.com/"
 
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, headers=headers) as response:
             text = await response.text()
-
-            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
-            json_text = re.sub(r'\)$', '', json_text)
-
+            json_text = clean_jsonp_response(text)
             data = json.loads(json_text)
 
             if data.get("data") and data["data"].get("klines"):

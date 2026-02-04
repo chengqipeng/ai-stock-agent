@@ -1,12 +1,13 @@
+from common.utils.amount_utils import convert_amount_unit
+from .common_utils import EASTMONEY_PUSH2_API_URL, fetch_eastmoney_api, clean_jsonp_response
 import aiohttp
 import json
 import re
-from common.utils.amount_utils import convert_amount_unit
 
 
 async def get_stock_detail(secid="0.002371"):
     """获取股票详细数据"""
-    url = "https://push2.eastmoney.com/api/qt/stock/get"
+    url = f"{EASTMONEY_PUSH2_API_URL}/stock/get"
     params = {
         "invt": "2",
         "fltt": "1",
@@ -23,8 +24,7 @@ async def get_stock_detail(secid="0.002371"):
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, headers=headers) as response:
             text = await response.text()
-            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
-            json_text = re.sub(r'\)$', '', json_text)
+            json_text = clean_jsonp_response(text)
             data = json.loads(json_text)
             if data.get("data"):
                 return data["data"]

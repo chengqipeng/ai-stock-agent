@@ -1,13 +1,12 @@
 import aiohttp
+from common.utils.amount_utils import convert_amount_unit, convert_amount_org_holder, convert_amount_org_holder_1
+from .common_utils import EASTMONEY_API_URL, EASTMONEY_ZLSJ_API_URL, fetch_eastmoney_api, clean_jsonp_response
 import json
 import re
-from common.utils.amount_utils import convert_amount_unit, convert_amount_org_holder, convert_amount_org_holder_1
 
 
 async def get_org_holder(stock_code="002371", page_size=8, page_number=1):
     """获取机构持仓数据"""
-    url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
-    
     params = {
         "reportName": "RPT_MAIN_ORGHOLD",
         "columns": "ALL",
@@ -21,30 +20,15 @@ async def get_org_holder(stock_code="002371", page_size=8, page_number=1):
         "client": "WEB"
     }
     
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://datacenter.eastmoney.com/"
-    }
-    
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params, headers=headers) as response:
-            text = await response.text()
-            
-            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
-            json_text = re.sub(r'\)$', '', json_text)
-            
-            data = json.loads(json_text)
-            
-            if data.get("result") and data["result"].get("data"):
-                return data["result"]["data"]
-            else:
-                return []
+    data = await fetch_eastmoney_api(EASTMONEY_API_URL, params)
+    if data.get("result") and data["result"].get("data"):
+        return data["result"]["data"]
+    else:
+        return []
 
 
 async def get_shareholder_increase(stock_code="601698", page_size=300, page_number=1):
     """获取股东增持数据"""
-    url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
-
     params = {
         "sortColumns": "END_DATE,SECURITY_CODE,EITIME",
         "sortTypes": "-1,-1,-1",
@@ -59,48 +43,35 @@ async def get_shareholder_increase(stock_code="601698", page_size=300, page_numb
         "filter": f"(SECURITY_CODE=\"{stock_code}\")"
     }
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://datacenter.eastmoney.com/"
-    }
+    data = await fetch_eastmoney_api(EASTMONEY_API_URL, params)
+    if data.get("result") and data["result"].get("data"):
+        items = data["result"]["data"]
+        if not items:
+            return ""
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params, headers=headers) as response:
-            text = await response.text()
+        markdown = f"## 股东增减持明细 (股票代码: {stock_code})\n\n"
+        markdown += "| 股东名称 | 增减 | 变动数量(万股) | 占总股本比例 | 占流通股比例 | 持股总数(万股) | 占总股本比例 | 持流通股数(万股) | 占流通股比例 | 变动开始日 | 变动截止日 | 公告日 |\n"
+        markdown += "|---------|------|--------------|------------|------------|--------------|------------|----------------|------------|----------|----------|--------|\n"
 
-            json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
-            json_text = re.sub(r'\)$', '', json_text)
+        for item in items[:20]:
+            holder_name = item.get('HOLDER_NAME', '--')
+            direction = item.get('DIRECTION', '--')
+            change_num = convert_amount_unit((item.get('CHANGE_NUM') or 0) * 10000)
+            change_rate = f"{round(item.get('AFTER_CHANGE_RATE', 0), 2)}%" if item.get('AFTER_CHANGE_RATE') else '--'
+            change_free_ratio = f"{round(item.get('CHANGE_FREE_RATIO', 0), 2)}%" if item.get('CHANGE_FREE_RATIO') else '--'
+            after_holder_num = convert_amount_unit((item.get('AFTER_HOLDER_NUM') or 0) * 10000)
+            hold_ratio = f"{round(item.get('HOLD_RATIO', 0), 2)}%" if item.get('HOLD_RATIO') else '--'
+            free_shares = convert_amount_unit((item.get('FREE_SHARES') or 0) * 10000)
+            free_shares_ratio = f"{round(item.get('FREE_SHARES_RATIO', 0), 2)}%" if item.get('FREE_SHARES_RATIO') else '--'
+            start_date = item.get('START_DATE', '--')[:10] if item.get('START_DATE') else '--'
+            end_date = item.get('END_DATE', '--')[:10] if item.get('END_DATE') else '--'
+            notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
 
-            data = json.loads(json_text)
+            markdown += f"| {holder_name} | {direction} | {change_num} | {change_rate} | {change_free_ratio} | {after_holder_num} | {hold_ratio} | {free_shares} | {free_shares_ratio} | {start_date} | {end_date} | {notice_date} |\n"
 
-            if data.get("result") and data["result"].get("data"):
-                items = data["result"]["data"]
-                if not items:
-                    return ""
-
-                markdown = f"## 股东增减持明细 (股票代码: {stock_code})\n\n"
-                markdown += "| 股东名称 | 增减 | 变动数量(万股) | 占总股本比例 | 占流通股比例 | 持股总数(万股) | 占总股本比例 | 持流通股数(万股) | 占流通股比例 | 变动开始日 | 变动截止日 | 公告日 |\n"
-                markdown += "|---------|------|--------------|------------|------------|--------------|------------|----------------|------------|----------|----------|--------|\n"
-
-                for item in items[:20]:
-                    holder_name = item.get('HOLDER_NAME', '--')
-                    direction = item.get('DIRECTION', '--')
-                    change_num = convert_amount_unit((item.get('CHANGE_NUM') or 0) * 10000)
-                    change_rate = f"{round(item.get('AFTER_CHANGE_RATE', 0), 2)}%" if item.get('AFTER_CHANGE_RATE') else '--'
-                    change_free_ratio = f"{round(item.get('CHANGE_FREE_RATIO', 0), 2)}%" if item.get('CHANGE_FREE_RATIO') else '--'
-                    after_holder_num = convert_amount_unit((item.get('AFTER_HOLDER_NUM') or 0) * 10000)
-                    hold_ratio = f"{round(item.get('HOLD_RATIO', 0), 2)}%" if item.get('HOLD_RATIO') else '--'
-                    free_shares = convert_amount_unit((item.get('FREE_SHARES') or 0) * 10000)
-                    free_shares_ratio = f"{round(item.get('FREE_SHARES_RATIO', 0), 2)}%" if item.get('FREE_SHARES_RATIO') else '--'
-                    start_date = item.get('START_DATE', '--')[:10] if item.get('START_DATE') else '--'
-                    end_date = item.get('END_DATE', '--')[:10] if item.get('END_DATE') else '--'
-                    notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
-
-                    markdown += f"| {holder_name} | {direction} | {change_num} | {change_rate} | {change_free_ratio} | {after_holder_num} | {hold_ratio} | {free_shares} | {free_shares_ratio} | {start_date} | {end_date} | {notice_date} |\n"
-
-                return markdown
-            else:
-                raise Exception(f"未获取到股票 {stock_code} 的股东增持数据")
+        return markdown
+    else:
+        raise Exception(f"未获取到股票 {stock_code} 的股东增持数据")
 
 
 async def get_holder_detail(scode, report_date=None, page_num=1, page_size=100, sh_type="", sh_code="", sort_field="HOLDER_CODE", sort_direc=1):
