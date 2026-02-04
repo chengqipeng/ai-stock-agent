@@ -4,7 +4,7 @@ from service.gemini.gemini_parser import parse_gemini_stream_response
 DEFAULT_PROXY = "http://127.0.0.1:7890"
 
 
-async def gemini_generate(prompt: str, proxy: str = DEFAULT_PROXY, timeout: int = 30) -> str:
+async def gemini_generate(prompt: str, proxy: str = DEFAULT_PROXY, timeout: int = 45) -> str:
     service = GeminiService(
         proxy=proxy,
         timeout=timeout,
