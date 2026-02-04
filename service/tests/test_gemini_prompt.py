@@ -9,37 +9,12 @@ from common.constants.stocks_data import get_stock_code
 from service.ifind.get_client_token import THSTokenClient
 from service.ifind.smart_stock_picking import SmartStockPicking
 from service.generate.similar_companies import SimilarCompaniesGenerator
-
-def convert_amount_unit(amount):
-    """根据金额大小自动转换单位：大于亿转换为亿，大于万转换为万"""
-    if amount is None:
-        return "--"
-    if abs(amount) >= 100000000:  # >= 1亿
-        return f"{round(amount / 100000000, 4)}亿"
-    elif abs(amount) >= 10000:  # >= 1万
-        return f"{round(amount / 10000, 4)}万"
-    else:
-        return str(amount)
-
-def convert_amount_org_holder(amount):
-    """根据金额大小自动转换单位：大于亿转换为亿，大于万转换为万"""
-    if amount is None:
-        return "--"
-    if abs(amount) >= 100000000:  # >= 1亿
-        return f"{round(amount / 100000000, 4)}"
-    if abs(amount) >= 10000:  # >= 1万
-        return f"{round(amount / 10000, 4)}"
-    else:
-        return str(amount)
-
-def convert_amount_org_holder_1(amount):
-    """根据金额大小自动转换单位：大于亿转换为亿，大于万转换为万"""
-    if amount is None:
-        return "--"
-    if abs(amount) >= 10000:  # >= 1亿
-        return f"{round(amount / 100000000, 4)}"
-    else:
-        return str(amount)
+from common.utils.amount_utils import (
+    convert_amount_unit,
+    convert_amount_org_holder,
+    convert_amount_org_holder_1,
+    normalize_stock_code
+)
 
 async def get_stock_detail(secid="0.002371"):
     """获取股票详细数据"""
@@ -837,16 +812,6 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
         return markdown
     except Exception as e:
         return f"# 错误\n\n获取股票数据失败: {str(e)}"
-
-
-def normalize_stock_code(code):
-    """自动添加市场前缀: SH结尾添加1., SZ结尾添加0."""
-    code = code.strip()
-    if code.endswith('.SH'):
-        return f"1.{code.split('.')[0]}"
-    elif code.endswith('.SZ'):
-        return f"0.{code.split('.')[0]}"
-    return code
 
 async def get_similar_companies_data(stock_name, stock_code, similar_company_num = 5):
     """获取相似公司的资金流向数据"""
