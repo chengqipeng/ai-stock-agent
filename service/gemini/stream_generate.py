@@ -55,14 +55,18 @@ class GeminiService:
         connector = aiohttp.TCPConnector(ssl=False) if self.proxy else None
         
         async with aiohttp.ClientSession(timeout=timeout_config, connector=connector, trust_env=self.trust_env) as session:
-            async with session.post(url, data=data, headers=headers, proxy=self.proxy) as response:
-                if response.status != 200:
-                    text = await response.text()
-                    raise Exception(f"请求失败: {response.status}, 响应: {text}")
-                
-                result = ""
-                async for line in response.content:
-                    if line:
-                        result += line.decode('utf-8', errors='ignore')
-                
-                return result
+            try:
+                async with session.post(url, data=data, headers=headers, proxy=self.proxy) as response:
+                    if response.status != 200:
+                        text = await response.text()
+                        raise Exception(f"请求失败: {response.status}, 响应: {text}")
+                    
+                    result = ""
+                    async for line in response.content:
+                        if line:
+                            result += line.decode('utf-8', errors='ignore')
+                    
+                    return result
+            except aiohttp.ClientPayloadError:
+                # 忽略传输不完整错误，返回已接收的数据
+                return result if result else ""

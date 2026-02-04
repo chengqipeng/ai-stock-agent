@@ -33,7 +33,12 @@ def parse_gemini_stream_response(stream_data: str) -> str:
                     if isinstance(content, list) and len(content) > 0:
                         first_item = content[0]
                         if isinstance(first_item, list) and len(first_item) >= 2:
-                            return first_item[1]
+                            text = first_item[1]
+                            if isinstance(text, str):
+                                return text
+                            elif isinstance(text, list):
+                                return "\n\n".join(text)
+                            return ""
     except Exception as e:
         print(f"解析错误: {e}")
     
