@@ -19,7 +19,6 @@ async def main():
     # print("原始结果已保存到 raw_result.txt")
     
     result = parse_gemini_stream_response(raw_result)
-    print("\n解析后的文本:")
     print(result)
 
 if __name__ == "__main__":
