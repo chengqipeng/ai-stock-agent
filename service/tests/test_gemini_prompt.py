@@ -1,23 +1,14 @@
-import aiohttp
 import asyncio
-import json
-import re
-from datetime import datetime
 
-from common.constants.stock_constants import refresh_token, choose_stocks
 from common.constants.stocks_data import get_stock_code
-from service.ifind.get_client_token import THSTokenClient
-from service.ifind.smart_stock_picking import SmartStockPicking
-from service.generate.similar_companies import SimilarCompaniesGenerator
 from common.utils.amount_utils import (
     normalize_stock_code
 )
-from service.eastmoney.stock_detail import get_stock_base_info
-from service.eastmoney.stock_realtime import get_stock_realtime, format_realtime_markdown
+from service.eastmoney.stock_detail import get_stock_base_info_markdown
+from service.eastmoney.stock_realtime import get_stock_realtime, get_stock_realtime_markdown
 from service.eastmoney.fund_flow import (
-    get_main_fund_flow,
-    format_fund_flow_markdown,
-    format_trade_distribution_markdown,
+    get_main_fund_flow_markdown,
+    get_trade_distribution_markdown,
     get_fund_flow_history_markdown
 )
 from service.eastmoney.industry_data import get_industry_market_data
@@ -26,7 +17,7 @@ from service.eastmoney.financial_data import (
     get_performance_forecast_markdown
 )
 from service.eastmoney.holder_data import (
-    get_shareholder_increase,
+    get_shareholder_increase_markdown,
     get_org_holder_markdown
 )
 
@@ -35,8 +26,6 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
     """获取股票数据并返回格式化的markdown"""
     try:
         stock_code = secid.split('.')[-1]
-        realtime_data = await get_stock_realtime(secid)
-        fund_flow_data = await get_main_fund_flow(secid)
 
         markdown = (""
                     f"# 使用欧奈尔CAN SLIM规则分析一下<{stock_code} {stock_name}>，是否符合买入条件：基于模型的最终判断，稳健买入价格区间：基于技术形态（如杯柄形态、突破点）给出的建议\n"
@@ -52,12 +41,12 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
                     "# 5.必须在明细结论中备注数据来源。\n"
                     "# 6.以下是【东方财富数据集】：\n")
         
-        markdown += f"## <{stock_code} {stock_name}> - 当日交易信息\n" + format_realtime_markdown(realtime_data).replace("## 当日交易信息", "") + "\n\n"
-        markdown += f"## <{stock_code} {stock_name}> - 主力当日资金流向\n" + format_fund_flow_markdown(fund_flow_data).replace("## 主力当日资金流向", "") + "\n\n"
-        markdown += f"## <{stock_code} {stock_name}> - 实时成交分布\n" + format_trade_distribution_markdown(fund_flow_data).replace("## 实时成交分布", "") + "\n\n"
+        markdown += f"## <{stock_code} {stock_name}> - 当日交易信息\n" + (await get_stock_realtime_markdown(secid)).replace("## 当日交易信息", "") + "\n\n"
+        markdown += f"## <{stock_code} {stock_name}> - 主力当日资金流向\n" + (await get_main_fund_flow_markdown(secid)).replace("## 主力当日资金流向", "") + "\n\n"
+        markdown += f"## <{stock_code} {stock_name}> - 实时成交分布\n" + (await get_trade_distribution_markdown(secid)).replace("## 实时成交分布", "") + "\n\n"
 
         try:
-            markdown += f"## <{stock_code} {stock_name}> - 股票基本信息\n" + (await get_stock_base_info(secid)).replace("## 股票基本信息", "") + "\n"
+            markdown += f"## <{stock_code} {stock_name}> - 股票基本信息\n" + (await get_stock_base_info_markdown(secid)).replace("## 股票基本信息", "") + "\n"
         except Exception as e:
             markdown += f"## <{stock_code} {stock_name}> - 股票基本信息错误\n\n获取失败: {str(e)}\n"
 
@@ -89,7 +78,7 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
             markdown += f"## <{stock_code} {stock_name}> - 机构持仓明细错误\n\n获取失败: {str(e)}\n\n"
 
         try:
-            increase_markdown = await get_shareholder_increase(stock_code)
+            increase_markdown = await get_shareholder_increase_markdown(stock_code)
             if increase_markdown:
                 markdown += increase_markdown.replace("##", f"## <{stock_code} {stock_name}> -")
         except Exception as e:
@@ -111,9 +100,9 @@ async def get_similar_companies_data(stock_name, stock_code, similar_company_num
         
         similar_secid = normalize_stock_code(f"{code}")
         try:
-            fund_flow = await get_main_fund_flow(similar_secid)
-            fund_flow_md = f"## <{code} {name}>：\n#" + format_fund_flow_markdown(fund_flow) + "\n\n"
-            fund_flow_md += f"## <{code} {name}>: \n#" + format_trade_distribution_markdown(fund_flow)
+            fund_flow_md = await get_main_fund_flow_markdown(similar_secid)
+            fund_flow_md = f"## <{code} {name}>：\n#" + fund_flow_md + "\n\n"
+            fund_flow_md += f"## <{code} {name}>: \n#" + (await get_trade_distribution_markdown(similar_secid))
             similar_prompt += fund_flow_md + "\n\n"
         except Exception as e:
             print(f"  <{code} {name}> 主力当日资金流向: 获取失败 - {str(e)}\n")
@@ -131,7 +120,7 @@ async def main():
     """
     目前不持有该股票，结合已提供的数据和你的分析，本周我该如何操作
     """
-    stock_name = "中航成飞"
+    stock_name = "三花智控"
     stock_code = get_stock_code(stock_name)
     similar_company_num = 5
 

@@ -27,11 +27,13 @@ def clean_jsonp_response(text):
     return json_text
 
 
-async def fetch_eastmoney_api(url, params, headers=None):
+async def fetch_eastmoney_api(url, params, headers=None, referer=None):
     """通用的东方财富API请求方法"""
     if headers is None:
         headers = get_default_headers()
-    
+    if referer:
+        headers = headers.copy()
+        headers["Referer"] = referer
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, headers=headers) as response:
             text = await response.text()

@@ -1,8 +1,5 @@
 from common.utils.amount_utils import convert_amount_unit
-from .common_utils import EASTMONEY_PUSH2_API_URL, fetch_eastmoney_api, clean_jsonp_response
-import aiohttp
-import json
-import re
+from .common_utils import EASTMONEY_PUSH2_API_URL, fetch_eastmoney_api
 
 
 async def get_stock_detail(secid="0.002371"):
@@ -17,22 +14,14 @@ async def get_stock_detail(secid="0.002371"):
         "wbp2u": "|0|0|0|web",
         "dect": "1"
     }
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://quote.eastmoney.com/"
-    }
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params, headers=headers) as response:
-            text = await response.text()
-            json_text = clean_jsonp_response(text)
-            data = json.loads(json_text)
-            if data.get("data"):
-                return data["data"]
-            else:
-                raise Exception(f"未获取到股票 {secid} 的详细数据")
+    data = await fetch_eastmoney_api(url, params, referer="https://quote.eastmoney.com/")
+    if data.get("data"):
+        return data["data"]
+    else:
+        raise Exception(f"未获取到股票 {secid} 的详细数据")
 
 
-async def get_stock_base_info(secid="0.002371"):
+async def get_stock_base_info_markdown(secid="0.002371"):
     """获取股票基本信息并转换为markdown"""
     detail_data = await get_stock_detail(secid)
     markdown = """## 股票基本信息\n"""
