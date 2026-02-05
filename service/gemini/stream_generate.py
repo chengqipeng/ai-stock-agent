@@ -3,11 +3,6 @@ from typing import Dict, Any
 from urllib.parse import quote
 import time
 
-DEFAULT_COOKIES = "_gcl_au=1.1.1516393348.1763729168; _ga=GA1.1.949038794.1763729169; SEARCH_SAMESITE=CgQIwZ8B; __Secure-BUCKET=CLkC; __Secure-ENID=30.SE=g3T85coHgVfq8Q_a0UyET_BFZ6G78c8Jgn1BLNpKNbO2T3WqmfFXjjNkJYcLNr_gW2zOlAjCcKceXPPflvFafRohA-zknxP-gph6M7Pk6PNsjzHlRkK35NLGthcrLAcpEhOaZzlGm-WForlZCE_jdqGAaQE7LgWM2HV8p9ZKZ2EFiJJxTjjVVLdq2QH6FF7jsp5-R44ZF8uP44MHR7CogxUwbwN9Q44OgJUvzDReZiz1937NYecidRVZOg; SID=g.a0006AjGdoJMV9YoY6xLNi39p65Ho4Y8J64iU6DSS97xS9-hjoXLcCb6spxTNMF8W3HVOtAkoQACgYKAWMSARESFQHGX2MibsPeQwLKHFYsqz0vPOrXtRoVAUF8yKq7llDeTOSjAoTwf9UEXZjm0076; __Secure-1PSID=g.a0006AjGdoJMV9YoY6xLNi39p65Ho4Y8J64iU6DSS97xS9-hjoXLZF75FhNUVdGxFcYYhBlJOAACgYKAc4SARESFQHGX2MifDB8wfXteZLheMopbsIBsBoVAUF8yKovlzg67k66LnqvfD-R-Zml0076; __Secure-3PSID=g.a0006AjGdoJMV9YoY6xLNi39p65Ho4Y8J64iU6DSS97xS9-hjoXLvfNrwI8KkYV46rPwfk09xgACgYKAY8SARESFQHGX2MiJvcZYNXsFqcPozTJ7QvCOBoVAUF8yKpbejFIL1B2wifKlVEaEz8G0076; HSID=A5XSQMdKvnG8uRc1m; SSID=AF0AJotjZ4lzDKDFD; APISID=wzkpoCMZ_TZdlISv/AuVlwm6ezW29PRg72; SAPISID=5f_p7D_9QEy3ETNA/AYsUb_sJ1OZFo4R6o; __Secure-1PAPISID=5f_p7D_9QEy3ETNA/AYsUb_sJ1OZFo4R6o; __Secure-3PAPISID=5f_p7D_9QEy3ETNA/AYsUb_sJ1OZFo4R6o; S=billing-ui-v3=59Id8PcXojqcFfPTpjYbe3UD-LdEFmhM:billing-ui-v3-efe=59Id8PcXojqcFfPTpjYbe3UD-LdEFmhM; COMPASS=gemini-pd=CjwACWuJV93jFYb_b6k1ZbZc5AVi75OXfwVJx6huPFdJgLZgT-iphNSBtyIyTho-2Gurv4U86El7hPmdVFUQuuiLzAYaXQAJa4lXnqJx4gXk9zvhy1q10WQrRMnG8G9fTHk2jvKIu0mTZmOiCuvFDsXH12Ir-E8p3oGWds0RuYp643WmILSrRIwMqKEtz4d2gTbBdp9qS6_WVZWX0zhA5o5i1yABMAE:gemini-hl=CkkACWuJV4Jq7gXnYGXm-CCWRGf1MNczIJ0yMsen8R98zb0fdd_v1HDcw_-Y0Gxw7WZu_GGVl89NUAGecp6EG6tM_DjudIlkdiK-EKep7csGGmoACWuJV7Lg1UsZQy6wrea7RbcYXrgIBMhT7j2dA3F7F8d80C4l18yb6WVs8qlK7QSQjj7jmPGvzUn5cebPhh4efvhlaRKsIx8742fzS6iZJ-tQOZfmiFBBZBLolITGCafRJlBZ9-u5gJGrIAEwAQ; AEC=AaJma5utKdDnuMMO6KUGnAsMcVqFXxM_BCn-w2iJaez685RdOzZg9as3xg; NID=528=hBiY1C1iKVEoE1vifRADly2ojdptOMBatZS51vheNHMU2iKFQncoC9OSaf0_kyw51HdgK_W7qrI5Owq7qQZ-3hI92aRuaQ2T3aKalLwkN7a0q6TKkD1rJ78Z3tPvD_iBHQ09Z_V7FbDeNQEs1MZTyWx0ChLTYsKrr00zdBDAxxqwU4ehZq5igYeAcwIOF3gcsoOaNIIYZxaeXBnYj1342h45cnu94AAsfmfVq7N_0kgL_KWAgoi3BGfHLV9e8dGI6cidYnjGWDGyULJXwQOsOXgo1lFuVsLHt2D1AAfmZLrxiTVVBe3PdxUJ-sS6mVUM_6v4-l5T_yJoiwzbEOEtPuEc8IWJXMJjsghyi-Ppe4SxNlAQCtkLmi9MTkZosIpqaLTDlWau9VCcY0NIP8QbCjbs6VGvIASBQsANFMnYiZqZTWmkrT5Zsju51574tGL5eb0DsZZXX24sPJWgsWrt4mATolJbRfdH6hblXGlaiO9Tt5LcwMnAAntfeM7NrVq7tO_95w73okfgRZwVpTz3W5lBxNn3HbNbPTGZ0Jbz9DTVgMPvVT5F18-n_SyEnTKDKxbpTrajezjae4p4Wv05gmNHSxXod0XYytlS7E6aCGUjUYIHr-49KqshSyLYqaTfBTJfZI8FtESlOXJg9oRmqzYE524a0ub5FxJoBGmPsWzcmFqVvGoFD1phXLADesz1nk6IigroZeBp-Alby7-yIXMzBGMj83gfwkeYagZeJXIgeMSny-MlbP3JLReSgQvptThnCz656I_1xU5y; __Secure-1PSIDTS=sidts-CjIB7I_69MojPruvrRDcVpmSM2l2z5b9Mfm0qRkDG2jqsfSUkn_7Bfww5Zp8u9nMvAwX6RAA; __Secure-3PSIDTS=sidts-CjIB7I_69MojPruvrRDcVpmSM2l2z5b9Mfm0qRkDG2jqsfSUkn_7Bfww5Zp8u9nMvAwX6RAA; _ga_BF8Q35BMLM=GS2.1.s1770193017$o87$g1$t1770196651$j60$l0$h0; _ga_WC57KJ50ZZ=GS2.1.s1770193017$o98$g1$t1770196651$j60$l0$h0; SIDCC=AKEyXzW_U3PB7amK5HdfRANxh8MWX4nhZdjWCYiI-b7V6IGDH_DxkCuZLaI91GxMSJL5-P-sX_g; __Secure-1PSIDCC=AKEyXzVhghU1D9opb0PBwEkEqrZEECQtvf8Yj9vpDGghZ6Hcd97-3GfyY2HBCfI8NKKBBx76KQ; __Secure-3PSIDCC=AKEyXzWC2dEfrd_N-ziYiLX65QpCN7mnbdxVDy7KwgfEqfOuRGrp9px6DCAIlH-P2VNhn-b0LA"
-SESSION_ID = "bcd3b4b49e4be4f90af493ff2a493b88"
-SNLM0E = "!4uGl4bnNAAYFnR50JZ1C6qnaHvT5mwI7ADQBEArZ1AJm4TKYiXJpy3LOtBthDoL0jhQjiTCNNJ4x0-U5-Y99iwo5jJ_43tEGGkq6erR0AgAAAKNSAAAABWgBB34AQUS3Egd9EBPAlgePd5vs6cLYytouBh7_515_Qz8aXuMUoDhR69Skysb_GV6ozzMQE1JirlpAPfkM3KGqpx803rmDmQNXiFX9GhBlx1_ESspi3kmgR9aHv4Pi5XKfvDhmc2e_85JCekhJkflt1u5VTbcWK6XT48CxtiT1bMoqcP_EazyetkwnBxhpyVGavokAhEV8ITBKEW2Kc3NlOQk2lzMPxee3uakjmDtbt4btu5zqgMZzyXgz4PTwpV6rS8RYLzobXll2dzFB5EAnir5ClZDN5byjaebBY7l1gd1sjYjraeUgX4C0GxcS6xxgXl62COUPFUxorEeK_2XuM8AAqv0MNs6NSF9cIUIkRXxevnlgjBF1RuFnNFoacf5RXdCC9YOzpxNEbbCYwQ2hNTYsM-iW1ROfnNXAA8W1ttN24i3en2GmYlH7l24MRIZOVwOYEMrU045FAIKMlEuLG8EAQqjZzAegrKk9lRNH8Xzr-EGpoP9i_mWiAk585FsLVr_umre8ULOluFuhzfUq5lou26tJhCEjXroCoFuU-LZYqWWkcUHe9FJ_YZOfNzw-1v4AWarcKdHtwnq8b67qcySVkH-3nOHKreLNaQq7-ozK2q5-iolRXgvs7NW5it52f6O6fpfSNrFZvLY8TQ1MTi1df5dv6TZyCyjHSWyaM97mqGnJkYOZ86ozQf6CA2EQIe1Sok-I6cEXRlMcgVvJdZmTfEC_trrP5um4Aw1_SjpXBFYwVPZvkHqn9S_oesTrsLQ3b0YmlrsvceACeUpNFEUKjtqYML3eu_8yT96wis_HTkQpVdnH-1e3FSsslmwXJ0eQjT1afXcFxjwBZCWm_OoGb6NMFW_xv1e1NDjdso7IvfyYu3a9rPQj9zkq3Q7qQbY0QjdlEufhhcbQ9_BfZNVLRYLwrJYNfiK9AYOfnTWFoC9VYwwrA6NCuQG1JZxCgF_K8W6ZkZrz5nhvevnl7hQ5I7TS0m80tMmcau2q7E8vFwXZonTpZvvMtJUUCXReHvusvsSPGsoKLUncWdIlEfXrezEqZleIGw1pjnOUsn6g6sqtIns7FUoIQb-n22hR6yBdZPb6B-cVJ0k9jT0UAB1Iu40A6IwzdB6B6x-6gF244QrxDsiXxU7dsvTvXmQhXUFQonryjNXcZ1IRMfeEuiKetMxb9uwC2w3ypT4ZCu7anuZ2VC858LP_XHw85zuV6ByGPJlMJhZSUKN-16kq"
-AT = "AEHmXlEI0oZuoDyWz_6pDHJz5jdR"
-
 class GeminiService:
 
     def __init__(self, proxy: str = None, timeout: int = 60, trust_env: bool = True):
@@ -16,48 +11,40 @@ class GeminiService:
         self.trust_env = trust_env
 
     async def stream_generate(self, prompt: str) -> Dict[str, Any]:
-        timestamp = str(int(time.time() * 1000))
-        current_time = time.time()
-        timestamp_sec = int(current_time)
-        timestamp_micro = int((current_time - timestamp_sec) * 1000000000)
-        cookies: str = DEFAULT_COOKIES
-        url = "https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate?bl=boq_assistant-bard-web-server_20260202.09_p1&f.sid=6488172965349433713&hl=zh-CN&_reqid=3161907&rt=c"
-        
-        encoded_prompt = quote(prompt, safe='')
-        data = f'f.req=%5Bnull%2C%22%5B%5B%5C%22{encoded_prompt}%5C%22%2C0%2Cnull%2Cnull%2Cnull%2Cnull%2C0%5D%2C%5B%5C%22zh-CN%5C%22%5D%2C%5B%5C%22%5C%22%2C%5C%22%5C%22%2C%5C%22%5C%22%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2C%5C%22%5C%22%5D%2C%5C%22{SNLM0E}%5C%22%2C%5C%22{SESSION_ID}%5C%22%2Cnull%2C%5B1%5D%2C1%2Cnull%2Cnull%2C1%2C0%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2C%5B%5B0%5D%5D%2C0%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2C1%2Cnull%2Cnull%2C%5B4%5D%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2C%5B1%5D%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2C0%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2C%5C%2257B17232-B16E-4E9E-8A63-F85AE072B2D4%5C%22%2Cnull%2C%5B%5D%2Cnull%2Cnull%2Cnull%2Cnull%2C%5B{timestamp_sec}%2C{timestamp_micro}%5D%2Cnull%2C2%5D%22%5D&at={AT}%3A{timestamp}&'
+        url = "https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate?bl=boq_assistant-bard-web-server_20260203.08_p0&f.sid=-2696125158889097683&hl=zh-CN&_reqid=4954895&rt=c"
+        data = 'f.req=%5Bnull%2C%22%5B%5B%5C%22%23%20%E4%BD%BF%E7%94%A8%E6%AC%A7%E5%A5%88%E5%B0%94CAN%20SLIM%E8%A7%84%E5%88%99%E5%88%86%E6%9E%90%E4%B8%80%E4%B8%8B%3C002050%20%E4%B8%89%E8%8A%B1%E6%99%BA%E6%8E%A7%3E%EF%BC%8C%E6%98%AF%E5%90%A6%E7%AC%A6%E5%90%88%E4%B9%B0%E5%85%A5%E6%9D%A1%E4%BB%B6%EF%BC%9A%E5%9F%BA%E4%BA%8E%E6%A8%A1%E5%9E%8B%E7%9A%84%E6%9C%80%E7%BB%88%E5%88%A4%E6%96%AD%EF%BC%8C%E7%A8%B3%E5%81%A5%E4%B9%B0%E5%85%A5%E4%BB%B7%E6%A0%BC%E5%8C%BA%E9%97%B4%EF%BC%9A%E5%9F%BA%E4%BA%8E%E6%8A%80%E6%9C%AF%E5%BD%A2%E6%80%81%EF%BC%88%E5%A6%82%E6%9D%AF%E6%9F%84%E5%BD%A2%E6%80%81%E3%80%81%E7%AA%81%E7%A0%B4%E7%82%B9%EF%BC%89%E7%BB%99%E5%87%BA%E7%9A%84%E5%BB%BA%E8%AE%AE%5C%22%2C0%2Cnull%2Cnull%2Cnull%2Cnull%2C0%5D%2C%5B%5C%22zh-CN%5C%22%5D%2C%5B%5C%22%5C%22%2C%5C%22%5C%22%2C%5C%22%5C%22%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2C%5C%22%5C%22%5D%2C%5C%22\u0021GRqlGkLNAAYFnR50JZ1CWN980d_85Ww7ADQBEArZ1JTqzcIxUMyOTDe537TE6Nj7HfyKqu0yU5YFgoi3EvSn5bHmWqhFQmyvgY9ZoKxtAgAAAERSAAAAAmgBB34AQX0BCSiI0voZfSrakqovEzcKArvMSxpdRTU8nvAgjstey2S6w7BbRZk1Umq_S2KJLigoZkxNBKBn_SF0lWhOocQjmQNlRZa-h6MKlCzHgWezJwiWgxhHy_nVFvEd4rzlVvMntTWgnPo3RbfuYEhxboaEJFDVNLkVZkURKMBHX1fdVBYhudPYQ3TWnuHMia7zf7hP8o25SGPsRcV6Bx5gDPQapOfXMh21LNe3nMNH1TDquWJOLmnrNIEoYmbrxfprODApA8aLLTo5iWP8pZQ2IXe_tGMnvbLLpjmAolaPKbSD7nuvWPGOrP6HfpCwEwOBe_JzughkOd5s0LjbEc2W8asRyxhCbdF52rh6Lq10Jcali-atZ6tRdqDe_ApTuExHEpoePTzVkFXznN0IuK14oeV3K-mxIxnO2Tyzlm2A6qSWpNU1vxuOl0caADid6Fg400hLK4AUmxqivVXptaYirWiPZTeUlEIEyLd5pUGmJ8ksb4yEnH-aF-zPXQlmDgwOyfh8z_3rIplybj_O4mkIxDFsMj2MlHcpnZS9XzK6ruLPuI1-rfX9YoDJsnGcYi42Hlot_LpYOhdaJw3viM8kKaiBLOHF8qnWB-wvfsBFso0pTc4GPIzWiaQHIQ7qvngMF128Kyjv4Z1aSYVdBLxwkiByfJbnxDAQkaYacVml8EiV7vw5TNpmKcmmHQrU0eFWTsvvOOqI-_eGeSPdVBtdqb1zdgkAmTmTwBRQtnZOI9tz5EPJlR69oqJ3mgXzzz6Px6gmXEgQJsHSeqsYI7nivL_K8VzczN1P1iYUpcvVVm7wKPAkO-3EN-H6NbGh9g-tdHgTCYlPYCKQq656YxNmRe4kWSvZMCn7FLxqYnrUh9DiRVhIspBYEWFPWqtmfzQkzaHA2AV-O7ktqWa8jjPHVRIc2ylUmYUKhR8F4qTMG7hWreweneBtJZm0dJpX4QfV4WqpKBNxJTjkdGjywPN6Nlr_YAchZxeuYwjJHpklJk0acRRJ13c0sgHb--p7kixGOoKqRp8b8PRA-go9Mg0UaxEsJK4GnDQ37gyOsLbnOAWU9YcNX3h1DVZc-4W8fkOc0X3OKufnzKfT8IjLkd4sPlmexVm2MuszRj6qG7GFN8n6hvdcTwB3rRDBpBl1WU2psYX95PpebYw3R2HX-NYo4tMheVQLUwybNOg2X5W7q4uk4GDKX787QgzXI9TwKAwhiitQL4rnl8Il2tvTBJo5bWuLSKAS21us7kk%5C%22%2C%5C%229fc1cb87f198ec3fe5693d02b41b494a%5C%22%2Cnull%2C%5B0%5D%2C1%2Cnull%2Cnull%2C1%2C0%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2C%5B%5B0%5D%5D%2C0%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2C1%2Cnull%2Cnull%2C%5B4%5D%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2C%5B1%5D%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2C0%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2C%5C%221BA2638C-4DE8-4B7D-A402-69CF67005121%5C%22%2Cnull%2C%5B%5D%2Cnull%2Cnull%2Cnull%2Cnull%2C%5B1770275757%2C176000000%5D%2Cnull%2C1%5D%22%5D&at=AEHmXlHb8AuUBOTKxyz9B1xbXrKu%3A1770275693619&'
         
         headers = {
             "accept": "*/*",
-            "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "accept-language": "zh-CN,zh;q=0.9",
             "cache-control": "no-cache",
             "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-            "cookie": cookies,
             "origin": "https://gemini.google.com",
             "pragma": "no-cache",
             "priority": "u=1, i",
             "referer": "https://gemini.google.com/",
-            "sec-ch-ua": '"Not(A:Brand";v="8", "Chromium";v="144", "Google Chrome";v="144"',
-            "sec-ch-ua-arch": '"x86"',
+            "sec-ch-ua": '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+            "sec-ch-ua-arch": '"arm"',
             "sec-ch-ua-bitness": '"64"',
             "sec-ch-ua-form-factors": '"Desktop"',
-            "sec-ch-ua-full-version": '"144.0.7559.96"',
-            "sec-ch-ua-full-version-list": '"Not(A:Brand";v="8.0.0.0", "Chromium";v="144.0.7559.96", "Google Chrome";v="144.0.7559.96"',
+            "sec-ch-ua-full-version": '"143.0.7499.193"',
+            "sec-ch-ua-full-version-list": '"Google Chrome";v="143.0.7499.193", "Chromium";v="143.0.7499.193", "Not A(Brand";v="24.0.0.0"',
             "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-model": '""',
             "sec-ch-ua-platform": '"macOS"',
-            "sec-ch-ua-platform-version": '"13.4.0"',
+            "sec-ch-ua-platform-version": '"14.3.0"',
             "sec-ch-ua-wow64": "?0",
             "sec-fetch-dest": "empty",
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "same-origin",
-            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
             "x-browser-channel": "stable",
             "x-browser-copyright": "Copyright 2026 Google LLC. All Rights reserved.",
-            "x-browser-validation": "xnE7MBo0fDEGcagbvn9w5+SkX68=",
+            "x-browser-validation": "AUXUCdutEJ+6gl6bYtz7E2kgIT4=",
             "x-browser-year": "2026",
-            "x-client-data": "CJO2yQEIo7bJAQipncoBCOT+ygEIlqHLAQiGoM0BCJeMzwEIipHPAQi1os8BCNajzwEIvKTPAQiapc8BCICmzwEI3qbPAQjQqc8BCNmqzwEYwaHPAQ==",
+            "x-client-data": "CI+2yQEIprbJAQipncoBCJT3ygEIlqHLAQiGoM0BCJaMzwEIhZHPAQi1os8BCNWjzwEImqXPAQjfps8BCNGpzwEI2qrPARiyhs8BGMGhzwEY/aXPAQ==",
             "x-goog-ext-525001261-jspb": '[1,null,null,null,"56fdd199312815e2",null,null,0,[4],null,null,2]',
-            "x-goog-ext-525005358-jspb": '["57B17232-B16E-4E9E-8A63-F85AE072B2D4",1]',
+            "x-goog-ext-525005358-jspb": '["1BA2638C-4DE8-4B7D-A402-69CF67005121",1]',
             "x-goog-ext-73010989-jspb": "[0]",
             "x-same-domain": "1"
         }
