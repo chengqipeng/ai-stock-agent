@@ -1,4 +1,4 @@
-from service.gemini.stream_generate import GeminiService, DEFAULT_COOKIES
+from service.gemini.stream_generate import GeminiService
 from service.gemini.gemini_parser import parse_gemini_stream_response
 
 DEFAULT_PROXY = "http://127.0.0.1:7890"
