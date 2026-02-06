@@ -72,3 +72,62 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
         return markdown
     except Exception as e:
         return f"# 错误\n\n获取股票数据失败: {str(e)}"
+
+
+async def get_stock_markdown_all(secid="0.002371", stock_name=None):
+    """获取股票数据并返回格式化的markdown"""
+    try:
+        stock_code = secid.split('.')[-1]
+        markdown = (""
+                    f"# 使用欧奈尔CAN SLIM规则分析一下<{stock_code} {stock_name}>，基于模型的最终判断、（如杯柄形态、突破点）判断是否属于优质股票，只能输出json数据，json格式：\n"
+                    "{'stock_code': '<股票代码>', 'stock_name': '<股票名称>', 'reason': '<优质股需要输出理由>', 'score': '<到评分，按0-100分>', 'is_good': '0/1 0 差 1 优质'}"
+                    "# 1.分析涉及当日交易信息、主力当日资金流向、实时成交分布、股票基本信息、业绩报表、业绩预告、高管减持、机构持仓变化等数据必须严格使用已提供的【东方财富数据集】\n"
+                    "# 2.以下是【东方财富数据集】：\n")
+
+        markdown += f"## <{stock_code} {stock_name}> - 当日交易信息\n" + (
+            await get_stock_realtime_markdown(secid)).replace("## 当日交易信息", "") + "\n\n"
+        markdown += f"## <{stock_code} {stock_name}> - 主力当日资金流向\n" + (
+            await get_main_fund_flow_markdown(secid)).replace("## 主力当日资金流向", "") + "\n\n"
+        markdown += f"## <{stock_code} {stock_name}> - 实时成交分布\n" + (
+            await get_trade_distribution_markdown(secid)).replace("## 实时成交分布", "") + "\n\n"
+
+        try:
+            markdown += f"## <{stock_code} {stock_name}> - 股票基本信息\n" + (
+                await get_stock_base_info_markdown(secid)).replace("## 股票基本信息", "") + "\n"
+        except Exception as e:
+            markdown += f"## <{stock_code} {stock_name}> - 股票基本信息错误\n\n获取失败: {str(e)}\n"
+
+        try:
+            markdown += f"## <{stock_code} {stock_name}> - 历史资金流向\n" + (
+                await get_fund_flow_history_markdown(secid)).replace("## 历史资金流向", "") + "\n"
+        except Exception as e:
+            markdown += f"## <{stock_code} {stock_name}> - 历史资金流向错误\n\n获取失败: {str(e)}\n"
+
+        try:
+            markdown += f"## <{stock_code} {stock_name}> - 业绩报表明细\n" + (
+                await get_financial_report_markdown(stock_code)).replace("## 业绩报表明细", "") + "\n"
+        except Exception as e:
+            markdown += f"## <{stock_code} {stock_name}> - 业绩报表明细错误\n\n获取失败: {str(e)}\n"
+
+        try:
+            markdown += f"## <{stock_code} {stock_name}> - 业绩预告明细\n" + (
+                await get_performance_forecast_markdown(stock_code)).replace("## 业绩预告明细", "") + "\n"
+        except Exception as e:
+            markdown += f"## <{stock_code} {stock_name}> - 业绩预告明细错误\n\n获取失败: {str(e)}\n"
+
+        try:
+            org_md = await get_org_holder_markdown(stock_code)
+            markdown += org_md.replace("##", f"## <{stock_code} {stock_name}> -") + "\n"
+        except Exception as e:
+            markdown += f"## <{stock_code} {stock_name}> - 机构持仓明细错误\n\n获取失败: {str(e)}\n\n"
+
+        try:
+            increase_markdown = await get_shareholder_increase_markdown(stock_code)
+            if increase_markdown:
+                markdown += increase_markdown.replace("##", f"## <{stock_code} {stock_name}> -")
+        except Exception as e:
+            markdown += f"## <{stock_code} {stock_name}> - 股东增减持明细\n: {str(e)}"
+
+        return markdown
+    except Exception as e:
+        return f"# 错误\n\n获取股票数据失败: {str(e)}"
