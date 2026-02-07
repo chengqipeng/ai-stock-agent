@@ -12,6 +12,7 @@ from .stock_holder_data import (
     get_shareholder_increase_markdown,
     get_org_holder_markdown
 )
+from .stock_day_range_kline import get_moving_averages_markdown
 
 
 async def get_stock_markdown(secid="0.002371", stock_name=None, history_page_size=60):
@@ -20,7 +21,7 @@ async def get_stock_markdown(secid="0.002371", stock_name=None, history_page_siz
         stock_code = secid.split('.')[-1]
         markdown = (""
                     f"# 使用欧奈尔CAN SLIM规则分析一下<{stock_code} {stock_name}>，是否符合买入条件：基于模型的最终判断，稳健买入价格区间：基于技术形态（如杯柄形态、突破点）给出的建议\n"
-                    "# 1.分析涉及当日交易信息、当日资金流向、实时成交分布、股票基本信息、业绩报表、业绩预告、高管减持、机构持仓变化等数据必须严格使用已提供的【东方财富数据集】\n"
+                    "# 1.分析涉及当日交易信息、当日资金流向、股票基本信息、业绩报表、业绩预告、高管减持、机构持仓变化、移动平均线数据等数据必须严格使用已提供的【东方财富数据集】\n"
                     "# 2.参考【东方财富数据集】中A股市场业务相关性最高的上市公司的主力和机构的实时和历史买入卖出交易数据\n"
                     f"# 3.同时针对股票<{stock_code} {stock_name}>执行深度行业调研，要求如下：\n"
                     "## 3.1.**行业动态**： 检索近 6 个月内该行业的核心技术变革、重大投融资事件及市场格局变化。\n"
@@ -64,9 +65,14 @@ async def get_stock_markdown(secid="0.002371", stock_name=None, history_page_siz
         try:
             increase_markdown = await get_shareholder_increase_markdown(stock_code)
             if increase_markdown:
-                markdown += increase_markdown.replace("##", f"## <{stock_code} {stock_name}> -")
+                markdown += increase_markdown.replace("##", f"## <{stock_code} {stock_name}> -" + "\n")
         except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 股东增减持明细\n: {str(e)}"
+            markdown += f"## <{stock_code} {stock_name}> - 股东增减持明细\n: {str(e)}\n"
+
+        try:
+            markdown += await get_moving_averages_markdown(secid, stock_code, stock_name)
+        except Exception as e:
+            markdown += f"## <{stock_code} {stock_name}> - 移动平均线数据错误\n\n获取失败: {str(e)}\n"
 
         return markdown
     except Exception as e:
@@ -126,6 +132,11 @@ async def get_stock_markdown_for_score(secid="0.002371", stock_name=None, histor
                 markdown += increase_markdown.replace("##", f"## <{stock_code} {stock_name}> -")
         except Exception as e:
             markdown += f"## <{stock_code} {stock_name}> - 股东增减持明细\n: {str(e)}"
+
+        try:
+            markdown += await get_moving_averages_markdown(secid, stock_code, stock_name)
+        except Exception as e:
+            markdown += f"## <{stock_code} {stock_name}> - 移动平均线数据错误\n\n获取失败: {str(e)}\n"
 
         return markdown
     except Exception as e:

@@ -31,7 +31,20 @@ def calculate_moving_averages(klines):
     df = df.tail(200)
     return df.to_dict('records')[::-1]
 
-async def get_stock_day_range_kline(secid="0.002371", limit=300):
+async def get_moving_averages_markdown(secid, stock_code, stock_name):
+    """将移动平均线数据转换为markdown格式"""
+    klines = await get_stock_day_range_kline(secid)
+    ma_data = calculate_moving_averages(klines)
+
+    markdown = f"## <{stock_code} {stock_name}> - 移动平均线数据\n\n"
+    markdown += "| 日期 | 收盘价 | 10日EMA | 50日SMA | 200日SMA | 多头排列 |\n"
+    markdown += "|------|--------|---------|---------|----------|----------|\n"
+    for item in ma_data[:100]:
+        markdown += f"| {item['date']} | {item['close']:.2f} | {item.get('close_10_ema', 'N/A')} | {item.get('close_50_sma', 'N/A')} | {item.get('close_200_sma', 'N/A')} | {'是' if item.get('is_bullish_alignment') else '否'} |\n"
+    markdown += "\n"
+    return markdown
+
+async def get_stock_day_range_kline(secid="0.002371", limit=400):
     """获取股票K线数据"""
     url = f"{EASTMONEY_PUSH2HIS_API_URL}/stock/kline/get"
     params = {
