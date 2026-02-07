@@ -134,3 +134,23 @@ async def get_fund_flow_history_markdown(secid="0.002371", page_size=60):
             main_pct = f"{round(float(fields[6]), 2)}%" if fields[6] != '-' else "--"
             markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} |\n"
     return markdown
+
+
+async def get_stock_kline(secid="0.002371", lmt=120):
+    """获取股票K线数据"""
+    url = f"{EASTMONEY_PUSH2HIS_API_URL}/stock/kline/get"
+    params = {
+        "secid": secid,
+        "ut": "fa5fd1943c7b386f172d6893dbfba10b",
+        "fields1": "f1,f2,f3,f4,f5,f6",
+        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
+        "klt": "101",
+        "fqt": "1",
+        "end": "20500101",
+        "lmt": str(lmt)
+    }
+    data = await fetch_eastmoney_api(url, params, referer="https://quote.eastmoney.com/")
+    if data.get("data") and data["data"].get("klines"):
+        return data["data"]["klines"]
+    else:
+        raise Exception(f"未获取到股票 {secid} 的K线数据")
