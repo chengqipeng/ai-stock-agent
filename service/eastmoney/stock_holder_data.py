@@ -1,5 +1,5 @@
 from common.utils.amount_utils import convert_amount_unit, convert_amount_org_holder, convert_amount_org_holder_1
-from .common_utils import EASTMONEY_API_URL, fetch_eastmoney_api
+from common.http.http_utils import EASTMONEY_API_URL, fetch_eastmoney_api
 
 
 async def get_org_holder(stock_code="002371", page_size=8, page_number=1):

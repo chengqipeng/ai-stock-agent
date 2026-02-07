@@ -1,5 +1,5 @@
 from common.utils.amount_utils import convert_amount_unit
-from .common_utils import EASTMONEY_API_URL, fetch_eastmoney_api
+from common.http.http_utils import EASTMONEY_API_URL, fetch_eastmoney_api
 
 
 async def get_financial_data(stock_code="002371", page_size=5, page_number=1):

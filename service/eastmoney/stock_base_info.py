@@ -1,5 +1,5 @@
 from common.utils.amount_utils import convert_amount_unit
-from .common_utils import EASTMONEY_PUSH2_API_URL, fetch_eastmoney_api
+from common.http.http_utils import EASTMONEY_PUSH2_API_URL, fetch_eastmoney_api
 
 
 async def get_stock_detail(secid="0.002371"):

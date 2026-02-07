@@ -1,5 +1,5 @@
 from common.utils.amount_utils import normalize_stock_code
-from .common_utils import fetch_eastmoney_api, EASTMONEY_DATA_API_URL
+from common.http.http_utils import fetch_eastmoney_api, EASTMONEY_DATA_API_URL
 from .stock_fund_flow import (
     get_main_fund_flow_markdown,
 )

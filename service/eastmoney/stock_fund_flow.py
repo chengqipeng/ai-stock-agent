@@ -1,5 +1,5 @@
 from common.utils.amount_utils import convert_amount_unit
-from service.eastmoney.common_utils import EASTMONEY_PUSH_API_URL, fetch_eastmoney_api, EASTMONEY_PUSH2HIS_API_URL
+from common.http.http_utils import EASTMONEY_PUSH_API_URL, fetch_eastmoney_api, EASTMONEY_PUSH2HIS_API_URL
 
 async def get_main_fund_flow(secids="0.002371"):
     """获取资金流向数据"""
