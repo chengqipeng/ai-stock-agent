@@ -15,7 +15,7 @@ from .holder_data import (
 )
 
 
-async def get_stock_markdown(secid="0.002371", stock_name=None):
+async def get_stock_markdown(secid="0.002371", stock_name=None, history_page_size=60):
     """获取股票数据并返回格式化的markdown"""
     try:
         stock_code = secid.split('.')[-1]
@@ -42,7 +42,7 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
             markdown += f"## <{stock_code} {stock_name}> - 股票基本信息错误\n\n获取失败: {str(e)}\n"
 
         try:
-            markdown += f"## <{stock_code} {stock_name}> - 历史资金流向\n" + (await get_fund_flow_history_markdown(secid)).replace("## 历史资金流向", "") + "\n"
+            markdown += f"## <{stock_code} {stock_name}> - 历史资金流向\n" + (await get_fund_flow_history_markdown(secid, history_page_size)).replace("## 历史资金流向", "") + "\n"
         except Exception as e:
             markdown += f"## <{stock_code} {stock_name}> - 历史资金流向错误\n\n获取失败: {str(e)}\n"
 
@@ -74,7 +74,7 @@ async def get_stock_markdown(secid="0.002371", stock_name=None):
         return f"# 错误\n\n获取股票数据失败: {str(e)}"
 
 
-async def get_stock_markdown_all(secid="0.002371", stock_name=None):
+async def get_stock_markdown_for_score(secid="0.002371", stock_name=None, history_page_size=30):
     """获取股票数据并返回格式化的markdown"""
     try:
         stock_code = secid.split('.')[-1]
@@ -99,7 +99,7 @@ async def get_stock_markdown_all(secid="0.002371", stock_name=None):
 
         try:
             markdown += f"## <{stock_code} {stock_name}> - 历史资金流向\n" + (
-                await get_fund_flow_history_markdown(secid)).replace("## 历史资金流向", "") + "\n"
+                await get_fund_flow_history_markdown(secid, history_page_size)).replace("## 历史资金流向", "") + "\n"
         except Exception as e:
             markdown += f"## <{stock_code} {stock_name}> - 历史资金流向错误\n\n获取失败: {str(e)}\n"
 
