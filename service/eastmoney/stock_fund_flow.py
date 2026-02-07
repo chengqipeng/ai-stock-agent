@@ -73,3 +73,19 @@ async def get_main_fund_flow_markdown(secids="0.002371"):
 - **小单流出**: {flow_data.get('小单流出', '--')}
 
 """
+
+# async def get_trade_distribution_markdown(secids="0.002371"):
+#     """获取实时成交分布并转换为markdown"""
+#     fund_flow_data = await get_main_fund_flow(secids)
+#     if not fund_flow_data:
+#         return ""
+#     flow_data = fund_flow_data[0]
+#     return f"""## 实时成交分布
+# - **超大单流入**: {flow_data.get('超大单流入', '--')}
+# - **超大单流出**: {flow_data.get('超大单流出', '--')}
+# - **大单流入**: {flow_data.get('大单流入', '--')}
+# - **大单流出**: {flow_data.get('大单流出', '--')}
+# - **中单流入**: {flow_data.get('中单流入', '--')}
+# - **中单流出**: {flow_data.get('中单流出', '--')}
+# - **小单流入**: {flow_data.get('小单流入', '--')}
+# - **小单流出**: {flow_data.get('小单流出', '--')}"""
