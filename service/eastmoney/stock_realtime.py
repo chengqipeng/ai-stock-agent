@@ -27,6 +27,6 @@ async def get_stock_realtime_markdown(secid="1.601698"):
 - **最新价**: {realtime_data.get('f43', '--')}
 - **涨跌幅**: {realtime_data.get('f170', '--')}%
 - **涨跌额**: {realtime_data.get('f169', '--')}
-- **成交量**: {convert_amount_unit(realtime_data.get('f47'))}
-- **成交额**: {convert_amount_unit(realtime_data.get('f48'))}
+- **成交量**: {convert_amount_unit(realtime_data.get('f47', "-"))}
+- **成交额**: {convert_amount_unit(realtime_data.get('f48', "-"))}
 - **换手率**: {realtime_data.get('f168', '--')}%"""

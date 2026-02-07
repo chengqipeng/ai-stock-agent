@@ -64,7 +64,7 @@ async def main():
     good_stocks = []
     
     # 找到天士力的索引
-    start_index = next((i for i, s in enumerate(STOCKS) if s['code'] == '600535.SH'), 0)
+    start_index = next((i for i, s in enumerate(STOCKS) if s['code'] == '300790.SZ'), 0)
     filtered_stocks = STOCKS[start_index + 1:]  # 从天士力之后开始
     
     total = len(filtered_stocks)

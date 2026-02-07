@@ -2,6 +2,8 @@ def convert_amount_unit(amount):
     """根据金额大小自动转换单位：大于亿转换为亿，大于万转换为万"""
     if amount is None:
         return "--"
+    if not isinstance(amount, (int, float)):
+        return amount
     if abs(amount) >= 100000000:  # >= 1亿
         return f"{round(amount / 100000000, 4)}亿"
     elif abs(amount) >= 10000:  # >= 1万

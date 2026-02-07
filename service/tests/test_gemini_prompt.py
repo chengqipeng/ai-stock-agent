@@ -10,7 +10,7 @@ async def main():
     """
     目前不持有该股票，结合已提供的数据和你的分析，本周我该如何操作
     """
-    stock_name = "三花智控"
+    stock_name = "深南电路"
     stock_code = get_stock_code(stock_name)
     similar_company_num = 5
 
