@@ -22,8 +22,8 @@ def get_default_headers():
 
 def clean_jsonp_response(text):
     """清理JSONP响应包装"""
-    json_text = re.sub(r'^jQuery\d+_\d+\(', '', text)
-    json_text = re.sub(r'\)$', '', json_text)
+    json_text = re.sub(r'^\w+\(', '', text)
+    json_text = re.sub(r'\);?$', '', json_text)
     return json_text
 
 
