@@ -43,14 +43,9 @@ async def process_stock(stock, index, total, client, good_stocks, semaphore):
                     'is_good': is_good
                 })
                 
-                good_stocks.sort(key=lambda x: x['score'], reverse=True)
-                
-                with open('good_stock_data_list.md', 'w', encoding='utf-8') as f:
-                    for s in good_stocks:
-                        f.write(f"## {s['stock_name']} ({s['stock_code']}) - 分数: {s['score']}\n\n")
-                        f.write(f"**原因**: {s['reason']}\n\n")
-                        f.write("\n")
-            
+                with open('good_stock_data_list.md', 'a', encoding='utf-8') as f:
+                    f.write(f"## {stock_name} ({stock_code}) - 分数: {score}\n\n")
+
             print(f"\n[{index}/{total}] {stock_name} ({stock_code}) - score:{score} - is_good: {is_good} - reason: {reason}")
         except Exception as e:
             print(f"\n[{index}/{total}] {stock_name} ({stock_code}) - 异常: {e}")
