@@ -44,7 +44,7 @@ async def main():
 
     # 从文件读取股票代码和名称
     stocks = []
-    with open('stock_score_result/stocks_not_in_score.md', 'r', encoding='utf-8') as f:
+    with open('stock_score_file/stock_score_list.md.md', 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
             if line:
@@ -52,9 +52,7 @@ async def main():
                 name = parts[0]
                 code = parts[1].rstrip(')')
                 stocks.append({'code': code, 'name': name})
-    
 
-    
     total = len(stocks)
     semaphore = Semaphore(5)
     lock = asyncio.Lock()
