@@ -32,8 +32,27 @@ async def process_stock(stock, index, total, client, semaphore, lock, file_path)
             print(f"\n[{index}/{total}] {stock_name} ({stock_code}) - score:{score}")
             
             async with lock:
-                with open(file_path, 'a', encoding='utf-8') as f:
-                    f.write(f"{stock_name} ({stock_code}) - 分数: {score}\n")
+                # 读取现有数据
+                lines = []
+                if file_path.exists():
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                
+                # 过滤掉相同股票代码的行
+                new_line = f"{stock_name} ({stock_code}) - 分数: {score}\n"
+                lines = [line for line in lines if f"({stock_code})" not in line]
+                lines.append(new_line)
+                
+                # 按分数排序
+                def get_score(line):
+                    match = re.search(r'分数: (\d+)', line)
+                    return int(match.group(1)) if match else 0
+                
+                lines.sort(key=get_score, reverse=True)
+                
+                # 写回文件
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.writelines(lines)
         except Exception as e:
             print(f"\n[{index}/{total}] {stock_name} ({stock_code}) - 异常: {e}")
 
