@@ -43,7 +43,7 @@ async def process_stock(stock, index, total, client, good_stocks, semaphore):
                     'is_good': is_good
                 })
                 
-                with open('good_stock_data_list.md', 'a', encoding='utf-8') as f:
+                with open('bak/good_stock_data_list.md', 'a', encoding='utf-8') as f:
                     f.write(f"## {stock_name} ({stock_code}) - 分数: {score}\n\n")
 
             print(f"\n[{index}/{total}] {stock_name} ({stock_code}) - score:{score} - is_good: {is_good} - reason: {reason}")
