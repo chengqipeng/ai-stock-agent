@@ -75,7 +75,7 @@ async def get_main_fund_flow_markdown(secids="0.002371"):
     if not fund_flow_data:
         return ""
     flow_data = fund_flow_data[0]
-    return f"""## 主力当日资金流向
+    return f"""## 当日资金流向
 - **成交额**: {flow_data.get('成交额', '--')}
 - **主力净流入**: {flow_data.get('主力净流入', '--')}
 - **超大单净流入**: {flow_data.get('超大单净流入', '--')}
@@ -86,16 +86,7 @@ async def get_main_fund_flow_markdown(secids="0.002371"):
 - **超大单净流入占比**: {flow_data.get('超大单净比', '--')}
 - **大单净流入占比**: {flow_data.get('大单净比', '--')}
 - **中单净流入占比**: {flow_data.get('中单净比', '--')}
-- **小单净流入占比**: {flow_data.get('小单净比', '--')}"""
-
-
-async def get_trade_distribution_markdown(secids="0.002371"):
-    """获取实时成交分布并转换为markdown"""
-    fund_flow_data = await get_main_fund_flow(secids)
-    if not fund_flow_data:
-        return ""
-    flow_data = fund_flow_data[0]
-    return f"""## 实时成交分布
+- **小单净流入占比**: {flow_data.get('小单净比', '--')}
 - **超大单流入**: {flow_data.get('超大单流入', '--')}
 - **超大单流出**: {flow_data.get('超大单流出', '--')}
 - **大单流入**: {flow_data.get('大单流入', '--')}
@@ -103,7 +94,26 @@ async def get_trade_distribution_markdown(secids="0.002371"):
 - **中单流入**: {flow_data.get('中单流入', '--')}
 - **中单流出**: {flow_data.get('中单流出', '--')}
 - **小单流入**: {flow_data.get('小单流入', '--')}
-- **小单流出**: {flow_data.get('小单流出', '--')}"""
+- **小单流出**: {flow_data.get('小单流出', '--')}
+
+"""
+
+
+# async def get_trade_distribution_markdown(secids="0.002371"):
+#     """获取实时成交分布并转换为markdown"""
+#     fund_flow_data = await get_main_fund_flow(secids)
+#     if not fund_flow_data:
+#         return ""
+#     flow_data = fund_flow_data[0]
+#     return f"""## 实时成交分布
+# - **超大单流入**: {flow_data.get('超大单流入', '--')}
+# - **超大单流出**: {flow_data.get('超大单流出', '--')}
+# - **大单流入**: {flow_data.get('大单流入', '--')}
+# - **大单流出**: {flow_data.get('大单流出', '--')}
+# - **中单流入**: {flow_data.get('中单流入', '--')}
+# - **中单流出**: {flow_data.get('中单流出', '--')}
+# - **小单流入**: {flow_data.get('小单流入', '--')}
+# - **小单流出**: {flow_data.get('小单流出', '--')}"""
 
 
 async def get_fund_flow_history_markdown(secid="0.002371", page_size=60):
