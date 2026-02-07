@@ -30,5 +30,6 @@ class GeminiClient:
             payload["max_tokens"] = max_tokens
         
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, json=payload) as response:
+            timeout = aiohttp.ClientTimeout(total=60)
+            async with session.post(url, headers=headers, json=payload, timeout=timeout) as response:
                 return await response.json()

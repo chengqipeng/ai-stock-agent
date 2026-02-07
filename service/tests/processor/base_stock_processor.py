@@ -27,10 +27,10 @@ class BaseStockProcessor(ABC):
             main_stock_result = await get_stock_markdown_for_score(normalize_stock_code(stock_code), stock_name)
             
             messages = [{"role": "user", "content": main_stock_result}]
-            response = await client.chat(messages)
-            content = response.get('choices', [{}])[0].get('message', {}).get('content', '')
-            
+
             try:
+                response = await client.chat(messages)
+                content = response.get('choices', [{}])[0].get('message', {}).get('content', '')
                 json_match = re.search(r'```json\s*({.*?})\s*```', content, re.DOTALL)
                 if json_match:
                     json_str = json_match.group(1)
