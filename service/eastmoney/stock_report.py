@@ -80,7 +80,7 @@ async def get_stock_markdown_all(secid="0.002371", stock_name=None):
         stock_code = secid.split('.')[-1]
         markdown = (""
                     f"# 使用欧奈尔CAN SLIM规则分析一下<{stock_code} {stock_name}>，基于模型的最终判断、（如杯柄形态、突破点）判断是否属于优质股票，只能输出json数据，json格式：\n"
-                    "{'stock_code': '<股票代码>', 'stock_name': '<股票名称>', 'reason': '<优质股需要输出理由>', 'score': '<到评分，按0-100分>', 'is_good': '0/1  0 差 1 优质 大于65分属于优质'}"
+                    "{'stock_code': '<股票代码>', 'stock_name': '<股票名称>', 'score': '<到评分，按0-100分>', 'is_good': '0/1  0 差 1 优质 大于65分属于优质'}"
                     "# 1.分析涉及当日交易信息、主力当日资金流向、实时成交分布、股票基本信息、业绩报表、业绩预告、高管减持、机构持仓变化等数据必须严格使用已提供的【东方财富数据集】\n"
                     "# 2.以下是【东方财富数据集】：\n")
 
