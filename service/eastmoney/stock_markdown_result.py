@@ -1,8 +1,8 @@
 from .stock_base_info import get_stock_base_info_markdown
+from .stock_history_flow import get_fund_flow_history_markdown
 from .stock_realtime import get_stock_realtime_markdown
-from .stock_fund_history_flow import (
+from .stock_fund_flow import (
     get_main_fund_flow_markdown,
-    get_fund_flow_history_markdown
 )
 from .stock_financial_data import (
     get_financial_report_markdown,

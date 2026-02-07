@@ -1,9 +1,9 @@
 from common.utils.amount_utils import normalize_stock_code
 from .common_utils import fetch_eastmoney_api, EASTMONEY_DATA_API_URL
-from .stock_fund_history_flow import (
+from .stock_fund_flow import (
     get_main_fund_flow_markdown,
-    get_fund_flow_history_markdown
 )
+from .stock_history_flow import get_fund_flow_history_markdown
 
 
 async def get_similar_companies_data(stock_name, stock_code, similar_company_num=5):
