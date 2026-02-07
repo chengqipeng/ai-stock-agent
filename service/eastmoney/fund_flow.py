@@ -1,5 +1,7 @@
+import asyncio
+
 from common.utils.amount_utils import convert_amount_unit
-from .common_utils import EASTMONEY_PUSH_API_URL, EASTMONEY_PUSH2HIS_API_URL, fetch_eastmoney_api
+from service.eastmoney.common_utils import EASTMONEY_PUSH_API_URL, fetch_eastmoney_api, EASTMONEY_PUSH2HIS_API_URL
 
 
 async def get_main_fund_flow(secids="0.002371"):
@@ -107,14 +109,16 @@ async def get_trade_distribution_markdown(secids="0.002371"):
 async def get_fund_flow_history_markdown(secid="0.002371", page_size=60):
     """获取资金流向历史数据并转换为markdown"""
     klines = await get_fund_flow_history(secid)
+    kline_max_min_map = await get_stock_history_kline_max_min(secid)
     markdown = f"""## 历史资金流向
-| 日期 | 收盘价 | 涨跌幅 | 主力净流入净额 | 主力净流入净占比 | 超大单净流入净额 | 超大单净流入净占比 | 大单净流入净额 | 大单净流入净占比 | 中单净流入净额 | 中单净流入占比 | 小单净流入净额 | 小单净流入净占比 |
-|-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|
+| 日期 | 收盘价 | 涨跌幅 | 主力净流入净额 | 主力净流入净占比 | 超大单净流入净额 | 超大单净流入净占比 | 大单净流入净额 | 大单净流入净占比 | 中单净流入净额 | 中单净流入占比 | 小单净流入净额 | 小单净流入净占比 | 当日最高价 | 当日最低价 |
+|-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|-------|-------|
 """
     for kline in klines[:page_size]:
         fields = kline.split(',')
         if len(fields) >= 15:
             date = fields[0]
+            kline_max_min_item = kline_max_min_map[date]
             close_price = round(float(fields[11]), 2) if fields[11] != '-' else '--'
             change_pct = f"{round(float(fields[12]), 2)}%" if fields[12] != '-' else "--"
             super_net = float(fields[5]) if fields[5] != '-' else 0
@@ -132,11 +136,11 @@ async def get_fund_flow_history_markdown(secid="0.002371", page_size=60):
             main_net = super_net + big_net
             main_net_str = convert_amount_unit(main_net)
             main_pct = f"{round(float(fields[6]), 2)}%" if fields[6] != '-' else "--"
-            markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} |\n"
+            markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} | {kline_max_min_item['high_price']} | {kline_max_min_item['low_price']} |\n"
     return markdown
 
 
-async def get_stock_kline(secid="0.002371", lmt=120):
+async def get_stock_history_kline_max_min(secid="0.002371"):
     """获取股票K线数据"""
     url = f"{EASTMONEY_PUSH2HIS_API_URL}/stock/kline/get"
     params = {
@@ -147,10 +151,22 @@ async def get_stock_kline(secid="0.002371", lmt=120):
         "klt": "101",
         "fqt": "1",
         "end": "20500101",
-        "lmt": str(lmt)
+        "smplmt": "460",
+        "lmt": "130"
     }
     data = await fetch_eastmoney_api(url, params, referer="https://quote.eastmoney.com/")
     if data.get("data") and data["data"].get("klines"):
-        return data["data"]["klines"]
+        klines = data["data"]["klines"]
+        result = {}
+        for kline in klines:
+            fields = kline.split(',')
+            date = fields[0]
+            high_price = float(fields[2])
+            low_price = float(fields[3])
+            result[date] = {"high_price": high_price, "low_price": low_price}
+        return result
     else:
         raise Exception(f"未获取到股票 {secid} 的K线数据")
+
+if __name__ == "__main__":
+    asyncio.run(get_fund_flow_history_markdown())
