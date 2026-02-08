@@ -1,10 +1,8 @@
 import asyncio
 import pandas as pd
-from service.eastmoney.stock_info.stock_indicator_base import (
-    get_stock_day_range_kline, parse_klines_to_df, 
-    process_indicator_data, INDICATOR_CONFIG
-)
 
+from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, \
+    INDICATOR_CONFIG, get_stock_day_range_kline
 
 """
 核心原则：必须拥有 250 条（约 1 年）以上的历史数据

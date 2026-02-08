@@ -1,9 +1,7 @@
 import asyncio
-from service.eastmoney.stock_info.stock_indicator_base import (
-    get_stock_day_range_kline, parse_klines_to_df, 
-    process_indicator_data, INDICATOR_CONFIG
-)
 
+from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, \
+    INDICATOR_CONFIG, get_stock_day_range_kline
 
 """
 CAN SLIM 系统下的“实战”阈值（战略数据量）

@@ -1,8 +1,8 @@
 import asyncio
-from service.eastmoney.stock_info.stock_indicator_base import (
-    get_stock_day_range_kline, parse_klines_to_df, 
-    process_indicator_data, INDICATOR_CONFIG
-)
+
+from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, \
+    INDICATOR_CONFIG, get_stock_day_range_kline
+
 
 def calculate_vwma(klines, window=20):
     """计算成交量加权移动平均线 (VWMA)"""
