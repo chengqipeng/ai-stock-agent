@@ -1,8 +1,7 @@
 import asyncio
 
 from service.llm.deepseek_client import DeepSeekClient
-from service.tests.processor.base_stock_processor import BaseStockProcessor
-
+from service.processor.base_stock_processor import BaseStockProcessor
 
 class DeepSeekStockProcessor(BaseStockProcessor):
     def __init__(self):
