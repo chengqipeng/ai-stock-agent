@@ -7,7 +7,7 @@ from pathlib import Path
 from abc import ABC, abstractmethod
 
 from common.utils.amount_utils import normalize_stock_code
-from service.eastmoney.stock_markdown_result import get_stock_markdown_for_score
+from service.eastmoney.stock_structure_markdown import get_stock_markdown_for_score
 
 
 class BaseStockProcessor(ABC):

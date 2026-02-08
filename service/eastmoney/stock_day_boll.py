@@ -1,19 +1,15 @@
 import asyncio
-from datetime import datetime
 import pandas as pd
+from service.eastmoney.stock_indicator_base import get_stock_day_range_kline, parse_klines_to_df
 
-from common.http.http_utils import EASTMONEY_PUSH2HIS_API_URL, fetch_eastmoney_api
-
+"""
+技术计算： 至少 20 条。
+图形观察： 建议 60 条（看清近期趋势）。
+完整分析： 建议 250 条（对齐 RS 评级和年度业绩周期）。
+"""
 def calculate_bollinger_bands(klines, window=20, num_std=2):
     """计算布林线指标"""
-    close_prices = []
-    dates = []
-    for kline in klines:
-        fields = kline.split(',')
-        dates.append(fields[0])
-        close_prices.append(float(fields[2]))
-
-    df = pd.DataFrame({'date': dates, 'close': close_prices})
+    df = parse_klines_to_df(klines)
     
     boll = df['close'].rolling(window=window).mean()
     rolling_std = df['close'].rolling(window=window).std()
@@ -22,7 +18,7 @@ def calculate_bollinger_bands(klines, window=20, num_std=2):
     df['boll_ub'] = (boll + rolling_std * num_std).round(4)
     df['boll_lb'] = (boll - rolling_std * num_std).round(4)
     
-    df = df.tail(200)
+    df = df.tail(300)
     return df.to_dict('records')[::-1]
 
 async def get_boll_markdown(secid, stock_code, stock_name):
@@ -38,29 +34,7 @@ async def get_boll_markdown(secid, stock_code, stock_name):
     markdown += "\n"
     return markdown
 
-async def get_stock_day_range_kline(secid="0.002371", limit=300):
-    """获取股票K线数据"""
-    url = f"{EASTMONEY_PUSH2HIS_API_URL}/stock/kline/get"
-    params = {
-        "secid": secid,
-        "ut": "fa5fd1943c7b386f172d6893dbfba10b",
-        "fields1": "f1,f2,f3,f4,f5,f6",
-        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
-        "klt": "101",
-        "fqt": "1",
-        "end": datetime.now().strftime("%Y%m%d"),
-        "lmt": limit,
-        "cb": "quote_jp1"
-    }
-    headers = {
-        "Accept": "*/*",
-        "Accept-Language": "zh-CN,zh;q=0.9",
-        "Referer": "https://quote.eastmoney.com/",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
-    }
-    result = await fetch_eastmoney_api(url, params, headers)
-    klines = result.get('data', {}).get('klines', [])
-    return klines
+
 
 async def main():
     boll_data = await get_boll_markdown("0.002371", "002371", "北方华创")
