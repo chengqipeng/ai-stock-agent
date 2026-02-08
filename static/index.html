@@ -259,6 +259,12 @@
         // 页面加载时初始化
         loadStocks();
         
+        // 从localStorage加载上次输入的股票名称
+        const lastStockName = localStorage.getItem('lastStockName');
+        if (lastStockName) {
+            document.getElementById('stockName').value = lastStockName;
+        }
+        
         // 监听操作建议类型变化
         document.getElementById('adviceType').addEventListener('change', function() {
             const holdingPriceGroup = document.getElementById('holdingPriceGroup');
@@ -330,6 +336,7 @@
                 const data = await response.json();
 
                 if (data.success) {
+                    localStorage.setItem('lastStockName', stockName);
                     // 使用marked.js渲染Markdown
                     resultContent.innerHTML = marked.parse(data.data);
                     result.classList.remove('error');
