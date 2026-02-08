@@ -50,7 +50,7 @@ async def stock_full_analysis(secid: str, stock_name: str):
     response = await client.chat(
         messages=[{"role": "user", "content": final_prompt}],
         model="deepseek-chat",
-        temperature=1.0
+        temperature=0.7
     )
     
     final_analysis_result = response.get("choices", [{}])[0].get("message", {}).get("content", "")

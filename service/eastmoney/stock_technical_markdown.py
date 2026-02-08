@@ -40,7 +40,7 @@ async def get_technical_indicators_for_llm_analysis_prompt(secid, stock_code, st
         response = await client.chat(
             messages=[{"role": "user", "content": prompt}],
             model="deepseek-chat",
-            temperature=1.0
+            temperature=0.7
         )
         
         return response.get("choices", [{}])[0].get("message", {}).get("content", "")

@@ -97,7 +97,7 @@ async def get_stock_markdown_for_llm_analyse(secid="0.002371", stock_name=None, 
         response = await client.chat(
             messages=[{"role": "user", "content": prompt}],
             model="deepseek-chat",
-            temperature=1.0
+            temperature=0.7
         )
         
         return response.get("choices", [{}])[0].get("message", {}).get("content", "")
