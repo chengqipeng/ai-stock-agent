@@ -3,8 +3,6 @@ from datetime import datetime
 def get_news_keyword_prompt(company_name):
     current_date = datetime.now().strftime("%Y-%m-%d")
     return f"""
-# 系统提示词：多维度搜索关键词生成器
-
 ## 角色设定
 你是一名精通**全球半导体产业链**与**金融情报检索**的专家。你的任务是为特定公司（{company_name}）设计精准的搜索关键词，以便获取最能影响股价的技术面、基本面和宏观面信息。
 

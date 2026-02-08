@@ -120,4 +120,4 @@ async def get_stock_markdown_with_llm_result(secid="0.002371", stock_name=None, 
         
         return response.get("choices", [{}])[0].get("message", {}).get("content", "")
     except Exception as e:
-        return f"# 错误\n\n获取股票数据失败: {str(e)}"
+        raise Exception(f"基本面数据分析失败: {str(e)}")
