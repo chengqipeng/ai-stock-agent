@@ -5,9 +5,11 @@ from typing import Optional
 
 from common.constants.stocks_data import get_stock_code
 from common.utils.amount_utils import normalize_stock_code
-from service.eastmoney.stock_structure_markdown import get_stock_markdown
+from service.eastmoney.stock_structure_markdown import get_stock_markdown, get_stock_markdown_for_llm_analyse
 from service.eastmoney.stock_technical_markdown import get_technical_indicators_prompt
 from service.processor.operation_advice import get_operation_advice
+from service.llm.deepseek_client import DeepSeekClient
+from service.llm.gemini_client import GeminiClient
 
 app = FastAPI(title="AI Stock Agent")
 
@@ -55,6 +57,48 @@ async def get_technical_analysis(request: StockRequest):
             technical_stock_result += f"# {operation_advice}\n"
         
         return {"success": True, "data": technical_stock_result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/can_slim_deepseek")
+async def get_can_slim_deepseek_analysis(request: StockRequest):
+    try:
+        stock_code = get_stock_code(request.stock_name)
+        main_stock_result = await get_stock_markdown_for_llm_analyse(normalize_stock_code(stock_code), request.stock_name)
+        operation_advice = get_operation_advice(request.advice_type, request.holding_price)
+        if operation_advice:
+            main_stock_result += f"# {operation_advice}\n"
+        
+        client = DeepSeekClient()
+        response = await client.chat(
+            messages=[{"role": "user", "content": main_stock_result}],
+            model="deepseek-chat"
+        )
+        content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+        
+        return {"success": True, "data": content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/can_slim_gemini")
+async def get_can_slim_gemini_analysis(request: StockRequest):
+    try:
+        stock_code = get_stock_code(request.stock_name)
+        main_stock_result = await get_stock_markdown_for_llm_analyse(normalize_stock_code(stock_code), request.stock_name)
+        operation_advice = get_operation_advice(request.advice_type, request.holding_price)
+        if operation_advice:
+            main_stock_result += f"# {operation_advice}\n"
+        
+        client = GeminiClient()
+        response = await client.chat(
+            messages=[{"role": "user", "content": main_stock_result}],
+            model="gemini-3-pro-all"
+        )
+        content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+        
+        return {"success": True, "data": content}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
