@@ -7,6 +7,10 @@ from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to
 ATR: Averages true range to measure volatility.
 Usage: Set stop-loss levels and adjust position sizes based on current market volatility.
 Tips: It's a reactive measure, so use it as part of a broader risk management strategy.
+
+场景建议数据量 (以 14 日 ATR 为例)目的快速测试15 - 20 天验证代码逻辑是否跑通。
+实盘交易100 天以上确保平滑算法已经稳定，消除初始值波动的影响。
+回测研究覆盖整个回测时段观察波动率在不同市场周期下的表现。
 """
 
 def calculate_atr(klines, period=14):

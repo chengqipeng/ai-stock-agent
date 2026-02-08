@@ -80,7 +80,7 @@ async def get_stock_markdown_for_score(secid="0.002371", stock_name=None, histor
         if increase_markdown:
             markdown += increase_markdown
 
-        markdown += await get_moving_averages_markdown(secid, stock_code, stock_name)
+        #markdown += await get_moving_averages_markdown(secid, stock_code, stock_name)
 
         return markdown
     except Exception as e:

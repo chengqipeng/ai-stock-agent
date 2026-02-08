@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime
 
 from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_markdown
+from service.eastmoney.technical.stock_day_atr import get_atr_markdown
 from service.eastmoney.technical.stock_day_boll import get_boll_markdown
 from service.eastmoney.technical.stock_day_macd import get_macd_markdown
 from service.eastmoney.technical.stock_day_rsi import get_rsi_markdown
@@ -17,6 +18,7 @@ async def get_technical_indicators_markdown(secid, stock_code, stock_name):
     markdown += await get_macd_markdown(secid, stock_code, stock_name)
     markdown += await get_rsi_markdown(secid, stock_code, stock_name)
     markdown += await get_vwma_markdown(secid, stock_code, stock_name)
+    markdown += await get_atr_markdown(secid, stock_code, stock_name)
     
     return markdown
 
