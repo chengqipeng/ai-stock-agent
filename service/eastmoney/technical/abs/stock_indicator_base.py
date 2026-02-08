@@ -4,9 +4,14 @@ from common.http.http_utils import EASTMONEY_PUSH2HIS_API_URL, fetch_eastmoney_a
 
 # 指标数据配置
 INDICATOR_CONFIG = {
-    'boll': {'kline_limit': 300, 'tail_limit': 300, 'markdown_limit': 250},
-    'macd': {'kline_limit': 400, 'tail_limit': 400, 'markdown_limit': 365},
-    'rsi': {'kline_limit': 400, 'tail_limit': 400, 'markdown_limit': 365},
+    # 'boll': {'kline_limit': 300, 'tail_limit': 300, 'markdown_limit': 250},
+    # 'macd': {'kline_limit': 400, 'tail_limit': 400, 'markdown_limit': 365},
+    # 'rsi': {'kline_limit': 400, 'tail_limit': 400, 'markdown_limit': 365},
+    # 'ma': {'kline_limit': 400, 'tail_limit': 400, 'markdown_limit': 200},
+    # 'vwma': {'kline_limit': 200, 'tail_limit': 200, 'markdown_limit': 60}
+    'boll': {'kline_limit': 300, 'tail_limit': 300, 'markdown_limit': 200},
+    'macd': {'kline_limit': 400, 'tail_limit': 400, 'markdown_limit': 200},
+    'rsi': {'kline_limit': 400, 'tail_limit': 400, 'markdown_limit': 200},
     'ma': {'kline_limit': 400, 'tail_limit': 400, 'markdown_limit': 200},
     'vwma': {'kline_limit': 200, 'tail_limit': 200, 'markdown_limit': 60}
 }
