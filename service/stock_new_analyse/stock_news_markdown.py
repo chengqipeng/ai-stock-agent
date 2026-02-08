@@ -1,5 +1,7 @@
 import asyncio
 import json
+import os
+from datetime import datetime
 from common.prompt.stock_news_keyword_prompt import get_news_keyword_prompt
 from common.prompt.stock_news_prompt import get_news_prompt
 from service.web_search.baidu_search import baidu_search
@@ -7,7 +9,7 @@ from service.web_search.google_search import google_search
 from service.llm.deepseek_client import DeepSeekClient
 
 
-async def process_stock_news(company_name: str):
+async def process_stock_news(company_name: str, stock_code: str = ""):
     client = DeepSeekClient()
     
     keyword_prompt = get_news_keyword_prompt(company_name)
@@ -15,6 +17,15 @@ async def process_stock_news(company_name: str):
     keyword_result = keyword_response["choices"][0]["message"]["content"]
 
     print(keyword_result)
+    
+    # 保存搜索关键字到文件
+    result_dir = "stock_full_result"
+    os.makedirs(result_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d%H%M")
+    keyword_file = f"{result_dir}/news_keywords_{company_name}_{stock_code}_{timestamp}.md"
+    with open(keyword_file, "w", encoding="utf-8") as f:
+        f.write(f"# {company_name} 搜索关键字\n\n")
+        f.write(keyword_result)
     
     # 清理可能的markdown代码块标记
     keyword_result = keyword_result.strip()

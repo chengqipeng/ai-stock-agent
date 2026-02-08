@@ -33,7 +33,7 @@ async def stock_full_analysis(secid: str, stock_name: str, progress_callback=Non
     async def analyze_news():
         if progress_callback:
             await progress_callback('progress', '咨询数据分析', 'start')
-        result = await process_stock_news(stock_name)
+        result = await process_stock_news(stock_name, stock_code)
         if progress_callback:
             await progress_callback('progress', '咨询数据分析', 'done')
         return result
