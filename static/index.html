@@ -136,6 +136,13 @@
             transform: translateY(-2px);
             box-shadow: 0 5px 20px rgba(254, 225, 64, 0.4);
         }
+        .btn-full {
+            background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%);
+        }
+        .btn-full:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.4);
+        }
         button:disabled {
             opacity: 0.6;
             cursor: not-allowed;
@@ -245,6 +252,44 @@
             border-left-color: #f44;
             color: #c33;
         }
+        .progress-list {
+            padding: 10px;
+            background: #f0f7ff;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .progress-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            font-size: 14px;
+            color: #667eea;
+        }
+        .progress-item.done {
+            color: #4caf50;
+            text-decoration: line-through;
+        }
+        .progress-item .spinner-small {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        .progress-item.done .spinner-small {
+            display: none;
+        }
+        .progress-item .checkmark {
+            display: none;
+            color: #4caf50;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        .progress-item.done .checkmark {
+            display: inline;
+        }
     </style>
 </head>
 <body>
@@ -279,6 +324,7 @@
                 <button class="btn-technical" onclick="getAnalysis('technical')">技术指标提示词+无搜索</button>
                 <button class="btn-deepseek" onclick="getAnalysis('canslim_deepseek')">CAN SLIM DeepSeek分析+无搜索</button>
                 <button class="btn-gemini" onclick="getAnalysis('canslim_gemini')">CAN SLIM Gemini分析+无搜索</button>
+                <button class="btn-full" onclick="getAnalysis('full_analysis')">基本面+技术+咨询全量分析</button>
             </div>
         </div>
         <div class="right-panel">
@@ -290,6 +336,7 @@
                     <p id="loadingTimer" style="font-size: 14px; color: #999; margin-top: 10px;"></p>
                 </div>
                 <div id="contentState" style="display: none;">
+                    <div id="progressList" class="progress-list" style="display: none;"></div>
                     <div id="streamingStatus" style="display: none; padding: 10px; background: #f0f7ff; border-radius: 4px; margin-bottom: 15px; font-size: 14px; color: #667eea;">
                         <span id="streamingText"></span>
                         <span id="streamingTimer" style="margin-left: 10px; color: #999;"></span>
@@ -406,7 +453,7 @@
             contentState.style.display = 'none';
             buttons.forEach(btn => btn.disabled = true);
 
-            const isLLMAnalysis = type === 'canslim_deepseek' || type === 'canslim_gemini';
+            const isLLMAnalysis = type === 'canslim_deepseek' || type === 'canslim_gemini' || type === 'full_analysis';
 
             try {
                 let endpoint;
@@ -420,6 +467,8 @@
                     endpoint = '/api/can_slim_deepseek';
                 } else if (type === 'canslim_gemini') {
                     endpoint = '/api/can_slim_gemini';
+                } else if (type === 'full_analysis') {
+                    endpoint = '/api/full_analysis_deepseek';
                 }
                 
                 // 使用SSE处理LLM分析
@@ -476,6 +525,8 @@
                 const streamingStatus = document.getElementById('streamingStatus');
                 const streamingText = document.getElementById('streamingText');
                 const streamingTimer = document.getElementById('streamingTimer');
+                const progressList = document.getElementById('progressList');
+                const progressItems = {}; // 存储进度项
                 
                 const response = fetch(endpoint, {
                     method: 'POST',
@@ -503,11 +554,49 @@
                                     if (event.stage === 'fetching') {
                                         loadingText.textContent = event.message;
                                         startLoadingTimer(event.message);
+                                    } else if (event.stage === 'progress') {
+                                        // 处理并行进度信息
+                                        if (event.status === 'start') {
+                                            // 切换到内容显示状态
+                                            if (loadingState.style.display !== 'none') {
+                                                stopLoadingTimer();
+                                                loadingState.style.display = 'none';
+                                                contentState.style.display = 'block';
+                                                progressList.style.display = 'block';
+                                            }
+                                            
+                                            // 创建进度项
+                                            const itemId = 'progress_' + event.message.replace(/\s/g, '_');
+                                            if (!progressItems[itemId]) {
+                                                const item = document.createElement('div');
+                                                item.className = 'progress-item';
+                                                item.id = itemId;
+                                                item.innerHTML = `
+                                                    <div class="spinner-small"></div>
+                                                    <span class="checkmark">✓</span>
+                                                    <span>正在${event.message}...</span>
+                                                `;
+                                                progressList.appendChild(item);
+                                                progressItems[itemId] = item;
+                                            }
+                                        } else if (event.status === 'done') {
+                                            // 标记为完成
+                                            const itemId = 'progress_' + event.message.replace(/\s/g, '_');
+                                            if (progressItems[itemId]) {
+                                                progressItems[itemId].classList.add('done');
+                                                progressItems[itemId].querySelector('span:last-child').textContent = event.message + '完成';
+                                            }
+                                        }
+                                    } else if (event.stage === 'processing') {
+                                        // 隐藏进度列表，显示单一状态
+                                        progressList.style.display = 'none';
+                                        streamingStatus.style.display = 'block';
+                                        streamingText.textContent = event.message;
+                                        startLoadingTimer(event.message, streamingTimer);
                                     } else if (event.stage === 'analyzing') {
                                         stopLoadingTimer();
-                                        // 切换到内容显示状态
-                                        loadingState.style.display = 'none';
-                                        contentState.style.display = 'block';
+                                        // 隐藏进度列表
+                                        progressList.style.display = 'none';
                                         // 显示流式状态
                                         streamingStatus.style.display = 'block';
                                         streamingText.textContent = event.message;
@@ -523,6 +612,7 @@
                                     } else if (event.stage === 'done') {
                                         stopLoadingTimer();
                                         streamingStatus.style.display = 'none';
+                                        progressList.style.display = 'none';
                                         localStorage.setItem('lastStockName', data.stock_name);
                                         currentMarkdown = streamingContent;
                                         result.classList.remove('error');
@@ -530,6 +620,7 @@
                                     } else if (event.stage === 'error') {
                                         stopLoadingTimer();
                                         streamingStatus.style.display = 'none';
+                                        progressList.style.display = 'none';
                                         resultContent.textContent = '分析失败：' + event.message;
                                         loadingState.style.display = 'none';
                                         contentState.style.display = 'block';

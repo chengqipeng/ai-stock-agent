@@ -87,12 +87,20 @@ async def get_stock_markdown_for_score(secid="0.002371", stock_name=None, histor
         return f"# 错误\n\n获取股票数据失败: {str(e)}"
 
 async def get_stock_markdown_for_llm_analyse(secid="0.002371", stock_name=None, history_page_size=90):
-    """获取股票数据并返回格式化的markdown（输出结果）"""
+    """获取股票数据并返回格式化的markdown（LLM分析模式）"""
     try:
         stock_code = secid.split('.')[-1]
         header = _get_analysis_header(stock_code, stock_name, mode="analyse")
         body = await _build_stock_markdown(secid, stock_name, history_page_size, include_ma=False)
-        prompt = header + body
+        return header + body
+    except Exception as e:
+        return f"# 错误\n\n获取股票数据失败: {str(e)}"
+
+
+async def get_stock_markdown_with_llm_result(secid="0.002371", stock_name=None, history_page_size=90):
+    """获取股票数据并调用DeepSeek返回分析结果"""
+    try:
+        prompt = await get_stock_markdown_for_llm_analyse(secid, stock_name, history_page_size)
         
         client = DeepSeekClient()
         response = await client.chat(

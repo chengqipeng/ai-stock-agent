@@ -7,7 +7,7 @@ from service.processor.operation_advice import get_operation_advice
 
 
 async def main():
-    stock_name = "北方华创"
+    stock_name = "三花智控"
     stock_code = get_stock_code(stock_name)
     advice_type = 1  # 1-4选择操作建议类型
     holding_price = None  # 如果advice_type为3或4，设置持仓价格
