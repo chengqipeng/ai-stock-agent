@@ -28,12 +28,15 @@
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 30px;
-            text-align: center;
+            padding: 15px 30px;
+            text-align: left;
         }
         .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+        .header p {
+            font-size: 0.9em;
         }
         .content {
             padding: 30px;
@@ -113,9 +116,33 @@
             border-radius: 8px;
             border-left: 4px solid #667eea;
             display: none;
+            position: relative;
+            max-height: 600px;
+            overflow-y: auto;
         }
         .result.show {
             display: block;
+        }
+        .copy-btn {
+            position: sticky;
+            top: 0;
+            float: right;
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            z-index: 10;
+            margin-bottom: 10px;
+        }
+        .copy-btn:hover {
+            background: #5568d3;
+        }
+        .copy-btn.copied {
+            background: #4caf50;
         }
         .loading {
             text-align: center;
@@ -141,17 +168,26 @@
         .markdown-body {
             line-height: 1.6;
             color: #333;
+            font-size: 12px;
         }
         .markdown-body h1 {
             border-bottom: 2px solid #667eea;
             padding-bottom: 10px;
             margin-top: 24px;
             margin-bottom: 16px;
+            font-size: 1.3em;
         }
         .markdown-body h2 {
             margin-top: 20px;
             margin-bottom: 12px;
             color: #667eea;
+            font-size: 1.15em;
+        }
+        .markdown-body h3 {
+            font-size: 1em;
+        }
+        .markdown-body p {
+            font-size: 12px;
         }
         .markdown-body table {
             border-collapse: collapse;
@@ -214,6 +250,7 @@
                 <p>正在分析中，请稍候...</p>
             </div>
             <div class="result" id="result">
+                <button class="copy-btn" id="copyBtn" onclick="copyResult()">复制</button>
                 <div class="markdown-body" id="resultContent"></div>
             </div>
         </div>
@@ -337,6 +374,7 @@
 
                 if (data.success) {
                     localStorage.setItem('lastStockName', stockName);
+                    currentMarkdown = data.data;
                     // 使用marked.js渲染Markdown
                     resultContent.innerHTML = marked.parse(data.data);
                     result.classList.remove('error');
@@ -352,6 +390,20 @@
                 result.classList.add('show');
                 buttons.forEach(btn => btn.disabled = false);
             }
+        }
+
+        let currentMarkdown = '';
+
+        function copyResult() {
+            navigator.clipboard.writeText(currentMarkdown).then(() => {
+                const btn = document.getElementById('copyBtn');
+                btn.textContent = '已复制';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = '复制';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
         }
     </script>
 </body>
