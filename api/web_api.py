@@ -23,6 +23,12 @@ async def read_root():
         return f.read()
 
 
+@app.get("/api/stocks")
+async def get_stocks():
+    from common.constants.stocks_data import STOCKS
+    return {"success": True, "data": STOCKS}
+
+
 @app.post("/api/can_slim")
 async def get_can_slim_analysis(request: StockRequest):
     try:

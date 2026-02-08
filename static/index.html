@@ -187,7 +187,8 @@
         <div class="content">
             <div class="form-group">
                 <label for="stockName">股票名称</label>
-                <input type="text" id="stockName" placeholder="例如：北方华创" value="北方华创">
+                <input type="text" id="stockName" list="stocksList" placeholder="例如：北方华创" value="北方华创">
+                <datalist id="stocksList"></datalist>
                 <div class="error-message" id="stockNameError">请输入股票名称</div>
             </div>
             <div class="form-group">
@@ -219,6 +220,45 @@
     </div>
 
     <script>
+        let stocksList = [];
+        
+        // 加载股票列表
+        async function loadStocks() {
+            try {
+                const response = await fetch('/api/stocks');
+                const data = await response.json();
+                if (data.success) {
+                    stocksList = data.data;
+                }
+            } catch (error) {
+                console.error('加载股票列表失败:', error);
+            }
+        }
+        
+        // 股票名称输入提示
+        const stockNameInput = document.getElementById('stockName');
+        const datalist = document.getElementById('stocksList');
+        
+        stockNameInput.addEventListener('input', function() {
+            const value = this.value.toLowerCase();
+            if (value.length < 1) {
+                datalist.innerHTML = '';
+                return;
+            }
+            
+            const filtered = stocksList.filter(stock => 
+                stock.name.toLowerCase().includes(value) || 
+                stock.code.toLowerCase().includes(value)
+            ).slice(0, 10);
+            
+            datalist.innerHTML = filtered.map(stock => 
+                `<option value="${stock.name}">${stock.name} (${stock.code})</option>`
+            ).join('');
+        });
+        
+        // 页面加载时初始化
+        loadStocks();
+        
         // 监听操作建议类型变化
         document.getElementById('adviceType').addEventListener('change', function() {
             const holdingPriceGroup = document.getElementById('holdingPriceGroup');
@@ -274,7 +314,7 @@
             buttons.forEach(btn => btn.disabled = true);
 
             try {
-                const endpoint = type === 'canslim' ? '/api/can-slim' : '/api/technical';
+                const endpoint = type === 'canslim' ? '/api/can_slim' : '/api/technical';
                 const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
