@@ -35,7 +35,7 @@ async def get_rsi_markdown(secid, stock_code, stock_name):
     markdown = f"## <{stock_code} {stock_name}> - RSI数据\n\n"
     markdown += "| 日期 | 收盘价 | RSI(14) | 状态 |\n"
     markdown += "|------|--------|---------|------|\n"
-    for item in rsi_data[:100]:
+    for item in rsi_data[:150]:
         rsi = item.get('rsi', 'N/A')
         status = '超买' if rsi != 'N/A' and rsi > 70 else ('超卖' if rsi != 'N/A' and rsi < 30 else '正常')
         markdown += f"| {item['date']} | {item['close']:.2f} | {rsi} | {status} |\n"

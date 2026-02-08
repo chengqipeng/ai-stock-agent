@@ -22,7 +22,7 @@ def calculate_macd(klines, fast=12, slow=26, signal=9):
     df['macds'] = df['macd'].ewm(span=signal, adjust=False).mean().round(4)
     df['macdh'] = (2 * (df['macd'] - df['macds'])).round(4)
     
-    df = df.tail(200)
+    df = df.tail(150)
     return df.to_dict('records')[::-1]
 
 async def get_macd_markdown(secid, stock_code, stock_name):
