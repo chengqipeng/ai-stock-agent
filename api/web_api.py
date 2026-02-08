@@ -107,7 +107,10 @@ async def get_can_slim_gemini_analysis(request: StockRequest):
             yield f"data: {json.dumps({'stage': 'fetching', 'message': '正在获取数据'}, ensure_ascii=False)}\n\n"
             
             stock_code = get_stock_code(request.stock_name)
-            main_stock_result = await get_stock_markdown_for_llm_analyse(normalize_stock_code(stock_code), request.stock_name)
+            header = _get_analysis_header(stock_code, request.stock_name, mode="analyse")
+            body = await _build_stock_markdown(normalize_stock_code(stock_code), request.stock_name, 90)
+            main_stock_result = header + body
+
             operation_advice = get_operation_advice(request.advice_type, request.holding_price)
             if operation_advice:
                 main_stock_result += f"# {operation_advice}\n"
