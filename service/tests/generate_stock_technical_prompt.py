@@ -2,7 +2,7 @@ import asyncio
 
 from common.constants.stocks_data import get_stock_code
 from common.utils.amount_utils import normalize_stock_code
-from service.eastmoney.stock_technical_markdown import get_technical_analysis_prompt
+from service.eastmoney.stock_technical_markdown import get_technical_indicators_prompt
 from service.tests.processor.operation_advice import get_operation_advice
 
 
@@ -12,7 +12,7 @@ async def main():
     advice_type = 2  # 1-4选择操作建议类型
     holding_price = None  # 如果advice_type为3或4，设置持仓价格
     
-    technical_stock_result = await get_technical_analysis_prompt(normalize_stock_code(stock_code), stock_code, stock_name)
+    technical_stock_result = await get_technical_indicators_prompt(normalize_stock_code(stock_code), stock_code, stock_name)
     operation_advice = get_operation_advice(advice_type, holding_price)
     if operation_advice:
         technical_stock_result += f"# {operation_advice}\n"

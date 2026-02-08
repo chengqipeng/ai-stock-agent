@@ -1,4 +1,8 @@
-def get_news_prompt(current_date, company_name, news_data):
+from datetime import datetime
+
+
+def get_news_prompt(company_name, news_data):
+    current_date = datetime.now().strftime("%Y-%m-%d")
     return f"""
 你是一名资深的**新闻研究员**，专注于分析过去一周的全球新闻与趋势。你的目标是撰写一份对**交易决策和宏观经济**具有高度参考价值的综合报告。
 
