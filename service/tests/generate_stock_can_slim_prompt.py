@@ -3,7 +3,6 @@ import asyncio
 from common.constants.stocks_data import get_stock_code
 from common.utils.amount_utils import normalize_stock_code
 from service.eastmoney.stock_structure_markdown import get_stock_markdown
-from service.eastmoney.stock_similar_company import get_similar_companies_data
 from service.tests.processor.operation_advice import get_operation_advice
 
 
