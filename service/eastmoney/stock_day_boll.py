@@ -43,7 +43,7 @@ async def get_boll_markdown(secid, stock_code, stock_name):
 
     markdown = f"## <{stock_code} {stock_name}> - 布林线数据\n\n"
     markdown += "| 日期 | 收盘价 | BOLL | BOLL_UB | BOLL_LB |\n"
-    markdown += "|------|--------|------|---------|---------|\\n"
+    markdown += "|------|--------|------|---------|---------|\n"
     for item in boll_data[:config['markdown_limit']]:
         markdown += f"| {item['date']} | {item['close']:.2f} | {item['boll']} | {item['boll_ub']} | {item['boll_lb']} |\n"
     markdown += "\n"

@@ -1,6 +1,6 @@
 import json
 from service.llm.deepseek_client import DeepSeekClient
-from common.prompt.similar_companies_prompt import SIMILAR_COMPANIES_PROMPT
+from common.prompt.stock_similar_companies_prompt import SIMILAR_COMPANIES_PROMPT
 
 class SimilarCompaniesGenerator:
     def __init__(self):

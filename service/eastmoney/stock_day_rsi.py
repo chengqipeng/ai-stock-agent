@@ -1,5 +1,4 @@
 import asyncio
-import pandas as pd
 from service.eastmoney.base_info.stock_indicator_base import (
     get_stock_day_range_kline, parse_klines_to_df, 
     process_indicator_data, INDICATOR_CONFIG
