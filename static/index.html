@@ -463,15 +463,21 @@
         // 从localStorage加载上次选择的操作建议类型
         const lastAdviceType = localStorage.getItem('lastAdviceType');
         if (lastAdviceType) {
-            document.getElementById('adviceType').value = lastAdviceType;
-            // 触发change事件以显示/隐藏持仓价格输入框
-            document.getElementById('adviceType').dispatchEvent(new Event('change'));
+            const adviceTypeSelect = document.getElementById('adviceType');
+            adviceTypeSelect.value = lastAdviceType;
         }
         
         // 从localStorage加载上次输入的持仓价格
         const lastHoldingPrice = localStorage.getItem('lastHoldingPrice');
         if (lastHoldingPrice) {
             document.getElementById('holdingPrice').value = lastHoldingPrice;
+        }
+        
+        // 手动触发一次显示/隐藏持仓价格输入框的逻辑
+        const adviceType = parseInt(document.getElementById('adviceType').value);
+        const holdingPriceGroup = document.getElementById('holdingPriceGroup');
+        if (adviceType === 3 || adviceType === 4) {
+            holdingPriceGroup.style.display = 'block';
         }
         
         // 监听操作建议类型变化
