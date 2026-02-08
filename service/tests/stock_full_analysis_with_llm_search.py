@@ -6,9 +6,10 @@ from service.eastmoney.stock_technical_markdown import get_technical_indicators_
 from service.stock_new_analyse.stock_news_markdown import process_stock_news
 from common.prompt.stock_final_prompt import get_final_prompt
 from service.llm.deepseek_client import DeepSeekClient
+from service.llm.gemini_client import GeminiClient
 
 
-async def stock_full_analysis(secid: str, stock_name: str, progress_callback=None):
+async def stock_full_analysis(secid: str, stock_name: str, progress_callback=None, llm_type: str = "deepseek"):
     """完整股票分析流程"""
     stock_code = secid.split('.')[-1]
     timestamp = datetime.now().strftime("%Y%m%d%H%M")
@@ -17,7 +18,7 @@ async def stock_full_analysis(secid: str, stock_name: str, progress_callback=Non
     async def analyze_can_slim():
         if progress_callback:
             await progress_callback('progress', '基本面数据分析', 'start')
-        result = await get_stock_markdown_with_llm_result(secid, stock_name)
+        result = await get_stock_markdown_with_llm_result(secid, stock_name, llm_type=llm_type)
         if progress_callback:
             await progress_callback('progress', '基本面数据分析', 'done')
         return result
@@ -25,7 +26,7 @@ async def stock_full_analysis(secid: str, stock_name: str, progress_callback=Non
     async def analyze_technical():
         if progress_callback:
             await progress_callback('progress', '技术维度数据分析', 'start')
-        result = await get_technical_indicators_for_llm_analysis_prompt(secid, stock_code, stock_name)
+        result = await get_technical_indicators_for_llm_analysis_prompt(secid, stock_code, stock_name, llm_type=llm_type)
         if progress_callback:
             await progress_callback('progress', '技术维度数据分析', 'done')
         return result
@@ -33,7 +34,7 @@ async def stock_full_analysis(secid: str, stock_name: str, progress_callback=Non
     async def analyze_news():
         if progress_callback:
             await progress_callback('progress', '咨询数据分析', 'start')
-        result = await process_stock_news(stock_name, stock_code)
+        result = await process_stock_news(stock_name, stock_code, llm_type=llm_type)
         if progress_callback:
             await progress_callback('progress', '咨询数据分析', 'done')
         return result
@@ -71,15 +72,25 @@ async def stock_full_analysis(secid: str, stock_name: str, progress_callback=Non
     with open(f"{result_dir}/final_prompt_{stock_name}_{stock_code}_{timestamp}.md", "w", encoding="utf-8") as f:
         f.write(final_prompt)
     
-    # 调用DeepSeek获取最终结果
-    if progress_callback:
-        await progress_callback('analyzing', '正在调用大模型DeepSeek进行综合分析')
-    client = DeepSeekClient()
-    response = await client.chat(
-        messages=[{"role": "user", "content": final_prompt}],
-        model="deepseek-chat",
-        temperature=0.7
-    )
+    # 调用LLM获取最终结果
+    if llm_type == "gemini":
+        if progress_callback:
+            await progress_callback('analyzing', '正在调用大模型Gemini进行综合分析')
+        client = GeminiClient()
+        response = await client.chat(
+            messages=[{"role": "user", "content": final_prompt}],
+            model="gemini-3-pro-all",
+            temperature=0.7
+        )
+    else:
+        if progress_callback:
+            await progress_callback('analyzing', '正在调用大模型DeepSeek进行综合分析')
+        client = DeepSeekClient()
+        response = await client.chat(
+            messages=[{"role": "user", "content": final_prompt}],
+            model="deepseek-chat",
+            temperature=0.7
+        )
     
     final_analysis_result = response.get("choices", [{}])[0].get("message", {}).get("content", "")
     

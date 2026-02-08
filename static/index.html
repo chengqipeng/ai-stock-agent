@@ -376,13 +376,14 @@
                 <div class="error-message" id="holdingPriceError">请输入持仓价格</div>
             </div>
             <div class="button-group">
-                <button class="btn-canslim" onclick="getAnalysis('canslim')">CAN SLIM带搜索提示词</button>
-                <button class="btn-technical" onclick="getAnalysis('technical')">技术指标提示词+无搜索</button>
-                <button class="btn-deepseek" onclick="getAnalysis('canslim_deepseek')">CAN SLIM DeepSeek分析+无搜索</button>
-                <button class="btn-gemini" onclick="getAnalysis('canslim_gemini')">CAN SLIM Gemini分析+无搜索</button>
-                <button class="btn-deepseek" onclick="getAnalysis('technical_deepseek')">技术指标 DeepSeek分析+无搜索</button>
-                <button class="btn-gemini" onclick="getAnalysis('technical_gemini')">技术指标 Gemini分析+无搜索</button>
-                <button class="btn-full" onclick="getAnalysis('full_analysis')">基本面+技术+资讯全量 DeepSeek分析</button>
+                <button class="btn-canslim" onclick="getAnalysis('canslim')">生成CAN SLIM带搜索提示词</button>
+                <button class="btn-technical" onclick="getAnalysis('technical')">生成技术指标提示词+无搜索</button>
+                <button class="btn-deepseek" onclick="getAnalysis('canslim_deepseek')">执行CAN SLIM DeepSeek分析+无搜索</button>
+                <button class="btn-gemini" onclick="getAnalysis('canslim_gemini')">执行CAN SLIM Gemini分析+无搜索</button>
+                <button class="btn-deepseek" onclick="getAnalysis('technical_deepseek')">执行技术指标 DeepSeek分析+无搜索</button>
+                <button class="btn-gemini" onclick="getAnalysis('technical_gemini')">执行技术指标 Gemini分析+无搜索</button>
+                <button class="btn-full" onclick="getAnalysis('full_analysis_deepseek')">执行基本面+技术+资讯全量 DeepSeek分析</button>
+                <button class="btn-full" onclick="getAnalysis('full_analysis_gemini')">执行基本面+技术+资讯全量 Gemini分析</button>
             </div>
             </div>
             <div class="history-section">
@@ -539,7 +540,7 @@
             contentState.style.display = 'none';
             buttons.forEach(btn => btn.disabled = true);
 
-            const isLLMAnalysis = type === 'canslim_deepseek' || type === 'canslim_gemini' || type === 'technical_deepseek' || type === 'technical_gemini' || type === 'full_analysis';
+            const isLLMAnalysis = type === 'canslim_deepseek' || type === 'canslim_gemini' || type === 'technical_deepseek' || type === 'technical_gemini' || type === 'full_analysis_deepseek' || type === 'full_analysis_gemini';
 
             try {
                 let endpoint;
@@ -557,8 +558,10 @@
                     endpoint = '/api/technical_deepseek';
                 } else if (type === 'technical_gemini') {
                     endpoint = '/api/technical_gemini';
-                } else if (type === 'full_analysis') {
+                } else if (type === 'full_analysis_deepseek') {
                     endpoint = '/api/full_analysis_deepseek';
+                } else if (type === 'full_analysis_gemini') {
+                    endpoint = '/api/full_analysis_gemini';
                 }
                 
                 // 使用SSE处理LLM分析
@@ -794,7 +797,9 @@
                         'can_slim_gemini': 'Gemini',
                         'technical_deepseek': '技术DeepSeek',
                         'technical_gemini': '技术Gemini',
-                        'full_analysis': '全量分析'
+                        'full_analysis': '全量分析',
+                        'full_analysis_deepseek': '全量DeepSeek',
+                        'full_analysis_gemini': '全量Gemini'
                     };
                     
                     historyList.innerHTML = data.data.map(item => `

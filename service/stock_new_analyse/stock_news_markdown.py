@@ -7,13 +7,22 @@ from common.prompt.stock_news_prompt import get_news_prompt
 from service.web_search.baidu_search import baidu_search
 from service.web_search.google_search import google_search
 from service.llm.deepseek_client import DeepSeekClient
+from service.llm.gemini_client import GeminiClient
 
 
-async def process_stock_news(company_name: str, stock_code: str = ""):
-    client = DeepSeekClient()
+async def process_stock_news(company_name: str, stock_code: str = "", llm_type: str = "deepseek"):
+    if llm_type == "gemini":
+        client = GeminiClient()
+        model = "gemini-3-pro-all"
+    else:
+        client = DeepSeekClient()
+        model = "deepseek-chat"
     
     keyword_prompt = get_news_keyword_prompt(company_name)
-    keyword_response = await client.chat(messages=[{"role": "user", "content": keyword_prompt}])
+    keyword_response = await client.chat(
+        messages=[{"role": "user", "content": keyword_prompt}],
+        model=model
+    )
     keyword_result = keyword_response["choices"][0]["message"]["content"]
 
     print(keyword_result)
@@ -52,7 +61,10 @@ async def process_stock_news(company_name: str, stock_code: str = ""):
     flattened_results = [item for sublist in search_results for item in sublist]
     
     news_prompt = get_news_prompt(company_name, json.dumps(flattened_results, ensure_ascii=False))
-    final_response = await client.chat(messages=[{"role": "user", "content": news_prompt}])
+    final_response = await client.chat(
+        messages=[{"role": "user", "content": news_prompt}],
+        model=model
+    )
     final_result = final_response["choices"][0]["message"]["content"]
 
     return final_result

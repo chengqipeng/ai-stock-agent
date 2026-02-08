@@ -212,7 +212,7 @@ async def get_can_slim_gemini_analysis(request: StockRequest):
     )
 
 
-async def _stream_full_analysis(request: StockRequest) -> AsyncIterator[str]:
+async def _stream_full_analysis(request: StockRequest, llm_type: str = "deepseek") -> AsyncIterator[str]:
     """全量分析流式响应"""
     try:
         stock_code = get_stock_code(request.stock_name)
@@ -227,7 +227,7 @@ async def _stream_full_analysis(request: StockRequest) -> AsyncIterator[str]:
         
         # 启动分析任务
         analysis_task = asyncio.create_task(
-            stock_full_analysis(normalized_code, request.stock_name, progress_callback)
+            stock_full_analysis(normalized_code, request.stock_name, progress_callback, llm_type)
         )
         
         # 发送初始状态
@@ -267,7 +267,15 @@ async def _stream_full_analysis(request: StockRequest) -> AsyncIterator[str]:
 @app.post("/api/full_analysis_deepseek")
 async def get_full_analysis_deepseek(request: StockRequest):
     return StreamingResponse(
-        _stream_full_analysis(request),
+        _stream_full_analysis(request, "deepseek"),
+        media_type="text/event-stream"
+    )
+
+
+@app.post("/api/full_analysis_gemini")
+async def get_full_analysis_gemini(request: StockRequest):
+    return StreamingResponse(
+        _stream_full_analysis(request, "gemini"),
         media_type="text/event-stream"
     )
 

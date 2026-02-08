@@ -7,6 +7,7 @@ from service.eastmoney.stock_info.stock_holder_data import get_org_holder_markdo
 from service.eastmoney.stock_info.stock_realtime import get_stock_realtime_markdown
 from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_markdown
 from service.llm.deepseek_client import DeepSeekClient
+from service.llm.gemini_client import GeminiClient
 
 
 def _get_analysis_header(stock_code: str, stock_name: str, mode: str = "full") -> str:
@@ -97,17 +98,25 @@ async def get_stock_markdown_for_llm_analyse(secid="0.002371", stock_name=None, 
         return f"# 错误\n\n获取股票数据失败: {str(e)}"
 
 
-async def get_stock_markdown_with_llm_result(secid="0.002371", stock_name=None, history_page_size=90):
-    """获取股票数据并调用DeepSeek返回分析结果"""
+async def get_stock_markdown_with_llm_result(secid="0.002371", stock_name=None, history_page_size=90, llm_type="deepseek"):
+    """获取股票数据并调用LLM返回分析结果"""
     try:
         prompt = await get_stock_markdown_for_llm_analyse(secid, stock_name, history_page_size)
         
-        client = DeepSeekClient()
-        response = await client.chat(
-            messages=[{"role": "user", "content": prompt}],
-            model="deepseek-chat",
-            temperature=0.7
-        )
+        if llm_type == "gemini":
+            client = GeminiClient()
+            response = await client.chat(
+                messages=[{"role": "user", "content": prompt}],
+                model="gemini-3-pro-all",
+                temperature=0.7
+            )
+        else:
+            client = DeepSeekClient()
+            response = await client.chat(
+                messages=[{"role": "user", "content": prompt}],
+                model="deepseek-chat",
+                temperature=0.7
+            )
         
         return response.get("choices", [{}])[0].get("message", {}).get("content", "")
     except Exception as e:

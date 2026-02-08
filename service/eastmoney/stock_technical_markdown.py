@@ -10,6 +10,7 @@ from service.eastmoney.technical.stock_day_rsi import get_rsi_markdown
 from service.eastmoney.technical.stock_day_vwma import get_vwma_markdown
 from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_markdown
 from service.llm.deepseek_client import DeepSeekClient
+from service.llm.gemini_client import GeminiClient
 
 async def get_technical_indicators_markdown(secid, stock_code, stock_name):
     """汇总所有技术指标数据为markdown格式"""
@@ -29,19 +30,27 @@ async def get_technical_indicators_prompt(secid, stock_code, stock_name):
     current_date = datetime.now().strftime("%Y年%m月%d日")
     return get_technical_prompt(current_date, stock_name, technical_data)
 
-async def get_technical_indicators_for_llm_analysis_prompt(secid, stock_code, stock_name):
-    """生成完整的技术分析prompt并调用DeepSeek大模型"""
+async def get_technical_indicators_for_llm_analysis_prompt(secid, stock_code, stock_name, llm_type="deepseek"):
+    """生成完整的技术分析prompt并调用LLM大模型"""
     try:
         technical_data = await get_technical_indicators_markdown(secid, stock_code, stock_name)
         current_date = datetime.now().strftime("%Y年%m月%d日")
         prompt = get_technical_prompt(current_date, stock_name, technical_data)
         
-        client = DeepSeekClient()
-        response = await client.chat(
-            messages=[{"role": "user", "content": prompt}],
-            model="deepseek-chat",
-            temperature=0.7
-        )
+        if llm_type == "gemini":
+            client = GeminiClient()
+            response = await client.chat(
+                messages=[{"role": "user", "content": prompt}],
+                model="gemini-3-pro-all",
+                temperature=0.7
+            )
+        else:
+            client = DeepSeekClient()
+            response = await client.chat(
+                messages=[{"role": "user", "content": prompt}],
+                model="deepseek-chat",
+                temperature=0.7
+            )
         
         return response.get("choices", [{}])[0].get("message", {}).get("content", "")
     except Exception as e:
