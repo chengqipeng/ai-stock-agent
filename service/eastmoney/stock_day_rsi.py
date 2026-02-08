@@ -29,7 +29,7 @@ def calculate_rsi(klines, window=14):
 
 async def get_rsi_markdown(secid, stock_code, stock_name):
     """将RSI数据转换为markdown格式"""
-    klines = await get_stock_day_range_kline(secid)
+    klines = await get_stock_day_range_kline(secid, 200)
     rsi_data = calculate_rsi(klines)
 
     markdown = f"## <{stock_code} {stock_name}> - RSI数据\n\n"

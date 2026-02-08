@@ -27,13 +27,13 @@ def calculate_macd(klines, fast=12, slow=26, signal=9):
 
 async def get_macd_markdown(secid, stock_code, stock_name):
     """将MACD数据转换为markdown格式"""
-    klines = await get_stock_day_range_kline(secid)
+    klines = await get_stock_day_range_kline(secid, 200)
     macd_data = calculate_macd(klines)
 
     markdown = f"## <{stock_code} {stock_name}> - MACD数据\n\n"
     markdown += "| 日期 | 收盘价 | MACD | MACDS | MACDH |\n"
     markdown += "|------|--------|------|-------|-------|\n"
-    for item in macd_data[:200]:
+    for item in macd_data[:150]:
         markdown += f"| {item['date']} | {item['close']:.2f} | {item['macd']} | {item['macds']} | {item['macdh']} |\n"
     markdown += "\n"
     return markdown
