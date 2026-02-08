@@ -243,9 +243,16 @@ async def _stream_full_analysis(request: StockRequest, llm_type: str = "deepseek
                     yield f"data: {json.dumps({'stage': stage, 'message': message}, ensure_ascii=False)}\n\n"
             except asyncio.TimeoutError:
                 continue
+            except Exception as e:
+                yield f"data: {json.dumps({'stage': 'error', 'message': f'进度获取失败: {str(e)}'}, ensure_ascii=False)}\n\n"
+                return
         
         # 获取分析结果
-        result = await analysis_task
+        try:
+            result = await analysis_task
+        except Exception as e:
+            yield f"data: {json.dumps({'stage': 'error', 'message': f'分析任务失败: {str(e)}'}, ensure_ascii=False)}\n\n"
+            return
         
         # 发送剩余的进度消息
         while not progress_queue.empty():
@@ -256,12 +263,14 @@ async def _stream_full_analysis(request: StockRequest, llm_type: str = "deepseek
                 yield f"data: {json.dumps({'stage': stage, 'message': message}, ensure_ascii=False)}\n\n"
         
         # 保存结果
-        save_result("full_analysis", request.stock_name, stock_code, result)
+        save_result(f"full_analysis_{llm_type}", request.stock_name, stock_code, result)
         
         yield f"data: {json.dumps({'stage': 'streaming', 'content': result}, ensure_ascii=False)}\n\n"
         yield f"data: {json.dumps({'stage': 'done'}, ensure_ascii=False)}\n\n"
     except Exception as e:
-        yield f"data: {json.dumps({'stage': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+        import traceback
+        error_detail = f"{str(e)}\n{traceback.format_exc()}"
+        yield f"data: {json.dumps({'stage': 'error', 'message': error_detail}, ensure_ascii=False)}\n\n"
 
 
 @app.post("/api/full_analysis_deepseek")

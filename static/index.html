@@ -641,6 +641,9 @@
                     },
                     body: JSON.stringify(data)
                 }).then(async (res) => {
+                    if (!res.ok) {
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    }
                     const reader = res.body.getReader();
                     const decoder = new TextDecoder();
                     
@@ -694,11 +697,7 @@
                                             }
                                         }
                                     } else if (event.stage === 'processing') {
-                                        // 隐藏进度列表，显示单一状态
-                                        progressList.style.display = 'none';
-                                        streamingStatus.style.display = 'block';
-                                        streamingText.textContent = event.message;
-                                        startLoadingTimer(event.message, streamingTimer);
+                                        // 不显示processing阶段，直接跳过
                                     } else if (event.stage === 'analyzing') {
                                         stopLoadingTimer();
                                         // 切换到内容显示状态
