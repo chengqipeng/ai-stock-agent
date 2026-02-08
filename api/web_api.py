@@ -44,10 +44,12 @@ async def get_history():
             # 解析文件名: {analysis_type}_{stock_name}_{stock_code}_{timestamp}.md
             parts = filename.replace('.md', '').split('_')
             if len(parts) >= 4:
+                # 找到时间戳部分（最后两个部分）
+                timestamp_str = '_'.join(parts[-2:])
                 analysis_type = parts[0]
                 stock_name = parts[1]
-                stock_code = parts[2]
-                timestamp_str = '_'.join(parts[3:])
+                # stock_code可能包含.SZ或.SH，所以需要合并中间部分
+                stock_code = '_'.join(parts[2:-2])
                 
                 # 解析时间戳
                 try:
