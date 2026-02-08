@@ -1,9 +1,7 @@
 from common.utils.amount_utils import normalize_stock_code
 from common.http.http_utils import fetch_eastmoney_api, EASTMONEY_DATA_API_URL
-from .stock_fund_flow import (
-    get_main_fund_flow_markdown,
-)
-from .stock_history_flow import get_fund_flow_history_markdown
+from service.eastmoney.stock_info.stock_fund_flow import get_main_fund_flow_markdown
+from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_markdown
 
 
 async def get_similar_companies_data(stock_name, stock_code, similar_company_num=5):
@@ -14,19 +12,11 @@ async def get_similar_companies_data(stock_name, stock_code, similar_company_num
         code = company.get('SECUCODE')
         name = company.get('CORRE_SECURITY_NAME')
         similar_secid = normalize_stock_code(f"{code}")
-        try:
-            fund_flow_md = await get_main_fund_flow_markdown(similar_secid)
-            fund_flow_md = f"## <{code} {name}>：\n#" + fund_flow_md + "\n\n"
-            #fund_flow_md += f"## <{code} {name}>: \n#" + (await get_trade_distribution_markdown(similar_secid))
-            similar_prompt += fund_flow_md + "\n\n"
-        except Exception as e:
-            print(f"  <{code} {name}> 当日资金流向: 获取失败 - {str(e)}\n")
-        try:
-            history_md = await get_fund_flow_history_markdown(similar_secid, 12)
-            history_md = f"## <{code} {name}>：\n#" + history_md
-            similar_prompt += history_md + "\n\n"
-        except Exception as e:
-            print(f"  <{code} {name}> 历史资金流向: 获取失败 - {str(e)}")
+
+        similar_prompt = await get_main_fund_flow_markdown(similar_secid, code, name)
+        #similar_prompt += await get_trade_distribution_markdown(similar_secid)
+
+        similar_prompt += await get_fund_flow_history_markdown(similar_secid, 12, code, name)
     return similar_prompt
 
 async def get_industry_market_data(secucode="002371.SZ", page_size=5, page_number=1):

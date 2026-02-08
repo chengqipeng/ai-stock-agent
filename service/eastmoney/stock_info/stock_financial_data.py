@@ -78,12 +78,13 @@ async def get_performance_forecast(stock_code="002371", page_size=15, page_numbe
         raise Exception(f"未获取到股票 {stock_code} 的业绩预告数据")
 
 
-async def get_financial_report_markdown(stock_code, page_size=5):
+async def get_financial_report_markdown(stock_code, page_size=5, stock_name=None):
     """获取业绩报表明细并转换为markdown"""
     report_data = await get_financial_report(stock_code, page_size)
     if not report_data:
         return ""
-    markdown = """## 业绩报表明细
+    header = f"## <{stock_code} {stock_name}> - 业绩报表明细" if stock_name else "## 业绩报表明细"
+    markdown = f"""{header}
 | 截止日期 | 每股收益(元) | 每股收益(扣除)(元) | 营业总收入 | | | 净利润 | | | 每股净资产(元) | 净资产收益率(%) | 每股经营现金流量(元) | 销售毛利率(%) | 利润分配 | 首次公告日期 |
 |----------|-------------|-------------------|-----------|---------|---------|--------|---------|---------|---------------|----------------|-------------------|--------------|---------|-------------|
 | | | | 营业总收入(元) | 同比增长(%) | 季度环比增长(%) | 净利润(元) | 同比增长(%) | 季度环比增长(%) | | | | | | |
@@ -107,7 +108,7 @@ async def get_financial_report_markdown(stock_code, page_size=5):
         assigndscrpt = item.get('ASSIGNDSCRPT', '-') if item.get('ASSIGNDSCRPT') else '-'
         notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
         markdown += f"| {report_date} | {basic_eps} | {deduct_eps} | {income_str} | {ystz} | {yshz} | {profit_str} | {sjltz} | {sjlhz} | {bps} | {roe} | {mgjyxjje} | {xsmll} | {assigndscrpt} | {notice_date} |\n"
-    return markdown
+    return markdown + "\n"
 
 
 async def get_financial_fast_report_markdown(stock_code, page_size=15):
@@ -143,12 +144,13 @@ async def get_financial_fast_report_markdown(stock_code, page_size=15):
     return markdown
 
 
-async def get_performance_forecast_markdown(stock_code, page_size=15):
+async def get_performance_forecast_markdown(stock_code, page_size=15, stock_name=None):
     """获取业绩预告明细并转换为markdown"""
     forecast_data = await get_performance_forecast(stock_code, page_size)
     if not forecast_data:
         return ""
-    markdown = """## 业绩预告明细
+    header = f"## <{stock_code} {stock_name}> - 业绩预告明细" if stock_name else "## 业绩预告明细"
+    markdown = f"""{header}
 | 截止日期 | 预测指标 | 业绩变动 | 预测数值(元) | 业绩变动同比 | 业绩变动环比 | 业绩变动原因 | 预告类型 | 上年同期值(元) | 公告日期 |
 |----------|---------|---------|------------|------------|------------|------------|---------|--------------|----------|
 """
@@ -177,4 +179,4 @@ async def get_performance_forecast_markdown(stock_code, page_size=15):
             preyear_str = convert_amount_unit(preyear) if preyear else '--'
         notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
         markdown += f"| {report_date} | {predict_finance} | {predict_content} | {predict_value} | {add_amp} | {predict_ratio} | {change_reason} | {predict_type} | {preyear_str} | {notice_date} |\n"
-    return markdown
+    return markdown + "\n"

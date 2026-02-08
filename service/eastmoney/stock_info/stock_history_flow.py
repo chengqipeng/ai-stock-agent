@@ -22,11 +22,14 @@ async def get_fund_flow_history(secid="0.002371"):
     else:
         raise Exception(f"未获取到股票 {secid} 的资金流向历史数据")
 
-async def get_fund_flow_history_markdown(secid="0.002371", page_size=60):
+async def get_fund_flow_history_markdown(secid="0.002371", page_size=60, stock_code=None, stock_name=None):
     """获取资金流向历史数据并转换为markdown"""
     klines = await get_fund_flow_history(secid)
     kline_max_min_map = await get_stock_history_kline_max_min(secid)
-    markdown = f"""## 历史资金流向
+    if not stock_code:
+        stock_code = secid.split('.')[-1]
+    header = f"## <{stock_code} {stock_name}> - 历史资金流向" if stock_name else "## 历史资金流向"
+    markdown = f"""{header}
 | 日期 | 收盘价 | 涨跌幅 | 主力净流入净额 | 主力净流入净占比 | 超大单净流入净额 | 超大单净流入净占比 | 大单净流入净额 | 大单净流入净占比 | 中单净流入净额 | 中单净流入占比 | 小单净流入净额 | 小单净流入净占比 | 当日最高价 | 当日最低价 |
 |-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|-------|-------|
 """
@@ -53,7 +56,7 @@ async def get_fund_flow_history_markdown(secid="0.002371", page_size=60):
             main_net_str = convert_amount_unit(main_net)
             main_pct = f"{round(float(fields[6]), 2)}%" if fields[6] != '-' else "--"
             markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} | {kline_max_min_item['high_price']} | {kline_max_min_item['low_price']} |\n"
-    return markdown
+    return markdown + "\n"
 
 
 async def get_stock_history_kline_max_min(secid="0.002371"):

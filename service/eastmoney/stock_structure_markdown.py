@@ -1,18 +1,11 @@
-from .stock_base_info import get_stock_base_info_markdown
-from .stock_history_flow import get_fund_flow_history_markdown
-from .stock_realtime import get_stock_realtime_markdown
-from .stock_fund_flow import (
-    get_main_fund_flow_markdown,
-)
-from .stock_financial_data import (
-    get_financial_report_markdown,
+from service.eastmoney.stock_info.stock_base_info import get_stock_base_info_markdown
+from service.eastmoney.stock_info.stock_financial_data import get_financial_report_markdown, \
     get_performance_forecast_markdown
-)
-from .stock_holder_data import (
-    get_shareholder_increase_markdown,
-    get_org_holder_markdown
-)
-from .stock_day_range_kline import get_moving_averages_markdown
+from service.eastmoney.stock_info.stock_fund_flow import get_main_fund_flow_markdown
+from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_markdown
+from service.eastmoney.stock_info.stock_holder_data import get_org_holder_markdown, get_shareholder_increase_markdown
+from service.eastmoney.stock_info.stock_realtime import get_stock_realtime_markdown
+from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_markdown
 
 
 async def get_stock_markdown(secid="0.002371", stock_name=None, history_page_size=60):
@@ -32,47 +25,26 @@ async def get_stock_markdown(secid="0.002371", stock_name=None, history_page_siz
                     "# 5.必须在明细结论中备注数据来源。\n"
                     "# 6.以下是【东方财富数据集】：\n")
         
-        markdown += f"## <{stock_code} {stock_name}> - 当日交易信息\n" + (await get_stock_realtime_markdown(secid)).replace("## 当日交易信息", "") + "\n\n"
-        markdown += f"## <{stock_code} {stock_name}> - 当日资金流向\n" + (await get_main_fund_flow_markdown(secid)).replace("## 当日资金流向", "") + "\n\n"
+        markdown += await get_stock_realtime_markdown(secid, stock_code, stock_name) + "\n\n"
+        markdown += await get_main_fund_flow_markdown(secid, stock_code, stock_name) + "\n\n"
         #markdown += f"## <{stock_code} {stock_name}> - 实时成交分布\n" + (await get_trade_distribution_markdown(secid)).replace("## 实时成交分布", "") + "\n\n"
 
-        try:
-            markdown += f"## <{stock_code} {stock_name}> - 股票基本信息\n" + (await get_stock_base_info_markdown(secid)).replace("## 股票基本信息", "") + "\n"
-        except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 股票基本信息错误\n\n获取失败: {str(e)}\n"
+        markdown += await get_stock_base_info_markdown(secid, stock_code, stock_name)
 
-        try:
-            markdown += f"## <{stock_code} {stock_name}> - 历史资金流向\n" + (await get_fund_flow_history_markdown(secid, history_page_size)).replace("## 历史资金流向", "") + "\n"
-        except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 历史资金流向错误\n\n获取失败: {str(e)}\n"
+        markdown += await get_fund_flow_history_markdown(secid, history_page_size, stock_code, stock_name)
 
-        try:
-            markdown += f"## <{stock_code} {stock_name}> - 业绩报表明细\n" + (await get_financial_report_markdown(stock_code)).replace("## 业绩报表明细", "") + "\n"
-        except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 业绩报表明细错误\n\n获取失败: {str(e)}\n"
+        markdown += await get_financial_report_markdown(stock_code, stock_name=stock_name)
 
-        try:
-            markdown += f"## <{stock_code} {stock_name}> - 业绩预告明细\n" + (await get_performance_forecast_markdown(stock_code)).replace("## 业绩预告明细", "") + "\n"
-        except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 业绩预告明细错误\n\n获取失败: {str(e)}\n"
+        markdown += await get_performance_forecast_markdown(stock_code, stock_name=stock_name)
 
-        try:
-            org_md = await get_org_holder_markdown(stock_code)
-            markdown += org_md.replace("##", f"## <{stock_code} {stock_name}> -") + "\n"
-        except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 机构持仓明细错误\n\n获取失败: {str(e)}\n\n"
+        org_md = await get_org_holder_markdown(stock_code, stock_name=stock_name)
+        markdown += org_md + "\n"
 
-        try:
-            increase_markdown = await get_shareholder_increase_markdown(stock_code)
-            if increase_markdown:
-                markdown += increase_markdown.replace("##", f"## <{stock_code} {stock_name}> -" + "\n")
-        except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 股东增减持明细\n: {str(e)}\n"
+        increase_markdown = await get_shareholder_increase_markdown(stock_code, stock_name=stock_name)
+        if increase_markdown:
+            markdown += increase_markdown + "\n"
 
-        try:
-            markdown += await get_moving_averages_markdown(secid, stock_code, stock_name)
-        except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 移动平均线数据错误\n\n获取失败: {str(e)}\n"
+        markdown += await get_moving_averages_markdown(secid, stock_code, stock_name)
 
         return markdown
     except Exception as e:
@@ -89,54 +61,26 @@ async def get_stock_markdown_for_score(secid="0.002371", stock_name=None, histor
                     "# 1.分析涉及当日交易信息、当日资金流向、实时成交分布、股票基本信息、业绩报表、业绩预告、高管减持、机构持仓变化等数据必须严格使用已提供的【东方财富数据集】\n"
                     "# 2.以下是【东方财富数据集】：\n")
 
-        markdown += f"## <{stock_code} {stock_name}> - 当日交易信息\n" + (
-            await get_stock_realtime_markdown(secid)).replace("## 当日交易信息", "") + "\n\n"
-        markdown += f"## <{stock_code} {stock_name}> - 当日资金流向\n" + (
-            await get_main_fund_flow_markdown(secid)).replace("## 当日资金流向", "") + "\n\n"
+        markdown += await get_stock_realtime_markdown(secid, stock_code, stock_name) + "\n\n"
+        markdown += await get_main_fund_flow_markdown(secid, stock_code, stock_name) + "\n\n"
         # markdown += f"## <{stock_code} {stock_name}> - 实时成交分布\n" + (
         #     await get_trade_distribution_markdown(secid)).replace("## 实时成交分布", "") + "\n\n"
 
-        try:
-            markdown += f"## <{stock_code} {stock_name}> - 股票基本信息\n" + (
-                await get_stock_base_info_markdown(secid)).replace("## 股票基本信息", "") + "\n"
-        except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 股票基本信息错误\n\n获取失败: {str(e)}\n"
+        markdown += await get_stock_base_info_markdown(secid, stock_code, stock_name)
 
-        try:
-            markdown += f"## <{stock_code} {stock_name}> - 历史资金流向\n" + (
-                await get_fund_flow_history_markdown(secid, history_page_size)).replace("## 历史资金流向", "") + "\n"
-        except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 历史资金流向错误\n\n获取失败: {str(e)}\n"
+        markdown += await get_fund_flow_history_markdown(secid, history_page_size, stock_code, stock_name)
 
-        try:
-            markdown += f"## <{stock_code} {stock_name}> - 业绩报表明细\n" + (
-                await get_financial_report_markdown(stock_code)).replace("## 业绩报表明细", "") + "\n"
-        except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 业绩报表明细错误\n\n获取失败: {str(e)}\n"
+        markdown += await get_financial_report_markdown(stock_code, stock_name=stock_name)
 
-        try:
-            markdown += f"## <{stock_code} {stock_name}> - 业绩预告明细\n" + (
-                await get_performance_forecast_markdown(stock_code)).replace("## 业绩预告明细", "") + "\n"
-        except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 业绩预告明细错误\n\n获取失败: {str(e)}\n"
+        markdown += await get_performance_forecast_markdown(stock_code, stock_name=stock_name)
 
-        try:
-            org_md = await get_org_holder_markdown(stock_code)
-            markdown += org_md.replace("##", f"## <{stock_code} {stock_name}> -") + "\n"
-        except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 机构持仓明细错误\n\n获取失败: {str(e)}\n\n"
+        markdown += await get_org_holder_markdown(stock_code, stock_name=stock_name)
 
-        try:
-            increase_markdown = await get_shareholder_increase_markdown(stock_code)
-            if increase_markdown:
-                markdown += increase_markdown.replace("##", f"## <{stock_code} {stock_name}> -")
-        except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 股东增减持明细\n: {str(e)}"
+        increase_markdown = await get_shareholder_increase_markdown(stock_code, stock_name=stock_name)
+        if increase_markdown:
+            markdown += increase_markdown
 
-        try:
-            markdown += await get_moving_averages_markdown(secid, stock_code, stock_name)
-        except Exception as e:
-            markdown += f"## <{stock_code} {stock_name}> - 移动平均线数据错误\n\n获取失败: {str(e)}\n"
+        markdown += await get_moving_averages_markdown(secid, stock_code, stock_name)
 
         return markdown
     except Exception as e:

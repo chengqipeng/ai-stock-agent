@@ -45,13 +45,16 @@ async def get_main_fund_flow(secids="0.002371"):
     else:
         raise Exception(f"未获取到股票 {secids} 的主力资金流向数据")
 
-async def get_main_fund_flow_markdown(secids="0.002371"):
+async def get_main_fund_flow_markdown(secids="0.002371", stock_code=None, stock_name=None):
     """获取主力资金流向并转换为markdown"""
     fund_flow_data = await get_main_fund_flow(secids)
     if not fund_flow_data:
         return ""
     flow_data = fund_flow_data[0]
-    return f"""## 当日资金流向
+    if not stock_code:
+        stock_code = secids.split('.')[-1]
+    header = f"## <{stock_code} {stock_name}> - 当日资金流向" if stock_name else "## 当日资金流向"
+    return f"""{header}
 - **成交额**: {flow_data.get('成交额', '--')}
 - **主力净流入**: {flow_data.get('主力净流入', '--')}
 - **超大单净流入**: {flow_data.get('超大单净流入', '--')}
@@ -71,7 +74,6 @@ async def get_main_fund_flow_markdown(secids="0.002371"):
 - **中单流出**: {flow_data.get('中单流出', '--')}
 - **小单流入**: {flow_data.get('小单流入', '--')}
 - **小单流出**: {flow_data.get('小单流出', '--')}
-
 """
 
 # async def get_trade_distribution_markdown(secids="0.002371"):
