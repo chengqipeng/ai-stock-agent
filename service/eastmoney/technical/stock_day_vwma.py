@@ -3,7 +3,11 @@ import asyncio
 from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, \
     INDICATOR_CONFIG, get_stock_day_range_kline
 
-
+"""
+如果你只是做单点计算： 只需要 20 条。
+如果你要判断趋势方向： 建议加载 30 条。
+如果你要配合 CAN SLIM 选股： 建议预留 60 条（一个季度），这样可以清晰看到机构在最近一个业绩周期内的吸筹成本。
+"""
 def calculate_vwma(klines, window=20):
     """计算成交量加权移动平均线 (VWMA)"""
     df = parse_klines_to_df(klines)
