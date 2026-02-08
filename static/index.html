@@ -286,7 +286,8 @@
                 <div id="emptyState">请选择股票并点击分析按钮</div>
                 <div id="loadingState" style="display: none;">
                     <div class="spinner"></div>
-                    <p>正在分析中，请稍候...</p>
+                    <p id="loadingText">正在分析中，请稍候...</p>
+                    <p id="loadingTimer" style="font-size: 14px; color: #999; margin-top: 10px;"></p>
                 </div>
                 <div id="contentState" style="display: none;">
                     <button class="copy-btn" id="copyBtn" onclick="copyResult()">复制</button>
@@ -389,6 +390,7 @@
             const result = document.getElementById('result');
             const emptyState = document.getElementById('emptyState');
             const loadingState = document.getElementById('loadingState');
+            const loadingText = document.getElementById('loadingText');
             const contentState = document.getElementById('contentState');
             const resultContent = document.getElementById('resultContent');
             const buttons = document.querySelectorAll('button');
@@ -400,44 +402,58 @@
             contentState.style.display = 'none';
             buttons.forEach(btn => btn.disabled = true);
 
+            const isLLMAnalysis = type === 'canslim_deepseek' || type === 'canslim_gemini';
+
             try {
                 let endpoint;
                 if (type === 'canslim') {
                     endpoint = '/api/can_slim';
+                    loadingText.textContent = '正在分析中，请稍候...';
                 } else if (type === 'technical') {
                     endpoint = '/api/technical';
+                    loadingText.textContent = '正在分析中，请稍候...';
                 } else if (type === 'canslim_deepseek') {
                     endpoint = '/api/can_slim_deepseek';
                 } else if (type === 'canslim_gemini') {
                     endpoint = '/api/can_slim_gemini';
                 }
                 
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
+                // 使用SSE处理LLM分析
+                if (isLLMAnalysis) {
+                    await handleSSERequest(endpoint, {
                         stock_name: stockName,
                         advice_type: adviceType,
                         holding_price: holdingPrice ? parseFloat(holdingPrice) : null
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    localStorage.setItem('lastStockName', stockName);
-                    currentMarkdown = data.data;
-                    resultContent.innerHTML = marked.parse(data.data);
-                    loadingState.style.display = 'none';
-                    contentState.style.display = 'block';
-                    result.classList.remove('error');
+                    }, loadingText, resultContent, loadingState, contentState, result);
                 } else {
-                    resultContent.textContent = '分析失败：' + (data.detail || '未知错误');
-                    loadingState.style.display = 'none';
-                    contentState.style.display = 'block';
-                    result.classList.add('error');
+                    // 普通请求
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            stock_name: stockName,
+                            advice_type: adviceType,
+                            holding_price: holdingPrice ? parseFloat(holdingPrice) : null
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        localStorage.setItem('lastStockName', stockName);
+                        currentMarkdown = data.data;
+                        resultContent.innerHTML = marked.parse(data.data);
+                        loadingState.style.display = 'none';
+                        contentState.style.display = 'block';
+                        result.classList.remove('error');
+                    } else {
+                        resultContent.textContent = '分析失败：' + (data.detail || '未知错误');
+                        loadingState.style.display = 'none';
+                        contentState.style.display = 'block';
+                        result.classList.add('error');
+                    }
                 }
             } catch (error) {
                 resultContent.textContent = '请求失败：' + error.message;
@@ -445,11 +461,104 @@
                 contentState.style.display = 'block';
                 result.classList.add('error');
             } finally {
+                stopLoadingTimer();
                 buttons.forEach(btn => btn.disabled = false);
             }
         }
 
+        async function handleSSERequest(endpoint, data, loadingText, resultContent, loadingState, contentState, result) {
+            return new Promise((resolve, reject) => {
+                let streamingContent = '';
+                
+                const response = fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                }).then(async (res) => {
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    
+                    while (true) {
+                        const {done, value} = await reader.read();
+                        if (done) break;
+                        
+                        const text = decoder.decode(value);
+                        const lines = text.split('\n');
+                        
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                const jsonStr = line.substring(6);
+                                try {
+                                    const event = JSON.parse(jsonStr);
+                                    
+                                    if (event.stage === 'fetching') {
+                                        loadingText.textContent = event.message;
+                                        startLoadingTimer(event.message);
+                                    } else if (event.stage === 'analyzing') {
+                                        stopLoadingTimer();
+                                        loadingText.textContent = event.message;
+                                        startLoadingTimer(event.message);
+                                        // 切换到内容显示状态
+                                        loadingState.style.display = 'none';
+                                        contentState.style.display = 'block';
+                                        streamingContent = '';
+                                        resultContent.innerHTML = '';
+                                    } else if (event.stage === 'streaming') {
+                                        // 流式输出内容
+                                        streamingContent += event.content;
+                                        resultContent.innerHTML = marked.parse(streamingContent);
+                                        // 自动滚动到底部
+                                        result.scrollTop = result.scrollHeight;
+                                    } else if (event.stage === 'done') {
+                                        stopLoadingTimer();
+                                        localStorage.setItem('lastStockName', data.stock_name);
+                                        currentMarkdown = streamingContent;
+                                        result.classList.remove('error');
+                                        resolve();
+                                    } else if (event.stage === 'error') {
+                                        stopLoadingTimer();
+                                        resultContent.textContent = '分析失败：' + event.message;
+                                        loadingState.style.display = 'none';
+                                        contentState.style.display = 'block';
+                                        result.classList.add('error');
+                                        reject(new Error(event.message));
+                                    }
+                                } catch (e) {
+                                    console.error('Parse error:', e);
+                                }
+                            }
+                        }
+                    }
+                }).catch(reject);
+            });
+        }
+
         let currentMarkdown = '';
+        let loadingTimer = null;
+        let startTime = 0;
+
+        function startLoadingTimer(stage) {
+            startTime = Date.now();
+            const timerElement = document.getElementById('loadingTimer');
+            
+            if (loadingTimer) {
+                clearInterval(loadingTimer);
+            }
+            
+            loadingTimer = setInterval(() => {
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                timerElement.textContent = `${stage}（${elapsed}秒）`;
+            }, 100);
+        }
+
+        function stopLoadingTimer() {
+            if (loadingTimer) {
+                clearInterval(loadingTimer);
+                loadingTimer = null;
+            }
+        }
 
         function copyResult() {
             navigator.clipboard.writeText(currentMarkdown).then(() => {

@@ -23,7 +23,8 @@ def _get_analysis_header(stock_code: str, stock_name: str, mode: str = "full") -
         return (
             f"# 1. 使用欧奈尔CAN SLIM规则分析一下<{stock_code} {stock_name}>，是否符合买入条件：基于模型的最终判断，稳健买入价格区间：基于技术形态（如杯柄形态、突破点）等进行深度行业调研给出的建议\n"
              "# 2.分析涉及当日交易信息、当日资金流向、股票基本信息、业绩报表、业绩预告、高管减持、机构持仓变化等数据必须严格使用已提供的【东方财富数据集】\n"
-             "# 3.以下是【东方财富数据集】：\n"
+             "# 3.呈现形式：请以表格或分级标题的形式输出。\n"
+             "# 4.以下是【东方财富数据集】：\n"
         )
     
     return (
@@ -41,7 +42,7 @@ def _get_analysis_header(stock_code: str, stock_name: str, mode: str = "full") -
     )
 
 
-async def _build_stock_markdown(secid: str, stock_name: str, history_page_size: int, include_ma: bool = True) -> str:
+async def _build_stock_markdown(secid: str, stock_name: str, history_page_size: int, include_ma: bool = False) -> str:
     """构建股票数据markdown"""
     stock_code = secid.split('.')[-1]
     parts = []
