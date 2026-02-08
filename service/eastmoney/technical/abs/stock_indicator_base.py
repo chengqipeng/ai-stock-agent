@@ -13,6 +13,7 @@ INDICATOR_CONFIG = {
     'macd': {'kline_limit': 400, 'tail_limit': 400, 'markdown_limit': 200},
     'rsi': {'kline_limit': 400, 'tail_limit': 400, 'markdown_limit': 200},
     'ma': {'kline_limit': 400, 'tail_limit': 400, 'markdown_limit': 200},
+    'atr': {'kline_limit': 200, 'tail_limit': 200, 'markdown_limit': 100},
     'vwma': {'kline_limit': 200, 'tail_limit': 200, 'markdown_limit': 60}
 }
 
@@ -41,13 +42,16 @@ async def get_stock_day_range_kline(secid, limit=400):
 
 def parse_klines_to_df(klines):
     """解析K线数据为DataFrame"""
-    dates, close_prices, volumes = [], [], []
+    dates, close_prices, volumes, highs, lows = [], [], [],[],[]
     for kline in klines:
         fields = kline.split(',')
         dates.append(fields[0])
         close_prices.append(float(fields[2]))
         volumes.append(float(fields[5]))
-    return pd.DataFrame({'date': dates, 'close': close_prices, 'volume': volumes})
+        highs.append(float(fields[3]))
+        lows.append(float(fields[4]))
+    return pd.DataFrame({'date': dates, 'close': close_prices, 'volume': volumes,
+                         'high': highs, 'low': lows})
 
 def process_indicator_data(df, indicator_type):
     """处理指标数据，应用tail限制并返回倒序记录"""
