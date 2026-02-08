@@ -2,6 +2,14 @@ from datetime import datetime
 import pandas as pd
 from common.http.http_utils import EASTMONEY_PUSH2HIS_API_URL, fetch_eastmoney_api
 
+# 指标数据配置
+INDICATOR_CONFIG = {
+    'boll': {'kline_limit': 300, 'tail_limit': 300, 'markdown_limit': 250},
+    'macd': {'kline_limit': 400, 'tail_limit': 400, 'markdown_limit': 365},
+    'rsi': {'kline_limit': 400, 'tail_limit': 400, 'markdown_limit': 365},
+    'ma': {'kline_limit': 400, 'tail_limit': 400, 'markdown_limit': 200}
+}
+
 async def get_stock_day_range_kline(secid, limit=400):
     """获取股票K线数据"""
     url = f"{EASTMONEY_PUSH2HIS_API_URL}/stock/kline/get"
@@ -33,6 +41,11 @@ def parse_klines_to_df(klines):
         dates.append(fields[0])
         close_prices.append(float(fields[2]))
     return pd.DataFrame({'date': dates, 'close': close_prices})
+
+def process_indicator_data(df, indicator_type):
+    """处理指标数据，应用tail限制并返回倒序记录"""
+    config = INDICATOR_CONFIG.get(indicator_type, {'tail_limit': 400})
+    return df.tail(config['tail_limit']).to_dict('records')[::-1]
 
 def generate_markdown_table(stock_code, stock_name, title, headers, data, limit=None):
     """生成markdown表格"""
