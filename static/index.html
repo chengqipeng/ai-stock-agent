@@ -290,6 +290,10 @@
                     <p id="loadingTimer" style="font-size: 14px; color: #999; margin-top: 10px;"></p>
                 </div>
                 <div id="contentState" style="display: none;">
+                    <div id="streamingStatus" style="display: none; padding: 10px; background: #f0f7ff; border-radius: 4px; margin-bottom: 15px; font-size: 14px; color: #667eea;">
+                        <span id="streamingText"></span>
+                        <span id="streamingTimer" style="margin-left: 10px; color: #999;"></span>
+                    </div>
                     <button class="copy-btn" id="copyBtn" onclick="copyResult()">复制</button>
                     <div class="markdown-body" id="resultContent"></div>
                 </div>
@@ -469,6 +473,9 @@
         async function handleSSERequest(endpoint, data, loadingText, resultContent, loadingState, contentState, result) {
             return new Promise((resolve, reject) => {
                 let streamingContent = '';
+                const streamingStatus = document.getElementById('streamingStatus');
+                const streamingText = document.getElementById('streamingText');
+                const streamingTimer = document.getElementById('streamingTimer');
                 
                 const response = fetch(endpoint, {
                     method: 'POST',
@@ -498,11 +505,13 @@
                                         startLoadingTimer(event.message);
                                     } else if (event.stage === 'analyzing') {
                                         stopLoadingTimer();
-                                        loadingText.textContent = event.message;
-                                        startLoadingTimer(event.message);
                                         // 切换到内容显示状态
                                         loadingState.style.display = 'none';
                                         contentState.style.display = 'block';
+                                        // 显示流式状态
+                                        streamingStatus.style.display = 'block';
+                                        streamingText.textContent = event.message;
+                                        startLoadingTimer(event.message, streamingTimer);
                                         streamingContent = '';
                                         resultContent.innerHTML = '';
                                     } else if (event.stage === 'streaming') {
@@ -513,12 +522,14 @@
                                         result.scrollTop = result.scrollHeight;
                                     } else if (event.stage === 'done') {
                                         stopLoadingTimer();
+                                        streamingStatus.style.display = 'none';
                                         localStorage.setItem('lastStockName', data.stock_name);
                                         currentMarkdown = streamingContent;
                                         result.classList.remove('error');
                                         resolve();
                                     } else if (event.stage === 'error') {
                                         stopLoadingTimer();
+                                        streamingStatus.style.display = 'none';
                                         resultContent.textContent = '分析失败：' + event.message;
                                         loadingState.style.display = 'none';
                                         contentState.style.display = 'block';
@@ -539,9 +550,9 @@
         let loadingTimer = null;
         let startTime = 0;
 
-        function startLoadingTimer(stage) {
+        function startLoadingTimer(stage, timerElement) {
             startTime = Date.now();
-            const timerElement = document.getElementById('loadingTimer');
+            const element = timerElement || document.getElementById('loadingTimer');
             
             if (loadingTimer) {
                 clearInterval(loadingTimer);
@@ -549,7 +560,7 @@
             
             loadingTimer = setInterval(() => {
                 const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-                timerElement.textContent = `${stage}（${elapsed}秒）`;
+                element.textContent = `${stage}（${elapsed}秒）`;
             }, 100);
         }
 
