@@ -46,13 +46,3 @@ def process_indicator_data(df, indicator_type):
     """处理指标数据，应用tail限制并返回倒序记录"""
     config = INDICATOR_CONFIG.get(indicator_type, {'tail_limit': 400})
     return df.tail(config['tail_limit']).to_dict('records')[::-1]
-
-def generate_markdown_table(stock_code, stock_name, title, headers, data, limit=None):
-    """生成markdown表格"""
-    markdown = f"## <{stock_code} {stock_name}> - {title}\n\n"
-    markdown += "| " + " | ".join(headers) + " |\n"
-    markdown += "|" + "------|" * len(headers) + "\n"
-    for item in (data[:limit] if limit else data):
-        markdown += "| " + " | ".join(str(v) for v in item) + " |\n"
-    markdown += "\n"
-    return markdown
