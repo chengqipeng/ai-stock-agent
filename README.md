@@ -29,7 +29,7 @@ poetry install
 python web_app.py
 ```
 
-服务启动后，访问 http://localhost:8000 即可使用Web界面。
+服务启动后，访问 http://localhost:8080 即可使用Web界面。
 
 ## API接口
 
@@ -85,17 +85,18 @@ python web_app.py
 
 ```
 ai-stock-agent/
-├── web_app.py              # Web应用主文件
-├── static/                 # 静态文件目录
-│   └── index.html         # 前端页面
-├── service/               # 服务层
-│   ├── eastmoney/        # 东方财富数据服务
-│   ├── processor/        # 数据处理器
-│   └── tests/            # 测试脚本
-├── common/               # 公共模块
-│   ├── constants/       # 常量定义
-│   └── utils/           # 工具函数
-└── start_web.sh         # 启动脚本
+├── api/                   # API接口目录
+│   └── web_api.py        # Web API主文件
+├── static/                # 静态文件目录
+│   └── index.html        # 前端页面
+├── service/              # 服务层
+│   ├── eastmoney/       # 东方财富数据服务
+│   ├── processor/       # 数据处理器
+│   └── tests/           # 测试脚本
+├── common/              # 公共模块
+│   ├── constants/      # 常量定义
+│   └── utils/          # 工具函数
+└── start_web.sh        # 启动脚本
 ```
 
 ## 技术栈

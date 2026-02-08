@@ -59,6 +59,18 @@
             outline: none;
             border-color: #667eea;
         }
+        input.error {
+            border-color: #f44;
+        }
+        .error-message {
+            color: #f44;
+            font-size: 14px;
+            margin-top: 5px;
+            display: none;
+        }
+        .error-message.show {
+            display: block;
+        }
         .button-group {
             display: flex;
             gap: 15px;
@@ -176,19 +188,21 @@
             <div class="form-group">
                 <label for="stockName">股票名称</label>
                 <input type="text" id="stockName" placeholder="例如：北方华创" value="北方华创">
+                <div class="error-message" id="stockNameError">请输入股票名称</div>
             </div>
             <div class="form-group">
                 <label for="adviceType">操作建议类型</label>
                 <select id="adviceType">
-                    <option value="1">类型 1</option>
-                    <option value="2">类型 2</option>
-                    <option value="3">类型 3</option>
-                    <option value="4">类型 4</option>
+                    <option value="1">本周操作建议（未持有）</option>
+                    <option value="2">下周操作建议（未持有）</option>
+                    <option value="3">下周操作建议（已持有）</option>
+                    <option value="4">本周操作建议（已持有）</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label for="holdingPrice">持仓价格（可选，类型3或4时使用）</label>
+            <div class="form-group" id="holdingPriceGroup" style="display: none;">
+                <label for="holdingPrice">持仓价格（必填）</label>
                 <input type="number" id="holdingPrice" placeholder="例如：100.50" step="0.01">
+                <div class="error-message" id="holdingPriceError">请输入持仓价格</div>
             </div>
             <div class="button-group">
                 <button class="btn-canslim" onclick="getAnalysis('canslim')">CAN SLIM 分析</button>
@@ -205,13 +219,47 @@
     </div>
 
     <script>
+        // 监听操作建议类型变化
+        document.getElementById('adviceType').addEventListener('change', function() {
+            const holdingPriceGroup = document.getElementById('holdingPriceGroup');
+            const holdingPriceInput = document.getElementById('holdingPrice');
+            const holdingPriceError = document.getElementById('holdingPriceError');
+            const adviceType = parseInt(this.value);
+            
+            if (adviceType === 3 || adviceType === 4) {
+                holdingPriceGroup.style.display = 'block';
+            } else {
+                holdingPriceGroup.style.display = 'none';
+                holdingPriceInput.classList.remove('error');
+                holdingPriceError.classList.remove('show');
+            }
+        });
+
         async function getAnalysis(type) {
             const stockName = document.getElementById('stockName').value;
             const adviceType = parseInt(document.getElementById('adviceType').value);
             const holdingPrice = document.getElementById('holdingPrice').value;
             
+            const stockNameInput = document.getElementById('stockName');
+            const stockNameError = document.getElementById('stockNameError');
+            const holdingPriceInput = document.getElementById('holdingPrice');
+            const holdingPriceError = document.getElementById('holdingPriceError');
+            
+            // 清除之前的错误提示
+            stockNameInput.classList.remove('error');
+            stockNameError.classList.remove('show');
+            holdingPriceInput.classList.remove('error');
+            holdingPriceError.classList.remove('show');
+            
             if (!stockName) {
-                alert('请输入股票名称');
+                stockNameInput.classList.add('error');
+                stockNameError.classList.add('show');
+                return;
+            }
+
+            if ((adviceType === 3 || adviceType === 4) && !holdingPrice) {
+                holdingPriceInput.classList.add('error');
+                holdingPriceError.classList.add('show');
                 return;
             }
 

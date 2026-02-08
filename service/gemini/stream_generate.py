@@ -1,9 +1,7 @@
 import aiohttp
 from typing import Dict, Any
 from urllib.parse import quote
-import time
 
-from big_prompt_encoder import encode_like_big_prompt
 
 def encode_prompt(decoded_str):
     # 原始编码保留了某些字符不编码
