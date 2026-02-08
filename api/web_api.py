@@ -53,8 +53,10 @@ async def get_history():
                 try:
                     dt = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
                     formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+                    sort_key = dt
                 except:
                     formatted_time = timestamp_str
+                    sort_key = datetime.min
                 
                 # 获取文件大小
                 file_size = os.path.getsize(file_path)
@@ -66,11 +68,16 @@ async def get_history():
                     "stock_code": stock_code,
                     "timestamp": formatted_time,
                     "file_size": file_size,
-                    "file_path": file_path
+                    "file_path": file_path,
+                    "sort_key": sort_key
                 })
         
         # 按时间戳倒序排序
-        history.sort(key=lambda x: x['timestamp'], reverse=True)
+        history.sort(key=lambda x: x['sort_key'], reverse=True)
+        
+        # 移除sort_key字段
+        for item in history:
+            del item['sort_key']
         
         return {"success": True, "data": history}
     except Exception as e:
@@ -261,4 +268,72 @@ async def get_full_analysis_deepseek(request: StockRequest):
         _stream_full_analysis(request),
         media_type="text/event-stream"
     )
+
+
+@app.post("/api/technical_deepseek")
+async def get_technical_deepseek_analysis(request: StockRequest):
+    client = DeepSeekClient()
+    
+    async def stream_technical():
+        try:
+            yield f"data: {json.dumps({'stage': 'fetching', 'message': '正在获取技术指标数据'}, ensure_ascii=False)}\n\n"
+            
+            stock_code = get_stock_code(request.stock_name)
+            technical_result = await get_technical_indicators_prompt(
+                normalize_stock_code(stock_code), stock_code, request.stock_name
+            )
+            operation_advice = get_operation_advice(request.advice_type, request.holding_price)
+            if operation_advice:
+                technical_result += f"# {operation_advice}\n"
+            
+            yield f"data: {json.dumps({'stage': 'analyzing', 'message': '正在调用大模型DeepSeek'}, ensure_ascii=False)}\n\n"
+            
+            full_result = ""
+            async for content in client.chat_stream(
+                messages=[{"role": "user", "content": technical_result}],
+                model="deepseek-chat"
+            ):
+                full_result += content
+                yield f"data: {json.dumps({'stage': 'streaming', 'content': content}, ensure_ascii=False)}\n\n"
+            
+            save_result("technical_deepseek", request.stock_name, stock_code, full_result)
+            yield f"data: {json.dumps({'stage': 'done'}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'stage': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+    
+    return StreamingResponse(stream_technical(), media_type="text/event-stream")
+
+
+@app.post("/api/technical_gemini")
+async def get_technical_gemini_analysis(request: StockRequest):
+    client = GeminiClient()
+    
+    async def stream_technical():
+        try:
+            yield f"data: {json.dumps({'stage': 'fetching', 'message': '正在获取技术指标数据'}, ensure_ascii=False)}\n\n"
+            
+            stock_code = get_stock_code(request.stock_name)
+            technical_result = await get_technical_indicators_prompt(
+                normalize_stock_code(stock_code), stock_code, request.stock_name
+            )
+            operation_advice = get_operation_advice(request.advice_type, request.holding_price)
+            if operation_advice:
+                technical_result += f"# {operation_advice}\n"
+            
+            yield f"data: {json.dumps({'stage': 'analyzing', 'message': '正在调用大模型Gemini'}, ensure_ascii=False)}\n\n"
+            
+            full_result = ""
+            async for content in client.chat_stream(
+                messages=[{"role": "user", "content": technical_result}],
+                model="gemini-3-pro-all"
+            ):
+                full_result += content
+                yield f"data: {json.dumps({'stage': 'streaming', 'content': content}, ensure_ascii=False)}\n\n"
+            
+            save_result("technical_gemini", request.stock_name, stock_code, full_result)
+            yield f"data: {json.dumps({'stage': 'done'}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'stage': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+    
+    return StreamingResponse(stream_technical(), media_type="text/event-stream")
 

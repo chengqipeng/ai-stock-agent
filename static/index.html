@@ -380,6 +380,8 @@
                 <button class="btn-technical" onclick="getAnalysis('technical')">技术指标提示词+无搜索</button>
                 <button class="btn-deepseek" onclick="getAnalysis('canslim_deepseek')">CAN SLIM DeepSeek分析+无搜索</button>
                 <button class="btn-gemini" onclick="getAnalysis('canslim_gemini')">CAN SLIM Gemini分析+无搜索</button>
+                <button class="btn-deepseek" onclick="getAnalysis('technical_deepseek')">技术指标 DeepSeek分析+无搜索</button>
+                <button class="btn-gemini" onclick="getAnalysis('technical_gemini')">技术指标 Gemini分析+无搜索</button>
                 <button class="btn-full" onclick="getAnalysis('full_analysis')">基本面+技术+资讯全量分析</button>
             </div>
             </div>
@@ -458,6 +460,20 @@
             document.getElementById('stockName').value = lastStockName;
         }
         
+        // 从localStorage加载上次选择的操作建议类型
+        const lastAdviceType = localStorage.getItem('lastAdviceType');
+        if (lastAdviceType) {
+            document.getElementById('adviceType').value = lastAdviceType;
+            // 触发change事件以显示/隐藏持仓价格输入框
+            document.getElementById('adviceType').dispatchEvent(new Event('change'));
+        }
+        
+        // 从localStorage加载上次输入的持仓价格
+        const lastHoldingPrice = localStorage.getItem('lastHoldingPrice');
+        if (lastHoldingPrice) {
+            document.getElementById('holdingPrice').value = lastHoldingPrice;
+        }
+        
         // 监听操作建议类型变化
         document.getElementById('adviceType').addEventListener('change', function() {
             const holdingPriceGroup = document.getElementById('holdingPriceGroup');
@@ -517,7 +533,7 @@
             contentState.style.display = 'none';
             buttons.forEach(btn => btn.disabled = true);
 
-            const isLLMAnalysis = type === 'canslim_deepseek' || type === 'canslim_gemini' || type === 'full_analysis';
+            const isLLMAnalysis = type === 'canslim_deepseek' || type === 'canslim_gemini' || type === 'technical_deepseek' || type === 'technical_gemini' || type === 'full_analysis';
 
             try {
                 let endpoint;
@@ -531,6 +547,10 @@
                     endpoint = '/api/can_slim_deepseek';
                 } else if (type === 'canslim_gemini') {
                     endpoint = '/api/can_slim_gemini';
+                } else if (type === 'technical_deepseek') {
+                    endpoint = '/api/technical_deepseek';
+                } else if (type === 'technical_gemini') {
+                    endpoint = '/api/technical_gemini';
                 } else if (type === 'full_analysis') {
                     endpoint = '/api/full_analysis_deepseek';
                 }
@@ -560,6 +580,10 @@
 
                     if (data.success) {
                         localStorage.setItem('lastStockName', stockName);
+                        localStorage.setItem('lastAdviceType', String(adviceType));
+                        if (holdingPrice) {
+                            localStorage.setItem('lastHoldingPrice', String(holdingPrice));
+                        }
                         currentMarkdown = data.data;
                         resultContent.innerHTML = marked.parse(data.data);
                         loadingState.style.display = 'none';
@@ -661,6 +685,11 @@
                                         startLoadingTimer(event.message, streamingTimer);
                                     } else if (event.stage === 'analyzing') {
                                         stopLoadingTimer();
+                                        // 切换到内容显示状态
+                                        if (loadingState.style.display !== 'none') {
+                                            loadingState.style.display = 'none';
+                                            contentState.style.display = 'block';
+                                        }
                                         // 隐藏进度列表
                                         progressList.style.display = 'none';
                                         // 显示流式状态
@@ -680,6 +709,10 @@
                                         streamingStatus.style.display = 'none';
                                         progressList.style.display = 'none';
                                         localStorage.setItem('lastStockName', data.stock_name);
+                                        localStorage.setItem('lastAdviceType', String(data.advice_type));
+                                        if (data.holding_price) {
+                                            localStorage.setItem('lastHoldingPrice', String(data.holding_price));
+                                        }
                                         currentMarkdown = streamingContent;
                                         result.classList.remove('error');
                                         resolve();
@@ -753,6 +786,8 @@
                         'technical': '技术指标',
                         'can_slim_deepseek': 'DeepSeek',
                         'can_slim_gemini': 'Gemini',
+                        'technical_deepseek': '技术DeepSeek',
+                        'technical_gemini': '技术Gemini',
                         'full_analysis': '全量分析'
                     };
                     

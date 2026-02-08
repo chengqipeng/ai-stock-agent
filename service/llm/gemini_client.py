@@ -68,8 +68,10 @@ class GeminiClient:
                             break
                         try:
                             chunk = json.loads(data)
-                            content = chunk.get('choices', [{}])[0].get('delta', {}).get('content', '')
-                            if content:
-                                yield content
+                            choices = chunk.get('choices', [])
+                            if choices and len(choices) > 0:
+                                content = choices[0].get('delta', {}).get('content', '')
+                                if content:
+                                    yield content
                         except json.JSONDecodeError:
                             continue
