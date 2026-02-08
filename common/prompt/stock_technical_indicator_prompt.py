@@ -1,4 +1,4 @@
-def get_ema_prompt(current_date, company_name, technical_data):
+def get_technical_prompt(current_date, company_name, technical_data):
     return f"""
 作为一名交易助手，你的任务是分析金融市场。你的职责是从以下列表中，针对A股的市场状况或交易策略，选择最相关的指标。目标是选择最多 8个指标，要求这些指标能提供互补的见解且不产生冗余。
 

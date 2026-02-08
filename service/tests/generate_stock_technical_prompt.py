@@ -17,7 +17,7 @@ async def main():
     technical_stock_result = await get_technical_analysis_prompt(normalize_stock_code(stock_code), stock_code, stock_name)
     operation_advice = get_operation_advice(advice_type, holding_price)
     if operation_advice:
-        technical_stock_result += f"\n\n# {operation_advice}\n"
+        technical_stock_result += f"# {operation_advice}\n"
     
     print("\n\n")
     print(technical_stock_result)

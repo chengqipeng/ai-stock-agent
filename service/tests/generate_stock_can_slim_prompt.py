@@ -16,7 +16,7 @@ async def main():
     main_stock_result = await get_stock_markdown(normalize_stock_code(stock_code), stock_name)
     operation_advice = get_operation_advice(advice_type, holding_price)
     if operation_advice:
-        main_stock_result += f"\n\n# {operation_advice}\n"
+        main_stock_result += f"# {operation_advice}\n"
     
     print("\n\n")
     print(main_stock_result)
