@@ -625,7 +625,14 @@
                 const streamingText = document.getElementById('streamingText');
                 const streamingTimer = document.getElementById('streamingTimer');
                 const progressList = document.getElementById('progressList');
-                const progressItems = {}; // 存储进度项
+                const progressItems = {};
+                
+                // 清理右侧结果展示区域
+                resultContent.innerHTML = '';
+                progressList.innerHTML = '';
+                progressList.style.display = 'none';
+                streamingStatus.style.display = 'none';
+                currentMarkdown = '';
                 
                 const response = fetch(endpoint, {
                     method: 'POST',
