@@ -3,6 +3,9 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, AsyncIterator, Callable
 import json
+import os
+from datetime import datetime
+import glob
 
 from common.constants.stocks_data import get_stock_code
 from common.utils.amount_utils import normalize_stock_code
@@ -14,6 +17,82 @@ from service.llm.gemini_client import GeminiClient
 from service.tests.stock_full_analysis_with_llm_search import stock_full_analysis
 
 app = FastAPI(title="AI Stock Agent")
+
+# 创建结果存储目录
+RESULT_DIR = "api_results"
+os.makedirs(RESULT_DIR, exist_ok=True)
+
+
+def save_result(analysis_type: str, stock_name: str, stock_code: str, result: str):
+    """保存分析结果到文件"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{RESULT_DIR}/{analysis_type}_{stock_name}_{stock_code}_{timestamp}.md"
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(result)
+    return filename
+
+
+@app.get("/api/history")
+async def get_history():
+    """获取历史记录列表"""
+    try:
+        files = glob.glob(f"{RESULT_DIR}/*.md")
+        history = []
+        
+        for file_path in files:
+            filename = os.path.basename(file_path)
+            # 解析文件名: {analysis_type}_{stock_name}_{stock_code}_{timestamp}.md
+            parts = filename.replace('.md', '').split('_')
+            if len(parts) >= 4:
+                analysis_type = parts[0]
+                stock_name = parts[1]
+                stock_code = parts[2]
+                timestamp_str = '_'.join(parts[3:])
+                
+                # 解析时间戳
+                try:
+                    dt = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+                    formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+                except:
+                    formatted_time = timestamp_str
+                
+                # 获取文件大小
+                file_size = os.path.getsize(file_path)
+                
+                history.append({
+                    "filename": filename,
+                    "analysis_type": analysis_type,
+                    "stock_name": stock_name,
+                    "stock_code": stock_code,
+                    "timestamp": formatted_time,
+                    "file_size": file_size,
+                    "file_path": file_path
+                })
+        
+        # 按时间戳倒序排序
+        history.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        return {"success": True, "data": history}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/history/{filename}")
+async def get_history_content(filename: str):
+    """获取历史记录内容"""
+    try:
+        file_path = f"{RESULT_DIR}/{filename}"
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="文件不存在")
+        
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        return {"success": True, "data": content}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 class StockRequest(BaseModel):
     stock_name: str
@@ -42,6 +121,9 @@ async def get_can_slim_analysis(request: StockRequest):
         if operation_advice:
             main_stock_result += f"# {operation_advice}\n"
         
+        # 保存结果
+        save_result("can_slim", request.stock_name, stock_code, main_stock_result)
+        
         return {"success": True, "data": main_stock_result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -58,6 +140,9 @@ async def get_technical_analysis(request: StockRequest):
         if operation_advice:
             technical_stock_result += f"# {operation_advice}\n"
         
+        # 保存结果
+        save_result("technical", request.stock_name, stock_code, technical_stock_result)
+        
         return {"success": True, "data": technical_stock_result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -67,7 +152,8 @@ async def _stream_llm_analysis(
     request: StockRequest,
     llm_name: str,
     chat_stream_func: Callable,
-    model: str
+    model: str,
+    analysis_type: str
 ) -> AsyncIterator[str]:
     """通用的LLM流式分析函数"""
     try:
@@ -83,11 +169,16 @@ async def _stream_llm_analysis(
         
         yield f"data: {json.dumps({'stage': 'analyzing', 'message': f'正在调用大模型{llm_name}'}, ensure_ascii=False)}\n\n"
         
+        full_result = ""
         async for content in chat_stream_func(
             messages=[{"role": "user", "content": main_stock_result}],
             model=model
         ):
+            full_result += content
             yield f"data: {json.dumps({'stage': 'streaming', 'content': content}, ensure_ascii=False)}\n\n"
+        
+        # 保存结果
+        save_result(analysis_type, request.stock_name, stock_code, full_result)
         
         yield f"data: {json.dumps({'stage': 'done'}, ensure_ascii=False)}\n\n"
     except Exception as e:
@@ -98,7 +189,7 @@ async def _stream_llm_analysis(
 async def get_can_slim_deepseek_analysis(request: StockRequest):
     client = DeepSeekClient()
     return StreamingResponse(
-        _stream_llm_analysis(request, "DeepSeek", client.chat_stream, "deepseek-chat"),
+        _stream_llm_analysis(request, "DeepSeek", client.chat_stream, "deepseek-chat", "can_slim_deepseek"),
         media_type="text/event-stream"
     )
 
@@ -107,7 +198,7 @@ async def get_can_slim_deepseek_analysis(request: StockRequest):
 async def get_can_slim_gemini_analysis(request: StockRequest):
     client = GeminiClient()
     return StreamingResponse(
-        _stream_llm_analysis(request, "Gemini", client.chat_stream, "gemini-3-pro-all"),
+        _stream_llm_analysis(request, "Gemini", client.chat_stream, "gemini-3-pro-all", "can_slim_gemini"),
         media_type="text/event-stream"
     )
 
@@ -154,6 +245,9 @@ async def _stream_full_analysis(request: StockRequest) -> AsyncIterator[str]:
                 yield f"data: {json.dumps({'stage': stage, 'message': message, 'status': status}, ensure_ascii=False)}\n\n"
             else:
                 yield f"data: {json.dumps({'stage': stage, 'message': message}, ensure_ascii=False)}\n\n"
+        
+        # 保存结果
+        save_result("full_analysis", request.stock_name, stock_code, result)
         
         yield f"data: {json.dumps({'stage': 'streaming', 'content': result}, ensure_ascii=False)}\n\n"
         yield f"data: {json.dumps({'stage': 'done'}, ensure_ascii=False)}\n\n"

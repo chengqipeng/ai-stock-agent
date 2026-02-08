@@ -24,12 +24,12 @@
             display: flex;
             flex: 1;
             overflow: hidden;
-            padding-top: 80px;
+            padding-top: 50px;
         }
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 15px 30px;
+            padding: 8px 20px;
             text-align: left;
             position: fixed;
             top: 0;
@@ -38,11 +38,11 @@
             z-index: 100;
         }
         .header h1 {
-            font-size: 1.5em;
-            margin-bottom: 5px;
+            font-size: 1.1em;
+            margin-bottom: 2px;
         }
         .header p {
-            font-size: 0.9em;
+            font-size: 0.75em;
         }
         .left-panel {
             width: 350px;
@@ -50,6 +50,60 @@
             padding: 30px;
             overflow-y: auto;
             box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        .form-section {
+            flex-shrink: 0;
+        }
+        .history-section {
+            margin-top: 15px;
+            flex: 1;
+            overflow-y: auto;
+            border-top: 2px solid #e0e0e0;
+            padding-top: 10px;
+            min-height: 0;
+        }
+        .history-section h3 {
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .history-item {
+            padding: 8px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        .history-item:hover {
+            background: #f0f7ff;
+            border-color: #667eea;
+        }
+        .history-item-title {
+            font-weight: 600;
+            color: #333;
+            font-size: 11px;
+            margin-bottom: 3px;
+        }
+        .history-item-meta {
+            font-size: 10px;
+            color: #999;
+        }
+        .history-item-type {
+            display: inline-block;
+            padding: 1px 5px;
+            background: #667eea;
+            color: white;
+            border-radius: 2px;
+            font-size: 9px;
+            margin-right: 4px;
         }
         .right-panel {
             flex: 1;
@@ -59,20 +113,21 @@
             height: 100%;
         }
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 8px;
         }
         label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 3px;
             font-weight: 600;
             color: #333;
+            font-size: 12px;
         }
         input, select {
             width: 100%;
-            padding: 12px;
+            padding: 6px;
             border: 2px solid #e0e0e0;
-            border-radius: 6px;
-            font-size: 16px;
+            border-radius: 4px;
+            font-size: 12px;
             transition: border-color 0.3s;
         }
         input:focus, select:focus {
@@ -84,8 +139,8 @@
         }
         .error-message {
             color: #f44;
-            font-size: 14px;
-            margin-top: 5px;
+            font-size: 11px;
+            margin-top: 3px;
             display: none;
         }
         .error-message.show {
@@ -94,16 +149,16 @@
         .button-group {
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            margin-top: 25px;
+            gap: 6px;
+            margin-top: 10px;
         }
         button {
             width: 100%;
-            padding: 12px 20px;
-            font-size: 15px;
+            padding: 6px 10px;
+            font-size: 11px;
             font-weight: 600;
             border: none;
-            border-radius: 6px;
+            border-radius: 4px;
             cursor: pointer;
             transition: all 0.3s;
             color: white;
@@ -299,6 +354,7 @@
     </div>
     <div class="container">
         <div class="left-panel">
+            <div class="form-section">
             <div class="form-group">
                 <label for="stockName">股票名称</label>
                 <input type="text" id="stockName" list="stocksList" placeholder="例如：北方华创" value="北方华创">
@@ -324,7 +380,14 @@
                 <button class="btn-technical" onclick="getAnalysis('technical')">技术指标提示词+无搜索</button>
                 <button class="btn-deepseek" onclick="getAnalysis('canslim_deepseek')">CAN SLIM DeepSeek分析+无搜索</button>
                 <button class="btn-gemini" onclick="getAnalysis('canslim_gemini')">CAN SLIM Gemini分析+无搜索</button>
-                <button class="btn-full" onclick="getAnalysis('full_analysis')">基本面+技术+咨询全量分析</button>
+                <button class="btn-full" onclick="getAnalysis('full_analysis')">基本面+技术+资讯全量分析</button>
+            </div>
+            </div>
+            <div class="history-section">
+                <h3>📊 历史记录</h3>
+                <div class="history-list" id="historyList">
+                    <div style="text-align: center; color: #999; padding: 20px;">正在加载...</div>
+                </div>
             </div>
         </div>
         <div class="right-panel">
@@ -387,6 +450,7 @@
         
         // 页面加载时初始化
         loadStocks();
+        loadHistory();
         
         // 从localStorage加载上次输入的股票名称
         const lastStockName = localStorage.getItem('lastStockName');
@@ -516,6 +580,8 @@
             } finally {
                 stopLoadingTimer();
                 buttons.forEach(btn => btn.disabled = false);
+                // 刷新历史记录
+                loadHistory();
             }
         }
 
@@ -672,6 +738,71 @@
                     btn.classList.remove('copied');
                 }, 2000);
             });
+        }
+
+        // 加载历史记录
+        async function loadHistory() {
+            try {
+                const response = await fetch('/api/history');
+                const data = await response.json();
+                const historyList = document.getElementById('historyList');
+                
+                if (data.success && data.data.length > 0) {
+                    const typeMap = {
+                        'can_slim': 'CAN SLIM',
+                        'technical': '技术指标',
+                        'can_slim_deepseek': 'DeepSeek',
+                        'can_slim_gemini': 'Gemini',
+                        'full_analysis': '全量分析'
+                    };
+                    
+                    historyList.innerHTML = data.data.map(item => `
+                        <div class="history-item" onclick="loadHistoryContent('${item.filename}')">
+                            <div class="history-item-title">
+                                <span class="history-item-type">${typeMap[item.analysis_type] || item.analysis_type}</span>
+                                ${item.stock_name} (${item.stock_code})
+                            </div>
+                            <div class="history-item-meta">${item.timestamp}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    historyList.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">暂无历史记录</div>';
+                }
+            } catch (error) {
+                console.error('加载历史记录失败:', error);
+                document.getElementById('historyList').innerHTML = '<div style="text-align: center; color: #f44; padding: 20px;">加载失败</div>';
+            }
+        }
+
+        // 加载历史记录内容
+        async function loadHistoryContent(filename) {
+            try {
+                const response = await fetch(`/api/history/${filename}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const result = document.getElementById('result');
+                    const emptyState = document.getElementById('emptyState');
+                    const loadingState = document.getElementById('loadingState');
+                    const contentState = document.getElementById('contentState');
+                    const resultContent = document.getElementById('resultContent');
+                    const streamingStatus = document.getElementById('streamingStatus');
+                    const progressList = document.getElementById('progressList');
+                    
+                    result.classList.remove('empty');
+                    emptyState.style.display = 'none';
+                    loadingState.style.display = 'none';
+                    contentState.style.display = 'block';
+                    streamingStatus.style.display = 'none';
+                    progressList.style.display = 'none';
+                    
+                    currentMarkdown = data.data;
+                    resultContent.innerHTML = marked.parse(data.data);
+                    result.classList.remove('error');
+                }
+            } catch (error) {
+                console.error('加载历史内容失败:', error);
+            }
         }
     </script>
 </body>
