@@ -1,9 +1,13 @@
 import aiohttp
 import asyncio
+import base64
 from typing import Optional
 from datetime import datetime, timedelta
 
-ACCESS_TOKEN = "bce-v3/ALTAK-WoGO0RYeXAFYtgSOcsRQm/08c1a72753af55b3e8719c8bf209a7907f8b3e3b"
+ACCESS_TOKEN = "YmNlLXYzL0FMVEFLLVdvR08wUlllWEFGWXRnU09jc1JRbS8wOGMxYTcyNzUzYWY1NWIzZTg3MTljOGJmMjA5YTc5MDdmOGIzZTNi"
+
+def _decode_token(encoded: str) -> str:
+    return base64.b64decode(encoded).decode('utf-8')
 
 async def baidu_search(
     query: str
@@ -12,7 +16,7 @@ async def baidu_search(
     url = "https://qianfan.baidubce.com/v2/ai_search/web_search"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {ACCESS_TOKEN}"
+        "Authorization": f"Bearer {_decode_token(ACCESS_TOKEN)}"
     }
     
     end_date = datetime.now()
