@@ -36,7 +36,7 @@ def calculate_moving_averages(klines):
     return process_indicator_data(df, 'ma')
 
 
-async def generate_canslim_50_200_summary(secid):
+async def generate_canslim_50_200_summary(secid, stock_code, stock_name):
     """生成CAN SLIM 50/200日均线分析摘要"""
     config = INDICATOR_CONFIG['ma']
     klines = await get_stock_day_range_kline(secid, config['kline_limit'])
