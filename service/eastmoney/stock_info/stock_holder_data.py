@@ -91,7 +91,7 @@ async def get_shareholder_increase_markdown(stock_code="601698", page_size=20, s
         start_date = item.get('START_DATE', '--')[:10] if item.get('START_DATE') else '--'
         end_date = item.get('END_DATE', '--')[:10] if item.get('END_DATE') else '--'
         notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
-        markdown += f"| {holder_name} | {direction} | {change_num} | {change_rate} | {change_free_ratio} | {after_holder_num} | {hold_ratio} | {free_shares} | {free_shares_ratio} | {start_date} | {end_date} | {notice_date} |\n"
+        markdown += f"| {holder_name} | {direction} | {change_num} | {change_rate} | {change_free_ratio} | {after_holder_num} | {hold_ratio} | {free_shares} | {free_shares_ratio} | {start_date} | {end_date} | {notice_date} |"
     return markdown + "\n"
 
 
