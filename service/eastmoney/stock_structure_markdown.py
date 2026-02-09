@@ -1,12 +1,10 @@
 from service.eastmoney.stock_info.stock_base_info import get_stock_base_info_markdown
-from service.eastmoney.stock_info.stock_financial_data import get_financial_report_markdown, \
-    get_performance_forecast_markdown
+from service.eastmoney.stock_info.stock_financial_data import get_financial_report_markdown
 from service.eastmoney.stock_info.stock_fund_flow import get_main_fund_flow_markdown
 from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_markdown
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_markdown, get_shareholder_increase_markdown
 from service.eastmoney.stock_info.stock_realtime import get_stock_realtime_markdown
-from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_markdown, \
-    generate_canslim_50_200_summary
+from service.eastmoney.technical.stock_day_range_kline import generate_canslim_50_200_summary
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.gemini_client import GeminiClient
 
@@ -54,7 +52,7 @@ async def _build_stock_markdown(secid: str, stock_name: str, history_page_size: 
     parts.append(await get_stock_base_info_markdown(secid, stock_code, stock_name))
     parts.append(await get_fund_flow_history_markdown(secid, history_page_size, stock_code, stock_name))
     parts.append(await get_financial_report_markdown(stock_code, stock_name=stock_name))
-    parts.append(await get_performance_forecast_markdown(stock_code, stock_name=stock_name))
+    #parts.append(await get_performance_forecast_markdown(stock_code, stock_name=stock_name))
     parts.append(await get_org_holder_markdown(stock_code, stock_name=stock_name))
     
     increase_md = await get_shareholder_increase_markdown(stock_code, stock_name=stock_name)
