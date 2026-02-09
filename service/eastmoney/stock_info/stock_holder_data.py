@@ -43,7 +43,7 @@ async def get_shareholder_increase(stock_code="601698", page_size=300, page_numb
     if data.get("result") and data["result"].get("data"):
         return data["result"]["data"]
     else:
-        raise Exception(f"未获取到股票 {stock_code} 的股东增持数据")
+        return None
 
 
 async def get_holder_detail(scode, report_date=None, page_num=1, page_size=100, sh_type="", sh_code="", sort_field="HOLDER_CODE", sort_direc=1):
