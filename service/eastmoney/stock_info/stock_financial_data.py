@@ -21,7 +21,7 @@ async def get_financial_data(stock_code="002371", page_size=5, page_number=1):
         raise Exception(f"未获取到股票 {stock_code} 的财务数据")
 
 
-async def get_financial_report(stock_code="002371", page_size=15, page_number=1):
+async def get_financial_report(stock_code="002371", page_size=5, page_number=1):
     """业绩报表明细"""
     params = {
         "sortColumns": "REPORTDATE",
@@ -80,7 +80,9 @@ async def get_performance_forecast(stock_code="002371", page_size=15, page_numbe
 
 async def get_financial_report_markdown(stock_code, page_size=5, stock_name=None):
     """获取业绩报表明细并转换为markdown"""
-    report_data = await get_financial_report(stock_code, page_size)
+    report_data_1 = await get_financial_report(stock_code, page_size, 1)
+    report_data_2 = await get_financial_report(stock_code, page_size, 2)
+    report_data = report_data_1 + report_data_2
     if not report_data:
         return ""
     header = f"## <{stock_code} {stock_name}> - 业绩报表明细" if stock_name else "## 业绩报表明细"
