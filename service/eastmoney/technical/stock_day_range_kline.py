@@ -75,7 +75,7 @@ async def generate_canslim_50_200_summary(secid, stock_code, stock_name):
 
     # 格式化输出数据包
     summary = f"""
-### 均线状态总结 (截至{latest['date']})：
+## <{stock_code} {stock_name}> - 50日、200日均线状态总结 (截至{latest['date']})：
 * **核心价格关系**：当前价({curr_price:.2f}) {' > ' if curr_price > sma50 else ' < '} 50日线({sma50:.2f}) {' > ' if sma50 > sma200 else ' < '} 200日线({sma200:.2f})。
 * **趋势得分**：200日均线已连续上涨 {rising_days} 个交易日，斜率为{'正' if latest['sma200_diff'] > 0 else '负'}。
 * **相对位置**：当前价较200日线乖离率为 {bias_200:+.1f}%，较52周最高价({high_52w:.2f})跌幅为 {drop_from_high:.1f}%。
