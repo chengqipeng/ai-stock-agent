@@ -16,7 +16,7 @@ async def get_similar_companies_data(stock_name, stock_code, similar_company_num
         similar_prompt = await get_main_fund_flow_markdown(similar_secid, code, name)
         #similar_prompt += await get_trade_distribution_markdown(similar_secid)
 
-        similar_prompt += await get_fund_flow_history_markdown(similar_secid, 12, code, name)
+        similar_prompt += await get_fund_flow_history_markdown(similar_secid, code, name)
     return similar_prompt
 
 async def get_industry_market_data(secucode="002371.SZ", page_size=5, page_number=1):

@@ -14,7 +14,7 @@ from service.llm.gemini_client import GeminiClient
 
 async def get_technical_indicators_markdown(secid, stock_code, stock_name):
     """汇总所有技术指标数据为markdown格式"""
-    markdown = await get_fund_flow_history_markdown(secid, 60)
+    markdown = await get_fund_flow_history_markdown(secid)
     markdown += await get_moving_averages_markdown(secid, stock_code, stock_name)
     markdown += await get_boll_markdown(secid, stock_code, stock_name)
     markdown += await get_macd_markdown(secid, stock_code, stock_name)
