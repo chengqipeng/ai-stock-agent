@@ -837,7 +837,7 @@
                     };
                     
                     historyList.innerHTML = data.data.map(item => `
-                        <div class="history-item" onclick="loadHistoryContent('${item.filename}')">
+                        <div class="history-item" onclick="loadHistoryContent(${item.id})">
                             <div class="history-item-title">
                                 <span class="history-item-type">${typeMap[item.analysis_type] || item.analysis_type}</span>
                                 ${item.stock_name} (${item.stock_code})
@@ -855,9 +855,9 @@
         }
 
         // 加载历史记录内容
-        async function loadHistoryContent(filename) {
+        async function loadHistoryContent(historyId) {
             try {
-                const response = await fetch(`/api/history/${filename}`);
+                const response = await fetch(`/api/history/${historyId}`);
                 const data = await response.json();
                 
                 if (data.success) {
