@@ -421,8 +421,11 @@ async def batch_execute(batch_id: int):
                         completed += 1
                         return {'stage': 'progress', 'completed': completed, 'total': len(stocks), 'stock_name': stock_name, 'score': score}
                     except Exception as e:
+                        # 记录错误信息到数据库
+                        error_msg = str(e)
+                        update_batch_stock(batch_id, stock_code, "", "", 0, "", "", "", 0, "", error_msg)
                         completed += 1
-                        return {'stage': 'progress', 'completed': completed, 'total': len(stocks), 'stock_name': stock_name, 'error': str(e)}
+                        return {'stage': 'progress', 'completed': completed, 'total': len(stocks), 'stock_name': stock_name, 'error': error_msg}
             
             # 并发执行所有股票分析
             tasks = [analyze_stock(stock) for stock in stocks]

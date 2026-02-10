@@ -471,9 +471,10 @@
                     <td style="padding: 8px; text-align: center; font-size: 13px; color: #667eea; font-weight: 600;">${stock.score || '-'}</td>
                     <td style="padding: 8px; text-align: center; font-size: 13px; color: #667eea; font-weight: 600;">${stock.technical_score || '-'}</td>
                     <td style="padding: 8px; text-align: center; font-size: 13px;">
-                        ${stock.status === 'completed' ? '✅' : '⏳'}
+                        ${stock.status === 'completed' ? '✅' : stock.status === 'failed' ? '❌' : '⏳'}
                         ${stock.reason ? '<span style="margin-left: 5px; cursor: pointer;" onclick="event.stopPropagation(); showReason(' + stock.id + ', \'can_slim\')" title="查看CAN SLIM推理">💡</span>' : ''}
                         ${stock.technical_reason ? '<span style="margin-left: 5px; cursor: pointer;" onclick="event.stopPropagation(); showReason(' + stock.id + ', \'technical\')" title="查看K线推理">📈</span>' : ''}
+                        ${stock.error_message ? '<span style="margin-left: 5px; cursor: pointer;" onclick="event.stopPropagation(); showError(' + stock.id + ')" title="查看错误信息">⚠️</span>' : ''}
                     </td>
                     <td style="padding: 8px; font-size: 11px; color: #666;">${stock.completed_at || '处理中...'}</td>
                 </tr>
@@ -594,6 +595,20 @@
                 }
             } catch (error) {
                 alert('清空失败: ' + error.message);
+            }
+        }
+
+        async function showError(stockId) {
+            try {
+                const response = await fetch(`/api/batch/stock/${stockId}`);
+                const data = await response.json();
+                if (data.success && data.data.error_message) {
+                    alert('错误信息：\n\n' + data.data.error_message);
+                } else {
+                    alert('暂无错误信息');
+                }
+            } catch (error) {
+                alert('加载失败: ' + error.message);
             }
         }
 
