@@ -344,28 +344,6 @@ async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_co
     
     df = pd.DataFrame(data_list)
     
-    # CAN SLIM分析
-    high_inflow_threshold = df['主力净流入净占比'].quantile(0.8)
-    low_inflow_threshold = df['主力净流入净占比'].quantile(0.2)
-    df['吸筹日'] = (df['涨跌幅'] > 0) & (df['主力净流入净占比'] > high_inflow_threshold)
-    df['派发日'] = (df['涨跌幅'] < -0.2) & (df['主力净流入净占比'] < low_inflow_threshold)
-    
-    df['日内振幅'] = (df['当日最高价'] - df['当日最低价']) / df['收盘价'].shift(1) * 100
-    df['波动收缩'] = df['日内振幅'].rolling(3).mean() < df['日内振幅'].rolling(10).mean()
-    
-    df['机构净流入占比'] = df['超大单净流入净占比'] + df['大单净流入净占比']
-    df['筹码向机构集中'] = (df['机构净流入占比'] > 0) & (df['小单净流入净占比'] < 0)
-    
-    df['20日新高'] = df['收盘价'] >= df['收盘价'].rolling(window=20).max()
-    df['放量突破'] = df['20日新高'] & (df['主力净流入净占比'] > high_inflow_threshold)
-    
-    df['CAN_SLIM_Score'] = (
-        df['吸筹日'].astype(int) + 
-        df['波动收缩'].astype(int) + 
-        df['筹码向机构集中'].astype(int) + 
-        (df['超大单净流入净占比'] > 5).astype(int)
-    )
-    
     # 杯柄形态检测
     cup_pattern_text = detect_cup_and_handle(df)
     
@@ -379,14 +357,6 @@ async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_co
     
     markdown = f"""{header}
 
-### （{len(klines)}）天关键指标统计
-- 吸筹日数量: {df['吸筹日'].sum()}天
-- 派发日数量: {df['派发日'].sum()}天
-- 筹码向机构集中天数: {df['筹码向机构集中'].sum()}天
-- 放量突破天数: {df['放量突破'].sum()}天
-- 平均CAN SLIM评分: {df['CAN_SLIM_Score'].mean():.2f}
-- 杯柄形态: {'✓ 检测到' if cup_pattern_text != '- 暂无杯柄形态' else '✗ 未检测到'}
-
 ### 相对强度RS (60日/3个月)
 
 {rs_text}
@@ -395,16 +365,6 @@ async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_co
 {cup_pattern_text}
 """
     
-    markdown += f"""
-
-### 近期重要信号（前30天）
-| 日期 | 收盘价 | 涨跌幅 | 吸筹日 | 派发日 | 筹码向机构集中 | CAN_SLIM评分 |
-|-----|-------|-------|-------|-------|--------------|-------------|
-"""
-    
-    for _, row in df.head(30).iterrows():
-        markdown += f"| {row['日期']} | {row['收盘价']:.2f} | {row['涨跌幅']:.2f}% | {'✓' if row['吸筹日'] else ''} | {'✓' if row['派发日'] else ''} | {'✓' if row['筹码向机构集中'] else ''} | {row['CAN_SLIM_Score']} |\n"
-
     print(markdown)
     return markdown + "\n"
 
