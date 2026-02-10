@@ -431,7 +431,10 @@
                     <td style="padding: 8px; font-size: 13px;">${stock.stock_name}</td>
                     <td style="padding: 8px; font-size: 13px;">${stock.stock_code}</td>
                     <td style="padding: 8px; text-align: center; font-size: 13px; color: #667eea; font-weight: 600;">${stock.score || '-'}</td>
-                    <td style="padding: 8px; text-align: center; font-size: 13px;">${stock.status === 'completed' ? '✅' : '⏳'}</td>
+                    <td style="padding: 8px; text-align: center; font-size: 13px;">
+                        ${stock.status === 'completed' ? '✅' : '⏳'}
+                        ${stock.reason ? '<span style="margin-left: 5px; cursor: pointer;" onclick="event.stopPropagation(); showReason(' + stock.id + ')" title="查看推理过程">💡</span>' : ''}
+                    </td>
                     <td style="padding: 8px; font-size: 11px; color: #666;">${stock.completed_at || '处理中...'}</td>
                 </tr>
             `).join('');
@@ -488,6 +491,20 @@
                 console.error('复制失败:', err);
                 alert('复制失败，请手动复制');
             });
+        }
+
+        async function showReason(stockId) {
+            try {
+                const response = await fetch(`/api/batch/stock/${stockId}`);
+                const data = await response.json();
+                if (data.success && data.data.reason) {
+                    alert('推理过程：\n\n' + data.data.reason);
+                } else {
+                    alert('暂无推理过程');
+                }
+            } catch (error) {
+                alert('加载失败: ' + error.message);
+            }
         }
 
         // 初始化

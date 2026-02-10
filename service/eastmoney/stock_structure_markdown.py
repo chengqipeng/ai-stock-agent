@@ -10,7 +10,7 @@ from service.llm.gemini_client import GeminiClient
 
 
 def _get_analysis_json_format():
-    return "\n结果只能输出json格式数据：{'stock_code': '<股票代码>', 'stock_name': '<股票名称>', 'score': '<评分，按0-100分，评分需严格按照can slim的7个维度进行评估>'}\n"
+    return "\n结果只能输出json格式数据：{'stock_code': '<股票代码>', 'stock_name': '<股票名称>', 'score': '<评分，按0-100分，评分需严格按照can slim的7个维度进行评估>', 'reason': '<如果分析缺少数据需要明确缺少的数据是什么，不超过50字，没有则不用返回>'}\n"
 
 
 def _get_analysis_header(stock_code: str, stock_name: str, mode: str = "full") -> str:

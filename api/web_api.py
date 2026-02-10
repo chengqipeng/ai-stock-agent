@@ -387,20 +387,35 @@ async def batch_execute(batch_id: int):
                         normalized_code = normalize_stock_code(stock_code)
                         prompt = await get_stock_markdown_for_score(normalized_code, stock_name)
                         
-                        # 调用DeepSeek分析
+                        # 调用DeepSeek分析（深度思考模式）
                         client = DeepSeekClient()
                         result = ""
                         async for content in client.chat_stream(
                             messages=[{"role": "user", "content": prompt}],
-                            model="deepseek-chat"
+                            model="deepseek-reasoner"
                         ):
                             result += content
                         
-                        # 从结果中提取分数
-                        score = extract_score(result)
+                        # 从结果中提取分数和推理过程
+                        score, reason = extract_score_and_reason(result)
+
+                        stock_code = get_stock_code(stock_name)
+                        technical_stock_score_result = await get_technical_indicators_prompt(
+                            normalize_stock_code(stock_code), stock_code, stock_name
+                        )
+
+                        technical_result = ""
+                        async for technical_content in client.chat_stream(
+                                messages=[{"role": "user", "content": prompt}],
+                                model="deepseek-reasoner"
+                        ):
+                            technical_result += technical_content
+
+                        # 从结果中提取分数和推理过程
+                        technical_score, technical_reason = extract_score_and_reason(technical_result)
                         
                         # 更新数据库
-                        update_batch_stock(batch_id, stock_code, prompt, result, score)
+                        update_batch_stock(batch_id, stock_code, prompt, result, score, reason)
                         
                         completed += 1
                         return {'stage': 'progress', 'completed': completed, 'total': len(stocks), 'stock_name': stock_name, 'score': score}
@@ -457,9 +472,12 @@ async def get_batch_stock_info(stock_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def extract_score(text: str) -> int:
-    """从分析结果中提取分数"""
+def extract_score_and_reason(text: str) -> tuple[int, str]:
+    """从分析结果中提取分数和推理过程"""
     import html
+    
+    reason = ""
+    score = 0
     
     # 先尝试解析JSON格式
     try:
@@ -473,23 +491,44 @@ def extract_score(text: str) -> int:
         if json_match:
             data = json.loads(json_match.group())
             if 'score' in data:
-                return int(data['score'])
+                score = int(data['score'])
     except:
         pass
     
-    # 匹配各种可能的分数格式
-    patterns = [
-        r'"score"[：:]*\s*(\d+)',
-        r'综合评分[：:]*\s*(\d+)',
-        r'总分[：:]*\s*(\d+)',
-        r'评分[：:]*\s*(\d+)',
-        r'得分[：:]*\s*(\d+)',
-        r'分数[：:]*\s*(\d+)',
-    ]
+    # 如果没有从 JSON 提取到分数，尝试正则匹配
+    if score == 0:
+        patterns = [
+            r'"score"[：:]*\s*(\d+)',
+            r'综合评分[：:]*\s*(\d+)',
+            r'总分[：:]*\s*(\d+)',
+            r'评分[：:]*\s*(\d+)',
+            r'得分[：:]*\s*(\d+)',
+            r'分数[：:]*\s*(\d+)',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text)
+            if match:
+                score = int(match.group(1))
+                break
     
-    for pattern in patterns:
-        match = re.search(pattern, text)
-        if match:
-            return int(match.group(1))
+    # 提取 reasoning_content 或 reason
+    try:
+        reason_match = re.search(r'<think>(.*?)</think>', text, re.DOTALL)
+        if reason_match:
+            reason = reason_match.group(1).strip()
+        else:
+            # 尝试从 JSON 中提取
+            reason_json = re.search(r'"reasoning_content"\s*:\s*"([^"]+)"', text)
+            if reason_json:
+                reason = reason_json.group(1)
+    except:
+        pass
     
-    return 0
+    return score, reason
+
+
+def extract_score(text: str) -> int:
+    """从分析结果中提取分数（兼容旧接口）"""
+    score, _ = extract_score_and_reason(text)
+    return score
