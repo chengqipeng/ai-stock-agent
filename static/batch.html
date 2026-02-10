@@ -238,19 +238,29 @@
             height: 40px;
             background: #e0e0e0;
             border-radius: 8px;
-            overflow: hidden;
+            overflow: visible;
             margin-bottom: 15px;
+            position: relative;
         }
         .progress-modal-fill {
             height: 100%;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             transition: width 0.3s;
+            border-radius: 8px;
+        }
+        .progress-modal-text {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
             font-weight: 600;
             font-size: 16px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
         }
         .progress-modal-info {
             font-size: 14px;
@@ -310,6 +320,7 @@
                         <th style="padding: 8px; text-align: left; font-size: 12px;">股票代码</th>
                         <th style="padding: 8px; text-align: center; font-size: 12px;">CAN SLIM打分</th>
                         <th style="padding: 8px; text-align: center; font-size: 12px;">K线打分</th>
+                        <th style="padding: 8px; text-align: center; font-size: 12px;">深度思考</th>
                         <th style="padding: 8px; text-align: center; font-size: 12px;">状态</th>
                         <th style="padding: 8px; text-align: left; font-size: 12px;">完成时间</th>
                     </tr>
@@ -332,7 +343,8 @@
         <div class="progress-modal-content">
             <div class="progress-modal-title">正在执行批量分析...</div>
             <div class="progress-modal-bar">
-                <div class="progress-modal-fill" id="progressModalFill" style="width: 0%">
+                <div class="progress-modal-fill" id="progressModalFill" style="width: 0%"></div>
+                <div class="progress-modal-text">
                     <span id="progressModalText">0/0</span>
                 </div>
             </div>
@@ -509,7 +521,7 @@
                 const response = await fetch(`/api/batch/${batchId}/stocks`);
                 const data = await response.json();
                 if (data.success) {
-                    console.log('Loaded stocks:', data.data); // Debug log
+                    console.log('API Response:', data.data);
                     renderBatchStocks(data.data);
                 }
             } catch (error) {
@@ -532,12 +544,15 @@
             table.style.display = 'table';
             empty.style.display = 'none';
             
-            tbody.innerHTML = stocks.map(stock => `
+            tbody.innerHTML = stocks.map(stock => {
+                const isDeepThinking = stock.is_deep_thinking === 1 || stock.is_deep_thinking === '1';
+                return `
                 <tr onclick="showStockDetail(${stock.id})" style="cursor: pointer; border-bottom: 1px solid #e0e0e0;">
-                    <td style="padding: 8px; font-size: 13px;">${stock.stock_name} ${stock.is_deep_thinking ? '<span style="color: #667eea; font-size: 10px;" title="深度思考模式">🧠</span>' : ''}</td>
+                    <td style="padding: 8px; font-size: 13px;">${stock.stock_name}</td>
                     <td style="padding: 8px; font-size: 13px;">${stock.stock_code}</td>
                     <td style="padding: 8px; text-align: center; font-size: 13px; color: #667eea; font-weight: 600;">${stock.score || '-'}</td>
                     <td style="padding: 8px; text-align: center; font-size: 13px; color: #667eea; font-weight: 600;">${stock.technical_score || '-'}</td>
+                    <td style="padding: 8px; text-align: center; font-size: 13px; color: ${isDeepThinking ? '#667eea' : '#999'}; font-weight: ${isDeepThinking ? '600' : 'normal'};">${isDeepThinking ? '是' : '否'}</td>
                     <td style="padding: 8px; text-align: center; font-size: 13px;">
                         ${stock.status === 'completed' ? '✅' : stock.status === 'failed' ? '❌' : '⏳'}
                         ${stock.reason ? '<span style="margin-left: 5px; cursor: pointer;" onclick="event.stopPropagation(); showReason(' + stock.id + ', \'can_slim\')" title="查看CAN SLIM推理">💡</span>' : ''}
@@ -546,7 +561,8 @@
                     </td>
                     <td style="padding: 8px; font-size: 11px; color: #666;">${stock.completed_at || '处理中...'}</td>
                 </tr>
-            `).join('');
+                `;
+            }).join('');
         }
 
         async function showStockDetail(stockId) {
@@ -555,8 +571,9 @@
                 const data = await response.json();
                 if (data.success) {
                     const stock = data.data;
+                    const isDeepThinking = stock.is_deep_thinking === 1 || stock.is_deep_thinking === '1';
                     document.getElementById('modalTitle').textContent = 
-                        `${stock.stock_name} (${stock.stock_code}) - CAN SLIM: ${stock.score} | K线: ${stock.technical_score}`;
+                        `${stock.stock_name} (${stock.stock_code}) - CAN SLIM: ${stock.score} | K线: ${stock.technical_score}${isDeepThinking ? ' 🧠' : ''}`;
                     
                     // 组合提示词和结果
                     let content = '<div class="prompt-container">';
