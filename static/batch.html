@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>批量分析 - AI Stock Agent</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 16px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 500px 1fr;
+            gap: 20px;
+        }
+        .left-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .panel {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .stock-list {
+            max-height: 125px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        .stock-item {
+            padding: 4px;
+            margin: 2px 0;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+        }
+        .stock-item:hover { background: #f0f7ff; }
+        .stock-item input[type="checkbox"] { cursor: pointer; }
+        .btn {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            color: white;
+            margin: 5px 2px 0 0;
+            font-size: 11px;
+        }
+        .btn-primary { background: #667eea; }
+        .btn-primary:hover { background: #5568d3; }
+        .btn-success { background: #4caf50; }
+        .btn-success:hover { background: #45a049; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+        .batch-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .batch-item {
+            padding: 6px;
+            margin: 4px 0;
+            border: 2px solid #e0e0e0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        .batch-item:hover { border-color: #667eea; background: #f0f7ff; }
+        .batch-item.active { border-color: #667eea; background: #f0f7ff; }
+        .stock-result-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .stock-result-item {
+            padding: 5px;
+            margin: 3px 0;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        .stock-result-item:hover { background: #f0f7ff; }
+        .score { font-weight: 600; color: #667eea; }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.show { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            position: relative;
+        }
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 30px;
+            height: 30px;
+            border: none;
+            background: #f44;
+            color: white;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .close-btn:hover {
+            background: #d33;
+        }
+        .markdown-body { line-height: 1.6; font-size: 14px; }
+        .markdown-body h2 { color: #667eea; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 批量股票分析 <a href="/" style="color: white; font-size: 0.8em; margin-left: 10px; text-decoration: none; border: 1px solid white; padding: 2px 8px; border-radius: 4px;">返回主页</a></h1>
+    </div>
+
+    <div class="container">
+        <div class="left-column">
+            <div class="panel">
+                <h2 style="font-size: 14px;">待分析股票列表</h2>
+                <div style="margin: 10px 0;">
+                    <button class="btn btn-primary" onclick="selectAll()">全选</button>
+                    <button class="btn btn-primary" onclick="deselectAll()">取消全选</button>
+                    <button class="btn btn-success" onclick="startBatchAnalysis()" id="startBtn">开始批量分析 (<span id="selectedCount">0</span>)</button>
+                </div>
+                
+                <div id="progressSection" style="display: none; margin-top: 15px; padding: 15px; background: #f9f9f9; border-radius: 4px;">
+                    <h3 style="font-size: 14px; margin-bottom: 10px;">分析进度</h3>
+                    <div class="progress-bar" style="height: 24px;">
+                        <div class="progress-fill" id="progressFill" style="width: 0%; font-size: 12px;">
+                            <span id="progressText">0/0</span>
+                        </div>
+                    </div>
+                    <div id="progressDetails" style="font-size: 11px; color: #666; margin-top: 8px; max-height: 150px; overflow-y: auto;"></div>
+                </div>
+                
+                <div class="stock-list" id="stockList">
+                    <p style="text-align: center; color: #999;">加载中...</p>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2 style="font-size: 14px;">批次记录</h2>
+                <div class="batch-list" id="batchList">
+                    <p style="text-align: center; color: #999;">加载中...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2 style="font-size: 14px;">批次股票列表</h2>
+            <div class="stock-result-list" id="stockResultList">
+                <p style="text-align: center; color: #999;">请选择批次查看</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="detailModal" onclick="closeModalOnBackdrop(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <button class="close-btn" onclick="closeModal()">×</button>
+            <h2 id="modalTitle"></h2>
+            <div class="markdown-body" id="modalContent"></div>
+        </div>
+    </div>
+
+    <script>
+        let stockList = [];
+        let selectedStocks = new Set();
+        let currentBatchId = null;
+
+        async function loadStockList() {
+            try {
+                const response = await fetch('/api/stock_list');
+                const data = await response.json();
+                if (data.success) {
+                    stockList = data.data;
+                    renderStockList();
+                }
+            } catch (error) {
+                console.error('加载股票列表失败:', error);
+            }
+        }
+
+        function renderStockList() {
+            const container = document.getElementById('stockList');
+            container.innerHTML = stockList.map((stock, index) => `
+                <div class="stock-item">
+                    <input type="checkbox" id="stock_${index}" onchange="updateSelection()">
+                    <label for="stock_${index}" style="cursor: pointer; flex: 1;">
+                        ${stock.name} (${stock.code}) - 打分：${stock.score}
+                    </label>
+                </div>
+            `).join('');
+        }
+
+        function updateSelection() {
+            selectedStocks.clear();
+            stockList.forEach((stock, index) => {
+                const checkbox = document.getElementById(`stock_${index}`);
+                if (checkbox && checkbox.checked) {
+                    selectedStocks.add(`${stock.name} (${stock.code})`);
+                }
+            });
+            document.getElementById('selectedCount').textContent = selectedStocks.size;
+        }
+
+        function selectAll() {
+            stockList.forEach((_, index) => {
+                document.getElementById(`stock_${index}`).checked = true;
+            });
+            updateSelection();
+        }
+
+        function deselectAll() {
+            stockList.forEach((_, index) => {
+                document.getElementById(`stock_${index}`).checked = false;
+            });
+            updateSelection();
+        }
+
+        async function startBatchAnalysis() {
+            if (selectedStocks.size === 0) {
+                alert('请至少选择一只股票');
+                return;
+            }
+
+            const startBtn = document.getElementById('startBtn');
+            startBtn.disabled = true;
+
+            try {
+                // 创建批次
+                const response = await fetch('/api/batch_analysis', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ stock_codes: Array.from(selectedStocks) })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const batchId = data.data.batch_id;
+                    
+                    // 显示进度区域
+                    document.getElementById('progressSection').style.display = 'block';
+                    
+                    // 执行批量分析
+                    await executeBatchAnalysis(batchId);
+                    
+                    // 刷新批次列表
+                    loadBatchList();
+                }
+            } catch (error) {
+                alert('批量分析失败: ' + error.message);
+            } finally {
+                startBtn.disabled = false;
+            }
+        }
+
+        async function executeBatchAnalysis(batchId) {
+            return new Promise((resolve, reject) => {
+                const eventSource = new EventSource(`/api/batch_execute/${batchId}`);
+                const progressFill = document.getElementById('progressFill');
+                const progressText = document.getElementById('progressText');
+                const progressDetails = document.getElementById('progressDetails');
+                
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.stage === 'start') {
+                            progressText.textContent = `0/${data.total}`;
+                            progressFill.style.width = '0%';
+                        } else if (data.stage === 'progress') {
+                            const percent = (data.completed / data.total * 100).toFixed(1);
+                            progressFill.style.width = percent + '%';
+                            progressText.textContent = `${data.completed}/${data.total}`;
+                            
+                            const detail = data.error 
+                                ? `❌ ${data.stock_name} - 失败: ${data.error}`
+                                : `✅ ${data.stock_name} - 分数: ${data.score}`;
+                            progressDetails.innerHTML = detail + '<br>' + progressDetails.innerHTML;
+                        } else if (data.stage === 'done') {
+                            eventSource.close();
+                            progressDetails.innerHTML = '<strong style="color: #4caf50;">✅ 批量分析完成！</strong><br>' + progressDetails.innerHTML;
+                            resolve();
+                        } else if (data.stage === 'error') {
+                            eventSource.close();
+                            progressDetails.innerHTML = '<strong style="color: #f44;">❌ 分析失败: ' + data.message + '</strong>';
+                            reject(new Error(data.message));
+                        }
+                    } catch (e) {
+                        console.error('解析事件失败:', e);
+                    }
+                };
+                
+                eventSource.onerror = () => {
+                    eventSource.close();
+                    reject(new Error('连接失败'));
+                };
+            });
+        }
+
+        async function loadBatchList() {
+            try {
+                const response = await fetch('/api/batches');
+                const data = await response.json();
+                if (data.success) {
+                    renderBatchList(data.data);
+                }
+            } catch (error) {
+                console.error('加载批次列表失败:', error);
+            }
+        }
+
+        function renderBatchList(batches) {
+            const container = document.getElementById('batchList');
+            if (batches.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #999;">暂无批次记录</p>';
+                return;
+            }
+            
+            container.innerHTML = batches.map(batch => `
+                <div class="batch-item ${batch.id === currentBatchId ? 'active' : ''}" onclick="loadBatchStocks(${batch.id})">
+                    <div style="font-weight: 600; font-size: 10px;">${batch.batch_name}</div>
+                    <div style="font-size: 9px; color: #666; margin-top: 2px;">
+                        进度: ${batch.completed_count}/${batch.total_count} | 
+                        状态: ${batch.status === 'completed' ? '✅ 已完成' : '⏳ 进行中'} | 
+                        ${batch.created_at}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function loadBatchStocks(batchId) {
+            currentBatchId = batchId;
+            renderBatchList(await (await fetch('/api/batches')).json().then(d => d.data));
+            
+            try {
+                const response = await fetch(`/api/batch/${batchId}/stocks`);
+                const data = await response.json();
+                if (data.success) {
+                    renderBatchStocks(data.data);
+                }
+            } catch (error) {
+                console.error('加载批次股票失败:', error);
+            }
+        }
+
+        function renderBatchStocks(stocks) {
+            const container = document.getElementById('stockResultList');
+            if (stocks.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #999;">暂无股票记录</p>';
+                return;
+            }
+            
+            container.innerHTML = stocks.map(stock => `
+                <div class="stock-result-item" onclick="showStockDetail(${stock.id})">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-size: 10px;">
+                            <strong>${stock.stock_name}</strong> (${stock.stock_code})
+                            ${stock.status === 'completed' ? '✅' : '⏳'}
+                            <span style="margin-left: 5px; color: #667eea; font-weight: 600;">打分: ${stock.score || '-'}</span>
+                        </div>
+                    </div>
+                    <div style="font-size: 9px; color: #666; margin-top: 2px;">
+                        ${stock.completed_at || '处理中...'}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function showStockDetail(stockId) {
+            try {
+                const response = await fetch(`/api/batch/stock/${stockId}`);
+                const data = await response.json();
+                if (data.success) {
+                    const stock = data.data;
+                    document.getElementById('modalTitle').textContent = 
+                        `${stock.stock_name} (${stock.stock_code}) - 分数: ${stock.score}`;
+                    document.getElementById('modalContent').innerHTML = 
+                        marked.parse(stock.result || '暂无结果');
+                    document.getElementById('detailModal').classList.add('show');
+                }
+            } catch (error) {
+                alert('加载详情失败: ' + error.message);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').classList.remove('show');
+        }
+
+        function closeModalOnBackdrop(event) {
+            if (event.target.id === 'detailModal') {
+                closeModal();
+            }
+        }
+
+        // 初始化
+        loadStockList();
+        loadBatchList();
+        
+        // 定时刷新批次列表
+        setInterval(loadBatchList, 5000);
+    </script>
+</body>
+</html>

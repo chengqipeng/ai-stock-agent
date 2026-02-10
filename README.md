@@ -6,6 +6,7 @@ AI驱动的股票分析智能助手，提供CAN SLIM分析和技术指标分析�
 
 - **CAN SLIM 分析**：基于威廉·欧奈尔的CAN SLIM投资策略进行股票分析
 - **技术指标分析**：提供详细的技术指标分析和市场趋势判断
+- **批量分析**：支持批量选择股票进行分析，并发执行，实时显示进度
 - **Web界面**：友好的Web界面，支持实时查询和Markdown格式展示
 - **RESTful API**：提供标准的API接口，方便集成
 
@@ -30,6 +31,12 @@ python web_app.py
 ```
 
 服务启动后，访问 http://localhost:8080 即可使用Web界面。
+
+### 批量分析
+
+访问 http://localhost:8080/batch 使用批量分析功能。
+
+详细使用说明请查看 [BATCH_FEATURE.md](BATCH_FEATURE.md)
 
 ## API接口
 

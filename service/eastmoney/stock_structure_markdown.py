@@ -81,7 +81,7 @@ async def get_stock_markdown_for_score(secid="0.002371", stock_name=None, histor
     try:
         stock_code = secid.split('.')[-1]
         header = _get_analysis_header(stock_code, stock_name, mode="score")
-        body = await _build_stock_markdown(secid, stock_name, history_page_size, include_ma=False)
+        body = await _build_stock_markdown(secid, stock_name, include_ma=False)
         return header + body
     except Exception as e:
         return f"# 错误\n\n获取股票数据失败: {str(e)}"
@@ -91,7 +91,7 @@ async def get_stock_markdown_for_llm_analyse(secid="0.002371", stock_name=None, 
     try:
         stock_code = secid.split('.')[-1]
         header = _get_analysis_header(stock_code, stock_name, mode="analyse")
-        body = await _build_stock_markdown(secid, stock_name, history_page_size, include_ma=False)
+        body = await _build_stock_markdown(secid, stock_name, include_ma=False)
         return header + body
     except Exception as e:
         return f"# 错误\n\n获取股票数据失败: {str(e)}"
