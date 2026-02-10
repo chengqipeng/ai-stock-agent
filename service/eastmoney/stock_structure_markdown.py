@@ -4,7 +4,7 @@ from service.eastmoney.stock_info.stock_fund_flow import get_main_fund_flow_mark
 from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_markdown
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_markdown, get_shareholder_increase_markdown
 from service.eastmoney.stock_info.stock_realtime import get_stock_realtime_markdown
-from service.eastmoney.technical.stock_day_range_kline import generate_canslim_50_200_summary
+from service.eastmoney.technical.stock_day_range_kline import generate_can_slim_50_200_summary
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.gemini_client import GeminiClient
 
@@ -60,7 +60,7 @@ async def _build_stock_markdown(secid: str, stock_name: str, history_page_size: 
         parts.append(increase_md)
     
     if include_ma:
-        parts.append(await generate_canslim_50_200_summary(secid, stock_code, stock_name))
+        parts.append(await generate_can_slim_50_200_summary(secid, stock_code, stock_name))
     
     return "\n\n".join(parts)
 

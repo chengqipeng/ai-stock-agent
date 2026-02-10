@@ -1,4 +1,6 @@
 import asyncio
+import numpy as np
+import pandas as pd
 
 from common.utils.amount_utils import convert_amount_unit
 from common.http.http_utils import EASTMONEY_PUSH_API_URL, fetch_eastmoney_api, EASTMONEY_PUSH2HIS_API_URL
@@ -31,7 +33,7 @@ async def get_fund_flow_history_markdown(secid="0.002371", page_size=60, stock_c
     header = f"## <{stock_code} {stock_name}> - 历史资金流向" if stock_name else "## 历史资金流向"
     markdown = f"""{header}
 | 日期 | 收盘价 | 涨跌幅 | 主力净流入净额 | 主力净流入净占比 | 超大单净流入净额 | 超大单净流入净占比 | 大单净流入净额 | 大单净流入净占比 | 中单净流入净额 | 中单净流入占比 | 小单净流入净额 | 小单净流入净占比 | 当日最高价 | 当日最低价 |
-|-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|-------|-------|
+|-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|----------|-----------|
 """
     for kline in klines[:page_size]:
         fields = kline.split(',')
@@ -87,5 +89,81 @@ async def get_stock_history_kline_max_min(secid="0.002371"):
     else:
         raise Exception(f"未获取到股票 {secid} 的K线数据")
 
+
+
+async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_code=None, stock_name=None):
+    """生成CAN SLIM分析摘要"""
+    klines = await get_fund_flow_history(secid)
+    kline_max_min_map = await get_stock_history_kline_max_min(secid)
+    
+    # 构建DataFrame
+    data_list = []
+    for kline in klines:
+        fields = kline.split(',')
+        if len(fields) >= 15:
+            date = fields[0]
+            kline_max_min_item = kline_max_min_map.get(date, {'high_price': 0, 'low_price': 0})
+            data_list.append({
+                '日期': date,
+                '收盘价': float(fields[11]) if fields[11] != '-' else 0,
+                '涨跌幅': float(fields[12]) if fields[12] != '-' else 0,
+                '主力净流入净占比': float(fields[6]) if fields[6] != '-' else 0,
+                '超大单净流入净占比': float(fields[10]) if fields[10] != '-' else 0,
+                '大单净流入净占比': float(fields[9]) if fields[9] != '-' else 0,
+                '小单净流入净占比': float(fields[7]) if fields[7] != '-' else 0,
+                '当日最高价': kline_max_min_item['high_price'],
+                '当日最低价': kline_max_min_item['low_price']
+            })
+    
+    df = pd.DataFrame(data_list)
+    
+    # CAN SLIM分析
+    high_inflow_threshold = df['主力净流入净占比'].quantile(0.8)
+    low_inflow_threshold = df['主力净流入净占比'].quantile(0.2)
+    df['吸筹日'] = (df['涨跌幅'] > 0) & (df['主力净流入净占比'] > high_inflow_threshold)
+    df['派发日'] = (df['涨跌幅'] < -0.2) & (df['主力净流入净占比'] < low_inflow_threshold)
+    
+    df['日内振幅'] = (df['当日最高价'] - df['当日最低价']) / df['收盘价'].shift(1) * 100
+    df['波动收缩'] = df['日内振幅'].rolling(3).mean() < df['日内振幅'].rolling(10).mean()
+    
+    df['机构净流入占比'] = df['超大单净流入净占比'] + df['大单净流入净占比']
+    df['筹码向机构集中'] = (df['机构净流入占比'] > 0) & (df['小单净流入净占比'] < 0)
+    
+    df['20日新高'] = df['收盘价'] >= df['收盘价'].rolling(window=20).max()
+    df['放量突破'] = df['20日新高'] & (df['主力净流入净占比'] > high_inflow_threshold)
+    
+    df['CAN_SLIM_Score'] = (
+        df['吸筹日'].astype(int) + 
+        df['波动收缩'].astype(int) + 
+        df['筹码向机构集中'].astype(int) + 
+        (df['超大单净流入净占比'] > 5).astype(int)
+    )
+    
+    # 生成Markdown摘要
+    if not stock_code:
+        stock_code = secid.split('.')[-1]
+    header = f"## <{stock_code} {stock_name}> - CAN SLIM 分析摘要" if stock_name else "## CAN SLIM 分析摘要"
+    
+    markdown = f"""{header}
+
+### （{len(klines)}）天关键指标统计
+- 吸筹日数量: {df['吸筹日'].sum()}天
+- 派发日数量: {df['派发日'].sum()}天
+- 筹码向机构集中天数: {df['筹码向机构集中'].sum()}天
+- 放量突破天数: {df['放量突破'].sum()}天
+- 平均CAN SLIM评分: {df['CAN_SLIM_Score'].mean():.2f}
+
+### 近期重要信号（前30天）
+| 日期 | 收盘价 | 涨跌幅 | 吸筹日 | 派发日 | 筹码向机构集中 | CAN_SLIM评分 |
+|-----|-------|-------|-------|-------|--------------|-------------|
+"""
+    
+    for _, row in df.head(30).iterrows():
+        markdown += f"| {row['日期']} | {row['收盘价']:.2f} | {row['涨跌幅']:.2f}% | {'✓' if row['吸筹日'] else ''} | {'✓' if row['派发日'] else ''} | {'✓' if row['筹码向机构集中'] else ''} | {row['CAN_SLIM_Score']} |\n"
+
+    print(markdown)
+    return markdown + "\n"
+
+
 if __name__ == "__main__":
-    asyncio.run(get_fund_flow_history_markdown())
+    asyncio.run(generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_code="002371", stock_name="北方华创"))
