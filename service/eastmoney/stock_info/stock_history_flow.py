@@ -34,7 +34,7 @@ async def get_fund_flow_history_markdown(secid="0.002371", stock_code=None, stoc
     header = f"## <{stock_code} {stock_name}> - 历史资金流向" if stock_name else "## 历史资金流向"
     markdown = f"""{header}
 | 日期 | 收盘价 | 涨跌幅 | 主力净流入净额 | 主力净流入净占比 | 超大单净流入净额 | 超大单净流入净占比 | 大单净流入净额 | 大单净流入净占比 | 中单净流入净额 | 中单净流入占比 | 小单净流入净额 | 小单净流入净占比 | 当日最高价 | 当日最低价 |
-|-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|----------|-----------|
+|-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|----------|--------------|
 """
     for kline in klines[:page_size]:
         fields = kline.split(',')
@@ -90,20 +90,72 @@ async def get_stock_history_kline_max_min(secid="0.002371"):
     else:
         raise Exception(f"未获取到股票 {secid} 的K线数据")
 
+def calculate_relative_strength(df, period=60):
+    """计算相对强度RS (Relative Strength)
+    
+    Args:
+        df: DataFrame，必须包含'日期'和'收盘价'列
+        period: 计算周期，默认60个交易日（约3个月）
+    
+    Returns:
+        str: 格式化的RS分析文本
+    """
+    # 1. 排序：按日期正序排列（最旧的在前，最新的在后）
+    df_sorted = df.sort_values('日期', ascending=True).reset_index(drop=True)
+    
+    if len(df_sorted) <= period:
+        return """**1. 当前数据点 (T)**
+- 数据不足，无法计算RS"""
+    
+    # 2. 确定 T (Current)
+    t_idx = df_sorted.index[-1]  # 最后一行
+    t_price = df_sorted.loc[t_idx, '收盘价']
+    
+    # 3. 确定 T-60 (Benchmark)
+    # 逻辑：当前索引减去60 (交易日)
+    ref_idx = t_idx - period
+    ref_price = df_sorted.loc[ref_idx, '收盘价']
+    
+    # 4. 计算 RS
+    diff_abs = t_price - ref_price
+    rs_score = (diff_abs / ref_price) * 100
+    
+    # 5. 评价
+    if rs_score > 20:
+        evaluation = '✅ RS强度极高，大幅跑赢同期多数资产'
+    elif rs_score > 0:
+        evaluation = '⚠️ RS强度一般，处于正收益区间'
+    else:
+        evaluation = '❌ RS强度较弱，处于亏损状态'
+    
+    return f"""**1. 当前数据点 (T)**
+- 当前价格: {t_price:.2f}元
+
+**2. 基准数据点 (T-{period})**
+- 回溯逻辑: 从当前日期向前推算第{period}个交易日
+- 基准价格: {ref_price:.2f}元
+
+**3. 计算过程**
+- 公式: (当前收盘价 - 基准收盘价) / 基准收盘价 × 100%
+- 涨幅绝对值: {diff_abs:.2f}元
+- 相对强度得分 (RS): {round(rs_score, 2)}%
+- 评价: {evaluation}"""
+
 def detect_cup_and_handle(df):
     """检测杯柄形态 - 严格符合CAN SLIM规则（威廉·欧奈尔《笑傲股市》）"""
-    df = df.sort_values('日期').reset_index(drop=True)
     results = []
     
     if len(df) < 60:
         return results
     
-    # 将日期转换为datetime类型（如果还不是）
+    # 1. 数据准备：按日期正序排列
+    df = df.sort_values('日期', ascending=True).reset_index(drop=True)
+    
+    # 2. 日期类型转换
     if df['日期'].dtype != 'datetime64[ns]':
         df['日期'] = pd.to_datetime(df['日期'])
     
-    # 步骤1: 寻找杯身左侧高点 (Left Cup Lip)
-    # 逻辑：在数据的前半段寻找局部高点（通常是前期上涨后的顶部）
+    # 步骤1: 寻找杯身左侧高点
     first_half = len(df) // 2
     check_period_left = df.iloc[:first_half]
     if check_period_left.empty:
@@ -113,8 +165,7 @@ def detect_cup_and_handle(df):
     left_lip_price = df.loc[left_lip_idx, '收盘价']
     left_lip_date = df.loc[left_lip_idx, '日期']
     
-    # 步骤2: 寻找杯底 (Cup Bottom)
-    # 逻辑：在左侧高点之后寻找最低点（基于收盘价）
+    # 步骤2: 寻找杯底
     check_period_bottom = df.iloc[left_lip_idx+1:first_half+20]
     if check_period_bottom.empty:
         return results
@@ -128,20 +179,16 @@ def detect_cup_and_handle(df):
     if not (0.12 <= cup_depth <= 0.35):
         return results
     
-    # 步骤3: 寻找杯身右侧与柄部 (Right Lip & Handle)
-    # 逻辑：在杯底之后寻找右侧高点（Pivot Point）
+    # 步骤3: 寻找杯身右侧（Pivot Point）
     check_period_right = df.iloc[bottom_idx+1:]
     if check_period_right.empty:
         return results
     
-    # 寻找右侧高点区域（可能有多个局部高点）
     right_lip_idx = check_period_right['收盘价'].idxmax()
-    right_lip_price = df.loc[right_lip_idx, '收盘价']  # Pivot Price
+    right_lip_price = df.loc[right_lip_idx, '收盘价']
     right_lip_date = df.loc[right_lip_idx, '日期']
     
-    # 步骤4: 寻找柄部低点 (Handle Low)
-    # 逻辑：在右侧高点附近或之后的小幅回调
-    # 柄部通常在Pivot前后形成，取Pivot附近的最低点
+    # 步骤4: 寻找柄部低点
     handle_window_start = max(0, right_lip_idx - 10)
     handle_window_end = min(len(df), right_lip_idx + 10)
     handle_period = df.iloc[handle_window_start:handle_window_end]
@@ -156,7 +203,7 @@ def detect_cup_and_handle(df):
     # 计算柄部回撤深度
     handle_depth = (right_lip_price - handle_low_price) / right_lip_price
     
-    # 柄部回撤应小于15%（理想<10%）
+    # 柄部回撤应小于15%
     if handle_depth > 0.15:
         return results
     
@@ -165,8 +212,7 @@ def detect_cup_and_handle(df):
     if not handle_position_ok:
         return results
     
-    # 步骤5: 检测突破 (Breakout)
-    # 逻辑：在Pivot之后寻找放量突破
+    # 步骤5: 检测突破
     breakout_search = df.iloc[right_lip_idx+1:]
     has_breakout = False
     breakout_info = {}
@@ -188,7 +234,6 @@ def detect_cup_and_handle(df):
     current_date = df.iloc[-1]['日期']
     
     if has_breakout:
-        # 判断是否在回踩确认阶段（第二买点）
         if abs(current_price - right_lip_price) / right_lip_price < 0.05:
             status = "已突破 - 回踩确认支撑(第二买点)"
         elif current_price > right_lip_price * 1.05:
@@ -199,12 +244,7 @@ def detect_cup_and_handle(df):
         status = "形成中 - 等待突破"
     
     # 判断杯型
-    if cup_depth < 0.15:
-        cup_type = "强势浅杯"
-    else:
-        cup_type = "标准杯身"
-    
-    # 判断是否为Rising Cup（右侧高于左侧）
+    cup_type = "强势浅杯" if cup_depth < 0.15 else "标准杯身"
     if right_lip_price > left_lip_price:
         cup_type += " (Rising Cup)"
     
@@ -229,7 +269,54 @@ def detect_cup_and_handle(df):
         "status": status
     })
     
-    return results
+    # 格式化输出
+    if results:
+        cup_details = [format_cup_pattern_detail(p) for p in results]
+        return '\n\n'.join(cup_details)
+    else:
+        return '- 暂无杯柄形态'
+
+def format_cup_pattern_detail(p):
+    """格式化杯柄形态详情"""
+    left_date = p['left_lip_date'].strftime('%Y年%m月%d日') if hasattr(p['left_lip_date'], 'strftime') else str(p['left_lip_date'])
+    bottom_date = p['bottom_date'].strftime('%Y年%m月%d日') if hasattr(p['bottom_date'], 'strftime') else str(p['bottom_date'])
+    handle_date = p['handle_low_date'].strftime('%Y年%m月%d日') if hasattr(p['handle_low_date'], 'strftime') else str(p['handle_low_date'])
+    pivot_date = p['pivot_date'].strftime('%Y年%m月%d日') if hasattr(p['pivot_date'], 'strftime') else str(p['pivot_date'])
+    current_date = p['current_date'].strftime('%Y年%m月%d日') if hasattr(p['current_date'], 'strftime') else str(p['current_date'])
+    cup_eval = '浅杯' if float(p['cup_depth'].rstrip('%')) < 20 else '标准杯身'
+    
+    breakout_text = '等待突破。'
+    volume_text = '暂无突破数据。'
+    if p['has_breakout']:
+        breakout_date = p['breakout_info']['date'].strftime('%Y年%m月%d日') if hasattr(p['breakout_info']['date'], 'strftime') else str(p['breakout_info']['date'])
+        breakout_text = f"{breakout_date}，股价收盘大涨{round(p['breakout_info']['change'], 2)}%至 **{p['breakout_info']['price']}** 元。"
+        volume_text = f"当日主力净流入 **{round(p['breakout_info']['flow'], 2)}%**，资金大幅流入，标志着有效突破。"
+    
+    return f"""**形态判定**: {p['cup_type']} - {p['status']}
+
+* **杯身左侧 (Left Cup Lip)**
+    * **时间/价格**：{left_date}，收盘价 **{p['left_lip_price']}** 元。
+    * **特征**：在此之前，股价经历了一波上涨，确立了前期高点，满足CAN SLIM形态构建的前提条件。
+
+* **杯底 (Cup Bottom)**
+    * **时间/价格**：{bottom_date}，最低收盘价 **{p['bottom_price']}** 元。
+    * **回撤深度**：从高点{p['left_lip_price']}到低点{p['bottom_price']}，回撤幅度约为 **{p['cup_depth']}**。
+    * **评价**：属于{cup_eval}形态（理想范围为12%-33%）。
+
+* **杯身右侧与柄部 (Right Lip & Handle)**
+    * **杯身修复**：股价重新回到高位区间，完成了杯身的构建。
+    * **柄部形成**：{handle_date}（{p['handle_low_price']}元）至 {pivot_date}（{p['pivot_price']}元）。
+    * **柄部低点**：{handle_date}，收盘价{p['handle_low_price']}元。柄部回调幅度约为 **{p['handle_retracement']}**。
+    * **柄部位置**：{p['handle_position']}
+
+* **关键突破点 (Pivot Point)**
+    * **标准**：**{p['pivot_price']}元** 附近（柄部的高点区域）。
+    * **突破动作**：{breakout_text}
+    * **成交量验证**：{volume_text}
+
+* **当前状态 (Current Status)**
+    * **日期**：{current_date}，收盘价 **{p['current_price']}** 元。
+    * **结论**：{p['status']}"""
 
 async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_code=None, stock_name=None):
     """生成CAN SLIM分析摘要"""
@@ -280,7 +367,10 @@ async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_co
     )
     
     # 杯柄形态检测
-    cup_patterns = detect_cup_and_handle(df)
+    cup_pattern_text = detect_cup_and_handle(df)
+    
+    # 计算相对强度RS
+    rs_text = calculate_relative_strength(df, period=60)
     
     # 生成Markdown摘要
     if not stock_code:
@@ -295,20 +385,17 @@ async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_co
 - 筹码向机构集中天数: {df['筹码向机构集中'].sum()}天
 - 放量突破天数: {df['放量突破'].sum()}天
 - 平均CAN SLIM评分: {df['CAN_SLIM_Score'].mean():.2f}
-- 杯柄形态: {'✓ 检测到' + str(len(cup_patterns)) + '个' if cup_patterns else '✗ 未检测到'}
+- 杯柄形态: {'✓ 检测到' if cup_pattern_text != '- 暂无杯柄形态' else '✗ 未检测到'}
+
+### 相对强度RS (60日/3个月)
+
+{rs_text}
 
 ### 杯柄形态详情
-{chr(10).join([f'''- **形态判定**: {p['cup_type']} - {p['status']}
-  - 杯身左侧: {p['left_lip_date']}, 价格 {p['left_lip_price']}元
-  - 杯底低点: {p['bottom_date']}, 价格 {p['bottom_price']}元
-  - 杯身深度: {p['cup_depth']} (理想范围: 12%-33%)
-  - 枢轴点(Pivot): {p['pivot_date']}, 价格 {p['pivot_price']}元
-  - 柄部低点: {p['handle_low_date']}, 价格 {p['handle_low_price']}元
-  - 柄部回撤: {p['handle_retracement']} (理想<10%)
-  - 柄部位置: {p['handle_position']}
-  - 资金状态: {p['volume_status']}
-  - 突破状态: {'✓ 已突破 - ' + str(p['breakout_info']['date']) + ', 涨幅' + str(round(p['breakout_info']['change'], 2)) + '%, 主力流入' + str(round(p['breakout_info']['flow'], 2)) + '%' if p['has_breakout'] else '✗ 等待突破'}
-  - 当前价格: {p['current_price']}元 ({p['current_date']})''' for p in cup_patterns]) if cup_patterns else '- 暂无杯柄形态'}
+{cup_pattern_text}
+"""
+    
+    markdown += f"""
 
 ### 近期重要信号（前30天）
 | 日期 | 收盘价 | 涨跌幅 | 吸筹日 | 派发日 | 筹码向机构集中 | CAN_SLIM评分 |
