@@ -455,6 +455,9 @@ async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_co
     # 机构赞助维度分析
     institutional_text = analyze_institutional_sponsorship(df, recent_window=20)
     
+    # 形态突破分析
+    pivot_breakout_text = analyze_pivot_breakout(df)
+    
     # 生成Markdown摘要
     if not stock_code:
         stock_code = secid.split('.')[-1]
@@ -470,6 +473,10 @@ async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_co
 
 {institutional_text}
 
+### 形态突破维度 (Pivot Point & Breakout - S)
+
+{pivot_breakout_text}
+
 ### 杯柄形态详情
 {cup_pattern_text}
 """
@@ -478,5 +485,70 @@ async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_co
     return markdown + "\n"
 
 
+def analyze_pivot_breakout(df, breakout_date_str=None, window_size=50):
+    """分析形态突破维度 (Pivot Point & Breakout - S)"""
+    df = df.sort_values('日期', ascending=True).reset_index(drop=True)
+    if df['日期'].dtype != 'datetime64[ns]':
+        df['日期'] = pd.to_datetime(df['日期'])
+
+    df['主力净流入净额_数值'] = df['主力净流入净占比'] * df['收盘价'] * 1e6
+
+    if breakout_date_str is None:
+        recent_df = df.tail(20)
+        candidates = recent_df[(recent_df['涨跌幅'] > 3) & (recent_df['主力净流入净占比'] > 5)]
+        if candidates.empty:
+            return "未检测到明显的突破信号（需要涨幅>3%且主力净流入>5%）"
+        breakout_date_str = candidates.iloc[-1]['日期'].strftime('%Y-%m-%d')
+
+    breakout_df = df[df['日期'] == breakout_date_str]
+    if breakout_df.empty:
+        return f"未找到日期 {breakout_date_str} 的数据"
+
+    breakout_data = breakout_df.iloc[0]
+    breakout_inflow = breakout_data['主力净流入净额_数值']
+    breakout_price = breakout_data['收盘价']
+
+    pre_breakout_df = df[df['日期'] < breakout_date_str]
+    if len(pre_breakout_df) < 10:
+        return "数据不足，无法计算Pivot Point"
+
+    pivot_point = pre_breakout_df.tail(10)['收盘价'].max()
+    pivot_idx = pre_breakout_df.tail(10)['收盘价'].idxmax()
+    pivot_date = df.loc[pivot_idx, '日期']
+
+    baseline_df = df[df['日期'] < breakout_date_str].tail(window_size)
+    if len(baseline_df) < window_size:
+        window_size = len(baseline_df)
+
+    baseline_activity = baseline_df['主力净流入净额_数值'].abs().mean()
+    surge_ratio = breakout_inflow / baseline_activity if baseline_activity != 0 else 0
+    percentage_increase = (surge_ratio - 1) * 100
+
+    if percentage_increase >= 50:
+        verdict = f"✅ 极大放量 (>{percentage_increase:.0f}%)\n      资金流入远超\"比平均水平高出40%-50%\"的标准，属于典型的机构扫货式突破，有效性极高。"
+    elif percentage_increase >= 40:
+        verdict = f"✅ 有效放量 (>{percentage_increase:.0f}%)\n      符合欧奈尔对突破资金力度的基本要求。"
+    else:
+        verdict = f"⚠️ 放量不足 (<40%)\n      资金支持力度存疑，需警惕假突破。"
+
+    return f"""**1. 关键价位 - Pivot Point 识别**
+* 突破前阻力位(柄部高点)：**{pivot_point:.2f}元**
+* 出现日期：{pivot_date.strftime('%Y年%m月%d日')}
+* 突破日收盘：**{breakout_price:.2f}元** (成功站上阻力位)
+
+**2. 基准水平 - 突破前市场平均活跃度**
+* 统计周期：突破日前 **{window_size}个交易日**
+* 平均资金活跃度(日均净流绝对值)：**{baseline_activity / 1e8:.2f}亿**
+* 注：此数值代表该股在突破前的日常平均资金吞吐规模
+
+**3. 突破力度 - 资金爆发力验证**
+* 突破日({breakout_date_str})净流入：**{breakout_inflow / 1e8:.2f}亿**
+* 放量比率 (Surge Ratio)：**{surge_ratio:.2f}倍**
+* 较平均水平增长：**+{percentage_increase:.2f}%**
+
+**判定结论**
+{verdict}"""
+
 if __name__ == "__main__":
     asyncio.run(generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_code="002371", stock_name="北方华创"))
+
