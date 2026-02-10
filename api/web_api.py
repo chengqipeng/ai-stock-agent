@@ -17,7 +17,8 @@ from data_results.database.batch_db import (
     init_batch_tables, create_batch, add_batch_stock, update_batch_stock,
     get_all_batches, get_batch_stocks, get_batch_stock_detail, get_batch_progress
 )
-from service.eastmoney.stock_structure_markdown import get_stock_markdown, get_stock_markdown_for_llm_analyse
+from service.eastmoney.stock_structure_markdown import get_stock_markdown, get_stock_markdown_for_llm_analyse, \
+    get_stock_markdown_for_score
 from service.eastmoney.stock_technical_markdown import get_technical_indicators_prompt
 from service.processor.operation_advice import get_operation_advice
 from service.llm.deepseek_client import DeepSeekClient
@@ -384,7 +385,7 @@ async def batch_execute(batch_id: int):
                         
                         # 获取提示词
                         normalized_code = normalize_stock_code(stock_code)
-                        prompt = await get_stock_markdown_for_llm_analyse(normalized_code, stock_name)
+                        prompt = await get_stock_markdown_for_score(normalized_code, stock_name)
                         
                         # 调用DeepSeek分析
                         client = DeepSeekClient()
@@ -458,8 +459,27 @@ async def get_batch_stock_info(stock_id: int):
 
 def extract_score(text: str) -> int:
     """从分析结果中提取分数"""
+    import html
+    
+    # 先尝试解析JSON格式
+    try:
+        # 处理HTML转义
+        decoded_text = html.unescape(text)
+        # 移除```json标记
+        decoded_text = re.sub(r'```json\s*', '', decoded_text)
+        decoded_text = re.sub(r'```\s*', '', decoded_text)
+        # 尝试提取JSON部分
+        json_match = re.search(r'\{[^}]*"score"[^}]*\}', decoded_text)
+        if json_match:
+            data = json.loads(json_match.group())
+            if 'score' in data:
+                return int(data['score'])
+    except:
+        pass
+    
     # 匹配各种可能的分数格式
     patterns = [
+        r'"score"[：:]*\s*(\d+)',
         r'综合评分[：:]*\s*(\d+)',
         r'总分[：:]*\s*(\d+)',
         r'评分[：:]*\s*(\d+)',

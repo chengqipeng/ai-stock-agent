@@ -9,12 +9,15 @@ from service.llm.deepseek_client import DeepSeekClient
 from service.llm.gemini_client import GeminiClient
 
 
+def _get_analysis_json_format():
+    return "\n结果只能输出json格式数据：{'stock_code': '<股票代码>', 'stock_name': '<股票名称>', 'score': '<评分，按0-100分，评分需严格按照can slim的7个维度进行评估>'}\n"
+
+
 def _get_analysis_header(stock_code: str, stock_name: str, mode: str = "full") -> str:
     """生成分析提示头部"""
     if mode == "score":
         return (
-            f"# 使用欧奈尔CAN SLIM规则分析一下<{stock_code} {stock_name}>，基于模型的杯柄形态、突破点、基于技术形态等7个维度的指标判断是否属于优质股票，输出json数据：\n"
-            "{'stock_code': '<股票代码>', 'stock_name': '<股票名称>', 'score': '<评分，按0-100分，评分需严格按照can slim的7个维度进行评估>'}\n"
+            f"# 使用欧奈尔CAN SLIM规则分析一下<{stock_code} {stock_name}>，基于模型的杯柄形态、突破点、基于技术形态等7个维度的指标判断是否属于优质股票\n"
             "# 1.分析涉及当日交易信息、当日资金流向、实时成交分布、股票基本信息、业绩报表、高管减持、机构持仓变化、10/50/200日均线等数据必须严格使用已提供的【东方财富数据集】\n"
             "# 2.以下是【东方财富数据集】：\n"
         )
@@ -81,8 +84,9 @@ async def get_stock_markdown_for_score(secid="0.002371", stock_name=None, histor
     try:
         stock_code = secid.split('.')[-1]
         header = _get_analysis_header(stock_code, stock_name, mode="score")
-        body = await _build_stock_markdown(secid, stock_name, include_ma=False)
-        return header + body
+        body = await _build_stock_markdown(secid, stock_name, include_ma=True)
+        json_result = _get_analysis_json_format()
+        return header + body + json_result
     except Exception as e:
         return f"# 错误\n\n获取股票数据失败: {str(e)}"
 

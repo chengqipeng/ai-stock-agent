@@ -181,16 +181,9 @@
                     <button class="btn btn-primary" onclick="selectAll()">全选</button>
                     <button class="btn btn-primary" onclick="deselectAll()">取消全选</button>
                     <button class="btn btn-success" onclick="startBatchAnalysis()" id="startBtn">开始批量分析 (<span id="selectedCount">0</span>)</button>
-                </div>
-                
-                <div id="progressSection" style="display: none; margin-top: 15px; padding: 15px; background: #f9f9f9; border-radius: 4px;">
-                    <h3 style="font-size: 14px; margin-bottom: 10px;">分析进度</h3>
-                    <div class="progress-bar" style="height: 24px;">
-                        <div class="progress-fill" id="progressFill" style="width: 0%; font-size: 12px;">
-                            <span id="progressText">0/0</span>
-                        </div>
-                    </div>
-                    <div id="progressDetails" style="font-size: 11px; color: #666; margin-top: 8px; max-height: 150px; overflow-y: auto;"></div>
+                    <span id="progressSection" style="display: none; margin-left: 10px; padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">
+                        <span id="progressText">0/0</span>
+                    </span>
                 </div>
                 
                 <div class="stock-list" id="stockList">
@@ -317,9 +310,7 @@
         async function executeBatchAnalysis(batchId) {
             return new Promise((resolve, reject) => {
                 const eventSource = new EventSource(`/api/batch_execute/${batchId}`);
-                const progressFill = document.getElementById('progressFill');
                 const progressText = document.getElementById('progressText');
-                const progressDetails = document.getElementById('progressDetails');
                 
                 eventSource.onmessage = (event) => {
                     try {
@@ -327,23 +318,18 @@
                         
                         if (data.stage === 'start') {
                             progressText.textContent = `0/${data.total}`;
-                            progressFill.style.width = '0%';
                         } else if (data.stage === 'progress') {
-                            const percent = (data.completed / data.total * 100).toFixed(1);
-                            progressFill.style.width = percent + '%';
                             progressText.textContent = `${data.completed}/${data.total}`;
-                            
-                            const detail = data.error 
-                                ? `❌ ${data.stock_name} - 失败: ${data.error}`
-                                : `✅ ${data.stock_name} - 分数: ${data.score}`;
-                            progressDetails.innerHTML = detail + '<br>' + progressDetails.innerHTML;
                         } else if (data.stage === 'done') {
                             eventSource.close();
-                            progressDetails.innerHTML = '<strong style="color: #4caf50;">✅ 批量分析完成！</strong><br>' + progressDetails.innerHTML;
+                            progressText.textContent = '✅ 完成';
+                            setTimeout(() => {
+                                document.getElementById('progressSection').style.display = 'none';
+                            }, 3000);
                             resolve();
                         } else if (data.stage === 'error') {
                             eventSource.close();
-                            progressDetails.innerHTML = '<strong style="color: #f44;">❌ 分析失败: ' + data.message + '</strong>';
+                            progressText.textContent = '❌ 失败';
                             reject(new Error(data.message));
                         }
                     } catch (e) {
@@ -435,8 +421,21 @@
                     const stock = data.data;
                     document.getElementById('modalTitle').textContent = 
                         `${stock.stock_name} (${stock.stock_code}) - 分数: ${stock.score}`;
+                    
+                    // 组合提示词和结果
+                    let content = '';
+                    if (stock.prompt) {
+                        content += '## 提示词 <button onclick="copyPrompt()" style="margin-left: 10px; padding: 4px 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">复制</button>\n\n```\n' + stock.prompt + '\n```\n\n';
+                    }
+                    if (stock.result) {
+                        content += '## 分析结果\n\n' + stock.result;
+                    }
+                    
+                    // 保存提示词到全局变量
+                    window.currentPrompt = stock.prompt || '';
+                    
                     document.getElementById('modalContent').innerHTML = 
-                        marked.parse(stock.result || '暂无结果');
+                        marked.parse(content || '暂无结果');
                     document.getElementById('detailModal').classList.add('show');
                 }
             } catch (error) {
@@ -452,6 +451,19 @@
             if (event.target.id === 'detailModal') {
                 closeModal();
             }
+        }
+
+        function copyPrompt() {
+            if (!window.currentPrompt) {
+                alert('没有可复制的提示词');
+                return;
+            }
+            navigator.clipboard.writeText(window.currentPrompt).then(() => {
+                alert('提示词已复制到剪贴板');
+            }).catch(err => {
+                console.error('复制失败:', err);
+                alert('复制失败，请手动复制');
+            });
         }
 
         // 初始化
