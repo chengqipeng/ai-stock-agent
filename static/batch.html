@@ -27,7 +27,7 @@
             max-width: 1400px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 500px 1fr;
+            grid-template-columns: 400px 1fr;
             gap: 20px;
         }
         .left-column {
@@ -222,7 +222,11 @@
                     <button class="btn btn-primary" onclick="selectAll()">全选</button>
                     <button class="btn btn-primary" onclick="deselectAll()">取消全选</button>
                     <button class="btn btn-success" onclick="startBatchAnalysis()" id="startBtn">开始批量分析 (<span id="selectedCount">0</span>)</button>
-                    <span id="progressSection" style="display: none; margin-left: 8px; padding: 5px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ddd; border-radius: 4px; font-size: 11px; font-weight: 600; display: inline-block; vertical-align: top; margin-top: 5px;">
+                    <label style="margin-left: 10px; font-size: 11px; display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="deepThinkingMode" style="margin-right: 5px;">
+                        深度思考
+                    </label>
+                    <span id="progressSection" style="display: none; margin-left: 8px; padding: 5px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ddd; border-radius: 4px; font-size: 11px; font-weight: 600; vertical-align: top; margin-top: 5px;">
                         <span id="progressText" style="color: #fff;">0/0</span>
                     </span>
                 </div>
@@ -345,12 +349,13 @@
                 
                 if (data.success) {
                     const batchId = data.data.batch_id;
+                    const useDeepThinking = document.getElementById('deepThinkingMode').checked;
                     
                     // 显示进度区域
-                    document.getElementById('progressSection').style.display = 'block';
+                    document.getElementById('progressSection').style.display = 'inline-block';
                     
                     // 执行批量分析
-                    await executeBatchAnalysis(batchId);
+                    await executeBatchAnalysis(batchId, useDeepThinking);
                     
                     // 刷新批次列表
                     loadBatchList();
@@ -362,9 +367,10 @@
             }
         }
 
-        async function executeBatchAnalysis(batchId) {
+        async function executeBatchAnalysis(batchId, useDeepThinking = false) {
             return new Promise((resolve, reject) => {
-                const eventSource = new EventSource(`/api/batch_execute/${batchId}`);
+                const url = `/api/batch_execute/${batchId}${useDeepThinking ? '?deep_thinking=true' : ''}`;
+                const eventSource = new EventSource(url);
                 const progressText = document.getElementById('progressText');
                 const progressSection = document.getElementById('progressSection');
                 
@@ -426,9 +432,10 @@
                 <div class="batch-item ${batch.id === currentBatchId ? 'active' : ''}" onclick="loadBatchStocks(${batch.id})">
                     <div style="font-weight: 600; font-size: 12px;">${batch.batch_name}</div>
                     <div style="font-size: 11px; color: #666; margin-top: 2px;">
-                        进度: ${batch.completed_count}/${batch.total_count} | 
+                        总数: ${batch.total_count} | 成功: ${batch.success_count} | 失败: ${batch.completed_count - batch.success_count} | 
                         状态: ${batch.status === 'completed' ? '✅ 已完成' : '⏳ 进行中'} | 
                         ${batch.created_at}
+                        ${batch.status !== 'completed' && batch.completed_count < batch.total_count ? '<button onclick="event.stopPropagation(); continueBatch(' + batch.id + ')" style="margin-left: 10px; padding: 2px 8px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">继续分析</button>' : ''}
                     </div>
                 </div>
             `).join('');
@@ -442,6 +449,7 @@
                 const response = await fetch(`/api/batch/${batchId}/stocks`);
                 const data = await response.json();
                 if (data.success) {
+                    console.log('Loaded stocks:', data.data); // Debug log
                     renderBatchStocks(data.data);
                 }
             } catch (error) {
@@ -466,7 +474,7 @@
             
             tbody.innerHTML = stocks.map(stock => `
                 <tr onclick="showStockDetail(${stock.id})" style="cursor: pointer; border-bottom: 1px solid #e0e0e0;">
-                    <td style="padding: 8px; font-size: 13px;">${stock.stock_name}</td>
+                    <td style="padding: 8px; font-size: 13px;">${stock.stock_name} ${stock.is_deep_thinking ? '<span style="color: #667eea; font-size: 10px;" title="深度思考模式">🧠</span>' : ''}</td>
                     <td style="padding: 8px; font-size: 13px;">${stock.stock_code}</td>
                     <td style="padding: 8px; text-align: center; font-size: 13px; color: #667eea; font-weight: 600;">${stock.score || '-'}</td>
                     <td style="padding: 8px; text-align: center; font-size: 13px; color: #667eea; font-weight: 600;">${stock.technical_score || '-'}</td>
@@ -609,6 +617,25 @@
                 }
             } catch (error) {
                 alert('加载失败: ' + error.message);
+            }
+        }
+
+        async function continueBatch(batchId) {
+            if (!confirm('确定要继续分析该批次吗？')) {
+                return;
+            }
+            
+            document.getElementById('progressSection').style.display = 'inline-block';
+            
+            try {
+                const useDeepThinking = document.getElementById('deepThinkingMode').checked;
+                await executeBatchAnalysis(batchId, useDeepThinking);
+                loadBatchList();
+                if (currentBatchId === batchId) {
+                    loadBatchStocks(batchId);
+                }
+            } catch (error) {
+                alert('继续分析失败: ' + error.message);
             }
         }
 

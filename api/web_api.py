@@ -360,7 +360,7 @@ async def batch_analysis(request: BatchRequest):
 
 
 @app.get("/api/batch_execute/{batch_id}")
-async def batch_execute(batch_id: int):
+async def batch_execute(batch_id: int, deep_thinking: bool = False):
     """执行批量分析（SSE流式返回进度）"""
     async def execute_stream():
         try:
@@ -370,12 +370,23 @@ async def batch_execute(batch_id: int):
                 yield f"data: {json.dumps({'stage': 'error', 'message': '批次不存在或无股票'}, ensure_ascii=False)}\n\n"
                 return
             
+            # 过滤出未完成的股票（status='pending'）
+            pending_stocks = [s for s in stocks if s['status'] == 'pending']
+            completed_count = len(stocks) - len(pending_stocks)
+            
+            if not pending_stocks:
+                yield f"data: {json.dumps({'stage': 'done', 'message': '所有股票已完成分析'}, ensure_ascii=False)}\n\n"
+                return
+            
             # 发送初始状态
-            yield f"data: {json.dumps({'stage': 'start', 'total': len(stocks), 'completed': 0}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'stage': 'start', 'total': len(stocks), 'completed': completed_count}, ensure_ascii=False)}\n\n"
             
             # 创建信号量限制并发数为5
             semaphore = asyncio.Semaphore(5)
-            completed = 0
+            completed = completed_count
+            
+            # 根据模式选择模型
+            model = "deepseek-reasoner" if deep_thinking else "deepseek-chat"
             
             async def analyze_stock(stock):
                 nonlocal completed
@@ -388,12 +399,12 @@ async def batch_execute(batch_id: int):
                         normalized_code = normalize_stock_code(stock_code)
                         prompt = await get_stock_markdown_for_score(normalized_code, stock_name)
                         
-                        # 调用DeepSeek分析（深度思考模式）
+                        # 调用DeepSeek分析
                         client = DeepSeekClient()
                         result = ""
                         async for content in client.chat_stream(
                             messages=[{"role": "user", "content": prompt}],
-                            model="deepseek-chat"
+                            model=model
                         ):
                             result += content
                         
@@ -408,7 +419,7 @@ async def batch_execute(batch_id: int):
                         technical_result = ""
                         async for technical_content in client.chat_stream(
                                 messages=[{"role": "user", "content": technical_prompt}],
-                                model="deepseek-chat"
+                                model=model
                         ):
                             technical_result += technical_content
 
@@ -416,7 +427,7 @@ async def batch_execute(batch_id: int):
                         technical_score, technical_reason = extract_score_and_reason(technical_result)
                         
                         # 更新数据库
-                        update_batch_stock(batch_id, stock_code, prompt, result, score, reason, technical_prompt, technical_result, technical_score, technical_reason)
+                        update_batch_stock(batch_id, stock_code, prompt, result, score, reason, technical_prompt, technical_result, technical_score, technical_reason, "", 1 if deep_thinking else 0)
                         
                         completed += 1
                         return {'stage': 'progress', 'completed': completed, 'total': len(stocks), 'stock_name': stock_name, 'score': score}
@@ -426,12 +437,12 @@ async def batch_execute(batch_id: int):
                         print(f"[错误] {stock_name} ({stock_code}): {error_msg}")
                         import traceback
                         traceback.print_exc()
-                        update_batch_stock(batch_id, stock_code, "", "", 0, "", "", "", 0, "", error_msg)
+                        update_batch_stock(batch_id, stock_code, "", "", 0, "", "", "", 0, "", error_msg, 1 if deep_thinking else 0)
                         completed += 1
                         return {'stage': 'progress', 'completed': completed, 'total': len(stocks), 'stock_name': stock_name, 'error': error_msg}
             
-            # 并发执行所有股票分析
-            tasks = [analyze_stock(stock) for stock in stocks]
+            # 并发执行所有未完成的股票分析
+            tasks = [analyze_stock(stock) for stock in pending_stocks]
             
             # 使用as_completed处理完成的任务
             for coro in asyncio.as_completed(tasks):
