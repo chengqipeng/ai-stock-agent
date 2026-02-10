@@ -17,7 +17,7 @@ from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to
 200-SMA	200	250 - 300	核心红线。 过滤掉所有处于下降通道的弱势股。
 
 """
-def calculate_moving_averages(klines):
+def calculate_moving_averages(klines, stock_code, stock_name):
     """计算移动平均线指标"""
     df = parse_klines_to_df(klines)
     

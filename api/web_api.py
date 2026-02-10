@@ -423,6 +423,9 @@ async def batch_execute(batch_id: int):
                     except Exception as e:
                         # 记录错误信息到数据库
                         error_msg = str(e)
+                        print(f"[错误] {stock_name} ({stock_code}): {error_msg}")
+                        import traceback
+                        traceback.print_exc()
                         update_batch_stock(batch_id, stock_code, "", "", 0, "", "", "", 0, "", error_msg)
                         completed += 1
                         return {'stage': 'progress', 'completed': completed, 'total': len(stocks), 'stock_name': stock_name, 'error': error_msg}

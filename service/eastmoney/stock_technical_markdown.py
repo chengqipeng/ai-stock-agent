@@ -9,7 +9,7 @@ from service.eastmoney.technical.stock_day_macd import get_macd_markdown
 from service.eastmoney.technical.stock_day_rsi import get_rsi_markdown
 from service.eastmoney.technical.stock_day_vwma import get_vwma_markdown
 from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_markdown, \
-    generate_can_slim_50_200_summary
+    generate_can_slim_50_200_summary, calculate_moving_averages
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.gemini_client import GeminiClient
 
