@@ -38,6 +38,7 @@ def init_batch_tables():
             technical_result TEXT,
             technical_score INTEGER,
             technical_reason TEXT,
+            error_message TEXT,
             status TEXT DEFAULT 'pending',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             completed_at DATETIME,
@@ -47,6 +48,12 @@ def init_batch_tables():
     
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_id ON batch_stock_records(batch_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_status ON batch_records(status)")
+    
+    # 添加error_message字段（如果不存在）
+    try:
+        cursor.execute("SELECT error_message FROM batch_stock_records LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE batch_stock_records ADD COLUMN error_message TEXT")
     
     conn.commit()
     conn.close()
