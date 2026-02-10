@@ -207,6 +207,60 @@
         }
         .markdown-body { line-height: 1.6; font-size: 14px; }
         .markdown-body h2 { color: #667eea; margin-top: 20px; }
+        .progress-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        .progress-modal.show { display: flex; }
+        .progress-modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            width: 500px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .progress-modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .progress-modal-bar {
+            width: 100%;
+            height: 40px;
+            background: #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        .progress-modal-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .progress-modal-info {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+        }
+        .overlay-disabled {
+            pointer-events: none;
+            opacity: 0.6;
+        }
     </style>
 </head>
 <body>
@@ -274,6 +328,18 @@
         </div>
     </div>
 
+    <div class="progress-modal" id="progressModal">
+        <div class="progress-modal-content">
+            <div class="progress-modal-title">正在执行批量分析...</div>
+            <div class="progress-modal-bar">
+                <div class="progress-modal-fill" id="progressModalFill" style="width: 0%">
+                    <span id="progressModalText">0/0</span>
+                </div>
+            </div>
+            <div class="progress-modal-info" id="progressModalInfo">准备开始...</div>
+        </div>
+    </div>
+
     <script>
         let stockList = [];
         let selectedStocks = new Set();
@@ -335,8 +401,9 @@
                 return;
             }
 
-            const startBtn = document.getElementById('startBtn');
-            startBtn.disabled = true;
+            // 显示进度弹框并禁用界面
+            showProgressModal();
+            disableUI();
 
             try {
                 // 创建批次
@@ -351,9 +418,6 @@
                     const batchId = data.data.batch_id;
                     const useDeepThinking = document.getElementById('deepThinkingMode').checked;
                     
-                    // 显示进度区域
-                    document.getElementById('progressSection').style.display = 'inline-block';
-                    
                     // 执行批量分析
                     await executeBatchAnalysis(batchId, useDeepThinking);
                     
@@ -363,7 +427,8 @@
             } catch (error) {
                 alert('批量分析失败: ' + error.message);
             } finally {
-                startBtn.disabled = false;
+                hideProgressModal();
+                enableUI();
             }
         }
 
@@ -371,30 +436,25 @@
             return new Promise((resolve, reject) => {
                 const url = `/api/batch_execute/${batchId}${useDeepThinking ? '?deep_thinking=true' : ''}`;
                 const eventSource = new EventSource(url);
-                const progressText = document.getElementById('progressText');
-                const progressSection = document.getElementById('progressSection');
                 
                 eventSource.onmessage = (event) => {
                     try {
                         const data = JSON.parse(event.data);
                         
                         if (data.stage === 'start') {
-                            progressSection.classList.add('loading');
-                            progressText.innerHTML = `<span style="color: #fff;">${data.completed}</span>/<span style="color: #fff;">${data.total}</span>`;
+                            updateProgressModal(data.completed, data.total, '开始分析...');
                         } else if (data.stage === 'progress') {
-                            progressText.innerHTML = `<span style="color: #fff;">${data.completed}</span>/<span style="color: #fff;">${data.total}</span>`;
+                            const info = data.error 
+                                ? `❌ ${data.stock_name} 分析失败` 
+                                : `✅ ${data.stock_name} 完成 (得分: ${data.score})`;
+                            updateProgressModal(data.completed, data.total, info);
                         } else if (data.stage === 'done') {
                             eventSource.close();
-                            progressSection.classList.remove('loading');
-                            progressText.textContent = '✅ 完成';
-                            setTimeout(() => {
-                                document.getElementById('progressSection').style.display = 'none';
-                            }, 3000);
+                            updateProgressModal(data.completed || 100, data.total || 100, '✅ 全部完成！');
                             resolve();
                         } else if (data.stage === 'error') {
                             eventSource.close();
-                            progressSection.classList.remove('loading');
-                            progressText.textContent = '❌ 失败';
+                            updateProgressModal(0, 100, '❌ 执行失败: ' + data.message);
                             reject(new Error(data.message));
                         }
                     } catch (e) {
@@ -625,7 +685,9 @@
                 return;
             }
             
-            document.getElementById('progressSection').style.display = 'inline-block';
+            // 显示进度弹框并禁用界面
+            showProgressModal();
+            disableUI();
             
             try {
                 const useDeepThinking = document.getElementById('deepThinkingMode').checked;
@@ -636,7 +698,36 @@
                 }
             } catch (error) {
                 alert('继续分析失败: ' + error.message);
+            } finally {
+                hideProgressModal();
+                enableUI();
             }
+        }
+
+        function showProgressModal() {
+            document.getElementById('progressModal').classList.add('show');
+            updateProgressModal(0, 100, '准备开始...');
+        }
+
+        function hideProgressModal() {
+            setTimeout(() => {
+                document.getElementById('progressModal').classList.remove('show');
+            }, 2000);
+        }
+
+        function updateProgressModal(completed, total, info) {
+            const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+            document.getElementById('progressModalFill').style.width = percentage + '%';
+            document.getElementById('progressModalText').textContent = `${completed}/${total}`;
+            document.getElementById('progressModalInfo').textContent = info;
+        }
+
+        function disableUI() {
+            document.querySelector('.container').classList.add('overlay-disabled');
+        }
+
+        function enableUI() {
+            document.querySelector('.container').classList.remove('overlay-disabled');
         }
 
         // 初始化
