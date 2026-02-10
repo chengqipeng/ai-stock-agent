@@ -19,7 +19,8 @@ from data_results.database.batch_db import (
 )
 from service.eastmoney.stock_structure_markdown import get_stock_markdown, get_stock_markdown_for_llm_analyse, \
     get_stock_markdown_for_score
-from service.eastmoney.stock_technical_markdown import get_technical_indicators_prompt
+from service.eastmoney.stock_technical_markdown import get_technical_indicators_prompt, \
+    get_technical_indicators_prompt_score
 from service.processor.operation_advice import get_operation_advice
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.gemini_client import GeminiClient
@@ -400,7 +401,7 @@ async def batch_execute(batch_id: int):
                         score, reason = extract_score_and_reason(result)
 
                         # 获取K线技术分析
-                        technical_prompt = await get_technical_indicators_prompt(
+                        technical_prompt = await get_technical_indicators_prompt_score(
                             normalized_code, stock_code, stock_name
                         )
 

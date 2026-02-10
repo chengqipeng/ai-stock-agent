@@ -35,7 +35,7 @@ async def get_technical_indicators_prompt_score(secid, stock_code, stock_name):
     """生成完整的技术分析prompt"""
     technical_data = await get_technical_indicators_markdown(secid, stock_code, stock_name)
     current_date = datetime.now().strftime("%Y年%m月%d日")
-    return get_technical_prompt_score(current_date, stock_name, technical_data)
+    return get_technical_prompt_score(current_date, stock_code, stock_name, technical_data)
 
 async def get_technical_indicators_for_llm_analysis_prompt(secid, stock_code, stock_name, llm_type="deepseek"):
     """生成完整的技术分析prompt并调用LLM大模型"""

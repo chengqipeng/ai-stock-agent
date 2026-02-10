@@ -18,7 +18,7 @@ def get_technical_prompt(current_date, company_name, technical_data):
 """
 
 
-def get_technical_prompt_score(current_date, company_name, technical_data):
+def get_technical_prompt_score(current_date, stock_code, stock_name, technical_data):
     return f"""
 作为一名交易助手，你的任务是分析金融市场。你的职责是从以下列表中，针对A股的市场状况或交易策略，选择最相关的指标。目标是选择最多 8个指标，要求这些指标能提供互补的见解且不产生冗余，并对最终结果进行打分。
 
@@ -31,11 +31,11 @@ def get_technical_prompt_score(current_date, company_name, technical_data):
    ## 2.1 选择能提供多样化且互补信息的指标，避免冗余（例如：不要同时选择 rsi 和 stochrsi）。
    ## 2.2 简要说明为什么这些指标适合当前的市场背景。
    ## 2.3 撰写一份非常详尽且细致的趋势观察报告。不要简单地描述"趋势不明"，而应提供深入的、颗粒度细化的分析见解，以帮助交易者做出决策。
-   ## 2.4 重要提示：当前日期为 {current_date}，我们要分析的公司是 {company_name}。
+   ## 2.4 重要提示：当前日期为 {current_date}，我们要分析的公司是 {stock_name}({stock_code})。
 
-# 6.以下是东方财富专业的指标数据：
+# 6. 以下是东方财富专业的指标数据：
 {technical_data}
 
-结果只能输出json格式数据：{'stock_code': '<股票代码>', 'stock_name': '<股票名称>', 'score': '<评分，按0-100分，评分需严格根据数据进行分析>', 'reason': '<如果分析缺少数据需要明确缺少的数据是什么，不超过50字，没有则不用返回>'}
+# 7. 结果只能输出json格式数据：{{'stock_code': '<股票代码>', 'stock_name': '<股票名称>', 'score': '<评分，按0-100分，评分需严格根据数据进行分析>', 'reason': '<如果分析缺少数据需要明确缺少的数据是什么，不超过50字，没有则不用返回>'}}
 """
 
