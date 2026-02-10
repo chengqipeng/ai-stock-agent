@@ -34,6 +34,10 @@ def init_batch_tables():
             result TEXT,
             reason TEXT,
             score INTEGER,
+            technical_prompt TEXT,
+            technical_result TEXT,
+            technical_score INTEGER,
+            technical_reason TEXT,
             status TEXT DEFAULT 'pending',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             completed_at DATETIME,
@@ -71,15 +75,15 @@ def add_batch_stock(batch_id: int, stock_name: str, stock_code: str):
     conn.commit()
     conn.close()
 
-def update_batch_stock(batch_id: int, stock_code: str, prompt: str, result: str, score: int, reason: str = ""):
+def update_batch_stock(batch_id: int, stock_code: str, prompt: str, result: str, score: int, reason: str = "", technical_prompt: str = "", technical_result: str = "", technical_score: int = 0, technical_reason: str = ""):
     """更新批次股票记录"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
         UPDATE batch_stock_records
-        SET prompt = ?, result = ?, score = ?, reason = ?, status = 'completed', completed_at = ?
+        SET prompt = ?, result = ?, score = ?, reason = ?, technical_prompt = ?, technical_result = ?, technical_score = ?, technical_reason = ?, status = 'completed', completed_at = ?
         WHERE batch_id = ? AND stock_code = ?
-    """, (prompt, result, score, reason, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), batch_id, stock_code))
+    """, (prompt, result, score, reason, technical_prompt, technical_result, technical_score, technical_reason, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), batch_id, stock_code))
     
     # 更新批次完成数量
     cursor.execute("""
@@ -124,7 +128,7 @@ def get_batch_stocks(batch_id: int) -> List[Dict]:
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT id, stock_name, stock_code, score, reason, status, completed_at
+        SELECT id, stock_name, stock_code, score, reason, technical_score, technical_reason, status, completed_at
         FROM batch_stock_records
         WHERE batch_id = ?
         ORDER BY score DESC, completed_at DESC
@@ -158,3 +162,12 @@ def get_batch_progress(batch_id: int) -> Dict:
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
+
+def clear_all_batches():
+    """清空所有批次记录"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM batch_stock_records")
+    cursor.execute("DELETE FROM batch_records")
+    conn.commit()
+    conn.close()

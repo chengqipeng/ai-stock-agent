@@ -15,7 +15,7 @@ from common.utils.stock_list_parser import parse_stock_list
 from data_results.database.history_db import init_db, insert_history, get_all_history, get_history_content
 from data_results.database.batch_db import (
     init_batch_tables, create_batch, add_batch_stock, update_batch_stock,
-    get_all_batches, get_batch_stocks, get_batch_stock_detail, get_batch_progress
+    get_all_batches, get_batch_stocks, get_batch_stock_detail, get_batch_progress, clear_all_batches
 )
 from service.eastmoney.stock_structure_markdown import get_stock_markdown, get_stock_markdown_for_llm_analyse, \
     get_stock_markdown_for_score
@@ -392,30 +392,30 @@ async def batch_execute(batch_id: int):
                         result = ""
                         async for content in client.chat_stream(
                             messages=[{"role": "user", "content": prompt}],
-                            model="deepseek-reasoner"
+                            model="deepseek-chat"
                         ):
                             result += content
                         
                         # 从结果中提取分数和推理过程
                         score, reason = extract_score_and_reason(result)
 
-                        stock_code = get_stock_code(stock_name)
-                        technical_stock_score_result = await get_technical_indicators_prompt(
-                            normalize_stock_code(stock_code), stock_code, stock_name
+                        # 获取K线技术分析
+                        technical_prompt = await get_technical_indicators_prompt(
+                            normalized_code, stock_code, stock_name
                         )
 
                         technical_result = ""
                         async for technical_content in client.chat_stream(
-                                messages=[{"role": "user", "content": prompt}],
-                                model="deepseek-reasoner"
+                                messages=[{"role": "user", "content": technical_prompt}],
+                                model="deepseek-chat"
                         ):
                             technical_result += technical_content
 
-                        # 从结果中提取分数和推理过程
+                        # 从结果中提取K线分数和推理过程
                         technical_score, technical_reason = extract_score_and_reason(technical_result)
                         
                         # 更新数据库
-                        update_batch_stock(batch_id, stock_code, prompt, result, score, reason)
+                        update_batch_stock(batch_id, stock_code, prompt, result, score, reason, technical_prompt, technical_result, technical_score, technical_reason)
                         
                         completed += 1
                         return {'stage': 'progress', 'completed': completed, 'total': len(stocks), 'stock_name': stock_name, 'score': score}
@@ -468,6 +468,16 @@ async def get_batch_stock_info(stock_id: int):
         return {"success": True, "data": stock}
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/batches/clear")
+async def clear_batches():
+    """清空所有批次记录"""
+    try:
+        clear_all_batches()
+        return {"success": True, "message": "已清空所有批次记录"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

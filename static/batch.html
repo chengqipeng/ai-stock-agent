@@ -145,11 +145,45 @@
             background: white;
             border-radius: 8px;
             padding: 30px;
-            max-width: 800px;
+            max-width: 90%;
+            width: 1400px;
             max-height: 80vh;
             overflow-y: auto;
             box-shadow: 0 4px 20px rgba(0,0,0,0.3);
             position: relative;
+        }
+        .prompt-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .prompt-section {
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 15px;
+        }
+        .prompt-section h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #667eea;
+        }
+        .result-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .result-section {
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .result-section h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #667eea;
         }
         .close-btn {
             position: absolute;
@@ -199,7 +233,10 @@
             </div>
 
             <div class="panel">
-                <h2 style="font-size: 14px;">批次记录</h2>
+                <h2 style="font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
+                    <span>批次记录</span>
+                    <button onclick="clearHistory()" style="padding: 4px 12px; background: #f44; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">清空历史</button>
+                </h2>
                 <div class="batch-list" id="batchList">
                     <p style="text-align: center; color: #999;">加载中...</p>
                 </div>
@@ -214,6 +251,7 @@
                         <th style="padding: 8px; text-align: left; font-size: 12px;">股票名称</th>
                         <th style="padding: 8px; text-align: left; font-size: 12px;">股票代码</th>
                         <th style="padding: 8px; text-align: center; font-size: 12px;">CAN SLIM打分</th>
+                        <th style="padding: 8px; text-align: center; font-size: 12px;">K线打分</th>
                         <th style="padding: 8px; text-align: center; font-size: 12px;">状态</th>
                         <th style="padding: 8px; text-align: left; font-size: 12px;">完成时间</th>
                     </tr>
@@ -431,9 +469,11 @@
                     <td style="padding: 8px; font-size: 13px;">${stock.stock_name}</td>
                     <td style="padding: 8px; font-size: 13px;">${stock.stock_code}</td>
                     <td style="padding: 8px; text-align: center; font-size: 13px; color: #667eea; font-weight: 600;">${stock.score || '-'}</td>
+                    <td style="padding: 8px; text-align: center; font-size: 13px; color: #667eea; font-weight: 600;">${stock.technical_score || '-'}</td>
                     <td style="padding: 8px; text-align: center; font-size: 13px;">
                         ${stock.status === 'completed' ? '✅' : '⏳'}
-                        ${stock.reason ? '<span style="margin-left: 5px; cursor: pointer;" onclick="event.stopPropagation(); showReason(' + stock.id + ')" title="查看推理过程">💡</span>' : ''}
+                        ${stock.reason ? '<span style="margin-left: 5px; cursor: pointer;" onclick="event.stopPropagation(); showReason(' + stock.id + ', \'can_slim\')" title="查看CAN SLIM推理">💡</span>' : ''}
+                        ${stock.technical_reason ? '<span style="margin-left: 5px; cursor: pointer;" onclick="event.stopPropagation(); showReason(' + stock.id + ', \'technical\')" title="查看K线推理">📈</span>' : ''}
                     </td>
                     <td style="padding: 8px; font-size: 11px; color: #666;">${stock.completed_at || '处理中...'}</td>
                 </tr>
@@ -447,22 +487,43 @@
                 if (data.success) {
                     const stock = data.data;
                     document.getElementById('modalTitle').textContent = 
-                        `${stock.stock_name} (${stock.stock_code}) - 分数: ${stock.score}`;
+                        `${stock.stock_name} (${stock.stock_code}) - CAN SLIM: ${stock.score} | K线: ${stock.technical_score}`;
                     
                     // 组合提示词和结果
-                    let content = '';
+                    let content = '<div class="prompt-container">';
+                    
+                    // CAN SLIM提示词
                     if (stock.prompt) {
-                        content += '## 提示词 <button onclick="copyPrompt()" style="margin-left: 10px; padding: 4px 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">复制</button>\n\n```\n' + stock.prompt + '\n```\n\n';
+                        content += '<div class="prompt-section"><h3>CAN SLIM提示词 <button onclick="copyText(\'can_slim_prompt\')" style="padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">复制</button></h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-size: 11px;">' + stock.prompt + '</pre></div>';
                     }
+                    
+                    // K线技术提示词
+                    if (stock.technical_prompt) {
+                        content += '<div class="prompt-section"><h3>K线技术提示词 <button onclick="copyText(\'technical_prompt\')" style="padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">复制</button></h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-size: 11px;">' + stock.technical_prompt + '</pre></div>';
+                    }
+                    
+                    content += '</div>';
+                    
+                    // 分析结果并排显示
+                    content += '<div class="result-container">';
+                    
                     if (stock.result) {
-                        content += '## 分析结果\n\n' + stock.result;
+                        content += '<div class="result-section"><h3>CAN SLIM分析结果</h3><div class="markdown-body">' + marked.parse(stock.result) + '</div></div>';
                     }
+                    
+                    if (stock.technical_result) {
+                        content += '<div class="result-section"><h3>K线技术分析结果</h3><div class="markdown-body">' + marked.parse(stock.technical_result) + '</div></div>';
+                    }
+                    
+                    content += '</div>';
                     
                     // 保存提示词到全局变量
-                    window.currentPrompt = stock.prompt || '';
+                    window.currentPrompts = {
+                        can_slim_prompt: stock.prompt || '',
+                        technical_prompt: stock.technical_prompt || ''
+                    };
                     
-                    document.getElementById('modalContent').innerHTML = 
-                        marked.parse(content || '暂无结果');
+                    document.getElementById('modalContent').innerHTML = content;
                     document.getElementById('detailModal').classList.add('show');
                 }
             } catch (error) {
@@ -480,30 +541,59 @@
             }
         }
 
-        function copyPrompt() {
-            if (!window.currentPrompt) {
-                alert('没有可复制的提示词');
+        function copyText(type) {
+            if (!window.currentPrompts || !window.currentPrompts[type]) {
+                alert('没有可复制的内容');
                 return;
             }
-            navigator.clipboard.writeText(window.currentPrompt).then(() => {
-                alert('提示词已复制到剪贴板');
+            navigator.clipboard.writeText(window.currentPrompts[type]).then(() => {
+                const label = type === 'can_slim_prompt' ? 'CAN SLIM提示词' : 'K线技术提示词';
+                alert(label + '已复制到剪贴板');
             }).catch(err => {
                 console.error('复制失败:', err);
                 alert('复制失败，请手动复制');
             });
         }
 
-        async function showReason(stockId) {
+        async function showReason(stockId, type) {
             try {
                 const response = await fetch(`/api/batch/stock/${stockId}`);
                 const data = await response.json();
-                if (data.success && data.data.reason) {
-                    alert('推理过程：\n\n' + data.data.reason);
+                if (data.success) {
+                    const reason = type === 'can_slim' ? data.data.reason : data.data.technical_reason;
+                    const title = type === 'can_slim' ? 'CAN SLIM推理过程' : 'K线分析推理';
+                    if (reason) {
+                        alert(title + '：\n\n' + reason);
+                    } else {
+                        alert('暂无推理过程');
+                    }
                 } else {
                     alert('暂无推理过程');
                 }
             } catch (error) {
                 alert('加载失败: ' + error.message);
+            }
+        }
+
+        async function clearHistory() {
+            if (!confirm('确定要清空所有批次记录吗？此操作不可恢复！')) {
+                return;
+            }
+            try {
+                const response = await fetch('/api/batches/clear', { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    alert('清空成功');
+                    currentBatchId = null;
+                    loadBatchList();
+                    document.getElementById('stockResultTable').style.display = 'none';
+                    document.getElementById('stockResultEmpty').style.display = 'block';
+                    document.getElementById('stockResultEmpty').textContent = '请选择批次查看';
+                } else {
+                    alert('清空失败');
+                }
+            } catch (error) {
+                alert('清空失败: ' + error.message);
             }
         }
 
