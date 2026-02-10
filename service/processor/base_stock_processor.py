@@ -67,11 +67,11 @@ class BaseStockProcessor(ABC):
         
         now = datetime.now()
         file_name = f"stock_data_list_score_{self.model_name}_{now.strftime('%Y_%m_%d_%H')}.md"
-        file_path = Path('stock_score_result') / file_name
+        file_path = Path('data_results/stock_score_list_result') / file_name
         file_path.parent.mkdir(parents=True, exist_ok=True)
         
         stocks = []
-        with open('stock_score_file/stock_score_list.md', 'r', encoding='utf-8') as f:
+        with open('data_results/stock_to_score_list/stock_score_list.md', 'r', encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
                 if line:

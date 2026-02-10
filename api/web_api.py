@@ -9,6 +9,7 @@ import glob
 
 from common.constants.stocks_data import get_stock_code
 from common.utils.amount_utils import normalize_stock_code
+from data_results.database.history_db import init_db, insert_history, get_all_history, get_history_content
 from service.eastmoney.stock_structure_markdown import get_stock_markdown, get_stock_markdown_for_llm_analyse
 from service.eastmoney.stock_technical_markdown import get_technical_indicators_prompt
 from service.processor.operation_advice import get_operation_advice
@@ -18,85 +19,32 @@ from service.tests.stock_full_analysis_with_llm_search import stock_full_analysi
 
 app = FastAPI(title="AI Stock Agent")
 
-# 创建结果存储目录
-RESULT_DIR = "api_results"
-os.makedirs(RESULT_DIR, exist_ok=True)
-
+# 初始化数据库
+init_db()
 
 def save_result(analysis_type: str, stock_name: str, stock_code: str, result: str):
-    """保存分析结果到文件"""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{RESULT_DIR}/{analysis_type}_{stock_name}_{stock_code}_{timestamp}.md"
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(result)
-    return filename
+    """保存分析结果到数据库"""
+    formatted_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    insert_history(analysis_type, stock_name, stock_code, formatted_time, result)
 
 
 @app.get("/api/history")
 async def get_history():
     """获取历史记录列表"""
     try:
-        files = glob.glob(f"{RESULT_DIR}/*.md")
-        history = []
-        
-        for file_path in files:
-            filename = os.path.basename(file_path)
-            # 解析文件名: {analysis_type}_{stock_name}_{stock_code}_{timestamp}.md
-            parts = filename.replace('.md', '').split('_')
-            if len(parts) >= 4:
-                # 找到时间戳部分（最后两个部分）
-                timestamp_str = '_'.join(parts[-2:])
-                analysis_type = parts[0]
-                stock_name = parts[1]
-                # stock_code可能包含.SZ或.SH，所以需要合并中间部分
-                stock_code = '_'.join(parts[2:-2])
-                
-                # 解析时间戳
-                try:
-                    dt = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
-                    formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S")
-                    sort_key = dt
-                except:
-                    formatted_time = timestamp_str
-                    sort_key = datetime.min
-                
-                # 获取文件大小
-                file_size = os.path.getsize(file_path)
-                
-                history.append({
-                    "filename": filename,
-                    "analysis_type": analysis_type,
-                    "stock_name": stock_name,
-                    "stock_code": stock_code,
-                    "timestamp": formatted_time,
-                    "file_size": file_size,
-                    "file_path": file_path,
-                    "sort_key": sort_key
-                })
-        
-        # 按时间戳倒序排序
-        history.sort(key=lambda x: x['sort_key'], reverse=True)
-        
-        # 移除sort_key字段
-        for item in history:
-            del item['sort_key']
-        
+        history = get_all_history()
         return {"success": True, "data": history}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/history/{filename}")
-async def get_history_content(filename: str):
+@app.get("/api/history/{history_id}")
+async def get_history_detail(history_id: int):
     """获取历史记录内容"""
     try:
-        file_path = f"{RESULT_DIR}/{filename}"
-        if not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail="文件不存在")
-        
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        
+        content = get_history_content(history_id)
+        if content is None:
+            raise HTTPException(status_code=404, detail="记录不存在")
         return {"success": True, "data": content}
     except HTTPException:
         raise

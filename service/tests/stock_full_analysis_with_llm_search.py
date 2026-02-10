@@ -45,19 +45,6 @@ async def stock_full_analysis(secid: str, stock_name: str, progress_callback=Non
         analyze_news()
     )
     
-    # 保存结果到文件
-    result_dir = "stock_full_result"
-    os.makedirs(result_dir, exist_ok=True)
-    
-    with open(f"{result_dir}/can_slim_result_{stock_name}_{stock_code}_{timestamp}.md", "w", encoding="utf-8") as f:
-        f.write(can_slim_result)
-    
-    with open(f"{result_dir}/technical_result_{stock_name}_{stock_code}_{timestamp}.md", "w", encoding="utf-8") as f:
-        f.write(technical_result)
-    
-    with open(f"{result_dir}/news_result_{stock_name}_{stock_code}_{timestamp}.md", "w", encoding="utf-8") as f:
-        f.write(news_result)
-    
     # 生成最终提示词
     if progress_callback:
         await progress_callback('processing', '正在生成分析提示词')
@@ -68,9 +55,6 @@ async def stock_full_analysis(secid: str, stock_name: str, progress_callback=Non
         technical_conclusion=technical_result,
         news_conclusion=news_result
     )
-    
-    with open(f"{result_dir}/final_prompt_{stock_name}_{stock_code}_{timestamp}.md", "w", encoding="utf-8") as f:
-        f.write(final_prompt)
     
     # 调用LLM获取最终结果
     if llm_type == "gemini":
@@ -93,9 +77,6 @@ async def stock_full_analysis(secid: str, stock_name: str, progress_callback=Non
         )
     
     final_analysis_result = response.get("choices", [{}])[0].get("message", {}).get("content", "")
-    
-    with open(f"{result_dir}/final_analysis_result_{stock_name}_{stock_code}_{timestamp}.md", "w", encoding="utf-8") as f:
-        f.write(final_analysis_result)
     
     return final_analysis_result
 
