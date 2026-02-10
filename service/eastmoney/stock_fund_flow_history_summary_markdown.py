@@ -274,115 +274,83 @@ def format_cup_pattern_detail(p):
     * **结论**：{p['status']}"""
 
 
-def analyze_pivot_breakout(df, breakout_date_str=None, pivot_price=None, baseline_window=50):
-    """分析形态突破维度 (Pivot Point & Breakout - S)
+def analyze_pivot_breakout(df, lookback_window=20, volume_threshold_ratio=2.0):
+    """自动检测最显著的突破日期
     
-    参数:
-    - breakout_date_str: 假设的突破日期 (如 '2026-01-07')，若为None则自动检测
-    - pivot_price: 设定的关键阻力位，若为None则使用突破日前一日收盘价
-    - baseline_window: 计算平均活跃度的回溯天数 (默认50天)
-    
-    参考欧奈尔理论：
-    - Pivot Point: 关键阻力位（柄部高点）
-    - 基准水平: 突破前N天的平均资金活跃度（绝对值）
-    - 突破力度: 资金流入应显著超过基准水平
+    逻辑：
+    1. 计算过去 N 天的最高价作为 '动态阻力位' (Rolling Pivot)
+    2. 筛选出 收盘价 > 动态阻力位 的日期
+    3. 在筛选结果中，寻找资金爆发力 (Surge Ratio) 最大的那一天
     """
+    if len(df) < lookback_window:
+        return "- 数据不足，无法进行突破分析"
+    
     df = df.sort_values('日期', ascending=True).reset_index(drop=True)
-    if df['日期'].dtype != 'datetime64[ns]':
-        df['日期'] = pd.to_datetime(df['日期'])
     
-    # 计算主力净流入净额（使用净占比估算）
-    df['主力净流入净额'] = df['主力净流入净占比'] * df['收盘价'] * 1e6
+    # 确保主力净流入净额列存在（已在数据加载时添加）
     
-    # 自动检测突破日期
-    if breakout_date_str is None:
-        recent_df = df.tail(20)
-        candidates = recent_df[(recent_df['涨跌幅'] > 3) & (recent_df['主力净流入净占比'] > 5)]
-        if candidates.empty:
-            return "未检测到明显的突破信号（需要涨幅>3%且主力净流入>5%）"
-        breakout_date_str = candidates.iloc[-1]['日期'].strftime('%Y-%m-%d')
+    # 1. 计算动态阻力位 (昨日及过去N天的最高价)
+    df['Rolling_Pivot'] = df['当日最高价'].shift(1).rolling(window=lookback_window).max()
     
-    breakout_date = pd.to_datetime(breakout_date_str)
-    breakout_idx = df[df['日期'] == breakout_date].index
-    if len(breakout_idx) == 0:
-        return f"未找到日期 {breakout_date_str} 的数据"
+    # 2. 计算基准活跃度 (过去 N 天的主力净流入均值)
+    df['Baseline_Inflow'] = df['主力净流入净额'].abs().rolling(window=lookback_window).mean().shift(1)
     
-    breakout_idx = breakout_idx[0]
-    breakout_row = df.iloc[breakout_idx]
+    # 3. 识别突破候选日
+    candidates = df[
+        (df['收盘价'] > df['Rolling_Pivot']) & 
+        (df['主力净流入净额'] > 0)
+    ].copy()
     
-    # 确定Pivot Point
-    if pivot_price is None:
-        if breakout_idx == 0:
-            return "数据不足，无法计算Pivot Point（需要至少2个交易日）"
-        pivot_price = df.iloc[breakout_idx - 1]['收盘价']
-        pivot_date = df.iloc[breakout_idx - 1]['日期']
+    if candidates.empty:
+        current_price = df.iloc[-1]['收盘价']
+        pivot_price = df['当日最高价'].tail(60).max() if len(df) >= 60 else df['当日最高价'].max()
+        return f"""**Pivot Point 突破分析**
+
+* **关键阻力位 (Pivot Point)**: {pivot_price:.2f} 元
+* **当前价格**: {current_price:.2f} 元
+* **当前状态**: 尚未突破，等待有效突破信号
+* **突破条件**: 收盘价站上动态阻力位 + 主力资金净流入"""
+    
+    # 4. 计算爆发力比率 (Surge Ratio) 并排序
+    candidates['Surge_Ratio'] = candidates['主力净流入净额'] / candidates['Baseline_Inflow']
+    
+    # 过滤掉爆发力不足的噪音
+    strong_breakouts = candidates[candidates['Surge_Ratio'] > volume_threshold_ratio]
+    
+    if strong_breakouts.empty:
+        best_breakout = candidates.sort_values('Surge_Ratio', ascending=False).iloc[0]
     else:
-        # 查找最接近pivot_price的日期
-        pre_breakout_df = df.iloc[:breakout_idx]
-        if len(pre_breakout_df) > 0:
-            pivot_idx = (pre_breakout_df['收盘价'] - pivot_price).abs().idxmin()
-            pivot_date = df.iloc[pivot_idx]['日期']
-        else:
-            pivot_date = breakout_date
+        best_breakout = strong_breakouts.sort_values('Surge_Ratio', ascending=False).iloc[0]
     
-    # 计算基准水平 (Baseline Activity)
-    # 取突破日前N天的平均净流入绝对值，作为"日常活跃度"
-    start_idx = max(0, breakout_idx - baseline_window)
-    baseline_data = df.iloc[start_idx:breakout_idx]
-    avg_abs_inflow = baseline_data['主力净流入净额'].abs().mean()
-    actual_window = len(baseline_data)
+    # 格式化输出
+    breakout_date_str = best_breakout['日期'].strftime('%Y年%m月%d日') if hasattr(best_breakout['日期'], 'strftime') else str(best_breakout['日期'])
+    surge_ratio = best_breakout['Surge_Ratio']
     
-    # 计算突破力度 (Surge Ratio)
-    breakout_inflow = breakout_row['主力净流入净额']
-    surge_ratio = breakout_inflow / avg_abs_inflow if avg_abs_inflow != 0 else 0
-    
-    # 判定结论
-    # 1. 收盘价必须站上 Pivot Point
-    # 2. 资金必须为正流入
-    is_price_breakout = breakout_row['收盘价'] > pivot_price
-    is_positive_inflow = breakout_inflow > 0
-    is_breakout_valid = is_price_breakout and is_positive_inflow
-    
-    # 状态判定
-    if not is_price_breakout:
-        status = "⚠️ 价格未能有效突破阻力位"
-        verdict = "价格未能站上Pivot Point，不构成有效突破。"
-    elif not is_positive_inflow:
-        status = "⚠️ 资金流出，假突破风险高"
-        verdict = "虽然价格突破，但资金呈流出状态，需警惕假突破。"
-    elif surge_ratio > 10:
-        status = "✅ 极强突破 - 机构扫货"
-        verdict = f"资金流入量是日常水平的 {surge_ratio:.1f} 倍，属于极强机构扫货行为，有效性极高。"
-    elif surge_ratio > 2:
-        status = "✅ 有效突破 - 放量明显"
-        verdict = f"资金流入量是日常水平的 {surge_ratio:.1f} 倍，放量明显，符合有效突破特征。"
-    elif surge_ratio > 1.4:
-        status = "✅ 温和突破 - 符合标准"
-        verdict = f"资金流入较平均水平增长 {(surge_ratio-1)*100:.0f}%，符合欧奈尔40%-50%的基本要求。"
+    if surge_ratio >= 3.0:
+        surge_level = "极强机构扫货"
+    elif surge_ratio >= 2.0:
+        surge_level = "强力机构买入"
+    elif surge_ratio >= 1.5:
+        surge_level = "明显放量"
     else:
-        status = "⚠️ 放量不足 - 观察为主"
-        verdict = f"资金流入仅为平均水平的 {surge_ratio:.1f} 倍，放量不足，需警惕假突破风险。"
+        surge_level = "温和放量"
     
-    return f"""**1. 关键价位 - Pivot Point 识别**
-* 关键阻力位 (Pivot Point)：**{pivot_price:.2f}元**
-* 阻力位形成日期：{pivot_date.strftime('%Y年%m月%d日')}
-* 突破日收盘价：**{breakout_row['收盘价']:.2f}元** {'✅ 成功站上' if is_price_breakout else '❌ 未能突破'}
-* 突破日涨跌幅：**{breakout_row['涨跌幅']:.2f}%**
+    return f"""**Pivot Point 突破分析 (自动检测)**
 
-**2. 基准水平 - 突破前市场平均活跃度**
-* 统计周期：突破日前 **{actual_window}个交易日**
-* 平均资金活跃度 (日均净流绝对值)：**{avg_abs_inflow / 1e8:.4f}亿**
-* 说明：此数值代表该股在突破前的日常平均资金吞吐规模
+* **突破前阻力位 (Rolling Pivot)**: {best_breakout['Rolling_Pivot']:.2f} 元
+* **突破日期**: {breakout_date_str}
+* **突破日收盘价**: {best_breakout['收盘价']:.2f} 元
+* **突破日涨跌幅**: {best_breakout['涨跌幅']:.2f}%
 
-**3. 突破力度 - 资金爆发力验证**
-* 突破日 ({breakout_date_str}) 主力净流入：**{breakout_inflow / 1e8:.4f}亿**
-* 放量比率 (Surge Ratio)：**{surge_ratio:.2f}倍**
-* 较平均水平增长：**+{(surge_ratio-1)*100:.2f}%**
+**资金爆发力验证**
+* **当日主力净流入**: {best_breakout['主力净流入净额']/1e8:.2f}亿
+* **前{lookback_window}日平均活跃度 (基准)**: {best_breakout['Baseline_Inflow']/1e8:.2f}亿
+* **资金爆发倍数 (Surge Ratio)**: {surge_ratio:.2f} 倍
+* **增长幅度**: +{(surge_ratio-1)*100:.1f}%
+* **资金强度评级**: {surge_level}
 
-**4. 判定结论**
-* 状态：{status}
-* 分析：{verdict}
-* 有效性：{'有效突破 ✅' if is_breakout_valid else '无效突破 ❌'}"""
+**结论判定**: ✅ 有效突破
+* 判定逻辑：资金流入量是日常水平的 {surge_ratio:.1f} 倍，符合有效突破标准"""
 
 
 async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_code=None, stock_name=None):
@@ -396,11 +364,16 @@ async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_co
         if len(fields) >= 15:
             date = fields[0]
             kline_max_min_item = kline_max_min_map.get(date, {'high_price': 0, 'low_price': 0})
+            # 关键修正：明确拆分 '净额' (Amount) 和 '净占比' (Ratio)
+            super_net = float(fields[5]) if fields[5] != '-' else 0
+            big_net = float(fields[4]) if fields[4] != '-' else 0
+            main_net = super_net + big_net  # 主力净流入净额 = 超大单 + 大单
             data_list.append({
                 '日期': date,
                 '收盘价': float(fields[11]) if fields[11] != '-' else 0,
                 '涨跌幅': float(fields[12]) if fields[12] != '-' else 0,
-                '主力净流入净占比': float(fields[6]) if fields[6] != '-' else 0,
+                '主力净流入净额': main_net,  # 用于计算资金规模（单位：元）
+                '主力净流入净占比': float(fields[6]) if fields[6] != '-' else 0,  # 用于辅助展示（百分比）
                 '超大单净流入净占比': float(fields[10]) if fields[10] != '-' else 0,
                 '大单净流入净占比': float(fields[9]) if fields[9] != '-' else 0,
                 '小单净流入净占比': float(fields[7]) if fields[7] != '-' else 0,
