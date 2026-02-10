@@ -141,6 +141,82 @@ def calculate_relative_strength(df, period=60):
 - 相对强度得分 (RS): {round(rs_score, 2)}%
 - 评价: {evaluation}"""
 
+def clean_money(x):
+    """清洗金额数据"""
+    if isinstance(x, str):
+        if '亿' in x: return float(x.replace('亿', '')) * 1e8
+        if '万' in x: return float(x.replace('万', '')) * 1e4
+    return float(x)
+
+def clean_percent(x):
+    """清洗百分比数据"""
+    if isinstance(x, str): return float(x.replace('%', ''))
+    return float(x)
+
+def analyze_institutional_sponsorship(df, recent_window=20):
+    """分析机构赞助维度 (Institutional Sponsorship - I)"""
+    if len(df) < recent_window:
+        return "数据不足，无法进行机构赞助分析"
+    
+    # 数据准备：按日期正序排列
+    df = df.sort_values('日期', ascending=True).reset_index(drop=True)
+    df_recent = df.tail(recent_window).copy()
+    
+    # 计算主力净流入净额（使用主力净流入净占比 * 收盘价作为近似）
+    df_recent['主力净流入净额_数值'] = df_recent['主力净流入净占比'] * df_recent['收盘价'] * 1e6
+    df_recent['涨跌幅_数值'] = df_recent['涨跌幅']
+    
+    # A. 红肥绿瘦分析
+    accumulation_days = df_recent[df_recent['主力净流入净占比'] > 0]
+    distribution_days = df_recent[df_recent['主力净流入净占比'] < 0]
+    
+    acc_count = len(accumulation_days)
+    dist_count = len(distribution_days)
+    acc_ratio = acc_count / recent_window
+    
+    # B. 量价配合分析
+    up_days = df_recent[df_recent['涨跌幅_数值'] > 0]
+    down_days = df_recent[df_recent['涨跌幅_数值'] < 0]
+    
+    avg_inflow_on_up = up_days['主力净流入净额_数值'].mean() if not up_days.empty else 0
+    avg_outflow_on_down = down_days['主力净流入净额_数值'].abs().mean() if not down_days.empty else 0
+    vp_ratio = avg_inflow_on_up / avg_outflow_on_down if avg_outflow_on_down != 0 else 999
+    
+    # C. 主力净流入强度
+    total_inflow = accumulation_days['主力净流入净额_数值'].sum()
+    total_outflow = distribution_days['主力净流入净额_数值'].abs().sum()
+    flow_strength = total_inflow / total_outflow if total_outflow != 0 else 999
+    
+    # 格式化输出
+    start_date = df_recent['日期'].iloc[0].strftime('%Y年%m月%d日') if hasattr(df_recent['日期'].iloc[0], 'strftime') else str(df_recent['日期'].iloc[0])
+    end_date = df_recent['日期'].iloc[-1].strftime('%Y年%m月%d日') if hasattr(df_recent['日期'].iloc[-1], 'strftime') else str(df_recent['日期'].iloc[-1])
+    
+    acc_status = "✅ 机构买盘积极，处于净吸筹状态" if acc_ratio >= 0.5 else "⚠️ 机构分歧较大，吸筹不明显"
+    
+    vp_status = "✅ 符合'上涨放量，下跌缩量'特征" if vp_ratio > 1.0 else "⚠️ 量价背离，下跌时抛压可能重于上涨买盘"
+    vp_extra = "\n   * 注：比率超过1.5，显示极强的机构控盘迹象" if vp_ratio > 1.5 else ""
+    
+    flow_status = "✅ 多方资金占据主导地位" if flow_strength > 1.2 else "⚠️ 资金流出压力较大"
+    
+    return f"""**分析区间**: {start_date} 至 {end_date} (近{recent_window}个交易日)
+
+**1. 红肥绿瘦占比 - 机构吸筹天数分析**
+* 资金净流入天数：**{acc_count}天** (占比 **{acc_ratio*100:.0f}%**)
+* 资金净流出天数：**{dist_count}天**
+* 判定：{acc_status}
+
+**2. 量价配合 - 上涨放量 vs 下跌缩量**
+* 上涨日平均净流入：**{avg_inflow_on_up/1e8:.2f}亿**
+* 下跌日平均净流出：**{avg_outflow_on_down/1e8:.2f}亿**
+* 量价配合比率 (In/Out Ratio)：**{vp_ratio:.2f}**
+* 判定：{vp_status}{vp_extra}
+
+**3. 主力净流入强度 - 总体资金博弈**
+* 区间总流入额：**{total_inflow/1e8:.2f}亿**
+* 区间总流出额：**{total_outflow/1e8:.2f}亿**
+* 净买入强度：**{flow_strength:.2f}倍**
+* 判定：{flow_status}"""
+
 def detect_cup_and_handle(df):
     """检测杯柄形态 - 严格符合CAN SLIM规则（威廉·欧奈尔《笑傲股市》）"""
     results = []
@@ -350,6 +426,9 @@ async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_co
     # 计算相对强度RS
     rs_text = calculate_relative_strength(df, period=60)
     
+    # 机构赞助维度分析
+    institutional_text = analyze_institutional_sponsorship(df, recent_window=20)
+    
     # 生成Markdown摘要
     if not stock_code:
         stock_code = secid.split('.')[-1]
@@ -360,6 +439,10 @@ async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_co
 ### 相对强度RS (60日/3个月)
 
 {rs_text}
+
+### 机构赞助维度 (Institutional Sponsorship - I)
+
+{institutional_text}
 
 ### 杯柄形态详情
 {cup_pattern_text}
