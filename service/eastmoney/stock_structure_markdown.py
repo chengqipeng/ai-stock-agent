@@ -1,10 +1,12 @@
+import asyncio
+
 from service.eastmoney.stock_info.stock_base_info import get_stock_base_info_markdown
 from service.eastmoney.stock_info.stock_financial_data import get_financial_report_markdown
 from service.eastmoney.stock_info.stock_fund_flow import get_main_fund_flow_markdown
 from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_markdown
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_markdown, get_shareholder_increase_markdown
 from service.eastmoney.stock_info.stock_realtime import get_stock_realtime_markdown
-from service.eastmoney.technical.stock_day_range_kline import generate_can_slim_50_200_summary
+from service.eastmoney.technical.stock_day_range_kline import generate_can_slim_50_200_summary, get_stock_day_range_kline
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.gemini_client import GeminiClient
 
@@ -64,7 +66,8 @@ async def _build_stock_markdown(secid: str, stock_name: str, history_page_size=1
         parts.append(increase_md)
     
     if include_ma:
-        parts.append(await generate_can_slim_50_200_summary(secid, stock_code, stock_name))
+        klines = await get_stock_day_range_kline(secid, limit=400)
+        parts.append(await generate_can_slim_50_200_summary(stock_code, stock_name, klines))
     
     return "\n\n".join(parts)
 
@@ -125,3 +128,10 @@ async def get_stock_markdown_with_llm_result(secid="0.002371", stock_name=None, 
         return response.get("choices", [{}])[0].get("message", {}).get("content", "")
     except Exception as e:
         raise Exception(f"基本面数据分析失败: {str(e)}")
+
+async def main():
+    result = await get_stock_markdown_for_score("0.002371", "北方华创", 400)
+    print(result)
+
+if __name__ == '__main__':
+    asyncio.run(main())

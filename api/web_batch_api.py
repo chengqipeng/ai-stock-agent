@@ -71,7 +71,7 @@ async def batch_execute(batch_id: int, deep_thinking: bool = False):
             
             yield f"data: {json.dumps({'stage': 'start', 'total': len(stocks), 'completed': completed_count}, ensure_ascii=False)}\n\n"
             
-            semaphore = asyncio.Semaphore(5)
+            semaphore = asyncio.Semaphore(3)
             completed = completed_count
             model = "deepseek-reasoner" if deep_thinking else "deepseek-chat"
             
