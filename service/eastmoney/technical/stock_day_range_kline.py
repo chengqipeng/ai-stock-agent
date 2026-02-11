@@ -36,10 +36,8 @@ def calculate_moving_averages(klines, stock_code, stock_name):
     return process_indicator_data(df, 'ma')
 
 
-async def generate_can_slim_50_200_summary(secid, stock_code, stock_name):
+async def generate_can_slim_50_200_summary(stock_code, stock_name, klines):
     """生成CAN SLIM 10/50/200日均线分析摘要"""
-    config = INDICATOR_CONFIG['ma']
-    klines = await get_stock_day_range_kline(secid, config['kline_limit'])
     df = parse_klines_to_df(klines)
     
     # 计算均线和EMA10
@@ -84,11 +82,10 @@ async def generate_can_slim_50_200_summary(secid, stock_code, stock_name):
     return summary
 
 
-async def get_moving_averages_markdown(secid, stock_code, stock_name):
+async def get_moving_averages_markdown(stock_code, stock_name, klines):
     """将移动平均线数据转换为markdown格式"""
     config = INDICATOR_CONFIG['ma']
-    klines = await get_stock_day_range_kline(secid, config['kline_limit'])
-    ma_data = calculate_moving_averages(klines)
+    ma_data = calculate_moving_averages(klines, stock_code, stock_name)
 
     markdown = f"## <{stock_code} {stock_name}> - 移动平均线数据\n\n"
     markdown += "| 日期 | 收盘价 | 10日EMA | 50日SMA | 200日SMA | 多头排列 |\n"

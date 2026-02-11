@@ -72,7 +72,7 @@ async def get_stock_history_kline_max_min(secid="0.002371"):
         "fqt": "1",
         "end": "20500101",
         "smplmt": "460",
-        "lmt": "130"
+        "lmt": "400"
     }
     data = await fetch_eastmoney_api(url, params, referer="https://quote.eastmoney.com/")
     if data.get("data") and data["data"].get("klines"):
@@ -94,5 +94,5 @@ async def get_stock_history_kline_max_min(secid="0.002371"):
 
 
 if __name__ == "__main__":
-    asyncio.run(get_fund_flow_history_markdown(secid="0.002371", stock_code="002371", stock_name="北方华创"))
+    asyncio.run(get_stock_history_kline_max_min(secid="0.002371"))
 

@@ -33,10 +33,9 @@ def calculate_bollinger_bands(klines, window=20, num_std=2):
     
     return process_indicator_data(df, 'boll')
 
-async def get_boll_markdown(secid, stock_code, stock_name):
+async def get_boll_markdown(stock_code, stock_name, klines):
     """将布林线数据转换为markdown格式"""
     config = INDICATOR_CONFIG['boll']
-    klines = await get_stock_day_range_kline(secid, config['kline_limit'])
     boll_data = calculate_bollinger_bands(klines)
 
     markdown = f"## <{stock_code} {stock_name}> - 布林线数据\n\n"

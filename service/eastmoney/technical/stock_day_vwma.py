@@ -19,10 +19,9 @@ def calculate_vwma(klines, window=20):
     
     return process_indicator_data(df, 'vwma')
 
-async def get_vwma_markdown(secid, stock_code, stock_name):
+async def get_vwma_markdown(stock_code, stock_name, klines):
     """将VWMA数据转换为markdown格式"""
     config = INDICATOR_CONFIG.get('vwma', {'kline_limit': 200, 'markdown_limit': 60})
-    klines = await get_stock_day_range_kline(secid, config['kline_limit'])
     vwma_data = calculate_vwma(klines)
     
     markdown = f"## <{stock_code} {stock_name}> - VWMA数据\n\n"

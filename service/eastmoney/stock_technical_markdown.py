@@ -9,19 +9,22 @@ from service.eastmoney.technical.stock_day_macd import get_macd_markdown
 from service.eastmoney.technical.stock_day_rsi import get_rsi_markdown
 from service.eastmoney.technical.stock_day_vwma import get_vwma_markdown
 from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_markdown, \
-    generate_can_slim_50_200_summary, calculate_moving_averages
+    generate_can_slim_50_200_summary, calculate_moving_averages, get_stock_day_range_kline
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.gemini_client import GeminiClient
 
 async def get_technical_indicators_markdown(secid, stock_code, stock_name):
     """汇总所有技术指标数据为markdown格式"""
+    # 统一调用一次get_stock_day_range_kline，使用最大需求的limit
+    klines = await get_stock_day_range_kline(secid, limit=400)
+    
     markdown = await get_fund_flow_history_markdown(secid)
-    markdown += await get_boll_markdown(secid, stock_code, stock_name)
-    markdown += await get_macd_markdown(secid, stock_code, stock_name)
-    markdown += await get_rsi_markdown(secid, stock_code, stock_name)
-    markdown += await get_vwma_markdown(secid, stock_code, stock_name)
-    markdown += await get_atr_markdown(secid, stock_code, stock_name)
-    markdown += await generate_can_slim_50_200_summary(secid, stock_code, stock_name)
+    markdown += await get_boll_markdown(stock_code, stock_name, klines)
+    markdown += await get_macd_markdown(stock_code, stock_name, klines)
+    markdown += await get_rsi_markdown(stock_code, stock_name, klines)
+    markdown += await get_vwma_markdown(stock_code, stock_name, klines)
+    markdown += await get_atr_markdown(stock_code, stock_name, klines)
+    markdown += await generate_can_slim_50_200_summary(stock_code, stock_name, klines)
 
     return markdown
 

@@ -33,10 +33,9 @@ def calculate_rsi(klines, window=14):
     
     return process_indicator_data(df, 'rsi')
 
-async def get_rsi_markdown(secid, stock_code, stock_name):
+async def get_rsi_markdown(stock_code, stock_name, klines):
     """将RSI数据转换为markdown格式"""
     config = INDICATOR_CONFIG['rsi']
-    klines = await get_stock_day_range_kline(secid, config['kline_limit'])
     rsi_data = calculate_rsi(klines)
 
     markdown = f"## <{stock_code} {stock_name}> - RSI数据\n\n"

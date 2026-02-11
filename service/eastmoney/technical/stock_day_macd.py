@@ -29,10 +29,9 @@ def calculate_macd(klines, fast=12, slow=26, signal=9):
     
     return process_indicator_data(df, 'macd')
 
-async def get_macd_markdown(secid, stock_code, stock_name):
+async def get_macd_markdown(stock_code, stock_name, klines):
     """将MACD数据转换为markdown格式"""
     config = INDICATOR_CONFIG['macd']
-    klines = await get_stock_day_range_kline(secid, config['kline_limit'])
     macd_data = calculate_macd(klines)
 
     markdown = f"## <{stock_code} {stock_name}> - MACD数据\n\n"

@@ -28,10 +28,9 @@ def calculate_atr(klines, period=14):
     
     return process_indicator_data(df, 'atr')
 
-async def get_atr_markdown(secid, stock_code, stock_name):
+async def get_atr_markdown(stock_code, stock_name, klines):
     """将ATR数据转换为markdown格式"""
     config = INDICATOR_CONFIG['atr']
-    klines = await get_stock_day_range_kline(secid, config['kline_limit'])
     atr_data = calculate_atr(klines)
 
     markdown = f"## <{stock_code} {stock_name}> - ATR数据\n\n"
