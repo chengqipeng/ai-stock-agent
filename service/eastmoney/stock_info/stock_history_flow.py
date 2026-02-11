@@ -31,8 +31,8 @@ async def get_fund_flow_history_markdown(secid="0.002371", stock_code=None, stoc
         stock_code = secid.split('.')[-1]
     header = f"## <{stock_code} {stock_name}> - 历史资金流向" if stock_name else "## 历史资金流向"
     markdown = f"""{header}
-| 日期 | 收盘价 | 涨跌幅 | 主力净流入净额 | 主力净流入净占比 | 超大单净流入净额 | 超大单净流入净占比 | 大单净流入净额 | 大单净流入净占比 | 中单净流入净额 | 中单净流入占比 | 小单净流入净额 | 小单净流入净占比 | 当日最高价 | 当日最低价 |
-|-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|----------|--------------|
+| 日期 | 收盘价 | 涨跌幅 | 主力净流入净额 | 主力净流入净占比 | 超大单净流入净额 | 超大单净流入净占比 | 大单净流入净额 | 大单净流入净占比 | 中单净流入净额 | 中单净流入占比 | 小单净流入净额 | 小单净流入净占比 | 当日最高价 | 当日最低价 | 换手率 | 成交量(万手) | 成交额(亿) |
+|-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|----------|-----------|-------|------------|-----------|
 """
     for kline in klines[:page_size]:
         fields = kline.split(',')
@@ -56,7 +56,7 @@ async def get_fund_flow_history_markdown(secid="0.002371", stock_code=None, stoc
             main_net = super_net + big_net
             main_net_str = convert_amount_unit(main_net)
             main_pct = f"{round(float(fields[6]), 2)}%" if fields[6] != '-' else "--"
-            markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} | {kline_max_min_item['high_price']} | {kline_max_min_item['low_price']} |\n"
+            markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} | {kline_max_min_item['high_price']} | {kline_max_min_item['low_price']} | {kline_max_min_item['change_hands']}% | {kline_max_min_item['trading_volume']} | {kline_max_min_item['trading_amount']} |\n"
     return markdown + "\n"
 
 
@@ -83,7 +83,11 @@ async def get_stock_history_kline_max_min(secid="0.002371"):
             date = fields[0]
             high_price = float(fields[2])
             low_price = float(fields[3])
-            result[date] = {"high_price": high_price, "low_price": low_price}
+            trading_volume = f"{round(float(fields[5])/10000, 2)}"
+            trading_amount = convert_amount_unit(float(fields[6]))
+            change_hands = float(fields[10])
+
+            result[date] = {"high_price": high_price, "low_price": low_price, "change_hands": change_hands, "trading_volume": trading_volume, "trading_amount": trading_amount}
         return result
     else:
         raise Exception(f"未获取到股票 {secid} 的K线数据")
