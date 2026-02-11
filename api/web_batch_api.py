@@ -167,6 +167,13 @@ async def get_batch_stock_info(stock_id: int):
         stock = get_batch_stock_detail(stock_id)
         if not stock:
             raise HTTPException(status_code=404, detail="记录不存在")
+        
+        # 格式化result和technical_result字段
+        if stock.get('result'):
+            stock['result'], stock['result_format'] = format_result_content(stock['result'])
+        if stock.get('technical_result'):
+            stock['technical_result'], stock['technical_result_format'] = format_result_content(stock['technical_result'])
+        
         return {"success": True, "data": stock}
     except HTTPException:
         raise
@@ -194,6 +201,36 @@ async def delete_batch(batch_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def format_result_content(text: str) -> tuple[str, str]:
+    """格式化结果内容，判断是JSON还是Markdown"""
+    import html
+    
+    try:
+        decoded_text = html.unescape(text)
+        decoded_text = re.sub(r'```json\s*', '', decoded_text)
+        decoded_text = re.sub(r'```\s*', '', decoded_text)
+        
+        # 尝试找到完整的JSON对象
+        brace_count = 0
+        start_idx = decoded_text.find('{')
+        if start_idx != -1:
+            for i in range(start_idx, len(decoded_text)):
+                if decoded_text[i] == '{':
+                    brace_count += 1
+                elif decoded_text[i] == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        json_str = decoded_text[start_idx:i+1]
+                        json_obj = json.loads(json_str)
+                        # 格式化JSON输出
+                        formatted_json = json.dumps(json_obj, ensure_ascii=False, indent=2)
+                        return formatted_json, 'json'
+    except:
+        pass
+    
+    return text, 'markdown'
+
+
 def extract_score_and_reason(text: str) -> tuple[int, str]:
     """从分析结果中提取分数和推理过程"""
     import html
@@ -205,17 +242,30 @@ def extract_score_and_reason(text: str) -> tuple[int, str]:
         decoded_text = html.unescape(text)
         decoded_text = re.sub(r'```json\s*', '', decoded_text)
         decoded_text = re.sub(r'```\s*', '', decoded_text)
-        json_match = re.search(r'\{[^}]*"score"[^}]*\}', decoded_text)
-        if json_match:
-            data = json.loads(json_match.group())
-            if 'score' in data:
-                score = int(data['score'])
+        
+        # 尝试找到完整的JSON对象（支持嵌套）
+        brace_count = 0
+        start_idx = decoded_text.find('{')
+        if start_idx != -1:
+            for i in range(start_idx, len(decoded_text)):
+                if decoded_text[i] == '{':
+                    brace_count += 1
+                elif decoded_text[i] == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        json_str = decoded_text[start_idx:i+1]
+                        data = json.loads(json_str)
+                        if 'score' in data:
+                            score = int(data['score'])
+                        if 'reason' in data:
+                            reason = data['reason']
+                        break
     except:
         pass
     
     if score == 0:
         patterns = [
-            r'"score"[：:]*\s*(\d+)',
+            r'"score"[：:]*\s*"?(\d+)"?',
             r'综合评分[：:]*\s*(\d+)',
             r'总分[：:]*\s*(\d+)',
             r'评分[：:]*\s*(\d+)',
@@ -229,15 +279,16 @@ def extract_score_and_reason(text: str) -> tuple[int, str]:
                 score = int(match.group(1))
                 break
     
-    try:
-        reason_match = re.search(r'<think>(.*?)</think>', text, re.DOTALL)
-        if reason_match:
-            reason = reason_match.group(1).strip()
-        else:
-            reason_json = re.search(r'"reasoning_content"\s*:\s*"([^"]+)"', text)
-            if reason_json:
-                reason = reason_json.group(1)
-    except:
-        pass
+    if not reason:
+        try:
+            reason_match = re.search(r'<think>(.*?)</think>', text, re.DOTALL)
+            if reason_match:
+                reason = reason_match.group(1).strip()
+            else:
+                reason_json = re.search(r'"reason"\s*:\s*"([^"]+)"', text)
+                if reason_json:
+                    reason = reason_json.group(1)
+        except:
+            pass
     
     return score, reason

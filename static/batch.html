@@ -650,11 +650,21 @@
                     content += '<div class="result-container">';
                     
                     if (stock.result) {
-                        content += '<div class="result-section"><h3>CAN SLIM分析结果</h3><div class="markdown-body">' + marked.parse(stock.result) + '</div></div>';
+                        const resultFormat = stock.result_format || 'markdown';
+                        if (resultFormat === 'json') {
+                            content += '<div class="result-section"><h3>CAN SLIM分析结果 (JSON)</h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px; line-height: 1.6;">' + stock.result + '</pre></div>';
+                        } else {
+                            content += '<div class="result-section"><h3>CAN SLIM分析结果</h3><div class="markdown-body">' + marked.parse(stock.result) + '</div></div>';
+                        }
                     }
                     
                     if (stock.technical_result) {
-                        content += '<div class="result-section"><h3>K线技术分析结果</h3><div class="markdown-body">' + marked.parse(stock.technical_result) + '</div></div>';
+                        const technicalFormat = stock.technical_result_format || 'markdown';
+                        if (technicalFormat === 'json') {
+                            content += '<div class="result-section"><h3>K线技术分析结果 (JSON)</h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px; line-height: 1.6;">' + stock.technical_result + '</pre></div>';
+                        } else {
+                            content += '<div class="result-section"><h3>K线技术分析结果</h3><div class="markdown-body">' + marked.parse(stock.technical_result) + '</div></div>';
+                        }
                     }
                     
                     content += '</div>';

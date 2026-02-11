@@ -135,6 +135,8 @@ async def get_org_holder_markdown(stock_code, page_size=8, stock_name=None):
 | 机构名称 | 持股家数(家) | 持股总数(万股) | 持股市值(亿元) |占总股本比例(%) | 占流通股比例(%) |
 |---------|------------|--------------|--------------|--------------|---------------|
 """
+        has_other = any(item.get('ORG_TYPE_NAME') == '其他' for item in items)
+        
         for item in items:
             org_name = item.get('ORG_TYPE_NAME', '--')
             hold_num = item.get('HOULD_NUM')
@@ -143,5 +145,11 @@ async def get_org_holder_markdown(stock_code, page_size=8, stock_name=None):
             free_total_ratio = f"{round(item.get('TOTALSHARES_RATIO', 0), 2)}%" if item.get('TOTALSHARES_RATIO') else '--'
             free_share_ratio = f"{round((item.get('FREESHARES_RATIO') or 0), 2)}%"
             markdown += f"| {org_name} | {hold_num} | {free_share} | {free_market_cap} | {free_total_ratio} | {free_share_ratio} |\n"
+        
+        if not has_other:
+            markdown += "| 其他 | - | 0.00 | - | - | - |\n"
+        
         markdown += "\n"
     return markdown
+
+

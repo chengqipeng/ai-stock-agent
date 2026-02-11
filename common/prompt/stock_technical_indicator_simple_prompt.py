@@ -36,6 +36,13 @@ def get_technical_prompt_score(current_date, stock_code, stock_name, technical_d
 # 6. 以下是东方财富专业的指标数据：
 {technical_data}
 
-# 7. 结果只能输出json格式数据：{{'stock_code': '<股票代码>', 'stock_name': '<股票名称>', 'score': '<评分，按0-100分，评分需严格根据数据进行分析>', 'reason': '<如果分析缺少数据需要明确缺少的数据是什么，不超过50字，没有则不用返回>'}}
+# 7. 结果只能输出json格式数据：
+{{
+  'stock_code': '<股票代码>', 
+  'stock_name': '<股票名称>', 
+  'score': '<评分，按0-100分，评分需严格根据数据进行分析>', 
+  'reason': '<如果分析缺少数据需要明确缺少的数据是什么，不超过50字，没有则不用返回>'
+}}
+  
 """
 
