@@ -15,7 +15,7 @@ from common.utils.stock_list_parser import parse_stock_list
 from data_results.database.history_db import init_db, insert_history, get_all_history, get_history_content
 from data_results.database.batch_db import (
     init_batch_tables, create_batch, add_batch_stock, update_batch_stock,
-    get_all_batches, get_batch_stocks, get_batch_stock_detail, get_batch_progress, clear_all_batches
+    get_all_batches, get_batch_stocks, get_batch_stock_detail, get_batch_progress, clear_all_batches, delete_batch_by_id
 )
 from service.eastmoney.stock_structure_markdown import get_stock_markdown, get_stock_markdown_for_llm_analyse, \
     get_stock_markdown_for_score
@@ -496,6 +496,16 @@ async def clear_batches():
     try:
         clear_all_batches()
         return {"success": True, "message": "已清空所有批次记录"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/batch/{batch_id}")
+async def delete_batch(batch_id: int):
+    """删除单个批次记录"""
+    try:
+        delete_batch_by_id(batch_id)
+        return {"success": True, "message": "已删除批次记录"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

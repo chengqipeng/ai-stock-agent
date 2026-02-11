@@ -502,7 +502,10 @@
             
             container.innerHTML = batches.map(batch => `
                 <div class="batch-item ${batch.id === currentBatchId ? 'active' : ''}" onclick="loadBatchStocks(${batch.id})">
-                    <div style="font-weight: 600; font-size: 12px;">${batch.batch_name}</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-weight: 600; font-size: 12px;">${batch.batch_name}</div>
+                        <button onclick="event.stopPropagation(); deleteBatch(${batch.id})" style="padding: 2px 6px; background: #f44; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">删除</button>
+                    </div>
                     <div style="font-size: 11px; color: #666; margin-top: 2px;">
                         总数: ${batch.total_count} | 成功: ${batch.success_count} | 失败: ${batch.completed_count - batch.success_count} | 
                         状态: ${batch.status === 'completed' ? '✅ 已完成' : '⏳ 进行中'} | 
@@ -745,6 +748,29 @@
 
         function enableUI() {
             document.querySelector('.container').classList.remove('overlay-disabled');
+        }
+
+        async function deleteBatch(batchId) {
+            if (!confirm('确定要删除该批次吗？此操作不可恢复！')) {
+                return;
+            }
+            try {
+                const response = await fetch(`/api/batch/${batchId}`, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    if (currentBatchId === batchId) {
+                        currentBatchId = null;
+                        document.getElementById('stockResultTable').style.display = 'none';
+                        document.getElementById('stockResultEmpty').style.display = 'block';
+                        document.getElementById('stockResultEmpty').textContent = '请选择批次查看';
+                    }
+                    loadBatchList();
+                } else {
+                    alert('删除失败');
+                }
+            } catch (error) {
+                alert('删除失败: ' + error.message);
+            }
         }
 
         // 初始化

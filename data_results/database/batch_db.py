@@ -186,3 +186,12 @@ def clear_all_batches():
     cursor.execute("DELETE FROM batch_records")
     conn.commit()
     conn.close()
+
+def delete_batch_by_id(batch_id: int):
+    """删除指定批次记录"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM batch_stock_records WHERE batch_id = ?", (batch_id,))
+    cursor.execute("DELETE FROM batch_records WHERE id = ?", (batch_id,))
+    conn.commit()
+    conn.close()
