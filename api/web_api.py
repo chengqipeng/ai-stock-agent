@@ -1,36 +1,30 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, AsyncIterator, Callable, List
+from typing import Optional, AsyncIterator, Callable
 import json
-import os
-from datetime import datetime
-import glob
 import asyncio
-import re
 
 from common.constants.stocks_data import get_stock_code
 from common.utils.amount_utils import normalize_stock_code
-from common.utils.stock_list_parser import parse_stock_list
 from data_results.database.history_db import init_db, insert_history, get_all_history, get_history_content
-from data_results.database.batch_db import (
-    init_batch_tables, create_batch, add_batch_stock, update_batch_stock,
-    get_all_batches, get_batch_stocks, get_batch_stock_detail, get_batch_progress, clear_all_batches, delete_batch_by_id
-)
-from service.eastmoney.stock_structure_markdown import get_stock_markdown, get_stock_markdown_for_llm_analyse, \
-    get_stock_markdown_for_score
-from service.eastmoney.stock_technical_markdown import get_technical_indicators_prompt, \
-    get_technical_indicators_prompt_score
+from data_results.database.batch_db import init_batch_tables
+from service.eastmoney.stock_structure_markdown import get_stock_markdown, get_stock_markdown_for_llm_analyse
+from service.eastmoney.stock_technical_markdown import get_technical_indicators_prompt
 from service.processor.operation_advice import get_operation_advice
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.gemini_client import GeminiClient
 from service.tests.stock_full_analysis_with_llm_search import stock_full_analysis
+from api.web_batch_api import router as batch_router
 
 app = FastAPI(title="AI Stock Agent")
 
 # 初始化数据库
 init_db()
 init_batch_tables()
+
+# 注册批量处理路由
+app.include_router(batch_router)
 
 def save_result(analysis_type: str, stock_name: str, stock_code: str, result: str):
     """保存分析结果到数据库"""
@@ -65,9 +59,6 @@ class StockRequest(BaseModel):
     stock_name: str
     advice_type: int = 1
     holding_price: Optional[float] = None
-
-class BatchRequest(BaseModel):
-    stock_codes: List[str]
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -322,254 +313,3 @@ async def get_technical_gemini_analysis(request: StockRequest):
             yield f"data: {json.dumps({'stage': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
     
     return StreamingResponse(stream_technical(), media_type="text/event-stream")
-
-
-
-@app.get("/api/stock_list")
-async def get_stock_list():
-    """获取待分析股票列表"""
-    try:
-        file_path = "data_results/stock_to_score_list/stock_score_list.md"
-        stocks = parse_stock_list(file_path)
-        return {"success": True, "data": stocks}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/batch_analysis")
-async def batch_analysis(request: BatchRequest):
-    """批量分析股票"""
-    try:
-        # 创建批次名称
-        stock_count = len(request.stock_codes)
-        batch_name = f"deepseek_{stock_count}_{datetime.now().strftime('%Y%m%d%H%M')}"
-        
-        # 创建批次记录
-        batch_id = create_batch(batch_name, stock_count)
-        
-        # 添加股票记录
-        for stock_code in request.stock_codes:
-            # 从stock_code中提取股票名称
-            stock_name = stock_code.split('(')[0].strip() if '(' in stock_code else stock_code
-            code = stock_code.split('(')[1].split(')')[0] if '(' in stock_code else stock_code
-            add_batch_stock(batch_id, stock_name, code)
-        
-        return {"success": True, "data": {"batch_id": batch_id, "batch_name": batch_name}}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/batch_execute/{batch_id}")
-async def batch_execute(batch_id: int, deep_thinking: bool = False):
-    """执行批量分析（SSE流式返回进度）"""
-    async def execute_stream():
-        try:
-            # 获取批次下的所有股票
-            stocks = get_batch_stocks(batch_id)
-            if not stocks:
-                yield f"data: {json.dumps({'stage': 'error', 'message': '批次不存在或无股票'}, ensure_ascii=False)}\n\n"
-                return
-            
-            # 过滤出未完成的股票（status='pending'）
-            pending_stocks = [s for s in stocks if s['status'] == 'pending']
-            completed_count = len(stocks) - len(pending_stocks)
-            
-            if not pending_stocks:
-                yield f"data: {json.dumps({'stage': 'done', 'message': '所有股票已完成分析'}, ensure_ascii=False)}\n\n"
-                return
-            
-            # 发送初始状态
-            yield f"data: {json.dumps({'stage': 'start', 'total': len(stocks), 'completed': completed_count}, ensure_ascii=False)}\n\n"
-            
-            # 创建信号量限制并发数为5
-            semaphore = asyncio.Semaphore(5)
-            completed = completed_count
-            
-            # 根据模式选择模型
-            model = "deepseek-reasoner" if deep_thinking else "deepseek-chat"
-            
-            async def analyze_stock(stock):
-                nonlocal completed
-                async with semaphore:
-                    try:
-                        stock_name = stock['stock_name']
-                        stock_code = stock['stock_code']
-                        
-                        # 获取完整提示词
-                        normalized_code = normalize_stock_code(stock_code)
-                        full_prompt = await get_stock_markdown(normalized_code, stock_name)
-
-                        # 获取评分提示词
-                        prompt = await get_stock_markdown_for_score(normalized_code, stock_name)
-                        
-                        # 调用DeepSeek分析
-                        client = DeepSeekClient()
-                        result = ""
-                        async for content in client.chat_stream(
-                            messages=[{"role": "user", "content": prompt}],
-                            model=model
-                        ):
-                            result += content
-                        
-                        # 从结果中提取分数和推理过程
-                        score, reason = extract_score_and_reason(result)
-
-                        # 获取K线技术分析
-                        technical_prompt = await get_technical_indicators_prompt_score(
-                            normalized_code, stock_code, stock_name
-                        )
-
-                        technical_result = ""
-                        async for technical_content in client.chat_stream(
-                                messages=[{"role": "user", "content": technical_prompt}],
-                                model=model
-                        ):
-                            technical_result += technical_content
-
-                        # 从结果中提取K线分数和推理过程
-                        technical_score, technical_reason = extract_score_and_reason(technical_result)
-                        
-                        # 更新数据库
-                        update_batch_stock(batch_id, stock_code, prompt, result, score, reason, technical_prompt, technical_result, technical_score, technical_reason, "", 1 if deep_thinking else 0, full_prompt)
-                        
-                        completed += 1
-                        return {'stage': 'progress', 'completed': completed, 'total': len(stocks), 'stock_name': stock_name, 'score': score}
-                    except Exception as e:
-                        # 记录错误信息到数据库
-                        error_msg = str(e)
-                        print(f"[错误] {stock_name} ({stock_code}): {error_msg}")
-                        import traceback
-                        traceback.print_exc()
-                        update_batch_stock(batch_id, stock_code, "", "", 0, "", "", "", 0, "", error_msg, 1 if deep_thinking else 0, "")
-                        completed += 1
-                        return {'stage': 'progress', 'completed': completed, 'total': len(stocks), 'stock_name': stock_name, 'error': error_msg}
-            
-            # 并发执行所有未完成的股票分析
-            tasks = [analyze_stock(stock) for stock in pending_stocks]
-            
-            # 使用as_completed处理完成的任务
-            for coro in asyncio.as_completed(tasks):
-                result = await coro
-                yield f"data: {json.dumps(result, ensure_ascii=False)}\n\n"
-            
-            yield f"data: {json.dumps({'stage': 'done'}, ensure_ascii=False)}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'stage': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
-    
-    return StreamingResponse(execute_stream(), media_type="text/event-stream")
-
-
-@app.get("/api/batches")
-async def get_batches():
-    """获取所有批次列表"""
-    try:
-        batches = get_all_batches()
-        return {"success": True, "data": batches}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/batch/{batch_id}/stocks")
-async def get_batch_stock_list(batch_id: int):
-    """获取批次下的股票列表（按分数倒序）"""
-    try:
-        stocks = get_batch_stocks(batch_id)
-        return {"success": True, "data": stocks}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/batch/stock/{stock_id}")
-async def get_batch_stock_info(stock_id: int):
-    """获取批次股票详细信息"""
-    try:
-        stock = get_batch_stock_detail(stock_id)
-        if not stock:
-            raise HTTPException(status_code=404, detail="记录不存在")
-        return {"success": True, "data": stock}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.delete("/api/batches/clear")
-async def clear_batches():
-    """清空所有批次记录"""
-    try:
-        clear_all_batches()
-        return {"success": True, "message": "已清空所有批次记录"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.delete("/api/batch/{batch_id}")
-async def delete_batch(batch_id: int):
-    """删除单个批次记录"""
-    try:
-        delete_batch_by_id(batch_id)
-        return {"success": True, "message": "已删除批次记录"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-def extract_score_and_reason(text: str) -> tuple[int, str]:
-    """从分析结果中提取分数和推理过程"""
-    import html
-    
-    reason = ""
-    score = 0
-    
-    # 先尝试解析JSON格式
-    try:
-        # 处理HTML转义
-        decoded_text = html.unescape(text)
-        # 移除```json标记
-        decoded_text = re.sub(r'```json\s*', '', decoded_text)
-        decoded_text = re.sub(r'```\s*', '', decoded_text)
-        # 尝试提取JSON部分
-        json_match = re.search(r'\{[^}]*"score"[^}]*\}', decoded_text)
-        if json_match:
-            data = json.loads(json_match.group())
-            if 'score' in data:
-                score = int(data['score'])
-    except:
-        pass
-    
-    # 如果没有从 JSON 提取到分数，尝试正则匹配
-    if score == 0:
-        patterns = [
-            r'"score"[：:]*\s*(\d+)',
-            r'综合评分[：:]*\s*(\d+)',
-            r'总分[：:]*\s*(\d+)',
-            r'评分[：:]*\s*(\d+)',
-            r'得分[：:]*\s*(\d+)',
-            r'分数[：:]*\s*(\d+)',
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, text)
-            if match:
-                score = int(match.group(1))
-                break
-    
-    # 提取 reasoning_content 或 reason
-    try:
-        reason_match = re.search(r'<think>(.*?)</think>', text, re.DOTALL)
-        if reason_match:
-            reason = reason_match.group(1).strip()
-        else:
-            # 尝试从 JSON 中提取
-            reason_json = re.search(r'"reasoning_content"\s*:\s*"([^"]+)"', text)
-            if reason_json:
-                reason = reason_json.group(1)
-    except:
-        pass
-    
-    return score, reason
-
-
-def extract_score(text: str) -> int:
-    """从分析结果中提取分数（兼容旧接口）"""
-    score, _ = extract_score_and_reason(text)
-    return score
