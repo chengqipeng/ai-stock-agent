@@ -1,10 +1,20 @@
 import asyncio
 
 from common.utils.amount_utils import convert_amount_unit
+from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.http.http_utils import fetch_eastmoney_api, EASTMONEY_PUSH2HIS_API_URL
 
 async def get_fund_flow_history(secid="0.002371"):
     """获取资金流向历史数据"""
+    stock_code = secid.split('.')[-1]
+    cache_path = get_cache_path("fund_flow", stock_code)
+    
+    # 检查缓存
+    cached_data = load_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
+    # 获取数据
     url = f"{EASTMONEY_PUSH2HIS_API_URL}/stock/fflow/daykline/get"
     params = {
         "lmt": "150",
@@ -19,6 +29,10 @@ async def get_fund_flow_history(secid="0.002371"):
     if data.get("data") and data["data"].get("klines"):
         klines = data["data"]["klines"]
         klines.reverse()
+        
+        # 保存缓存
+        save_cache(cache_path, klines)
+        
         return klines
     else:
         raise Exception(f"未获取到股票 {secid} 的资金流向历史数据")
@@ -62,6 +76,15 @@ async def get_fund_flow_history_markdown(secid="0.002371", stock_code=None, stoc
 
 async def get_stock_history_kline_max_min(secid="0.002371"):
     """获取股票K线数据"""
+    stock_code = secid.split('.')[-1]
+    cache_path = get_cache_path("kline", stock_code)
+    
+    # 检查缓存
+    cached_data = load_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
+    # 获取数据
     url = f"{EASTMONEY_PUSH2HIS_API_URL}/stock/kline/get"
     params = {
         "secid": secid,
@@ -88,6 +111,10 @@ async def get_stock_history_kline_max_min(secid="0.002371"):
             change_hands = float(fields[10])
 
             result[date] = {"high_price": high_price, "low_price": low_price, "change_hands": change_hands, "trading_volume": trading_volume, "trading_amount": trading_amount}
+        
+        # 保存缓存
+        save_cache(cache_path, result)
+        
         return result
     else:
         raise Exception(f"未获取到股票 {secid} 的K线数据")

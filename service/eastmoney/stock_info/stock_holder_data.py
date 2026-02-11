@@ -1,9 +1,17 @@
 from common.utils.amount_utils import convert_amount_unit, convert_amount_org_holder, convert_amount_org_holder_1
+from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.http.http_utils import EASTMONEY_API_URL, fetch_eastmoney_api
 
 
 async def get_org_holder(stock_code="002371", page_size=8, page_number=1):
     """获取机构持仓数据"""
+    cache_path = get_cache_path("org_holder", stock_code)
+    
+    # 检查缓存
+    cached_data = load_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
     params = {
         "reportName": "RPT_MAIN_ORGHOLD",
         "columns": "ALL",
@@ -19,13 +27,22 @@ async def get_org_holder(stock_code="002371", page_size=8, page_number=1):
     
     data = await fetch_eastmoney_api(EASTMONEY_API_URL, params)
     if data.get("result") and data["result"].get("data"):
-        return data["result"]["data"]
+        result = data["result"]["data"]
+        save_cache(cache_path, result)
+        return result
     else:
         return []
 
 
 async def get_shareholder_increase(stock_code="601698", page_size=300, page_number=1):
     """获取股东增持数据"""
+    cache_path = get_cache_path("shareholder_increase", stock_code)
+    
+    # 检查缓存
+    cached_data = load_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
     params = {
         "sortColumns": "END_DATE,SECURITY_CODE,EITIME",
         "sortTypes": "-1,-1,-1",
@@ -41,7 +58,9 @@ async def get_shareholder_increase(stock_code="601698", page_size=300, page_numb
     }
     data = await fetch_eastmoney_api(EASTMONEY_API_URL, params)
     if data.get("result") and data["result"].get("data"):
-        return data["result"]["data"]
+        result = data["result"]["data"]
+        save_cache(cache_path, result)
+        return result
     else:
         return None
 
@@ -51,6 +70,14 @@ async def get_holder_detail(scode, report_date=None, page_num=1, page_size=100, 
     from datetime import datetime
     if report_date is None:
         report_date = datetime.now().strftime("%Y-%m-%d")
+    
+    cache_path = get_cache_path("holder_detail", scode)
+    
+    # 检查缓存
+    cached_data = load_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
     url = "https://data.eastmoney.com/dataapi/zlsj/detail"
     params = {
         "SHType": sh_type,
@@ -64,7 +91,9 @@ async def get_holder_detail(scode, report_date=None, page_num=1, page_size=100, 
     }
     data = await fetch_eastmoney_api(url, params)
     if data and data.get('data'):
-        return data['data']
+        result = data['data']
+        save_cache(cache_path, result)
+        return result
     else:
         return []
 
