@@ -46,7 +46,7 @@ def _get_analysis_header(stock_code: str, stock_name: str, mode: str = "full") -
     )
 
 
-async def _build_stock_markdown(secid: str, stock_name: str, include_ma: bool = False) -> str:
+async def _build_stock_markdown(secid: str, stock_name: str, history_page_size=120, include_ma: bool = False) -> str:
     """构建股票数据markdown"""
     stock_code = secid.split('.')[-1]
     parts = []
@@ -54,7 +54,7 @@ async def _build_stock_markdown(secid: str, stock_name: str, include_ma: bool = 
     parts.append(await get_stock_realtime_markdown(secid, stock_code, stock_name))
     parts.append(await get_main_fund_flow_markdown(secid, stock_code, stock_name))
     parts.append(await get_stock_base_info_markdown(secid, stock_code, stock_name))
-    parts.append(await get_fund_flow_history_markdown(secid, stock_code, stock_name))
+    parts.append(await get_fund_flow_history_markdown(secid, stock_code, stock_name, history_page_size))
     parts.append(await get_financial_report_markdown(stock_code, stock_name=stock_name))
     #parts.append(await get_performance_forecast_markdown(stock_code, stock_name=stock_name))
     parts.append(await get_org_holder_markdown(stock_code, stock_name=stock_name))
@@ -85,7 +85,7 @@ async def get_stock_markdown_for_score(secid="0.002371", stock_name=None, histor
     try:
         stock_code = secid.split('.')[-1]
         header = _get_analysis_header(stock_code, stock_name, mode="score")
-        body = await _build_stock_markdown(secid, stock_name, include_ma=True)
+        body = await _build_stock_markdown(secid, stock_name, history_page_size, include_ma=True)
         json_result = _get_analysis_json_format()
         return header + body + json_result
     except Exception as e:

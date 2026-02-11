@@ -23,9 +23,8 @@ async def get_fund_flow_history(secid="0.002371"):
     else:
         raise Exception(f"未获取到股票 {secid} 的资金流向历史数据")
 
-async def get_fund_flow_history_markdown(secid="0.002371", stock_code=None, stock_name=None):
+async def get_fund_flow_history_markdown(secid="0.002371", stock_code=None, stock_name=None, page_size = 120):
     """获取资金流向历史数据并转换为markdown"""
-    page_size = 120
     klines = await get_fund_flow_history(secid)
     kline_max_min_map = await get_stock_history_kline_max_min(secid)
     if not stock_code:
