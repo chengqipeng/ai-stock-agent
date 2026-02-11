@@ -154,8 +154,8 @@
         }
         .prompt-container {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
             margin-bottom: 20px;
         }
         .prompt-section {
@@ -586,14 +586,14 @@
                         content += '<div class="prompt-section"><h3>CAN SLIM评分提示词 <button onclick="copyText(\'can_slim_prompt\')" style="padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">复制</button></h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-size: 11px;">' + stock.prompt + '</pre></div>';
                     }
                     
-                    // 完整CAN SLIM提示词
-                    if (stock.full_prompt) {
-                        content += '<div class="prompt-section"><h3>完整CAN SLIM提示词 <button onclick="copyText(\'full_prompt\')" style="padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">复制</button></h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-size: 11px;">' + stock.full_prompt + '</pre></div>';
-                    }
-                    
                     // K线技术提示词
                     if (stock.technical_prompt) {
                         content += '<div class="prompt-section"><h3>K线技术提示词 <button onclick="copyText(\'technical_prompt\')" style="padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">复制</button></h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-size: 11px;">' + stock.technical_prompt + '</pre></div>';
+                    }
+                    
+                    // 完整CAN SLIM提示词
+                    if (stock.full_prompt) {
+                        content += '<div class="prompt-section"><h3>完整CAN SLIM提示词 <button onclick="copyText(\'full_prompt\')" style="padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">复制</button></h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-size: 11px;">' + stock.full_prompt + '</pre></div>';
                     }
                     
                     content += '</div>';
