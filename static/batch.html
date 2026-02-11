@@ -581,9 +581,9 @@
                     // 组合提示词和结果
                     let content = '<div class="prompt-container">';
                     
-                    // CAN SLIM提示词
+                    // CAN SLIM评分提示词
                     if (stock.prompt) {
-                        content += '<div class="prompt-section"><h3>CAN SLIM提示词 <button onclick="copyText(\'can_slim_prompt\')" style="padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">复制</button></h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-size: 11px;">' + stock.prompt + '</pre></div>';
+                        content += '<div class="prompt-section"><h3>CAN SLIM评分提示词 <button onclick="copyText(\'can_slim_prompt\')" style="padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">复制</button></h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-size: 11px;">' + stock.prompt + '</pre></div>';
                     }
                     
                     // K线技术提示词
@@ -636,7 +636,7 @@
                 return;
             }
             navigator.clipboard.writeText(window.currentPrompts[type]).then(() => {
-                const label = type === 'can_slim_prompt' ? 'CAN SLIM提示词' : 'K线技术提示词';
+                const label = type === 'can_slim_prompt' ? 'CAN SLIM评分提示词' : 'K线技术提示词';
                 alert(label + '已复制到剪贴板');
             }).catch(err => {
                 console.error('复制失败:', err);
