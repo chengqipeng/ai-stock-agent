@@ -282,6 +282,9 @@
         <div class="left-column">
             <div class="panel">
                 <h2 style="font-size: 14px;">待分析股票列表</h2>
+                <div style="margin: 10px 0;">
+                    <input type="text" id="stockSearch" placeholder="搜索股票名称或代码..." style="width: 100%; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 13px; margin-bottom: 10px;" oninput="filterStocks()">
+                </div>
                 <div style="margin: 10px 0; display: flex; align-items: center;">
                     <button class="btn btn-primary" onclick="selectAll()">全选</button>
                     <button class="btn btn-primary" onclick="deselectAll()">取消全选</button>
@@ -355,6 +358,7 @@
     <script>
         let stockList = [];
         let selectedStocks = new Set();
+        let selectedStockKeys = new Set(); // 存储选中的股票key
         let currentBatchId = null;
 
         async function loadStockList() {
@@ -372,38 +376,82 @@
 
         function renderStockList() {
             const container = document.getElementById('stockList');
-            container.innerHTML = stockList.map((stock, index) => `
+            const searchTerm = document.getElementById('stockSearch').value.toLowerCase();
+            
+            const filteredStocks = stockList.filter(stock => 
+                stock.name.toLowerCase().includes(searchTerm) || 
+                stock.code.toLowerCase().includes(searchTerm)
+            );
+            
+            // 按选中状态排序：选中的在前
+            const sortedStocks = filteredStocks.sort((a, b) => {
+                const aKey = `${a.name} (${a.code})`;
+                const bKey = `${b.name} (${b.code})`;
+                const aSelected = selectedStockKeys.has(aKey);
+                const bSelected = selectedStockKeys.has(bKey);
+                if (aSelected && !bSelected) return -1;
+                if (!aSelected && bSelected) return 1;
+                return 0;
+            });
+            
+            if (sortedStocks.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #999;">没有找到匹配的股票</p>';
+                return;
+            }
+            
+            container.innerHTML = sortedStocks.map((stock) => {
+                const originalIndex = stockList.indexOf(stock);
+                const stockKey = `${stock.name} (${stock.code})`;
+                const isChecked = selectedStockKeys.has(stockKey);
+                return `
                 <div class="stock-item">
-                    <input type="checkbox" id="stock_${index}" onchange="updateSelection()">
-                    <label for="stock_${index}" style="cursor: pointer; flex: 1;">
+                    <input type="checkbox" id="stock_${originalIndex}" ${isChecked ? 'checked' : ''} onchange="updateSelection()">
+                    <label for="stock_${originalIndex}" style="cursor: pointer; flex: 1;">
                         ${stock.name} (${stock.code}) - 打分：${stock.score}
                     </label>
                 </div>
-            `).join('');
+                `;
+            }).join('');
+        }
+
+        function filterStocks() {
+            renderStockList();
         }
 
         function updateSelection() {
-            selectedStocks.clear();
+            // 先保存当前页面上的选中状态
             stockList.forEach((stock, index) => {
                 const checkbox = document.getElementById(`stock_${index}`);
-                if (checkbox && checkbox.checked) {
-                    selectedStocks.add(`${stock.name} (${stock.code})`);
+                if (checkbox) {
+                    const stockKey = `${stock.name} (${stock.code})`;
+                    if (checkbox.checked) {
+                        selectedStockKeys.add(stockKey);
+                    } else {
+                        selectedStockKeys.delete(stockKey);
+                    }
                 }
             });
+            
+            // 更新selectedStocks
+            selectedStocks.clear();
+            selectedStockKeys.forEach(key => selectedStocks.add(key));
+            
             document.getElementById('selectedCount').textContent = selectedStocks.size;
+            renderStockList(); // 重新渲染列表，使选中的显示在前面
         }
 
         function selectAll() {
-            stockList.forEach((_, index) => {
-                document.getElementById(`stock_${index}`).checked = true;
+            stockList.forEach((stock, index) => {
+                const stockKey = `${stock.name} (${stock.code})`;
+                selectedStockKeys.add(stockKey);
             });
+            renderStockList();
             updateSelection();
         }
 
         function deselectAll() {
-            stockList.forEach((_, index) => {
-                document.getElementById(`stock_${index}`).checked = false;
-            });
+            selectedStockKeys.clear();
+            renderStockList();
             updateSelection();
         }
 
