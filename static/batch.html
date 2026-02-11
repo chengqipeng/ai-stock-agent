@@ -586,6 +586,11 @@
                         content += '<div class="prompt-section"><h3>CAN SLIM评分提示词 <button onclick="copyText(\'can_slim_prompt\')" style="padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">复制</button></h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-size: 11px;">' + stock.prompt + '</pre></div>';
                     }
                     
+                    // 完整CAN SLIM提示词
+                    if (stock.full_prompt) {
+                        content += '<div class="prompt-section"><h3>完整CAN SLIM提示词 <button onclick="copyText(\'full_prompt\')" style="padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">复制</button></h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-size: 11px;">' + stock.full_prompt + '</pre></div>';
+                    }
+                    
                     // K线技术提示词
                     if (stock.technical_prompt) {
                         content += '<div class="prompt-section"><h3>K线技术提示词 <button onclick="copyText(\'technical_prompt\')" style="padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">复制</button></h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-size: 11px;">' + stock.technical_prompt + '</pre></div>';
@@ -609,7 +614,8 @@
                     // 保存提示词到全局变量
                     window.currentPrompts = {
                         can_slim_prompt: stock.prompt || '',
-                        technical_prompt: stock.technical_prompt || ''
+                        technical_prompt: stock.technical_prompt || '',
+                        full_prompt: stock.full_prompt || ''
                     };
                     
                     document.getElementById('modalContent').innerHTML = content;
@@ -636,8 +642,12 @@
                 return;
             }
             navigator.clipboard.writeText(window.currentPrompts[type]).then(() => {
-                const label = type === 'can_slim_prompt' ? 'CAN SLIM评分提示词' : 'K线技术提示词';
-                alert(label + '已复制到剪贴板');
+                const labels = {
+                    'can_slim_prompt': 'CAN SLIM评分提示词',
+                    'technical_prompt': 'K线技术提示词',
+                    'full_prompt': '完整CAN SLIM提示词'
+                };
+                alert((labels[type] || '内容') + '已复制到剪贴板');
             }).catch(err => {
                 console.error('复制失败:', err);
                 alert('复制失败，请手动复制');

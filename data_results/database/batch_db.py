@@ -39,6 +39,8 @@ def init_batch_tables():
             technical_score INTEGER,
             technical_reason TEXT,
             error_message TEXT,
+            full_prompt TEXT,
+            is_deep_thinking INTEGER DEFAULT 0,
             status TEXT DEFAULT 'pending',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             completed_at DATETIME,
@@ -48,12 +50,6 @@ def init_batch_tables():
     
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_id ON batch_stock_records(batch_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_status ON batch_records(status)")
-    
-    # 添加error_message字段（如果不存在）
-    try:
-        cursor.execute("SELECT error_message FROM batch_stock_records LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE batch_stock_records ADD COLUMN error_message TEXT")
     
     conn.commit()
     conn.close()
@@ -82,16 +78,16 @@ def add_batch_stock(batch_id: int, stock_name: str, stock_code: str):
     conn.commit()
     conn.close()
 
-def update_batch_stock(batch_id: int, stock_code: str, prompt: str, result: str, score: int, reason: str = "", technical_prompt: str = "", technical_result: str = "", technical_score: int = 0, technical_reason: str = "", error_message: str = "", is_deep_thinking: int = 0):
+def update_batch_stock(batch_id: int, stock_code: str, prompt: str, result: str, score: int, reason: str = "", technical_prompt: str = "", technical_result: str = "", technical_score: int = 0, technical_reason: str = "", error_message: str = "", is_deep_thinking: int = 0, full_prompt: str = ""):
     """更新批次股票记录"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     status = 'failed' if error_message else 'completed'
     cursor.execute("""
         UPDATE batch_stock_records
-        SET prompt = ?, result = ?, score = ?, reason = ?, technical_prompt = ?, technical_result = ?, technical_score = ?, technical_reason = ?, error_message = ?, is_deep_thinking = ?, status = ?, completed_at = ?
+        SET prompt = ?, result = ?, score = ?, reason = ?, technical_prompt = ?, technical_result = ?, technical_score = ?, technical_reason = ?, error_message = ?, is_deep_thinking = ?, full_prompt = ?, status = ?, completed_at = ?
         WHERE batch_id = ? AND stock_code = ?
-    """, (prompt, result, score, reason, technical_prompt, technical_result, technical_score, technical_reason, error_message, is_deep_thinking, status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), batch_id, stock_code))
+    """, (prompt, result, score, reason, technical_prompt, technical_result, technical_score, technical_reason, error_message, is_deep_thinking, full_prompt, status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), batch_id, stock_code))
     
     # 更新批次完成数量
     cursor.execute("""

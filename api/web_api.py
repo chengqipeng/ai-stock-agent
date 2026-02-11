@@ -395,8 +395,11 @@ async def batch_execute(batch_id: int, deep_thinking: bool = False):
                         stock_name = stock['stock_name']
                         stock_code = stock['stock_code']
                         
-                        # 获取提示词
+                        # 获取完整提示词
                         normalized_code = normalize_stock_code(stock_code)
+                        full_prompt = await get_stock_markdown(normalized_code, stock_name)
+
+                        # 获取评分提示词
                         prompt = await get_stock_markdown_for_score(normalized_code, stock_name)
                         
                         # 调用DeepSeek分析
@@ -427,7 +430,7 @@ async def batch_execute(batch_id: int, deep_thinking: bool = False):
                         technical_score, technical_reason = extract_score_and_reason(technical_result)
                         
                         # 更新数据库
-                        update_batch_stock(batch_id, stock_code, prompt, result, score, reason, technical_prompt, technical_result, technical_score, technical_reason, "", 1 if deep_thinking else 0)
+                        update_batch_stock(batch_id, stock_code, prompt, result, score, reason, technical_prompt, technical_result, technical_score, technical_reason, "", 1 if deep_thinking else 0, full_prompt)
                         
                         completed += 1
                         return {'stage': 'progress', 'completed': completed, 'total': len(stocks), 'stock_name': stock_name, 'score': score}
@@ -437,7 +440,7 @@ async def batch_execute(batch_id: int, deep_thinking: bool = False):
                         print(f"[错误] {stock_name} ({stock_code}): {error_msg}")
                         import traceback
                         traceback.print_exc()
-                        update_batch_stock(batch_id, stock_code, "", "", 0, "", "", "", 0, "", error_msg, 1 if deep_thinking else 0)
+                        update_batch_stock(batch_id, stock_code, "", "", 0, "", "", "", 0, "", error_msg, 1 if deep_thinking else 0, "")
                         completed += 1
                         return {'stage': 'progress', 'completed': completed, 'total': len(stocks), 'stock_name': stock_name, 'error': error_msg}
             
