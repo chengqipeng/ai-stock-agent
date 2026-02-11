@@ -1,9 +1,10 @@
+from datetime import datetime
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, AsyncIterator, Callable
 import json
-import asyncio
 
 from common.constants.stocks_data import get_stock_code
 from common.utils.amount_utils import normalize_stock_code
