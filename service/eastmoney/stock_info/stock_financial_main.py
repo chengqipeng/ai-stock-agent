@@ -51,9 +51,9 @@ FINANCIAL_INDICATORS = [
 ]
 
 
-async def get_financial_data_to_json(stock_code="002371.SZ", indicator_keys=None):
+async def get_financial_data_to_json(secucode="002371.SZ", indicator_keys=None):
     """将财务数据转换为JSON格式"""
-    data_list = await get_main_financial_data(stock_code)
+    data_list = await get_main_financial_data(secucode)
     if not data_list:
         return {"periods": [], "indicators": []}
     
@@ -84,9 +84,9 @@ async def get_financial_data_to_json(stock_code="002371.SZ", indicator_keys=None
     return result
 
 
-async def get_financial_data_to_markdown(stock_code="002371.SZ", indicator_keys=None):
+async def get_financial_data_to_markdown(secucode="002371.SZ", indicator_keys=None):
     """将财务数据转换为Markdown格式"""
-    data_list = await get_main_financial_data(stock_code)
+    data_list = await get_main_financial_data(secucode)
     if not data_list:
         return "暂无财务数据"
     
