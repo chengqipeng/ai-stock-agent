@@ -55,31 +55,26 @@ async def get_financial_data_to_json(secucode="002371.SZ", indicator_keys=None):
     """将财务数据转换为JSON格式"""
     data_list = await get_main_financial_data(secucode)
     if not data_list:
-        return {"periods": [], "indicators": []}
+        return []
     
     recent_data = data_list[:MAX_RECENT_PERIODS]
-    
-    result = {
-        "periods": [d.get('REPORT_DATE_NAME', '') for d in recent_data],
-        "indicators": []
-    }
-    
     indicators = FINANCIAL_INDICATORS if indicator_keys is None else [(n, k) for n, k in FINANCIAL_INDICATORS if k in indicator_keys]
     
-    for name, key in indicators:
-        indicator_data = {"name": name, "key": key, "values": []}
-        for d in recent_data:
+    result = []
+    for d in recent_data:
+        period_data = {"报告期": d.get('REPORT_DATE_NAME', '')}
+        for name, key in indicators:
             val = d.get(key)
             if val is None:
-                indicator_data["values"].append(None)
+                period_data[name] = None
             elif isinstance(val, (int, float)):
                 if key in AMOUNT_FIELDS:
-                    indicator_data["values"].append(convert_amount_unit(val))
+                    period_data[name] = convert_amount_unit(val)
                 else:
-                    indicator_data["values"].append(round(val, 4))
+                    period_data[name] = round(val, 4)
             else:
-                indicator_data["values"].append(str(val))
-        result["indicators"].append(indicator_data)
+                period_data[name] = str(val)
+        result.append(period_data)
     
     return result
 
@@ -157,5 +152,8 @@ if __name__ == "__main__":
     async def main():
         markdown = await get_financial_data_to_markdown("002371.SZ")
         print(markdown)
+
+        json = await get_financial_data_to_json("002371.SZ")
+        print(json)
     
     asyncio.run(main())
