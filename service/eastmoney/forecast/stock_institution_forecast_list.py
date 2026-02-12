@@ -85,23 +85,23 @@ def _process_forecast_data(data: dict, year_filter=None) -> dict:
     forecasts = []
     for item in items:
         forecast = {
-            'publish_date': item.get('PUBLISH_DATE', '-')[:10] if item.get('PUBLISH_DATE') else '-',
-            'org_name': item.get('ORG_NAME_ABBR') or '-'
+            '发布日期': item.get('PUBLISH_DATE', '-')[:10] if item.get('PUBLISH_DATE') else '-',
+            '机构名称': item.get('ORG_NAME_ABBR') or '-'
         }
         
         if year_filter:
             for year in year_filter:
                 for i in range(1, 5):
                     if item.get(f'YEAR{i}') == year:
-                        forecast[f'year_{year}_eps'] = item.get(f'EPS{i}')
-                        forecast[f'year_{year}_pe'] = item.get(f'PE{i}')
+                        forecast[f'{year}年每股收益'] = item.get(f'EPS{i}')
+                        forecast[f'{year}年市盈率'] = item.get(f'PE{i}')
                         break
         else:
             for i in range(1, 5):
                 year = item.get(f'YEAR{i}')
                 if year:
-                    forecast[f'year_{year}_eps'] = item.get(f'EPS{i}')
-                    forecast[f'year_{year}_pe'] = item.get(f'PE{i}')
+                    forecast[f'{year}年每股收益'] = item.get(f'EPS{i}')
+                    forecast[f'{year}年市盈率'] = item.get(f'PE{i}')
         
         forecasts.append(forecast)
     
