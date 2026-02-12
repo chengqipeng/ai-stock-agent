@@ -51,8 +51,9 @@ FINANCIAL_INDICATORS = [
 ]
 
 
-def format_financial_data_to_json(data_list):
+async def get_financial_data_to_json(stock_code="002371.SZ", indicator_keys=None):
     """将财务数据转换为JSON格式"""
+    data_list = await get_main_financial_data(stock_code)
     if not data_list:
         return {"periods": [], "indicators": []}
     
@@ -63,7 +64,9 @@ def format_financial_data_to_json(data_list):
         "indicators": []
     }
     
-    for name, key in FINANCIAL_INDICATORS:
+    indicators = FINANCIAL_INDICATORS if indicator_keys is None else [(n, k) for n, k in FINANCIAL_INDICATORS if k in indicator_keys]
+    
+    for name, key in indicators:
         indicator_data = {"name": name, "key": key, "values": []}
         for d in recent_data:
             val = d.get(key)
@@ -81,8 +84,9 @@ def format_financial_data_to_json(data_list):
     return result
 
 
-def format_financial_data_to_markdown(data_list):
+async def get_financial_data_to_markdown(stock_code="002371.SZ", indicator_keys=None):
     """将财务数据转换为Markdown格式"""
+    data_list = await get_main_financial_data(stock_code)
     if not data_list:
         return "暂无财务数据"
     
@@ -92,7 +96,9 @@ def format_financial_data_to_markdown(data_list):
     md += "| 指标 | " + " | ".join([d.get('REPORT_DATE_NAME', '') for d in recent_data]) + " |\n"
     md += "|" + "---|" * (len(recent_data) + 1) + "\n"
     
-    for name, key in FINANCIAL_INDICATORS:
+    indicators = FINANCIAL_INDICATORS if indicator_keys is None else [(n, k) for n, k in FINANCIAL_INDICATORS if k in indicator_keys]
+    
+    for name, key in indicators:
         row = f"| {name} | "
         values = []
         for d in recent_data:
@@ -149,8 +155,7 @@ async def get_main_financial_data(secucode="002371.SZ", page_size=200, page_numb
 
 if __name__ == "__main__":
     async def main():
-        data = await get_main_financial_data("002371.SZ")
-        markdown = format_financial_data_to_markdown(data)
+        markdown = await get_financial_data_to_markdown("002371.SZ")
         print(markdown)
     
     asyncio.run(main())

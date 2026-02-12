@@ -1,3 +1,6 @@
+from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json
+
+
 def get_c_q_e_prompt(stock_code, stock_name):
     return f"""
 
@@ -8,29 +11,35 @@ def get_c_q_e_prompt(stock_code, stock_name):
 ## 所有增长率计算必须基于'同比'，即本季度与去年同一季度对比。严禁使用环比数据，以消除季节性干扰。
 ## 请基于我接下来提供的财报数据，严格按照以下标准进行评估。
 
-1. 单季营业收入同比增长率
+## 1. 单季营业收入同比增长率
    指标定义：公司主营业务收入的季度同比增长。
    欧奈尔铁律：盈利增长必须由营收增长驱动，而非削减成本。
    判定标准：
      及格线：> 25%。
      卓越线：> 50% 或更高。
    逻辑：只有产品卖得好，业绩才能持续。如果一家公司 EPS 暴涨 50%，但营收只增长 5%，这通常是靠“勒紧裤腰带”（削减成本）挤出来的利润，这种增长极度脆弱，必须回避。
+   分析使用的数据源：{get_financial_data_to_json(stock_code = stock_code, indicator_keys=['TOTALOPERATEREVETZ'])}
 
-2. 业绩加速趋势
+## 2. 业绩加速趋势
    指标定义：当季归属净利润同比增长(%)，当季扣非净利润同比增长(%)。
    欧奈尔铁律：我们要买的是“加速度”，而不是单纯的“速度”。
    判定标准：
      趋势向上，例如，Q1 增速 20% -> Q2 增速 35% -> Q3 增速 50%。
      创新高：本季度的净利率是否达到年度新高？
      同业对比：是否处于行业前列？
+   分析使用的数据源：
+   {get_financial_data_to_json(stock_code = stock_code, indicator_keys=['PARENTNETPROFITTZ', 'KCFJCXSYJLRTZ'])}
 
-3. 超出市场预期幅度
+## 3. 超出市场预期幅度
    指标定义：(实际 EPS - 分析师一致预期 EPS) / 分析师一致预期 EPS。
    欧奈尔铁律：惊喜是股价上涨的燃料。
    判定标准：
      正向惊喜：实际业绩大幅好于分析师预期（Surprise > 10-20%）。
    逻辑：机构通常会根据“一致预期”定价。一旦业绩大幅超预期，机构必须重新调整估值模型，被迫在盘中抢筹，从而推高股价。
-
+   分析使用的数据源：
+   {get_financial_data_to_json(stock_code = stock_code, indicator_keys=['EPSJB'])} \n
+   
+   
    数据源：
 先查这个连接：
 https://emweb.securities.eastmoney.com/pc_hsf10/pages/index.html?type=web&code=SZ002008&color=b#/ylyc
