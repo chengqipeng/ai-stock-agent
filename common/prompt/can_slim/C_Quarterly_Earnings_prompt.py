@@ -1,7 +1,18 @@
+from service.eastmoney.forecast.stock_institution_forecast_list import \
+    get_institution_forecast_current_next_year_to_json, get_institution_forecast_to_json
+from service.eastmoney.forecast.stock_institution_forecast_summary import \
+    get_institution_forecast_summary_current_next_year_json, get_institution_forecast_summary_json
 from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json
+import json
 
 
-def get_c_q_e_prompt(secucode, stock_name):
+async def get_C_Quarterly_Earnings_prompt(secucode, stock_name):
+    financial_revenue = await get_financial_data_to_json(secucode=secucode, indicator_keys=['TOTALOPERATEREVETZ'])
+    financial_profit = await get_financial_data_to_json(secucode=secucode, indicator_keys=['PARENTNETPROFITTZ', 'KCFJCXSYJLRTZ'])
+    financial_eps = await get_financial_data_to_json(secucode=secucode, indicator_keys=['EPSJB'])
+    forecast_json = get_institution_forecast_to_json(secucode=secucode)
+    forecast_summary = get_institution_forecast_summary_json(secucode=secucode)
+    
     return f"""
 
 作为拥有 30 年经验的华尔街投资专家，我必须强调：在 CAN SLIM 模型的 C (Current Quarterly Earnings) 维度中，“扣非净利润”只是底线（排雷项），而非进攻信号（买入项）。
@@ -21,7 +32,9 @@ def get_c_q_e_prompt(secucode, stock_name):
      及格线：> 25%。
      卓越线：> 50% 或更高。
    逻辑：只有产品卖得好，业绩才能持续。如果一家公司 EPS 暴涨 50%，但营收只增长 5%，这通常是靠“勒紧裤腰带”（削减成本）挤出来的利润，这种增长极度脆弱，必须回避。
-   分析使用的数据源：{get_financial_data_to_json(secucode = secucode, indicator_keys=['TOTALOPERATEREVETZ'])}
+   分析使用的数据源：
+   <营业总收入同比增长(%)>
+   {json.dumps(financial_revenue, ensure_ascii=False)}
 
 ## 2. 业绩加速趋势
    指标定义：当季归属净利润同比增长(%)，当季扣非净利润同比增长(%)。
@@ -31,7 +44,8 @@ def get_c_q_e_prompt(secucode, stock_name):
      创新高：本季度的净利率是否达到年度新高？
      同业对比：是否处于行业前列？
    分析使用的数据源：
-   {get_financial_data_to_json(secucode = secucode, indicator_keys=['PARENTNETPROFITTZ', 'KCFJCXSYJLRTZ'])}
+   <归属净利润同比增长(%)、扣非净利润同比增长(%) >
+   {json.dumps(financial_profit, ensure_ascii=False)}
 
 ## 3. 超出市场预期幅度
    指标定义：(实际 EPS - 分析师一致预期 EPS) / 分析师一致预期 EPS。
@@ -40,15 +54,11 @@ def get_c_q_e_prompt(secucode, stock_name):
      正向惊喜：实际业绩大幅好于分析师预期（Surprise > 10-20%）。
    逻辑：机构通常会根据“一致预期”定价。一旦业绩大幅超预期，机构必须重新调整估值模型，被迫在盘中抢筹，从而推高股价。
    分析使用的数据源：
-   {get_financial_data_to_json(secucode = secucode, indicator_keys=['EPSJB'])} \n
+   <基本每股收益>
+   {json.dumps(financial_eps, ensure_ascii=False)} \n
+   <构预测数据（每季每股收益、市盈率）>
+   {json.dumps(forecast_json, ensure_ascii=False)} \n
+   <构预测数据（财务指标）>
+   {forecast_summary} \n
    
-   
-   数据源：
-先查这个连接：
-https://emweb.securities.eastmoney.com/pc_hsf10/pages/index.html?type=web&code=SZ002008&color=b#/ylyc
-
-如果上面链接无，再查这个链接
-https://data.eastmoney.com/report/profitforecast.jshtml?hyid=BK1036
-
-   提取指标：2026预测每股收益，2027预测每股收益 - 注意需要取当年和明年的
 """
