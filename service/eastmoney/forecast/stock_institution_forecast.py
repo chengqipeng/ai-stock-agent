@@ -98,8 +98,10 @@ def _process_forecast_data(data: dict, year_filter=None) -> dict:
                         break
         else:
             for i in range(1, 5):
-                forecast[f'year_{i}_eps'] = item.get(f'EPS{i}')
-                forecast[f'year_{i}_pe'] = item.get(f'PE{i}')
+                year = item.get(f'YEAR{i}')
+                if year:
+                    forecast[f'year_{year}_eps'] = item.get(f'EPS{i}')
+                    forecast[f'year_{year}_pe'] = item.get(f'PE{i}')
         
         forecasts.append(forecast)
     
