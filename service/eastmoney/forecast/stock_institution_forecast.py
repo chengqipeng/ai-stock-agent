@@ -4,7 +4,7 @@ from datetime import datetime
 
 def get_institution_forecast(secucode: str) -> dict:
     """
-    获取机构预测数据
+    获取机构预测数据（收益、市盈率）
     
     Args:
         secucode: 证券代码，格式如 "002371.SZ"
