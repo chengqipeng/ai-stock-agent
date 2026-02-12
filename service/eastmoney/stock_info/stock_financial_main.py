@@ -2,66 +2,97 @@ import aiohttp
 import asyncio
 from common.utils.amount_utils import convert_amount_unit
 
+# 最近期数配置
+MAX_RECENT_PERIODS = 12
+
+# 金额类字段
+AMOUNT_FIELDS = ['TOTALOPERATEREVE', 'PARENTNETPROFIT', 'KCFJCXSYJLR', 'MLR']
+
+# 财务指标定义
+FINANCIAL_INDICATORS = [
+    ('基本每股收益(元)', 'EPSJB'),
+    ('扣非每股收益(元)', 'EPSKCJB'),
+    ('稀释每股收益(元)', 'EPSXS'),
+    ('每股净资产(元)', 'BPS'),
+    ('每股公积金(元)', 'MGZBGJ'),
+    ('每股未分配利润(元)', 'MGWFPLR'),
+    ('每股经营现金流(元)', 'MGJYXJJE'),
+    ('营业总收入(元)', 'TOTALOPERATEREVE'),
+    ('毛利润(元)', 'MLR'),
+    ('归母净利润(元)', 'PARENTNETPROFIT'),
+    ('扣非净利润(元)', 'KCFJCXSYJLR'),
+    ('营业总收入同比增长(%)', 'TOTALOPERATEREVETZ'),
+    ('归属净利润同比增长(%)', 'PARENTNETPROFITTZ'),
+    ('扣非净利润同比增长(%)', 'KCFJCXSYJLRTZ'),
+    ('营业总收入环比增长(%)', 'YYZSRGDHBZC'),
+    ('归属净利润环比增长(%)', 'NETPROFITRPHBZC'),
+    ('扣非净利润环比增长(%)', 'KFJLRGDHBZC'),
+    ('净资产收益率(加权)(%)', 'ROEJQ'),
+    ('净资产收益率(扣非/加权)(%)', 'ROEKCJQ'),
+    ('总资产收益率(加权)(%)', 'ZZCJLL'),
+    ('毛利率(%)', 'XSMLL'),
+    ('净利率(%)', 'XSJLL'),
+    ('预收账款/营业收入', 'YSZKYYSR'),
+    ('销售净现金流/营业收入', 'XSJXLYYSR'),
+    ('经营现金流/营业收入', 'JYXJLYYSR'),
+    ('实际税率(%)', 'TAXRATE'),
+    ('流动比率', 'LD'),
+    ('速动比率', 'SD'),
+    ('现金流量比率', 'XJLLB'),
+    ('资产负债率(%)', 'ZCFZL'),
+    ('权益系数', 'QYCS'),
+    ('产权比率', 'CQBL'),
+    ('总资产周转天数(天)', 'ZZCZZTS'),
+    ('存货周转天数(天)', 'CHZZTS'),
+    ('应收账款周转天数(天)', 'YSZKZZTS'),
+    ('总资产周转率(次)', 'TOAZZL'),
+    ('存货周转率(次)', 'CHZZL'),
+    ('应收账款周转率(次)', 'YSZKZZL'),
+]
+
+
+def format_financial_data_to_json(data_list):
+    """将财务数据转换为JSON格式"""
+    if not data_list:
+        return {"periods": [], "indicators": []}
+    
+    recent_data = data_list[:MAX_RECENT_PERIODS]
+    
+    result = {
+        "periods": [d.get('REPORT_DATE_NAME', '') for d in recent_data],
+        "indicators": []
+    }
+    
+    for name, key in FINANCIAL_INDICATORS:
+        indicator_data = {"name": name, "key": key, "values": []}
+        for d in recent_data:
+            val = d.get(key)
+            if val is None:
+                indicator_data["values"].append(None)
+            elif isinstance(val, (int, float)):
+                if key in AMOUNT_FIELDS:
+                    indicator_data["values"].append(convert_amount_unit(val))
+                else:
+                    indicator_data["values"].append(round(val, 4))
+            else:
+                indicator_data["values"].append(str(val))
+        result["indicators"].append(indicator_data)
+    
+    return result
+
 
 def format_financial_data_to_markdown(data_list):
     """将财务数据转换为Markdown格式"""
     if not data_list:
         return "暂无财务数据"
     
-    # 选择最近的几期数据（最多5期）
-    recent_data = data_list[:9]
+    recent_data = data_list[:MAX_RECENT_PERIODS]
     
-    # 构建Markdown表格
     md = "## 主要财务指标\n\n"
-    
-    # 表头
     md += "| 指标 | " + " | ".join([d.get('REPORT_DATE_NAME', '') for d in recent_data]) + " |\n"
     md += "|" + "---|" * (len(recent_data) + 1) + "\n"
     
-    # 定义要展示的指标
-    indicators = [
-        ('基本每股收益(元)', 'EPSJB'),
-        ('扣非每股收益(元)', 'EPSKCJB'),
-        ('稀释每股收益(元)', 'EPSXS'),
-        ('每股净资产(元)', 'BPS'),
-        ('每股公积金(元)', 'MGZBGJ'),
-        ('每股未分配利润(元)', 'MGWFPLR'),
-        ('每股经营现金流(元)', 'MGJYXJJE'),
-        ('营业总收入(元)', 'TOTALOPERATEREVE'),
-        ('毛利润(元)', 'MLR'),
-        ('归母净利润(元)', 'PARENTNETPROFIT'),
-        ('扣非净利润(元)', 'KCFJCXSYJLR'),
-        ('营业总收入同比增长(%)', 'TOTALOPERATEREVETZ'),
-        ('归属净利润同比增长(%)', 'PARENTNETPROFITTZ'),
-        ('扣非净利润同比增长(%)', 'KCFJCXSYJLRTZ'),
-        ('营业总收入环比增长(%)', 'YYZSRGDHBZC'),
-        ('归属净利润环比增长(%)', 'NETPROFITRPHBZC'),
-        ('扣非净利润环比增长(%)', 'KFJLRGDHBZC'),
-        ('净资产收益率(加权)(%)', 'ROEJQ'),
-        ('净资产收益率(扣非/加权)(%)', 'ROEKCJQ'),
-        ('总资产收益率(加权)(%)', 'ZZCJLL'),
-        ('毛利率(%)', 'XSMLL'),
-        ('净利率(%)', 'XSJLL'),
-        ('预收账款/营业收入', 'YSZKYYSR'),
-        ('销售净现金流/营业收入', 'XSJXLYYSR'),
-        ('经营现金流/营业收入', 'JYXJLYYSR'),
-        ('实际税率(%)', 'TAXRATE'),
-        ('流动比率', 'LD'),
-        ('速动比率', 'SD'),
-        ('现金流量比率', 'XJLLB'),
-        ('资产负债率(%)', 'ZCFZL'),
-        ('权益系数', 'QYCS'),
-        ('产权比率', 'CQBL'),
-        ('总资产周转天数(天)', 'ZZCZZTS'),
-        ('存货周转天数(天)', 'CHZZTS'),
-        ('应收账款周转天数(天)', 'YSZKZZTS'),
-        ('总资产周转率(次)', 'TOAZZL'),
-        ('存货周转率(次)', 'CHZZL'),
-        ('应收账款周转率(次)', 'YSZKZZL'),
-    ]
-    
-    # 填充数据行
-    for name, key in indicators:
+    for name, key in FINANCIAL_INDICATORS:
         row = f"| {name} | "
         values = []
         for d in recent_data:
@@ -69,8 +100,7 @@ def format_financial_data_to_markdown(data_list):
             if val is None:
                 values.append("-")
             elif isinstance(val, (int, float)):
-                # 格式化数字
-                if key in ['TOTALOPERATEREVE', 'PARENTNETPROFIT', 'KCFJCXSYJLR', 'MLR']:
+                if key in AMOUNT_FIELDS:
                     values.append(convert_amount_unit(val))
                 else:
                     values.append(f"{val:.4f}")
@@ -110,7 +140,6 @@ async def get_main_financial_data(secucode="002371.SZ", page_size=200, page_numb
     
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, headers=headers) as response:
-            text = await response.text()
             data = await response.json(content_type=None)
             if data.get("result") and data["result"].get("data"):
                 return data["result"]["data"]
