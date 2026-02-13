@@ -46,6 +46,7 @@ async def get_C_Quarterly_Earnings_prompt(secucode, stock_name):
      趋势向上，例如，Q1 增速 20% -> Q2 增速 35% -> Q3 增速 50%。
      创新高：本季度的净利率是否达到年度新高？
      同业对比：是否处于行业前列？
+     当归属净利润同比增长和扣非净利润同比增长不一致时优先使用扣非净利润同比增长
    分析使用的数据源：
    <归属净利润同比增长(%)、扣非净利润同比增长(%) >
    {json.dumps(financial_profit, ensure_ascii=False)}

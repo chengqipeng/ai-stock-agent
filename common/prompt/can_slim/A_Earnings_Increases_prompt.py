@@ -142,8 +142,8 @@ async def calculate_total_share_ratio(secucode: str) -> list:
             '报告期': fin.get('报告期', ''),
             '报告日期': fin.get('报告日期', ''),
             '扣非净利润(元)': deduct_profit_str,
-            '总股本(股)': total_shares,
-            '复合增长率': eps
+            '总股本(万股)': round(total_shares / 10000, 4) if total_shares else None,
+            '扣非每股收益(元)': eps
         })
 
     return result
