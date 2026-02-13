@@ -13,7 +13,7 @@ def calculate_cagr(eps_compare_data):
         return None, None
     
     latest_data = eps_compare_data[0]
-    three_years_ago_data = eps_compare_data[3]
+    three_years_ago_data = eps_compare_data[12]
     
     latest_eps = latest_data.get('基本每股收益(元)')
     three_years_ago_eps = three_years_ago_data.get('基本每股收益(元)')
