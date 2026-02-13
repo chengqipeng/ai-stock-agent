@@ -106,10 +106,60 @@ def _process_forecast_data(data: dict, year_filter=None) -> list:
     return forecasts
 
 
-def get_institution_forecast_to_json(secucode: str) -> list:
-    """将机构预测数据转换为JSON格式（显示所有年份）"""
+def get_institution_forecast_historical_to_json(secucode: str) -> list:
+    """将机构预测数据转换为JSON格式（只显示历年预测，小于当年）"""
     data = get_institution_forecast(secucode)
-    return _process_forecast_data(data)
+    if not data.get('success') or not data.get('result', {}).get('data'):
+        return []
+    
+    current_year = datetime.now().year
+    items = data['result']['data']
+    
+    forecasts = []
+    for item in items:
+        forecast = {
+            '发布日期': item.get('PUBLISH_DATE', '-')[:10] if item.get('PUBLISH_DATE') else '-',
+            '机构名称': item.get('ORG_NAME_ABBR') or '-'
+        }
+        
+        for i in range(1, 5):
+            year = item.get(f'YEAR{i}')
+            if year and year < current_year:
+                forecast[f'{year}年每股收益'] = item.get(f'EPS{i}')
+                forecast[f'{year}年市盈率'] = item.get(f'PE{i}')
+        
+        if len(forecast) > 2:  # 只添加有历年数据的记录
+            forecasts.append(forecast)
+    
+    return forecasts
+
+
+def get_institution_forecast_future_to_json(secucode: str) -> list:
+    """将机构预测数据转换为JSON格式（只显示未来预测，大于等于当年）"""
+    data = get_institution_forecast(secucode)
+    if not data.get('success') or not data.get('result', {}).get('data'):
+        return []
+    
+    current_year = datetime.now().year
+    items = data['result']['data']
+    
+    forecasts = []
+    for item in items:
+        forecast = {
+            '发布日期': item.get('PUBLISH_DATE', '-')[:10] if item.get('PUBLISH_DATE') else '-',
+            '机构名称': item.get('ORG_NAME_ABBR') or '-'
+        }
+        
+        for i in range(1, 5):
+            year = item.get(f'YEAR{i}')
+            if year and year >= current_year:
+                forecast[f'{year}年每股收益'] = item.get(f'EPS{i}')
+                forecast[f'{year}年市盈率'] = item.get(f'PE{i}')
+        
+        if len(forecast) > 2:  # 只添加有未来数据的记录
+            forecasts.append(forecast)
+    
+    return forecasts
 
 
 def get_institution_forecast_to_markdown(secucode: str) -> str:
@@ -187,9 +237,13 @@ if __name__ == "__main__":
     markdown = get_institution_forecast_to_markdown(secucode)
     print(markdown)
     
-    print("\n=== 显示所有年份数据（JSON） ===")
-    json_data = get_institution_forecast_to_json(secucode)
-    print(json.dumps(json_data, ensure_ascii=False, indent=2))
+    print("\n=== 显示历年预测数据（JSON） ===")
+    json_historical = get_institution_forecast_historical_to_json(secucode)
+    print(json.dumps(json_historical, ensure_ascii=False, indent=2))
+    
+    print("\n=== 显示未来预测数据（JSON） ===")
+    json_future = get_institution_forecast_future_to_json(secucode)
+    print(json.dumps(json_future, ensure_ascii=False, indent=2))
     
     print("\n=== 只显示当前年和未来一年数据（Markdown） ===")
     markdown_filtered = get_institution_forecast_current_next_year_to_markdown(secucode)

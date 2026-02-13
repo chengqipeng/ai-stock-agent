@@ -117,11 +117,26 @@ def _build_markdown_result(stock_name: str, stock_code: str, year_data: Dict[str
     return md
 
 
-def get_institution_forecast_summary_json(secucode: str) -> list:
-    """获取机构预测统计汇总数据并转换为JSON格式"""
+def get_institution_forecast_summary_historical_json(secucode: str) -> list:
+    """获取机构预测统计汇总数据并转换为JSON格式（历年预测：小于当年）"""
+    from datetime import datetime
+    current_year = datetime.now().year
+    
     data = get_institution_forecast_summary(secucode)
     stock_name, stock_code, year_data, years = _parse_raw_data(data)
-    return _build_json_result(stock_name, stock_code, year_data, years) if years else []
+    historical_years = [y for y in years if y < current_year]
+    return _build_json_result(stock_name, stock_code, year_data, historical_years) if historical_years else []
+
+
+def get_institution_forecast_summary_future_json(secucode: str) -> list:
+    """获取机构预测统计汇总数据并转换为JSON格式（未来预测：大于等于当年）"""
+    from datetime import datetime
+    current_year = datetime.now().year
+    
+    data = get_institution_forecast_summary(secucode)
+    stock_name, stock_code, year_data, years = _parse_raw_data(data)
+    future_years = [y for y in years if y >= current_year]
+    return _build_json_result(stock_name, stock_code, year_data, future_years) if future_years else []
 
 
 def get_institution_forecast_summary_current_next_year_json(secucode: str) -> list:
@@ -150,6 +165,14 @@ if __name__ == "__main__":
     
     secucode = "002371.SZ"
     print(f"正在获取 {secucode} 的机构预测统计汇总数据...\n")
+    
+    print("\n=== JSON格式（历年预测） ===")
+    json_historical = get_institution_forecast_summary_historical_json(secucode)
+    print(json.dumps(json_historical, ensure_ascii=False, indent=2))
+    
+    print("\n=== JSON格式（未来预测） ===")
+    json_future = get_institution_forecast_summary_future_json(secucode)
+    print(json.dumps(json_future, ensure_ascii=False, indent=2))
     
     print("\n=== JSON格式（当前年+未来一年） ===")
     json_data_recent = get_institution_forecast_summary_current_next_year_json(secucode)

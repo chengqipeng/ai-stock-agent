@@ -1,7 +1,7 @@
-from service.eastmoney.forecast.stock_institution_forecast_list import \
-    get_institution_forecast_current_next_year_to_json, get_institution_forecast_to_json
-from service.eastmoney.forecast.stock_institution_forecast_summary import \
-    get_institution_forecast_summary_current_next_year_json, get_institution_forecast_summary_json
+from service.eastmoney.forecast.stock_institution_forecast_list import get_institution_forecast_future_to_json, \
+    get_institution_forecast_historical_to_json
+from service.eastmoney.forecast.stock_institution_forecast_summary import get_institution_forecast_summary_future_json, \
+    get_institution_forecast_summary_historical_json
 from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json
 import json
 from datetime import datetime
@@ -11,8 +11,10 @@ async def get_C_Quarterly_Earnings_prompt(secucode, stock_name):
     financial_revenue = await get_financial_data_to_json(secucode=secucode, indicator_keys=['TOTALOPERATEREVETZ'])
     financial_profit = await get_financial_data_to_json(secucode=secucode, indicator_keys=['PARENTNETPROFITTZ', 'KCFJCXSYJLRTZ'])
     financial_eps = await get_financial_data_to_json(secucode=secucode, indicator_keys=['EPSJB'])
-    forecast_json = get_institution_forecast_to_json(secucode=secucode)
-    forecast_summary = get_institution_forecast_summary_json(secucode=secucode)
+    historical_forecast_json = get_institution_forecast_historical_to_json(secucode=secucode)
+    future_forecast_json = get_institution_forecast_future_to_json(secucode=secucode)
+    historical_forecast_summary = get_institution_forecast_summary_historical_json(secucode=secucode)
+    future_forecast_summary = get_institution_forecast_summary_future_json(secucode=secucode)
     
     return f"""
 
@@ -53,13 +55,17 @@ async def get_C_Quarterly_Earnings_prompt(secucode, stock_name):
    欧奈尔铁律：惊喜是股价上涨的燃料。
    判定标准：
      正向惊喜：实际业绩大幅好于分析师预期（Surprise > 10-20%）。
-   逻辑：机构通常会根据“一致预期”定价。一旦业绩大幅超预期，机构必须重新调整估值模型，被迫在盘中抢筹，从而推高股价。
+   逻辑：机构通常会根据“一致预期”定价。一旦业绩大幅超预期，机构必须重新调整估值模型，被迫在盘中抢筹，从而推高股价，需要对比往年预测和真实数据，再基于未来预测进行分析。
    分析使用的数据源：
    <基本每股收益>
    {json.dumps(financial_eps, ensure_ascii=False)} \n
-   <机构预测数据（每季每股收益、市盈率）>
-   {json.dumps(forecast_json, ensure_ascii=False)} \n
-   <机构预测数据（财务指标）>
-   {forecast_summary} \n
+   <机构往年预测数据（每季每股收益、市盈率）>
+   {json.dumps(historical_forecast_json, ensure_ascii=False)} \n
+   <机构未来预测数据（每季每股收益、市盈率）>
+   {json.dumps(future_forecast_json, ensure_ascii=False)} \n
+   <机构往年预测数据（财务指标）>
+   {historical_forecast_summary} \n
+   <机构未来预测数据（财务指标）>
+   {future_forecast_summary} \n
    
 """
