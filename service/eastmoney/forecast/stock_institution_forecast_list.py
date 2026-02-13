@@ -73,14 +73,12 @@ def _extract_year_data(item: dict, year: int) -> tuple:
     return '-', '-'
 
 
-def _process_forecast_data(data: dict, year_filter=None) -> dict:
+def _process_forecast_data(data: dict, year_filter=None) -> list:
     """处理机构预测数据的通用方法"""
     if not data.get('success') or not data.get('result', {}).get('data'):
-        return None
+        return []
     
     items = data['result']['data']
-    stock_name = items[0].get('SECURITY_NAME_ABBR', '')
-    stock_code = items[0].get('SECURITY_CODE', '')
     
     forecasts = []
     for item in items:
@@ -105,14 +103,10 @@ def _process_forecast_data(data: dict, year_filter=None) -> dict:
         
         forecasts.append(forecast)
     
-    return {
-        'stock_name': stock_name,
-        'stock_code': stock_code,
-        'forecasts': forecasts
-    }
+    return forecasts
 
 
-def get_institution_forecast_to_json(secucode: str) -> dict:
+def get_institution_forecast_to_json(secucode: str) -> list:
     """将机构预测数据转换为JSON格式（显示所有年份）"""
     data = get_institution_forecast(secucode)
     return _process_forecast_data(data)
@@ -148,7 +142,7 @@ def get_institution_forecast_to_markdown(secucode: str) -> str:
     return md
 
 
-def get_institution_forecast_current_next_year_to_json(secucode: str) -> dict:
+def get_institution_forecast_current_next_year_to_json(secucode: str) -> list:
     """将机构预测数据转换为JSON格式（只显示当前年和未来一年）"""
     data = get_institution_forecast(secucode)
     current_year = datetime.now().year
