@@ -91,7 +91,7 @@ async def calculate_total_share_ratio(secucode: str) -> list:
     """计算扣非每股收益（扣非净利润/总股本）"""
     from datetime import datetime
     
-    financial_data = await get_financial_data_to_json(secucode, indicator_keys=['KCFJCXSYJLR'])
+    financial_data = await get_financial_data_to_json(secucode, indicator_keys=['KCFJCXSYJLR', 'REPORT_DATE'])
     equity_data = await get_equity_data_to_json(secucode)
 
     if not financial_data or not equity_data:
@@ -113,17 +113,15 @@ async def calculate_total_share_ratio(secucode: str) -> list:
 
     result = []
     for fin in financial_data:
-        period = fin.get('报告期', '')
+        report_date = fin.get('报告日期', '')
         deduct_profit_str = fin.get('扣非净利润(元)')
         deduct_profit = parse_amount(deduct_profit_str)
 
-        # 先尝试精确匹配
-        equity_match = next((eq for eq in equity_data if eq.get('变动日期', '').startswith(period[:7])), None)
+        equity_match = next((eq for eq in equity_data if eq.get('变动日期', '').startswith(report_date[:7])), None) if report_date else None
         
-        # 如果没有精确匹配，找最近的日期
-        if not equity_match and period:
+        if not equity_match and report_date:
             try:
-                target_date = datetime.strptime(period[:10], '%Y-%m-%d')
+                target_date = datetime.strptime(report_date[:10], '%Y-%m-%d')
                 closest_eq = min(
                     (eq for eq in equity_data if eq.get('变动日期')),
                     key=lambda eq: abs((datetime.strptime(eq['变动日期'][:10], '%Y-%m-%d') - target_date).days),
@@ -141,10 +139,11 @@ async def calculate_total_share_ratio(secucode: str) -> list:
             eps = None
 
         result.append({
-            '报告期': period,
+            '报告期': fin.get('报告期', ''),
+            '报告日期': fin.get('报告日期', ''),
             '扣非净利润(元)': deduct_profit_str,
             '总股本(股)': total_shares,
-            '扣非每股收益(元)': eps
+            '复合增长率': eps
         })
 
     return result

@@ -34,7 +34,7 @@ async def get_equity_data_to_json(secucode="002371.SZ", indicator_keys=None):
             if val is None:
                 period_data[name] = None
             elif isinstance(val, (int, float)):
-                period_data[name] = int(val * 10000) if key in SHARE_FIELDS else val
+                period_data[name] = int(val) if key in SHARE_FIELDS else val
             else:
                 period_data[name] = str(val).split()[0] if key == 'END_DATE' else str(val)
         result.append(period_data)
@@ -62,7 +62,7 @@ async def get_equity_data_to_markdown(secucode="002371.SZ", indicator_keys=None)
             if val is None:
                 values.append("-")
             elif isinstance(val, (int, float)):
-                values.append(f"{int(val * 10000)}" if key in SHARE_FIELDS else str(val))
+                values.append(f"{int(val)}" if key in SHARE_FIELDS else str(val))
             else:
                 values.append(str(val))
         row += " | ".join(values) + " |\n"
