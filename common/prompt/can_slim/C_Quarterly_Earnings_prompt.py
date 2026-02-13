@@ -4,6 +4,7 @@ from service.eastmoney.forecast.stock_institution_forecast_summary import \
     get_institution_forecast_summary_current_next_year_json, get_institution_forecast_summary_json
 from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json
 import json
+from datetime import datetime
 
 
 async def get_C_Quarterly_Earnings_prompt(secucode, stock_name):
@@ -18,7 +19,7 @@ async def get_C_Quarterly_Earnings_prompt(secucode, stock_name):
 作为拥有 30 年经验的华尔街投资专家，我必须强调：在 CAN SLIM 模型的 C (Current Quarterly Earnings) 维度中，“扣非净利润”只是底线（排雷项），而非进攻信号（买入项）。
 要捕捉到真正的“超级成长股”（Super Growth Stocks），你必须组合观察以下 3 个核心杀手级指标。缺一不可，这就是区别“平庸股”与“大牛股”的分水岭。
 
-#分析的股票
+#分析的股票（{datetime.now().strftime('%Y-%m-%d')}）
 {stock_name}({secucode})
 
 #分析要求：
