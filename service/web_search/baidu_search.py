@@ -10,7 +10,8 @@ def _decode_token(encoded: str) -> str:
     return base64.b64decode(encoded).decode('utf-8')
 
 async def baidu_search(
-    query: str
+    query: str,
+    days: int = 30
 ) -> dict:
     """使用百度千帆 AI Search 进行搜索"""
     url = "https://qianfan.baidubce.com/v2/ai_search/web_search"
@@ -20,7 +21,7 @@ async def baidu_search(
     }
     
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=30)
+    start_date = end_date - timedelta(days=days)
     
     payload = {
         "messages": [{"role": "user", "content": query}],

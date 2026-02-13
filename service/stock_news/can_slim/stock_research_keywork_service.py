@@ -19,8 +19,11 @@ async def research_stock_news(secucode="002371.SZ", stock_name=None):
     # 遍历国内搜索关键词，使用百度搜索
     for item in search_data.get("search_news", []):
         intent = item.get("intent")
-        for keyword in item.get("search_key", []) + item.get("advanced_search_key", []):
-            news = await baidu_search(keyword)
+        time_ranges = item.get("search_key_time_range", [])
+        keywords = item.get("search_key", []) + item.get("advanced_search_key", [])
+        for idx, keyword in enumerate(keywords):
+            days = time_ranges[idx] if idx < len(time_ranges) else 30
+            news = await baidu_search(keyword, days=days)
             results["domestic_news"].append({
                 "intent": intent,
                 "keyword": keyword,
@@ -37,6 +40,32 @@ async def research_stock_news(secucode="002371.SZ", stock_name=None):
                 "keyword": keyword,
                 "results": news
             })
+    
+    # URL去重
+    def deduplicate_by_url(news_list):
+        seen_urls = set()
+        for item in news_list:
+            deduped = []
+            for result in item["results"]:
+                url = result.get("url")
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    deduped.append(result)
+            item["results"] = deduped
+    
+    deduplicate_by_url(results["domestic_news"])
+    deduplicate_by_url(results["global_news"])
+    
+    # 重新分配ID
+    id_counter = 1
+    for item in results["domestic_news"]:
+        for result in item["results"]:
+            result["id"] = id_counter
+            id_counter += 1
+    for item in results["global_news"]:
+        for result in item["results"]:
+            result["id"] = id_counter
+            id_counter += 1
     
     return results
 
