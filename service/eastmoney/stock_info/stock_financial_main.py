@@ -125,7 +125,7 @@ async def get_financial_data_to_markdown(secucode="002371.SZ", indicator_keys=No
 
 
 def _calculate_roe_kcjq(data_list):
-    """计算净资产收益率(扣非/加权)，填补缺失值并生成ROEKCJQ_1字段"""
+    """计算净资产收益率(扣非/加权)，用ROEKCJQ_1覆盖ROEKCJQ"""
     for d in data_list:
         roe_weighted = d.get('ROEJQ')
         koufei = d.get('KCFJCXSYJLR')
@@ -134,12 +134,9 @@ def _calculate_roe_kcjq(data_list):
         # 计算ROEKCJQ_1（新字段）
         if roe_weighted is not None and koufei is not None and guimu is not None and guimu != 0:
             d['ROEKCJQ_1'] = round(roe_weighted * (koufei / guimu), 4)
+            d['ROEKCJQ'] = d['ROEKCJQ_1']  # 用计算值覆盖原值
         else:
             d['ROEKCJQ_1'] = None
-        
-        # 填补ROEKCJQ缺失值
-        if d.get('ROEKCJQ') is None and d['ROEKCJQ_1'] is not None:
-            d['ROEKCJQ'] = d['ROEKCJQ_1']
 
 
 def _calculate_single_quarter_revenue(data_list):

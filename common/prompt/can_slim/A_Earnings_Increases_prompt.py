@@ -111,7 +111,7 @@ async def get_A_Earnings_Increases_prompt(secucode, stock_name):
    {json.dumps(eps_data, ensure_ascii=False)}
 
 2. 过去 3-5 年的年度 ROE（净资产收益率(扣非/加权)）
-   提取指标：净资产收益率(加权)(%) - 取过去三年
+   提取指标：净资产收益率(扣非/加权)(%) - 取过去三年
    作用：衡量资金使用效率。
    分析使用的数据源：
    <净资产收益率(扣非/加权)>
