@@ -3,7 +3,7 @@ import asyncio
 from common.utils.amount_utils import convert_amount_unit
 
 # 最近期数配置
-MAX_RECENT_PERIODS = 12
+MAX_RECENT_PERIODS = 13
 
 # 金额类字段
 AMOUNT_FIELDS = ['TOTALOPERATEREVE', 'PARENTNETPROFIT', 'KCFJCXSYJLR', 'MLR', 'SINGLE_QUARTER_REVENUE']

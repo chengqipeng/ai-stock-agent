@@ -1,14 +1,43 @@
 from datetime import datetime
 import json
-from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json
+from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json, MAX_RECENT_PERIODS
 from common.utils.financial_calculator import calculate_eps_from_deducted_profit
+
+
+def calculate_cagr(eps_compare_data):
+    """通过eps_compare_data计算复合增速(CAGR)
+    使用第1条数据的EPSJB除以3年前EPS得到的值减1
+    返回: (cagr值, 描述信息)
+    """
+    if not eps_compare_data or len(eps_compare_data) < 4:
+        return None, None
+    
+    latest_data = eps_compare_data[0]
+    three_years_ago_data = eps_compare_data[3]
+    
+    latest_eps = latest_data.get('基本每股收益(元)')
+    three_years_ago_eps = three_years_ago_data.get('基本每股收益(元)')
+    
+    if not latest_eps or not three_years_ago_eps or three_years_ago_eps <= 0:
+        return None, None
+    
+    cagr_value = (latest_eps / three_years_ago_eps) - 1
+    
+    latest_date = latest_data.get('报告日期', '')
+    three_years_ago_date = three_years_ago_data.get('报告日期', '')
+    description = f"CAGR为{three_years_ago_date}到{latest_date}的EPS数据，公式：(最新年度EPS/三年前年度EPS) -1，计算值为{cagr:.2%}"
+    
+    return cagr_value, description
 
 
 async def get_A_Earnings_Increases_prompt(secucode, stock_name):
     eps_data = await calculate_eps_from_deducted_profit(secucode)
     roe_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'ROEKCJQ'])
+    eps_compare_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'EPSJB'])
     cash_flow_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'MGJYXJJE'])
     profit_growth_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'KCFJCXSYJLRTZ'])
+    
+    cagr_value, cagr_description = calculate_cagr(eps_compare_data)
     
     return f"""
 在华尔街，我们常说："C 吸引眼球，A 留住资金。"（"C" catches the eye, "A" keeps the money.）如果一家公司只有强劲的季度报表，但缺乏稳健的年度增长记录，那它很可能只是昙花一现的"烟花股"。
@@ -77,7 +106,8 @@ async def get_A_Earnings_Increases_prompt(secucode, stock_name):
 三、 专家级实战判定流程 (The Decision Flow)
 请按照以下步骤对股票进行 A 维度打分：
 步骤 1：计算复合增速 (CAGR)
-   CAGR = (\frac{{\text{{最新年度EPS}}}}{{\text{{3年前EPS}}}})^{{\frac{{1}}{{3}}}} - 1$$
+   CAGR = {cagr_value}
+   备注：{cagr_description}
    合格：CAGR > 25%。
    优秀：CAGR > 50%。
 
@@ -101,3 +131,15 @@ async def get_A_Earnings_Increases_prompt(secucode, stock_name):
 总结一句：
 在 A 维度，我们要找的是**"利润长牛"和"现金奶牛"的结合体。如果一只股票能连续 3 年保持 EPS 30% 以上增长，且 ROE 维持在 20% 以上，这就是机构抱团**最坚实的理由。
 """
+
+
+if __name__ == "__main__":
+    import asyncio
+    
+    async def main():
+        secucode = "002371.SZ"
+        stock_name = "北方华创"
+        result = await get_A_Earnings_Increases_prompt(secucode, stock_name)
+        print(result)
+    
+    asyncio.run(main())
