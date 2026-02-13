@@ -57,9 +57,9 @@ async def get_C_Quarterly_Earnings_prompt(secucode, stock_name):
    分析使用的数据源：
    <基本每股收益>
    {json.dumps(financial_eps, ensure_ascii=False)} \n
-   <构预测数据（每季每股收益、市盈率）>
+   <机构预测数据（每季每股收益、市盈率）>
    {json.dumps(forecast_json, ensure_ascii=False)} \n
-   <构预测数据（财务指标）>
+   <机构预测数据（财务指标）>
    {forecast_summary} \n
    
 """
