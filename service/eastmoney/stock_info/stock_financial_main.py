@@ -7,7 +7,7 @@ from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 MAX_RECENT_PERIODS = 13
 
 # 金额类字段
-AMOUNT_FIELDS = ['TOTALOPERATEREVE', 'PARENTNETPROFIT', 'KCFJCXSYJLR', 'MLR', 'SINGLE_QUARTER_REVENUE', 'SINGLE_QUARTER_KCFJCXSYJLR']
+AMOUNT_FIELDS = ['TOTALOPERATEREVE', 'PARENTNETPROFIT', 'KCFJCXSYJLR', 'MLR', 'SINGLE_QUARTER_REVENUE', 'SINGLE_QUARTER_KCFJCXSYJLR', 'SINGLE_QUARTER_PARENTNETPROFIT']
 
 # 财务指标定义
 FINANCIAL_INDICATORS = [
@@ -23,11 +23,14 @@ FINANCIAL_INDICATORS = [
     ('单季度营业收入(元)', 'SINGLE_QUARTER_REVENUE'),
     ('毛利润(元)', 'MLR'),
     ('归母净利润(元)', 'PARENTNETPROFIT'),
+    ('单季归母净利润(元)', 'SINGLE_QUARTER_PARENTNETPROFIT'),
     ('扣非净利润(元)', 'KCFJCXSYJLR'),
     ('单季扣非净利润(元)', 'SINGLE_QUARTER_KCFJCXSYJLR'),
     ('营业总收入同比增长(%)', 'TOTALOPERATEREVETZ'),
     ('归属净利润同比增长(%)', 'PARENTNETPROFITTZ'),
     ('扣非净利润同比增长(%)', 'KCFJCXSYJLRTZ'),
+    ('单季归母净利润同比增长(%)', 'SINGLE_QUARTER_PARENTNETPROFITTZ'),
+    ('单季扣非净利润同比增长(%)', 'SINGLE_QUARTER_KCFJCXSYJLRTZ'),
     ('营业总收入环比增长(%)', 'YYZSRGDHBZC'),
     ('归属净利润环比增长(%)', 'NETPROFITRPHBZC'),
     ('扣非净利润环比增长(%)', 'KFJLRGDHBZC'),
@@ -64,7 +67,9 @@ async def get_financial_data_to_json(secucode="002371.SZ", indicator_keys=None):
     
     recent_data = data_list[:MAX_RECENT_PERIODS]
     _calculate_single_quarter_revenue(recent_data)
+    _calculate_single_quarter_parentnetprofit(recent_data)
     _calculate_single_quarter_kcfjcxsyjlr(recent_data)
+    _calculate_single_quarter_yoy_growth(recent_data)
     _calculate_epskcjb(recent_data)
     _calculate_roe_kcjq(recent_data)
     indicators = FINANCIAL_INDICATORS if indicator_keys is None else [(n, k) for n, k in FINANCIAL_INDICATORS if k in indicator_keys]
@@ -100,7 +105,9 @@ async def get_financial_data_to_markdown(secucode="002371.SZ", indicator_keys=No
     
     recent_data = data_list[:MAX_RECENT_PERIODS]
     _calculate_single_quarter_revenue(recent_data)
+    _calculate_single_quarter_parentnetprofit(recent_data)
     _calculate_single_quarter_kcfjcxsyjlr(recent_data)
+    _calculate_single_quarter_yoy_growth(recent_data)
     _calculate_epskcjb(recent_data)
     _calculate_roe_kcjq(recent_data)
     
@@ -191,6 +198,39 @@ def _calculate_single_quarter_revenue(data_list):
             d['SINGLE_QUARTER_REVENUE'] = None
 
 
+def _calculate_single_quarter_parentnetprofit(data_list):
+    """计算单季归母净利润"""
+    for i, d in enumerate(data_list):
+        report_date = d.get('REPORT_DATE_NAME', '')
+        parentnetprofit = d.get('PARENTNETPROFIT')
+        
+        if parentnetprofit is None:
+            d['SINGLE_QUARTER_PARENTNETPROFIT'] = None
+            continue
+        
+        year = report_date[:4]
+        
+        if '年报' in report_date:
+            prev_q3 = next((data_list[j].get('PARENTNETPROFIT') for j in range(i+1, len(data_list)) 
+                           if '三季报' in data_list[j].get('REPORT_DATE_NAME', '') and 
+                           data_list[j].get('REPORT_DATE_NAME', '')[:4] == year), None)
+            d['SINGLE_QUARTER_PARENTNETPROFIT'] = parentnetprofit - prev_q3 if prev_q3 is not None else None
+        elif '三季报' in report_date:
+            prev_q2 = next((data_list[j].get('PARENTNETPROFIT') for j in range(i+1, len(data_list)) 
+                           if '中报' in data_list[j].get('REPORT_DATE_NAME', '') and 
+                           data_list[j].get('REPORT_DATE_NAME', '')[:4] == year), None)
+            d['SINGLE_QUARTER_PARENTNETPROFIT'] = parentnetprofit - prev_q2 if prev_q2 is not None else None
+        elif '中报' in report_date:
+            prev_q1 = next((data_list[j].get('PARENTNETPROFIT') for j in range(i+1, len(data_list)) 
+                           if '一季报' in data_list[j].get('REPORT_DATE_NAME', '') and 
+                           data_list[j].get('REPORT_DATE_NAME', '')[:4] == year), None)
+            d['SINGLE_QUARTER_PARENTNETPROFIT'] = parentnetprofit - prev_q1 if prev_q1 is not None else None
+        elif '一季报' in report_date:
+            d['SINGLE_QUARTER_PARENTNETPROFIT'] = parentnetprofit
+        else:
+            d['SINGLE_QUARTER_PARENTNETPROFIT'] = None
+
+
 def _calculate_single_quarter_kcfjcxsyjlr(data_list):
     """计算单季扣非净利润"""
     for i, d in enumerate(data_list):
@@ -222,6 +262,45 @@ def _calculate_single_quarter_kcfjcxsyjlr(data_list):
             d['SINGLE_QUARTER_KCFJCXSYJLR'] = kcfjcxsyjlr
         else:
             d['SINGLE_QUARTER_KCFJCXSYJLR'] = None
+
+
+def _calculate_single_quarter_yoy_growth(data_list):
+    """计算单季度同比增长率"""
+    for i, d in enumerate(data_list):
+        report_date = d.get('REPORT_DATE_NAME', '')
+        sq_parentnetprofit = d.get('SINGLE_QUARTER_PARENTNETPROFIT')
+        sq_kcfjcxsyjlr = d.get('SINGLE_QUARTER_KCFJCXSYJLR')
+        
+        year = report_date[:4]
+        prev_year = str(int(year) - 1)
+        
+        # 查找去年同期数据
+        for j in range(i+1, len(data_list)):
+            prev_report = data_list[j].get('REPORT_DATE_NAME', '')
+            if prev_report[:4] == prev_year and prev_report[4:] == report_date[4:]:
+                # 计算单季归母净利润同比增长
+                if sq_parentnetprofit is not None:
+                    prev_sq_parentnetprofit = data_list[j].get('SINGLE_QUARTER_PARENTNETPROFIT')
+                    if prev_sq_parentnetprofit is not None and prev_sq_parentnetprofit != 0:
+                        d['SINGLE_QUARTER_PARENTNETPROFITTZ'] = round((sq_parentnetprofit - prev_sq_parentnetprofit) / abs(prev_sq_parentnetprofit) * 100, 4)
+                    else:
+                        d['SINGLE_QUARTER_PARENTNETPROFITTZ'] = None
+                else:
+                    d['SINGLE_QUARTER_PARENTNETPROFITTZ'] = None
+                
+                # 计算单季扣非净利润同比增长
+                if sq_kcfjcxsyjlr is not None:
+                    prev_sq_kcfjcxsyjlr = data_list[j].get('SINGLE_QUARTER_KCFJCXSYJLR')
+                    if prev_sq_kcfjcxsyjlr is not None and prev_sq_kcfjcxsyjlr != 0:
+                        d['SINGLE_QUARTER_KCFJCXSYJLRTZ'] = round((sq_kcfjcxsyjlr - prev_sq_kcfjcxsyjlr) / abs(prev_sq_kcfjcxsyjlr) * 100, 4)
+                    else:
+                        d['SINGLE_QUARTER_KCFJCXSYJLRTZ'] = None
+                else:
+                    d['SINGLE_QUARTER_KCFJCXSYJLRTZ'] = None
+                break
+        else:
+            d['SINGLE_QUARTER_PARENTNETPROFITTZ'] = None
+            d['SINGLE_QUARTER_KCFJCXSYJLRTZ'] = None
 
 
 async def get_main_financial_data(secucode="002371.SZ", page_size=200, page_number=1):

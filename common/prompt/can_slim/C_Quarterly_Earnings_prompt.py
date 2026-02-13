@@ -9,7 +9,7 @@ from datetime import datetime
 
 async def get_C_Quarterly_Earnings_prompt(secucode, stock_name):
     financial_revenue = await get_financial_data_to_json(secucode=secucode, indicator_keys=['REPORT_DATE', 'TOTALOPERATEREVETZ', 'SINGLE_QUARTER_REVENUE', 'TOTALOPERATEREVE'])
-    financial_profit = await get_financial_data_to_json(secucode=secucode, indicator_keys=['REPORT_DATE', 'PARENTNETPROFITTZ', 'KCFJCXSYJLRTZ'])
+    financial_profit = await get_financial_data_to_json(secucode=secucode, indicator_keys=['REPORT_DATE', 'SINGLE_QUARTER_PARENTNETPROFITTZ', 'SINGLE_QUARTER_KCFJCXSYJLRTZ'])
     financial_eps = await get_financial_data_to_json(secucode=secucode, indicator_keys=['REPORT_DATE', 'EPSJB'])
     historical_forecast_json = get_institution_forecast_historical_to_json(secucode=secucode)
     future_forecast_json = get_institution_forecast_future_to_json(secucode=secucode)
@@ -48,7 +48,7 @@ async def get_C_Quarterly_Earnings_prompt(secucode, stock_name):
      同业对比：是否处于行业前列？
      当归属净利润同比增长和扣非净利润同比增长不一致时优先使用扣非净利润同比增长
    分析使用的数据源：
-   <归属净利润同比增长(%)、扣非净利润同比增长(%) >
+   <单季度归属净利润同比增长(%)、单季度扣非净利润同比增长(%) >
    {json.dumps(financial_profit, ensure_ascii=False)}
 
 ## 3. 超出市场预期幅度

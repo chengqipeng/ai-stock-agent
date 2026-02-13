@@ -2,7 +2,6 @@ import asyncio
 
 from common.constants.stocks_data import get_stock_code
 from service.can_slim.A_Earnings_Increases_service import execute_A_Earnings_Increases
-from service.can_slim.C_Quarterly_Earnings_service import execute_C_Quarterly_Earnings
 
 if __name__ == "__main__":
     stock_name = "北方华创"
