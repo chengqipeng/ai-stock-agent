@@ -28,7 +28,10 @@ class VolcengineClient:
             "model": model,
             "messages": messages,
             "temperature": temperature,
-            "stream": stream
+            "stream": stream,
+            "thinking": {
+                "type": "disabled"
+            }
         }
         if max_tokens:
             payload["max_tokens"] = max_tokens

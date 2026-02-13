@@ -20,21 +20,27 @@ async def research_stock_news(secucode="002371.SZ", stock_name=None):
     for item in search_data.get("search_news", []):
         intent = item.get("intent")
         time_ranges = item.get("search_key_time_range", [])
-        keywords = item.get("search_key", []) + item.get("advanced_search_key", [])
+        keywords = item.get("search_key", [])
         for idx, keyword in enumerate(keywords):
             days = time_ranges[idx] if idx < len(time_ranges) else 30
             news = await baidu_search(keyword, days=days)
+            for result in news:
+                result["source"] = "domestic"
             results["domestic_news"].append({
                 "intent": intent,
                 "keyword": keyword,
                 "results": news
             })
     
-    # 遍历海外搜索关键词，使用谷歌搜索
+    #遍历海外搜索关键词，使用谷歌搜索
     for item in search_data.get("search_global_news", []):
         intent = item.get("intent")
-        for keyword in item.get("search_key", []) + item.get("advanced_search_key", []):
-            news = await google_search(keyword)
+        time_ranges = item.get("search_key_time_range", [])
+        for idx, keyword in item.get("search_key", []):
+            days = time_ranges[idx] if idx < len(time_ranges) else 30
+            news = await google_search(keyword, days)
+            for result in news:
+                result["source"] = "global"
             results["global_news"].append({
                 "intent": intent,
                 "keyword": keyword,

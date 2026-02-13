@@ -57,7 +57,7 @@ async def get_search_key_prompt(secucode="002371.SZ", stock_name = None):
     {{
       "intent": "创新产品发布及行业壁垒",
       "search_key": ["搜索词1", "搜索词2"],
-      "search_key_time_range": [<搜索数据的时间范围>, <搜索数据的时间范围>]
+      "search_key_time_range": [<搜索数据的时间范围，具体数字，禁止直接返回‘90天’这类格式>, <搜索数据的时间范围>]
     }}
   ],
   "search_global_news": [

@@ -14,20 +14,23 @@ def _decode_key(encoded_key: str) -> str:
 
 async def google_search(
     query: str,
-    num_results: int = 5
+    num_results: int = 5,
+    days = 90
 ) -> List[Dict[str, any]]:
     """使用SerpAPI进行Google搜索，只返回organic_results中的position、title、link、snippet"""
     url = "https://serpapi.com/search.json"
     keys = [_decode_key(SERPAPI_KEY_1), _decode_key(SERPAPI_KEY_2), _decode_key(SERPAPI_KEY_3), _decode_key(SERPAPI_KEY_4), _decode_key(SERPAPI_KEY_5)]
     
-    for i, api_key in enumerate(keys[:2]):  # 只尝试前2个key
+    for i, api_key in enumerate(keys[:5]):  # 只尝试前2个key
         params = {
             "engine": "google",
             "q": query,
             "api_key": api_key,
             "num": num_results,
+            "tbm": "nws",
             "hl": "en",
-            "gl": "us"
+            "gl": "us",
+            "tbs": f"qdr:d{days}"  # 限制搜索时间范围
         }
 
         try:
