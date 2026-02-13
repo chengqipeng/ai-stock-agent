@@ -65,7 +65,10 @@ async def get_financial_data_to_json(secucode="002371.SZ", indicator_keys=None):
     
     result = []
     for d in recent_data:
-        period_data = {"报告期": d.get('REPORT_DATE_NAME', '')}
+        period_data = {
+            "报告期": d.get('REPORT_DATE_NAME', ''),
+            "报告日期": d.get('REPORT_DATE', '')
+        }
         for name, key in indicators:
             val = d.get(key)
             if val is None:
