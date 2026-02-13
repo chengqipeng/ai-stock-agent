@@ -1,7 +1,6 @@
 from datetime import datetime
 import json
 from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json, MAX_RECENT_PERIODS
-from common.utils.financial_calculator import calculate_eps_from_deducted_profit
 
 
 def calculate_cagr(eps_compare_data):
@@ -82,7 +81,8 @@ def calculate_reality_check(raw_data):
 
 
 async def get_A_Earnings_Increases_prompt(secucode, stock_name):
-    eps_data = await calculate_eps_from_deducted_profit(secucode)
+    # eps_data = await calculate_eps_from_deducted_profit(secucode)
+    eps_kc_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'EPSKCJB'])
     roe_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'ROEKCJQ'])
     eps_compare_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'EPSJB'])
     cash_flow_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'MGJYXJJE'])
@@ -106,7 +106,7 @@ async def get_A_Earnings_Increases_prompt(secucode, stock_name):
 1. 过去 3-5 年的年度 EPS（扣非每股收益）
    分析使用的数据源：
    <扣非每股收益>
-   {json.dumps(eps_data, ensure_ascii=False)}
+   {json.dumps(eps_kc_data, ensure_ascii=False)}
 
 2. 过去 3-5 年的年度 ROE（净资产收益率(扣非/加权)）
    提取指标：净资产收益率(扣非/加权)(%) - 取过去三年
