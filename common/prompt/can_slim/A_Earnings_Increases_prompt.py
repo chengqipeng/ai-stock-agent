@@ -104,10 +104,8 @@ async def get_A_Earnings_Increases_prompt(secucode, stock_name):
 一、 核心数据清单 (The "Must-Have" Data)
 在分析 A 维度时，请基于我接下来提供的财报数据，调取以下 4 组关键年度数据，严格按照以下标准进行评估：
 1. 过去 3-5 年的年度 EPS（扣非每股收益）
-   提取指标：扣非净利润(元) / 总股本 - 取过去三年
-   作用：计算复合增长率。
    分析使用的数据源：
-   <扣非净利润(元) / 总股本>
+   <扣非每股收益>
    {json.dumps(eps_data, ensure_ascii=False)}
 
 2. 过去 3-5 年的年度 ROE（净资产收益率(扣非/加权)）
