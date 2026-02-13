@@ -77,7 +77,7 @@ async def get_A_Earnings_Increases_prompt(secucode, stock_name):
 三、 专家级实战判定流程 (The Decision Flow)
 请按照以下步骤对股票进行 A 维度打分：
 步骤 1：计算复合增速 (CAGR)
-  CAGR = (\frac{{\text{{最新年度EPS}}}}{{\text{{3年前EPS}}}})^{{\frac{{1}}{{3}}}} - 1$$
+   CAGR = (\frac{{\text{{最新年度EPS}}}}{{\text{{3年前EPS}}}})^{{\frac{{1}}{{3}}}} - 1$$
    合格：CAGR > 25%。
    优秀：CAGR > 50%。
 
