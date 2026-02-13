@@ -31,6 +31,7 @@ FINANCIAL_INDICATORS = [
     ('扣非净利润环比增长(%)', 'KFJLRGDHBZC'),
     ('净资产收益率(加权)(%)', 'ROEJQ'),
     ('净资产收益率(扣非/加权)(%)', 'ROEKCJQ'),
+    ('净资产收益率_1(扣非/加权)(%)', 'ROEKCJQ_1'),
     ('总资产收益率(加权)(%)', 'ZZCJLL'),
     ('毛利率(%)', 'XSMLL'),
     ('净利率(%)', 'XSJLL'),
@@ -61,6 +62,7 @@ async def get_financial_data_to_json(secucode="002371.SZ", indicator_keys=None):
     
     recent_data = data_list[:MAX_RECENT_PERIODS]
     _calculate_single_quarter_revenue(recent_data)
+    _calculate_roe_kcjq(recent_data)
     indicators = FINANCIAL_INDICATORS if indicator_keys is None else [(n, k) for n, k in FINANCIAL_INDICATORS if k in indicator_keys]
     
     result = []
@@ -94,6 +96,7 @@ async def get_financial_data_to_markdown(secucode="002371.SZ", indicator_keys=No
     
     recent_data = data_list[:MAX_RECENT_PERIODS]
     _calculate_single_quarter_revenue(recent_data)
+    _calculate_roe_kcjq(recent_data)
     
     md = "## 主要财务指标\n\n"
     md += "| 指标 | " + " | ".join([d.get('REPORT_DATE_NAME', '') for d in recent_data]) + " |\n"
@@ -119,6 +122,24 @@ async def get_financial_data_to_markdown(secucode="002371.SZ", indicator_keys=No
         md += row
     
     return md
+
+
+def _calculate_roe_kcjq(data_list):
+    """计算净资产收益率(扣非/加权)，填补缺失值并生成ROEKCJQ_1字段"""
+    for d in data_list:
+        roe_weighted = d.get('ROEJQ')
+        koufei = d.get('KCFJCXSYJLR')
+        guimu = d.get('PARENTNETPROFIT')
+        
+        # 计算ROEKCJQ_1（新字段）
+        if roe_weighted is not None and koufei is not None and guimu is not None and guimu != 0:
+            d['ROEKCJQ_1'] = round(roe_weighted * (koufei / guimu), 4)
+        else:
+            d['ROEKCJQ_1'] = None
+        
+        # 填补ROEKCJQ缺失值
+        if d.get('ROEKCJQ') is None and d['ROEKCJQ_1'] is not None:
+            d['ROEKCJQ'] = d['ROEKCJQ_1']
 
 
 def _calculate_single_quarter_revenue(data_list):
