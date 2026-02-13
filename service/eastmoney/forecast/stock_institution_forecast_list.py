@@ -121,9 +121,9 @@ def _process_forecast_data(data: dict, year_filter=None) -> list:
     return forecasts
 
 
-def get_institution_forecast_historical_to_json(secucode: str) -> list:
+async def get_institution_forecast_historical_to_json(secucode: str) -> list:
     """将机构预测数据转换为JSON格式（只显示历年预测，小于当年）"""
-    data = asyncio.run(get_institution_forecast(secucode))
+    data = await get_institution_forecast(secucode)
     if not data.get('success') or not data.get('result', {}).get('data'):
         return []
     
@@ -149,9 +149,9 @@ def get_institution_forecast_historical_to_json(secucode: str) -> list:
     return forecasts
 
 
-def get_institution_forecast_future_to_json(secucode: str) -> list:
+async def get_institution_forecast_future_to_json(secucode: str) -> list:
     """将机构预测数据转换为JSON格式（只显示未来预测，大于等于当年）"""
-    data = asyncio.run(get_institution_forecast(secucode))
+    data = await get_institution_forecast(secucode)
     if not data.get('success') or not data.get('result', {}).get('data'):
         return []
     
@@ -177,9 +177,9 @@ def get_institution_forecast_future_to_json(secucode: str) -> list:
     return forecasts
 
 
-def get_institution_forecast_to_markdown(secucode: str) -> str:
+async def get_institution_forecast_to_markdown(secucode: str) -> str:
     """将机构预测数据转换为Markdown格式（显示所有年份）"""
-    data = asyncio.run(get_institution_forecast(secucode))
+    data = await get_institution_forecast(secucode)
     if not data.get('success') or not data.get('result', {}).get('data'):
         return "# 无数据\n"
     
@@ -207,17 +207,17 @@ def get_institution_forecast_to_markdown(secucode: str) -> str:
     return md
 
 
-def get_institution_forecast_current_next_year_to_json(secucode: str) -> list:
+async def get_institution_forecast_current_next_year_to_json(secucode: str) -> list:
     """将机构预测数据转换为JSON格式（只显示当前年和未来一年）"""
-    data = asyncio.run(get_institution_forecast(secucode))
+    data = await get_institution_forecast(secucode)
     current_year = datetime.now().year
     next_year = current_year + 1
     return _process_forecast_data(data, year_filter=[current_year, next_year])
 
 
-def get_institution_forecast_current_next_year_to_markdown(secucode: str) -> str:
+async def get_institution_forecast_current_next_year_to_markdown(secucode: str) -> str:
     """将机构预测数据转换为Markdown格式（只显示当前年和未来一年）"""
-    data = asyncio.run(get_institution_forecast(secucode))
+    data = await get_institution_forecast(secucode)
     if not data.get('success') or not data.get('result', {}).get('data'):
         return "# 无数据\n"
     
@@ -245,25 +245,28 @@ def get_institution_forecast_current_next_year_to_markdown(secucode: str) -> str
 if __name__ == "__main__":
     import json
     
-    secucode = "002371.SZ"
-    print(f"正在获取 {secucode} 的机构预测数据...\n")
+    async def main():
+        secucode = "002371.SZ"
+        print(f"正在获取 {secucode} 的机构预测数据...\n")
+        
+        print("=== 显示所有年份数据（Markdown） ===")
+        markdown = await get_institution_forecast_to_markdown(secucode)
+        print(markdown)
+        
+        print("\n=== 显示历年预测数据（JSON） ===")
+        json_historical = await get_institution_forecast_historical_to_json(secucode)
+        print(json.dumps(json_historical, ensure_ascii=False, indent=2))
+        
+        print("\n=== 显示未来预测数据（JSON） ===")
+        json_future = await get_institution_forecast_future_to_json(secucode)
+        print(json.dumps(json_future, ensure_ascii=False, indent=2))
+        
+        print("\n=== 只显示当前年和未来一年数据（Markdown） ===")
+        markdown_filtered = await get_institution_forecast_current_next_year_to_markdown(secucode)
+        print(markdown_filtered)
+        
+        print("\n=== 只显示当前年和未来一年数据（JSON） ===")
+        json_filtered = await get_institution_forecast_current_next_year_to_json(secucode)
+        print(json.dumps(json_filtered, ensure_ascii=False, indent=2))
     
-    print("=== 显示所有年份数据（Markdown） ===")
-    markdown = get_institution_forecast_to_markdown(secucode)
-    print(markdown)
-    
-    print("\n=== 显示历年预测数据（JSON） ===")
-    json_historical = get_institution_forecast_historical_to_json(secucode)
-    print(json.dumps(json_historical, ensure_ascii=False, indent=2))
-    
-    print("\n=== 显示未来预测数据（JSON） ===")
-    json_future = get_institution_forecast_future_to_json(secucode)
-    print(json.dumps(json_future, ensure_ascii=False, indent=2))
-    
-    print("\n=== 只显示当前年和未来一年数据（Markdown） ===")
-    markdown_filtered = get_institution_forecast_current_next_year_to_markdown(secucode)
-    print(markdown_filtered)
-    
-    print("\n=== 只显示当前年和未来一年数据（JSON） ===")
-    json_filtered = get_institution_forecast_current_next_year_to_json(secucode)
-    print(json.dumps(json_filtered, ensure_ascii=False, indent=2))
+    asyncio.run(main())
