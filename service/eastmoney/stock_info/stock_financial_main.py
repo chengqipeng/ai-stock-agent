@@ -64,6 +64,7 @@ async def get_financial_data_to_json(secucode="002371.SZ", indicator_keys=None):
     recent_data = data_list[:MAX_RECENT_PERIODS]
     _calculate_single_quarter_revenue(recent_data)
     _calculate_single_quarter_kcfjcxsyjlr(recent_data)
+    _calculate_epskcjb(recent_data)
     _calculate_roe_kcjq(recent_data)
     indicators = FINANCIAL_INDICATORS if indicator_keys is None else [(n, k) for n, k in FINANCIAL_INDICATORS if k in indicator_keys]
     
@@ -99,6 +100,7 @@ async def get_financial_data_to_markdown(secucode="002371.SZ", indicator_keys=No
     recent_data = data_list[:MAX_RECENT_PERIODS]
     _calculate_single_quarter_revenue(recent_data)
     _calculate_single_quarter_kcfjcxsyjlr(recent_data)
+    _calculate_epskcjb(recent_data)
     _calculate_roe_kcjq(recent_data)
     
     md = "## 主要财务指标\n\n"
@@ -125,6 +127,19 @@ async def get_financial_data_to_markdown(secucode="002371.SZ", indicator_keys=No
         md += row
     
     return md
+
+
+def _calculate_epskcjb(data_list):
+    """计算扣非每股收益"""
+    for d in data_list:
+        basic_eps = d.get('EPSJB')
+        net_profit = d.get('PARENTNETPROFIT')
+        deducted_profit = d.get('KCFJCXSYJLR')
+        
+        if basic_eps is not None and net_profit is not None and deducted_profit is not None and net_profit != 0:
+            calculated_epskcjb = round(basic_eps * (deducted_profit / net_profit), 4)
+            if d.get('EPSKCJB') is None:
+                d['EPSKCJB'] = calculated_epskcjb
 
 
 def _calculate_roe_kcjq(data_list):
