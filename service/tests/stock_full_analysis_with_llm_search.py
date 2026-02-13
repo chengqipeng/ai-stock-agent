@@ -1,12 +1,11 @@
 import asyncio
-import os
 from datetime import datetime
 from service.eastmoney.stock_structure_markdown import get_stock_markdown_with_llm_result
 from service.eastmoney.stock_technical_markdown import get_technical_indicators_for_llm_analysis_prompt
-from service.stock_news_result.stock_news_markdown import process_stock_news
 from common.prompt.stock_final_prompt import get_final_prompt
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.gemini_client import GeminiClient
+from service.stock_news.stock_news_markdown import process_stock_news
 
 
 async def stock_full_analysis(secid: str, stock_name: str, progress_callback=None, llm_type: str = "deepseek"):
