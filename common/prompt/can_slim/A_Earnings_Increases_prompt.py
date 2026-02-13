@@ -25,9 +25,60 @@ def calculate_cagr(eps_compare_data):
     
     latest_date = latest_data.get('报告日期', '')
     three_years_ago_date = three_years_ago_data.get('报告日期', '')
-    description = f"CAGR为{three_years_ago_date}到{latest_date}的EPS数据，公式：(最新年度EPS/三年前年度EPS) -1，计算值为{cagr:.2%}"
+    description = f"CAGR为{three_years_ago_date}到{latest_date}的EPS数据，公式：(最新年度EPS/三年前年度EPS) -1，计算值为{cagr_value:.2%}"
     
     return cagr_value, description
+
+
+def calculate_reality_check(raw_data):
+    """计算现金流验证数据：每股经营现金流/每股收益
+    每年只取年度（四季度）数据，如果没有四季度则取最近一季度的数据
+    返回: 处理后的数据列表
+    """
+    if not raw_data:
+        return []
+    
+    yearly_data = {}
+    for item in raw_data:
+        report_period = item.get('报告期', '')
+        report_date = item.get('报告日期', '')
+        mgjyxjje = item.get('每股经营现金流(元)')
+        epsjb = item.get('基本每股收益(元)')
+        
+        if not report_period or not report_date:
+            continue
+        
+        year = report_period[:4]
+        
+        # 判断是否为年报或四季度
+        is_annual = '年报' in report_period or '12-31' in report_date
+        
+        if year not in yearly_data:
+            yearly_data[year] = {'data': item, 'is_annual': is_annual}
+        elif is_annual and not yearly_data[year]['is_annual']:
+            # 如果找到年报，替换非年报数据
+            yearly_data[year] = {'data': item, 'is_annual': is_annual}
+    
+    # 计算比率并构建结果
+    result = []
+    for year in sorted(yearly_data.keys(), reverse=True):
+        item = yearly_data[year]['data']
+        mgjyxjje = item.get('每股经营现金流(元)')
+        epsjb = item.get('基本每股收益(元)')
+        
+        ratio = None
+        if mgjyxjje is not None and epsjb is not None and epsjb != 0:
+            ratio = round(mgjyxjje / epsjb, 4)
+        
+        result.append({
+            '报告期': item.get('报告期', ''),
+            '报告日期': item.get('报告日期', ''),
+            '每股经营现金流(元)': mgjyxjje,
+            '基本每股收益(元)': epsjb,
+            '现金流/收益比': ratio
+        })
+    
+    return result
 
 
 async def get_A_Earnings_Increases_prompt(secucode, stock_name):
@@ -36,8 +87,12 @@ async def get_A_Earnings_Increases_prompt(secucode, stock_name):
     eps_compare_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'EPSJB'])
     cash_flow_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'MGJYXJJE'])
     profit_growth_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'KCFJCXSYJLRTZ'])
+    raw_reality_check_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'MGJYXJJE', 'EPSJB'])
+    the_reality_check_data = calculate_reality_check(raw_reality_check_data)
     
     cagr_value, cagr_description = calculate_cagr(eps_compare_data)
+
+
     
     return f"""
 在华尔街，我们常说："C 吸引眼球，A 留住资金。"（"C" catches the eye, "A" keeps the money.）如果一家公司只有强劲的季度报表，但缺乏稳健的年度增长记录，那它很可能只是昙花一现的"烟花股"。
@@ -105,11 +160,12 @@ async def get_A_Earnings_Increases_prompt(secucode, stock_name):
 
 三、 专家级实战判定流程 (The Decision Flow)
 请按照以下步骤对股票进行 A 维度打分：
-步骤 1：计算复合增速 (CAGR)
-   CAGR = {cagr_value}
-   备注：{cagr_description}
+步骤 1：计算复合增速 (CAGR，使用最近三年数据)
+   CAGR公式： = 第1条数据的EPSJB除以3年前EPS得到的值减1
    合格：CAGR > 25%。
    优秀：CAGR > 50%。
+   CAGR = {cagr_value}
+   CAGR数据逻辑：{cagr_description}
 
 步骤 2：检查 ROE 质量
   查看最新年报 ROE。
@@ -117,9 +173,12 @@ async def get_A_Earnings_Increases_prompt(secucode, stock_name):
   加分项：ROE 逐年提升（例如：15% -> 18% -> 22%）。
 
 步骤 3：现金流验证 (The Reality Check)
-  公式：$\frac{{\text{{每股经营现金流}}}}{{\text{{每股收益 EPS}}$
+  公式：每股经营现金流/每股收益 EPS
   安全区：> 1.0 （说明利润全部变成了现金）。
   警戒区：< 0.8 （需要检查应收账款是否暴增）。
+  分析使用的数据源（最近三年）：
+  <现金流/收益比>
+  {json.dumps(the_reality_check_data, ensure_ascii=False)}
 
 四、 针对 A 股半导体（如北方华创）的修正视角
 作为专家，在应用 CAN SLIM 分析中国硬科技股时，我会对 A 维度 做微调：
