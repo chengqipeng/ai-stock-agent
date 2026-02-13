@@ -24,7 +24,7 @@ def calculate_cagr(eps_compare_data):
     
     latest_date = latest_data.get('报告日期', '')
     three_years_ago_date = three_years_ago_data.get('报告日期', '')
-    description = f"CAGR为{three_years_ago_date}到{latest_date}的EPS数据，公式：(最新年度EPS/三年前年度EPS) -1，计算值为{cagr_value:.4%}"
+    description = f"CAGR为{three_years_ago_date}到{latest_date}的EPS数据，公式：(最新年度EPS/三年前年度EPS)^(1/3) - 1，计算值为{cagr_value:.4%}"
     
     return cagr_value, description
 
