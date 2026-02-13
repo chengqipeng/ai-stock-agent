@@ -1,8 +1,10 @@
 import requests
+import asyncio
 from datetime import datetime
+from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 
 
-def get_institution_forecast(secucode: str) -> dict:
+async def get_institution_forecast(secucode: str) -> dict:
     """
     获取机构预测数据（每季每股收益、市盈率）
     
@@ -12,6 +14,15 @@ def get_institution_forecast(secucode: str) -> dict:
     Returns:
         dict: 机构预测数据
     """
+    stock_code = secucode.split('.')[0]
+    cache_path = get_cache_path("forecast_list", stock_code)
+    
+    # 检查缓存
+    cached_data = load_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
+    # 获取数据
     url = "https://datacenter.eastmoney.com/securities/api/data/v1/get"
     
     params = {
@@ -47,8 +58,12 @@ def get_institution_forecast(secucode: str) -> dict:
     
     response = requests.get(url, params=params, headers=headers)
     response.raise_for_status()
+    result = response.json()
     
-    return response.json()
+    # 保存缓存
+    save_cache(cache_path, result)
+    
+    return result
 
 
 def _format_value(value, decimal_places: int = 2) -> str:
@@ -108,7 +123,7 @@ def _process_forecast_data(data: dict, year_filter=None) -> list:
 
 def get_institution_forecast_historical_to_json(secucode: str) -> list:
     """将机构预测数据转换为JSON格式（只显示历年预测，小于当年）"""
-    data = get_institution_forecast(secucode)
+    data = asyncio.run(get_institution_forecast(secucode))
     if not data.get('success') or not data.get('result', {}).get('data'):
         return []
     
@@ -136,7 +151,7 @@ def get_institution_forecast_historical_to_json(secucode: str) -> list:
 
 def get_institution_forecast_future_to_json(secucode: str) -> list:
     """将机构预测数据转换为JSON格式（只显示未来预测，大于等于当年）"""
-    data = get_institution_forecast(secucode)
+    data = asyncio.run(get_institution_forecast(secucode))
     if not data.get('success') or not data.get('result', {}).get('data'):
         return []
     
@@ -164,7 +179,7 @@ def get_institution_forecast_future_to_json(secucode: str) -> list:
 
 def get_institution_forecast_to_markdown(secucode: str) -> str:
     """将机构预测数据转换为Markdown格式（显示所有年份）"""
-    data = get_institution_forecast(secucode)
+    data = asyncio.run(get_institution_forecast(secucode))
     if not data.get('success') or not data.get('result', {}).get('data'):
         return "# 无数据\n"
     
@@ -194,7 +209,7 @@ def get_institution_forecast_to_markdown(secucode: str) -> str:
 
 def get_institution_forecast_current_next_year_to_json(secucode: str) -> list:
     """将机构预测数据转换为JSON格式（只显示当前年和未来一年）"""
-    data = get_institution_forecast(secucode)
+    data = asyncio.run(get_institution_forecast(secucode))
     current_year = datetime.now().year
     next_year = current_year + 1
     return _process_forecast_data(data, year_filter=[current_year, next_year])
@@ -202,7 +217,7 @@ def get_institution_forecast_current_next_year_to_json(secucode: str) -> list:
 
 def get_institution_forecast_current_next_year_to_markdown(secucode: str) -> str:
     """将机构预测数据转换为Markdown格式（只显示当前年和未来一年）"""
-    data = get_institution_forecast(secucode)
+    data = asyncio.run(get_institution_forecast(secucode))
     if not data.get('success') or not data.get('result', {}).get('data'):
         return "# 无数据\n"
     

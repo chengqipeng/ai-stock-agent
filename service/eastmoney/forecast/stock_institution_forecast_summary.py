@@ -1,5 +1,7 @@
 import requests
+import asyncio
 from typing import Dict, List, Tuple
+from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 
 
 # 指标配置：(字段名, 计数字段名, 显示名称, 格式化函数)
@@ -14,8 +16,17 @@ METRICS_CONFIG = [
 ]
 
 
-def get_institution_forecast_summary(secucode: str) -> dict:
+async def get_institution_forecast_summary(secucode: str) -> dict:
     """获取机构预测统计汇总数据"""
+    stock_code = secucode.split('.')[0]
+    cache_path = get_cache_path("forecast_summary", stock_code)
+    
+    # 检查缓存
+    cached_data = load_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
+    # 获取数据
     url = "https://datacenter.eastmoney.com/securities/api/data/v1/get"
     params = {
         "reportName": "RPT_HSF10_RESPREDICT_COUNTSTATISTICS",
@@ -48,7 +59,12 @@ def get_institution_forecast_summary(secucode: str) -> dict:
     }
     response = requests.get(url, params=params, headers=headers)
     response.raise_for_status()
-    return response.json()
+    result = response.json()
+    
+    # 保存缓存
+    save_cache(cache_path, result)
+    
+    return result
 
 
 def _parse_raw_data(data: dict, limit_years: int = None, current_and_next_only: bool = False) -> Tuple[str, str, Dict[str, dict], List[str]]:
@@ -122,7 +138,7 @@ def get_institution_forecast_summary_historical_json(secucode: str) -> list:
     from datetime import datetime
     current_year = datetime.now().year
     
-    data = get_institution_forecast_summary(secucode)
+    data = asyncio.run(get_institution_forecast_summary(secucode))
     stock_name, stock_code, year_data, years = _parse_raw_data(data)
     historical_years = [y for y in years if y < current_year]
     return _build_json_result(stock_name, stock_code, year_data, historical_years) if historical_years else []
@@ -133,7 +149,7 @@ def get_institution_forecast_summary_future_json(secucode: str) -> list:
     from datetime import datetime
     current_year = datetime.now().year
     
-    data = get_institution_forecast_summary(secucode)
+    data = asyncio.run(get_institution_forecast_summary(secucode))
     stock_name, stock_code, year_data, years = _parse_raw_data(data)
     future_years = [y for y in years if y >= current_year]
     return _build_json_result(stock_name, stock_code, year_data, future_years) if future_years else []
@@ -141,21 +157,21 @@ def get_institution_forecast_summary_future_json(secucode: str) -> list:
 
 def get_institution_forecast_summary_current_next_year_json(secucode: str) -> list:
     """获取机构预测统计汇总数据并转换为JSON格式（仅今年和未来一年）"""
-    data = get_institution_forecast_summary(secucode)
+    data = asyncio.run(get_institution_forecast_summary(secucode))
     stock_name, stock_code, year_data, years = _parse_raw_data(data, current_and_next_only=True)
     return _build_json_result(stock_name, stock_code, year_data, years) if years else []
 
 
 def get_institution_forecast_summary_markdown(secucode: str) -> str:
     """获取机构预测统计汇总数据并转换为Markdown格式"""
-    data = get_institution_forecast_summary(secucode)
+    data = asyncio.run(get_institution_forecast_summary(secucode))
     stock_name, stock_code, year_data, years = _parse_raw_data(data)
     return _build_markdown_result(stock_name, stock_code, year_data, years) if years else "# 无数据\n"
 
 
 def get_institution_forecast_summary_current_next_year_markdown(secucode: str) -> str:
     """获取机构预测统计汇总数据并转换为Markdown格式（仅今年和未来一年）"""
-    data = get_institution_forecast_summary(secucode)
+    data = asyncio.run(get_institution_forecast_summary(secucode))
     stock_name, stock_code, year_data, years = _parse_raw_data(data, current_and_next_only=True)
     return _build_markdown_result(stock_name, stock_code, year_data, years) if years else "# 无数据\n"
 

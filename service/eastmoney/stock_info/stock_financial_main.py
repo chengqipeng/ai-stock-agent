@@ -1,6 +1,7 @@
 import aiohttp
 import asyncio
 from common.utils.amount_utils import convert_amount_unit
+from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 
 # 最近期数配置
 MAX_RECENT_PERIODS = 13
@@ -225,6 +226,15 @@ def _calculate_single_quarter_kcfjcxsyjlr(data_list):
 
 async def get_main_financial_data(secucode="002371.SZ", page_size=200, page_number=1):
     """获取主要财务指标数据"""
+    stock_code = secucode.split('.')[0]
+    cache_path = get_cache_path("financial_main", stock_code)
+    
+    # 检查缓存
+    cached_data = load_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
+    # 获取数据
     url = "https://datacenter.eastmoney.com/securities/api/data/get"
     
     params = {
@@ -253,7 +263,10 @@ async def get_main_financial_data(secucode="002371.SZ", page_size=200, page_numb
         async with session.get(url, params=params, headers=headers) as response:
             data = await response.json(content_type=None)
             if data.get("result") and data["result"].get("data"):
-                return data["result"]["data"]
+                result = data["result"]["data"]
+                # 保存缓存
+                save_cache(cache_path, result)
+                return result
             else:
                 raise Exception(f"未获取到证券代码 {secucode} 的主要财务指标数据")
 
