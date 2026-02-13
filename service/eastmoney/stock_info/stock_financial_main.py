@@ -6,7 +6,7 @@ from common.utils.amount_utils import convert_amount_unit
 MAX_RECENT_PERIODS = 12
 
 # 金额类字段
-AMOUNT_FIELDS = ['TOTALOPERATEREVE', 'PARENTNETPROFIT', 'KCFJCXSYJLR', 'MLR']
+AMOUNT_FIELDS = ['TOTALOPERATEREVE', 'PARENTNETPROFIT', 'KCFJCXSYJLR', 'MLR', 'SINGLE_QUARTER_REVENUE']
 
 # 财务指标定义
 FINANCIAL_INDICATORS = [
@@ -18,6 +18,7 @@ FINANCIAL_INDICATORS = [
     ('每股未分配利润(元)', 'MGWFPLR'),
     ('每股经营现金流(元)', 'MGJYXJJE'),
     ('营业总收入(元)', 'TOTALOPERATEREVE'),
+    ('单季度营业收入(元)', 'SINGLE_QUARTER_REVENUE'),
     ('毛利润(元)', 'MLR'),
     ('归母净利润(元)', 'PARENTNETPROFIT'),
     ('扣非净利润(元)', 'KCFJCXSYJLR'),
@@ -58,6 +59,7 @@ async def get_financial_data_to_json(secucode="002371.SZ", indicator_keys=None):
         return []
     
     recent_data = data_list[:MAX_RECENT_PERIODS]
+    _calculate_single_quarter_revenue(recent_data)
     indicators = FINANCIAL_INDICATORS if indicator_keys is None else [(n, k) for n, k in FINANCIAL_INDICATORS if k in indicator_keys]
     
     result = []
@@ -86,6 +88,7 @@ async def get_financial_data_to_markdown(secucode="002371.SZ", indicator_keys=No
         return "暂无财务数据"
     
     recent_data = data_list[:MAX_RECENT_PERIODS]
+    _calculate_single_quarter_revenue(recent_data)
     
     md = "## 主要财务指标\n\n"
     md += "| 指标 | " + " | ".join([d.get('REPORT_DATE_NAME', '') for d in recent_data]) + " |\n"
@@ -111,6 +114,39 @@ async def get_financial_data_to_markdown(secucode="002371.SZ", indicator_keys=No
         md += row
     
     return md
+
+
+def _calculate_single_quarter_revenue(data_list):
+    """计算单季度营业收入"""
+    for i, d in enumerate(data_list):
+        report_date = d.get('REPORT_DATE_NAME', '')
+        total_revenue = d.get('TOTALOPERATEREVE')
+        
+        if total_revenue is None:
+            d['SINGLE_QUARTER_REVENUE'] = None
+            continue
+        
+        year = report_date[:4]
+        
+        if '年报' in report_date:
+            prev_q3 = next((data_list[j].get('TOTALOPERATEREVE') for j in range(i+1, len(data_list)) 
+                           if '三季报' in data_list[j].get('REPORT_DATE_NAME', '') and 
+                           data_list[j].get('REPORT_DATE_NAME', '')[:4] == year), None)
+            d['SINGLE_QUARTER_REVENUE'] = total_revenue - prev_q3 if prev_q3 is not None else None
+        elif '三季报' in report_date:
+            prev_q2 = next((data_list[j].get('TOTALOPERATEREVE') for j in range(i+1, len(data_list)) 
+                           if '中报' in data_list[j].get('REPORT_DATE_NAME', '') and 
+                           data_list[j].get('REPORT_DATE_NAME', '')[:4] == year), None)
+            d['SINGLE_QUARTER_REVENUE'] = total_revenue - prev_q2 if prev_q2 is not None else None
+        elif '中报' in report_date:
+            prev_q1 = next((data_list[j].get('TOTALOPERATEREVE') for j in range(i+1, len(data_list)) 
+                           if '一季报' in data_list[j].get('REPORT_DATE_NAME', '') and 
+                           data_list[j].get('REPORT_DATE_NAME', '')[:4] == year), None)
+            d['SINGLE_QUARTER_REVENUE'] = total_revenue - prev_q1 if prev_q1 is not None else None
+        elif '一季报' in report_date:
+            d['SINGLE_QUARTER_REVENUE'] = total_revenue
+        else:
+            d['SINGLE_QUARTER_REVENUE'] = None
 
 
 async def get_main_financial_data(secucode="002371.SZ", page_size=200, page_number=1):
