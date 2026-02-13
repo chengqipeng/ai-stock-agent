@@ -29,6 +29,4 @@ async def execute_C_Quarterly_Earnings(secucode: str, stock_name: str, deep_thin
     ):
         result += content
 
-    print(result)
-    
     return result

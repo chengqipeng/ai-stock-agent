@@ -29,6 +29,4 @@ async def execute_A_Earnings_Increases(secucode: str, stock_name: str, deep_thin
     ):
         result += content
 
-    print(result)
-    
     return result
