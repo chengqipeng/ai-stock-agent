@@ -10,7 +10,7 @@ from datetime import datetime
 async def get_C_Quarterly_Earnings_prompt(secucode, stock_name):
     financial_revenue = await get_financial_data_to_json(secucode=secucode, indicator_keys=['TOTALOPERATEREVETZ', 'SINGLE_QUARTER_REVENUE', 'TOTALOPERATEREVE'])
     financial_profit = await get_financial_data_to_json(secucode=secucode, indicator_keys=['PARENTNETPROFITTZ', 'KCFJCXSYJLRTZ'])
-    financial_eps = await get_financial_data_to_json(secucode=secucode, indicator_keys=['EPSJB'])
+    financial_eps = await get_financial_data_to_json(secucode=secucode, indicator_keys=['REPORT_DATE', 'EPSJB'])
     historical_forecast_json = get_institution_forecast_historical_to_json(secucode=secucode)
     future_forecast_json = get_institution_forecast_future_to_json(secucode=secucode)
     historical_forecast_summary = get_institution_forecast_summary_historical_json(secucode=secucode)

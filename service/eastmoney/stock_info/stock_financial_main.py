@@ -10,6 +10,7 @@ AMOUNT_FIELDS = ['TOTALOPERATEREVE', 'PARENTNETPROFIT', 'KCFJCXSYJLR', 'MLR', 'S
 
 # 财务指标定义
 FINANCIAL_INDICATORS = [
+    ('报告日期', 'REPORT_DATE'),
     ('基本每股收益(元)', 'EPSJB'),
     ('扣非每股收益(元)', 'EPSKCJB'),
     ('稀释每股收益(元)', 'EPSXS'),
@@ -75,7 +76,8 @@ async def get_financial_data_to_json(secucode="002371.SZ", indicator_keys=None):
                 else:
                     period_data[name] = round(val, 4)
             else:
-                period_data[name] = str(val)
+                val_str = str(val)
+                period_data[name] = val_str[:10] if val_str else None
         result.append(period_data)
     
     return result

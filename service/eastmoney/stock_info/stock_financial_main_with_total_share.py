@@ -8,12 +8,12 @@ SHARE_FIELDS = ['TOTAL_SHARES', 'LIMITED_SHARES', 'UNLIMITED_SHARES', 'LISTED_A_
 
 EQUITY_INDICATORS = [
     ('变动日期', 'END_DATE'),
-    ('总股本(万股)', 'TOTAL_SHARES'),
-    ('流通受限股份(万股)', 'LIMITED_SHARES'),
-    ('已流通股份(万股)', 'UNLIMITED_SHARES'),
-    ('已上市流通A股(万股)', 'LISTED_A_SHARES'),
-    ('流通股(万股)', 'FREE_SHARES'),
-    ('限售A股(万股)', 'LIMITED_A_SHARES'),
+    ('总股本(股)', 'TOTAL_SHARES'),
+    ('流通受限股份(股)', 'LIMITED_SHARES'),
+    ('已流通股份(股)', 'UNLIMITED_SHARES'),
+    ('已上市流通A股(股)', 'LISTED_A_SHARES'),
+    ('流通股(股)', 'FREE_SHARES'),
+    ('限售A股(股)', 'LIMITED_A_SHARES'),
     ('变动原因', 'CHANGE_REASON'),
 ]
 
@@ -34,9 +34,9 @@ async def get_equity_data_to_json(secucode="002371.SZ", indicator_keys=None):
             if val is None:
                 period_data[name] = None
             elif isinstance(val, (int, float)):
-                period_data[name] = round(val / 10000, 2) if key in SHARE_FIELDS else val
+                period_data[name] = int(val * 10000) if key in SHARE_FIELDS else val
             else:
-                period_data[name] = str(val)
+                period_data[name] = str(val).split()[0] if key == 'END_DATE' else str(val)
         result.append(period_data)
     
     return result
@@ -49,7 +49,7 @@ async def get_equity_data_to_markdown(secucode="002371.SZ", indicator_keys=None)
         return "暂无股本结构数据"
     
     md = "## 股本结构变动\n\n"
-    md += "| 指标 | " + " | ".join([d.get('END_DATE', '') for d in data_list]) + " |\n"
+    md += "| 指标 | " + " | ".join([d.get('END_DATE', '').split()[0] for d in data_list]) + " |\n"
     md += "|" + "---|" * (len(data_list) + 1) + "\n"
     
     indicators = EQUITY_INDICATORS if indicator_keys is None else [(n, k) for n, k in EQUITY_INDICATORS if k in indicator_keys]
@@ -62,7 +62,7 @@ async def get_equity_data_to_markdown(secucode="002371.SZ", indicator_keys=None)
             if val is None:
                 values.append("-")
             elif isinstance(val, (int, float)):
-                values.append(f"{val / 10000:.2f}" if key in SHARE_FIELDS else str(val))
+                values.append(f"{int(val * 10000)}" if key in SHARE_FIELDS else str(val))
             else:
                 values.append(str(val))
         row += " | ".join(values) + " |\n"
