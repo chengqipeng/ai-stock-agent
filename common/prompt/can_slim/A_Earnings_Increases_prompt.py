@@ -20,11 +20,11 @@ def calculate_cagr(eps_compare_data):
     if not latest_eps or not three_years_ago_eps or three_years_ago_eps <= 0:
         return None, None
     
-    cagr_value = (latest_eps / three_years_ago_eps) - 1
+    cagr_value = round((latest_eps / three_years_ago_eps) ** (1/3) - 1, 4)
     
     latest_date = latest_data.get('报告日期', '')
     three_years_ago_date = three_years_ago_data.get('报告日期', '')
-    description = f"CAGR为{three_years_ago_date}到{latest_date}的EPS数据，公式：(最新年度EPS/三年前年度EPS) -1，计算值为{cagr_value:.2%}"
+    description = f"CAGR为{three_years_ago_date}到{latest_date}的EPS数据，公式：(最新年度EPS/三年前年度EPS) -1，计算值为{cagr_value:.4%}"
     
     return cagr_value, description
 
