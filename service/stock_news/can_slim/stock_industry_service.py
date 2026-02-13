@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import datetime
 
 from service.eastmoney.stock_info.stock_busi_desc import get_stock_board_type
 from service.llm.volcengine_client import VolcengineClient
@@ -10,6 +11,8 @@ async def get_industry_prompt(secucode="002371.SZ"):
     return f"""
 # Role
 你是一位资深的证券分析师，擅长从复杂的上市公司非结构化或结构化数据中，精准提炼核心商业逻辑和行业分类。
+
+当前日期：{datetime.now().strftime('%Y-%m-%d')}
 
 # Task
 请阅读并分析提供的原始 JSON 数据，按照以下要求提取该上市公司的“所属行业”与“产品描述”。

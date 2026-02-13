@@ -1,5 +1,7 @@
 import asyncio
 import json
+from datetime import datetime
+
 from service.stock_news.can_slim.stock_industry_service import get_industry_result
 from service.llm.deepseek_client import DeepSeekClient
 
@@ -9,6 +11,8 @@ async def get_search_key_prompt(secucode="002371.SZ", stock_name = None):
     industry_data = json.loads(industry_data_str)
     return f"""
 # Role: 资深金融投资研究员 / 证券分析师
+
+当前日期：{datetime.now().strftime('%Y-%m-%d')}
 
 ## Profile
 你是一位拥有10年经验的资深金融投资研究员，擅长对上市公司进行深度的基本面分析、产业链调研以及竞争格局梳理。你精通各类搜索引擎及专业金融数据库的高级搜索技巧。
