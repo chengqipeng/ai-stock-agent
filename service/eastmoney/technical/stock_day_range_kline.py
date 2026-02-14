@@ -96,6 +96,18 @@ async def get_moving_averages_markdown(stock_code, stock_name, klines):
     return markdown
 
 
+async def get_moving_averages_json(stock_code, stock_name, klines):
+    """返回移动平均线数据的JSON格式"""
+    config = INDICATOR_CONFIG['ma']
+    ma_data = calculate_moving_averages(klines, stock_code, stock_name)
+    
+    return {
+        "stock_code": stock_code,
+        "stock_name": stock_name,
+        "data": ma_data[:config['markdown_limit']]
+    }
+
+
 
 async def main():
     klines = await generate_can_slim_50_200_summary("0.002371")

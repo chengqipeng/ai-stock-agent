@@ -7,7 +7,6 @@ from service.eastmoney.technical.stock_day_range_kline import get_moving_average
 from service.stock_news.can_slim.stock_search_result_filter_service import get_search_filter_result, \
     get_search_filter_result_dict
 
-
 async def get_N_Products_Management_Highs_prompt(secucode, stock_name):
     shareholder_increase_result = await get_shareholder_increase_json(secucode, stock_name)
     revenue_analysis_three_years = await get_revenue_analysis_three_years(secucode, stock_name)
