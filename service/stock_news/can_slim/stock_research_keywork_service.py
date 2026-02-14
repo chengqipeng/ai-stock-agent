@@ -16,33 +16,49 @@ async def research_stock_news(secucode="002371.SZ", stock_name=None):
         "global_news": []
     }
     
-    # 遍历国内搜索关键词，使用百度搜索
-    for item in search_data.get("search_news", []):
-        intent = item.get("intent")
-        time_range_days = item.get("search_key_time_range")
-        keywords = item.get("search_key", [])
-        for idx, keyword in enumerate(keywords):
+    semaphore = asyncio.Semaphore(6)
+    tasks = []
+    
+    async def search_domestic(intent, keyword, time_range_days):
+        async with semaphore:
             news = await baidu_search(keyword, days=time_range_days)
             for result in news:
                 result["source"] = "domestic"
-            results["domestic_news"].append({
-                "intent": intent,
-                "keyword": keyword,
-                "results": news
-            })
+            return {"type": "domestic", "intent": intent, "keyword": keyword, "results": news}
     
-    #遍历海外搜索关键词，使用谷歌搜索
-    for item in search_data.get("search_global_news", []):
-        intent = item.get("intent")
-        time_range_days = item.get("search_key_time_range")
-        for idx, keyword in item.get("search_key", []):
+    async def search_global(intent, keyword, time_range_days):
+        async with semaphore:
             news = await baidu_search(keyword, time_range_days)
             for result in news:
                 result["source"] = "global"
+            return {"type": "global", "intent": intent, "keyword": keyword, "results": news}
+    
+    for item in search_data.get("search_news", []):
+        intent = item.get("intent")
+        time_range_days = item.get("search_key_time_range")
+        for keyword in item.get("search_key", []):
+            tasks.append(search_domestic(intent, keyword, time_range_days))
+    
+    for item in search_data.get("search_global_news", []):
+        intent = item.get("intent")
+        time_range_days = item.get("search_key_time_range")
+        for keyword in item.get("search_key", []):
+            tasks.append(search_global(intent, keyword, time_range_days))
+    
+    search_results = await asyncio.gather(*tasks)
+    
+    for result in search_results:
+        if result["type"] == "domestic":
+            results["domestic_news"].append({
+                "intent": result["intent"],
+                "keyword": result["keyword"],
+                "results": result["results"]
+            })
+        else:
             results["global_news"].append({
-                "intent": intent,
-                "keyword": keyword,
-                "results": news
+                "intent": result["intent"],
+                "keyword": result["keyword"],
+                "results": result["results"]
             })
     
     # URL去重

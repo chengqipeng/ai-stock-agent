@@ -27,6 +27,10 @@ async def get_search_result_filter_prompt(secucode="002371.SZ", stock_name = Non
 - **禁止选择：** 常规产品功能介绍、规格参数、日常市场推广、用户评价或营销软文。
 - **禁止选择：** 与当前目标公司无直接关联的行业宏观泛谈、竞品无关动态。
 
+# 数据选择
+- 需要保证消息的时效性（一个月以内）
+- 相关性和时效性最高的排序在最前面
+- 选择分数最高的前10条数据
 
 # 网络搜索结果：
 {json.dumps(search_result, ensure_ascii=False)}
@@ -38,8 +42,9 @@ async def get_search_result_filter_prompt(secucode="002371.SZ", stock_name = Non
 """
 
 
-async def get_search_key_result(secucode="002371.SZ", stock_name=None, search_result=None):
+async def get_search_key_result(secucode="002371.SZ", stock_name=None):
     """调用豆包大模型过滤搜索结果，返回符合条件的搜索信息列表"""
+    search_result = await research_stock_news(secucode, stock_name)
     prompt = await get_search_result_filter_prompt(secucode, stock_name, search_result)
     client = VolcengineClient()
     response = await client.chat(
@@ -61,8 +66,7 @@ if __name__ == "__main__":
     import asyncio
     
     async def main():
-        search_data = await research_stock_news("002371.SZ", "北方华创")
-        result = await get_search_key_result("002371.SZ", "北方华创", search_data)
+        result = await get_search_key_result("002371.SZ", "北方华创")
         print(json.dumps(result, ensure_ascii=False, indent=2))
     
     asyncio.run(main())
