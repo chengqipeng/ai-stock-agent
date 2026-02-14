@@ -8,102 +8,57 @@ from service.web_search.google_search import google_search
 
 async def research_stock_news(secucode="002371.SZ", stock_name=None):
     """获取搜索关键词并执行搜索"""
-    # 获取搜索关键词
     search_key_result = await get_search_key_result(secucode, stock_name)
-    search_data = json.loads(search_key_result)
-    
-    results = {
-        "domestic_news": [],
-        "global_news": []
-    }
     
     semaphore = asyncio.Semaphore(6)
-    tasks = []
     
-    async def search_domestic(intent, keyword, time_range_days):
+    async def search_for_category(category_data):
         async with semaphore:
-            news = await baidu_search(keyword, days=time_range_days)
-            for result in news:
-                result["source"] = "domestic"
-            return {"type": "domestic", "intent": intent, "keyword": keyword, "results": news}
-    
-    async def search_global(intent, keyword, time_range_days):
-        async with semaphore:
-            news = await baidu_search(keyword, time_range_days)
-            for result in news:
-                result["source"] = "global"
-            return {"type": "global", "intent": intent, "keyword": keyword, "results": news}
-    
-    for item in search_data.get("search_news", []):
-        intent = item.get("intent")
-        time_range_days = item.get("search_key_time_range")
-        for keyword in item.get("search_key", []):
-            tasks.append(search_domestic(intent, keyword, time_range_days))
-    
-    for item in search_data.get("search_global_news", []):
-        intent = item.get("intent")
-        time_range_days = item.get("search_key_time_range")
-        for keyword in item.get("search_key", []):
-            tasks.append(search_global(intent, keyword, time_range_days))
-    
-    search_results = await asyncio.gather(*tasks)
-    
-    for result in search_results:
-        if result["type"] == "domestic":
-            results["domestic_news"].append({
-                "intent": result["intent"],
-                "keyword": result["keyword"],
-                "results": result["results"]
-            })
-        else:
-            results["global_news"].append({
-                "intent": result["intent"],
-                "keyword": result["keyword"],
-                "results": result["results"]
-            })
-    
-    # URL去重
-    def deduplicate_by_url(news_list):
-        seen_urls = set()
-        for item in news_list:
+            all_results = []
+            for keyword in category_data['search_keys']:
+                if category_data['type'] == 'domestic':
+                    news = await baidu_search(keyword, days=category_data['search_key_time_range'])
+                else:
+                    news = await baidu_search(keyword, category_data['search_key_time_range'])
+                all_results.extend(news)
+            
+            # URL去重
+            seen_urls = set()
             deduped = []
-            for result in item["results"]:
+            for result in all_results:
                 url = result.get("url")
                 if url and url not in seen_urls:
                     seen_urls.add(url)
                     deduped.append(result)
-            item["results"] = deduped
-    
-    deduplicate_by_url(results["domestic_news"])
-    deduplicate_by_url(results["global_news"])
-    
-    # 过滤30天内的消息
-    def filter_by_date(news_list):
-        current_date = datetime.now()
-        for item in news_list:
+            
+            # 过滤时间范围内的消息
+            current_date = datetime.now()
             filtered = []
-            for result in item["results"]:
+            for result in deduped:
                 try:
                     date_str = result.get("date", "")
                     result_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                    if (current_date - result_date).days <= 30:
+                    if (current_date - result_date).days <= category_data['search_key_time_range']:
                         filtered.append(result)
                 except (ValueError, TypeError):
                     continue
-            item["results"] = filtered
+            
+            return {
+                'category': category_data['category'],
+                'intent': category_data['intent'],
+                'type': category_data['type'],
+                'search_results': filtered,
+                'search_key_time_range': category_data['search_key_time_range']
+            }
     
-    filter_by_date(results["domestic_news"])
-    filter_by_date(results["global_news"])
+    tasks = [search_for_category(item) for item in search_key_result]
+    results = await asyncio.gather(*tasks)
     
     # 重新分配ID
     id_counter = 1
-    for item in results["domestic_news"]:
-        for result in item["results"]:
-            result["id"] = id_counter
-            id_counter += 1
-    for item in results["global_news"]:
-        for result in item["results"]:
-            result["id"] = id_counter
+    for item in results:
+        for result in item['search_results']:
+            result['id'] = id_counter
             id_counter += 1
     
     return results

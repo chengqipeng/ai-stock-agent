@@ -53,7 +53,7 @@ async def get_search_filter_result(secucode="002371.SZ", stock_name=None):
 
     client = DeepSeekClient()
 
-    model = "deepseek-chat"
+    model = "deepseek-reasoner"
     response = await client.chat(
         messages=[{"role": "user", "content": prompt}],
         model = model,
@@ -63,26 +63,25 @@ async def get_search_filter_result(secucode="002371.SZ", stock_name=None):
     
     try:
         filtered_ids = json.loads(content)
-        if not isinstance(search_result, dict):
-            return {"domestic_news": [], "global_news": []}
+        if not isinstance(search_result, list):
+            return []
         
-        filtered_result = {"domestic_news": [], "global_news": []}
+        filtered_result = []
         
-        # 过滤并保留分组结构
-        for news_type in ['domestic_news', 'global_news']:
-            for news_group in search_result.get(news_type, []):
-                filtered_results = [item for item in news_group.get('results', []) if item.get('id') in filtered_ids]
-                if filtered_results:
-                    filtered_result[news_type].append({
-                        "intent": news_group.get("intent"),
-                        "keyword": news_group.get("keyword"),
-                        "results": filtered_results
-                    })
+        for category_data in search_result:
+            filtered_results = [item for item in category_data.get('search_results', []) if item.get('id') in filtered_ids]
+            if filtered_results:
+                filtered_result.append({
+                    'category': category_data['category'],
+                    'intent': category_data['intent'],
+                    'type': category_data['type'],
+                    'search_results': filtered_results
+                })
         
         return filtered_result
     except (json.JSONDecodeError, KeyError):
         print((f"解析错误: {content}"))
-        return {"domestic_news": [], "global_news": []}
+        return []
 
 
 if __name__ == "__main__":

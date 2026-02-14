@@ -20,7 +20,7 @@ async def get_N_Products_Management_Highs_prompt(secucode, stock_name):
 1. 新产品/新技术 (New Products/Services)
   这是最常见也是最强劲的驱动力。
   
-  ** 公司公告（新产品发布会、专利获得）、行业研报（新技术的市场渗透率数据）分析数据 **
+  ** 公司公告（新产品发布会、专利获得）、行业研报（新技术的市场渗透率数据）、创新业务占总营收以及未来预期分析数据 **
   {json.dumps(search_filter_result, ensure_ascii=False, indent=2)}
   
   ** 增减持股变动明细（近一年数据） **
