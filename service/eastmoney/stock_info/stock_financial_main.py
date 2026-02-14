@@ -29,6 +29,7 @@ FINANCIAL_INDICATORS = [
     ('营业总收入同比增长(%)', 'TOTALOPERATEREVETZ'),
     ('归属净利润同比增长(%)', 'PARENTNETPROFITTZ'),
     ('扣非净利润同比增长(%)', 'KCFJCXSYJLRTZ'),
+    ('单季营业收入同比增长(%)', 'SINGLE_QUARTER_REVENUETZ'),
     ('单季归母净利润同比增长(%)', 'SINGLE_QUARTER_PARENTNETPROFITTZ'),
     ('单季扣非净利润同比增长(%)', 'SINGLE_QUARTER_KCFJCXSYJLRTZ'),
     ('营业总收入环比增长(%)', 'YYZSRGDHBZC'),
@@ -268,6 +269,7 @@ def _calculate_single_quarter_yoy_growth(data_list):
     """计算单季度同比增长率"""
     for i, d in enumerate(data_list):
         report_date = d.get('REPORT_DATE_NAME', '')
+        sq_revenue = d.get('SINGLE_QUARTER_REVENUE')
         sq_parentnetprofit = d.get('SINGLE_QUARTER_PARENTNETPROFIT')
         sq_kcfjcxsyjlr = d.get('SINGLE_QUARTER_KCFJCXSYJLR')
         
@@ -278,6 +280,16 @@ def _calculate_single_quarter_yoy_growth(data_list):
         for j in range(i+1, len(data_list)):
             prev_report = data_list[j].get('REPORT_DATE_NAME', '')
             if prev_report[:4] == prev_year and prev_report[4:] == report_date[4:]:
+                # 计算单季营业收入同比增长
+                if sq_revenue is not None:
+                    prev_sq_revenue = data_list[j].get('SINGLE_QUARTER_REVENUE')
+                    if prev_sq_revenue is not None and prev_sq_revenue != 0:
+                        d['SINGLE_QUARTER_REVENUETZ'] = round((sq_revenue - prev_sq_revenue) / abs(prev_sq_revenue) * 100, 4)
+                    else:
+                        d['SINGLE_QUARTER_REVENUETZ'] = None
+                else:
+                    d['SINGLE_QUARTER_REVENUETZ'] = None
+                
                 # 计算单季归母净利润同比增长
                 if sq_parentnetprofit is not None:
                     prev_sq_parentnetprofit = data_list[j].get('SINGLE_QUARTER_PARENTNETPROFIT')
@@ -299,6 +311,7 @@ def _calculate_single_quarter_yoy_growth(data_list):
                     d['SINGLE_QUARTER_KCFJCXSYJLRTZ'] = None
                 break
         else:
+            d['SINGLE_QUARTER_REVENUETZ'] = None
             d['SINGLE_QUARTER_PARENTNETPROFITTZ'] = None
             d['SINGLE_QUARTER_KCFJCXSYJLRTZ'] = None
 

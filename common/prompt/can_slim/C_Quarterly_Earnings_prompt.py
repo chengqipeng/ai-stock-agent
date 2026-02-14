@@ -8,7 +8,7 @@ from datetime import datetime
 
 
 async def get_C_Quarterly_Earnings_prompt(secucode, stock_name):
-    financial_revenue = await get_financial_data_to_json(secucode=secucode, indicator_keys=['REPORT_DATE', 'TOTALOPERATEREVETZ', 'SINGLE_QUARTER_REVENUE', 'TOTALOPERATEREVE'])
+    financial_revenue = await get_financial_data_to_json(secucode=secucode, indicator_keys=['REPORT_DATE', 'TOTALOPERATEREVETZ', 'SINGLE_QUARTER_REVENUE', 'TOTALOPERATEREVE', 'SINGLE_QUARTER_REVENUETZ'])
     financial_profit = await get_financial_data_to_json(secucode=secucode, indicator_keys=['REPORT_DATE', 'SINGLE_QUARTER_PARENTNETPROFITTZ', 'SINGLE_QUARTER_KCFJCXSYJLRTZ'])
     financial_eps = await get_financial_data_to_json(secucode=secucode, indicator_keys=['REPORT_DATE', 'EPSJB'])
     historical_forecast_json = await get_institution_forecast_historical_to_json(secucode=secucode)
@@ -36,7 +36,7 @@ async def get_C_Quarterly_Earnings_prompt(secucode, stock_name):
      卓越线：> 50% 或更高。
    逻辑：只有产品卖得好，业绩才能持续。如果一家公司 EPS 暴涨 50%，但营收只增长 5%，这通常是靠“勒紧裤腰带”（削减成本）挤出来的利润，这种增长极度脆弱，必须回避。
    分析使用的数据源：
-   <营业总收入同比增长(%)>
+   <营业总收入同比增长(%)、季度营业收入同比增长(%)>
    {json.dumps(financial_revenue, ensure_ascii=False)}
 
 ## 2. 业绩加速趋势
