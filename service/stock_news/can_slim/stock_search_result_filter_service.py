@@ -32,7 +32,7 @@ async def get_search_result_filter_prompt(secucode="002371.SZ", stock_name = Non
 # 数据选择
 - 需要保证消息的时效性（一个月以内）
 - 相关性和时效性最高的排序在最前面
-- 选择分数最高的前10条数据
+- 选择分数最高的前15条数据
 
 # 网络搜索结果：
 {json.dumps(search_result, ensure_ascii=False)}
@@ -44,7 +44,7 @@ async def get_search_result_filter_prompt(secucode="002371.SZ", stock_name = Non
 """
 
 
-async def get_search_key_result(secucode="002371.SZ", stock_name=None):
+async def get_search_filter_result(secucode="002371.SZ", stock_name=None):
     """调用豆包大模型过滤搜索结果，返回符合条件的搜索信息列表"""
     search_result = await research_stock_news(secucode, stock_name)
     prompt = await get_search_result_filter_prompt(secucode, stock_name, search_result)
@@ -64,27 +64,32 @@ async def get_search_key_result(secucode="002371.SZ", stock_name=None):
     try:
         filtered_ids = json.loads(content)
         if not isinstance(search_result, dict):
-            return []
+            return {"domestic_news": [], "global_news": []}
         
-        # 从嵌套结构中提取所有搜索结果
-        all_items = []
+        filtered_result = {"domestic_news": [], "global_news": []}
+        
+        # 过滤并保留分组结构
         for news_type in ['domestic_news', 'global_news']:
             for news_group in search_result.get(news_type, []):
-                all_items.extend(news_group.get('results', []))
+                filtered_results = [item for item in news_group.get('results', []) if item.get('id') in filtered_ids]
+                if filtered_results:
+                    filtered_result[news_type].append({
+                        "intent": news_group.get("intent"),
+                        "keyword": news_group.get("keyword"),
+                        "results": filtered_results
+                    })
         
-        # 根据filtered_ids过滤
-        ret_items = [item for item in all_items if item.get('id') in filtered_ids]
-        return ret_items
+        return filtered_result
     except (json.JSONDecodeError, KeyError):
         print((f"解析错误: {content}"))
-        return []
+        return {"domestic_news": [], "global_news": []}
 
 
 if __name__ == "__main__":
     import asyncio
     
     async def main():
-        result = await get_search_key_result("002371.SZ", "北方华创")
+        result = await get_search_filter_result("002371.SZ", "北方华创")
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
         print("\n ==================== \n")

@@ -1,4 +1,4 @@
-from common.prompt.can_slim.A_Earnings_Increases_prompt import get_A_Earnings_Increases_prompt
+from service.prompt.can_slim.A_Earnings_Increases_prompt import get_A_Earnings_Increases_prompt
 from service.llm.deepseek_client import DeepSeekClient
 
 

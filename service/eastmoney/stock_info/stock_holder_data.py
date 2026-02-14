@@ -3,6 +3,18 @@ from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.http.http_utils import EASTMONEY_API_URL, fetch_eastmoney_api
 
 
+def normalize_stock_code(stock_code):
+    """标准化股票代码格式，移除前缀0和后缀.SH/.SZ"""
+    if not stock_code:
+        return stock_code
+    # 移除 .SH 或 .SZ 后缀
+    stock_code = stock_code.split('.')[0]
+    # 移除前导 0.
+    if stock_code.startswith('0.'):
+        stock_code = stock_code[2:]
+    return stock_code
+
+
 async def get_org_holder(stock_code="002371", page_size=8, page_number=1):
     """获取机构持仓数据"""
     cache_path = get_cache_path("org_holder", stock_code)
@@ -124,6 +136,44 @@ async def get_shareholder_increase_markdown(stock_code="601698", page_size=20, s
     return markdown + "\n"
 
 
+async def get_shareholder_increase_json(secid="0.601698", stock_name=None, page_size=20):
+    """获取股东增减持明细并转换为JSON格式"""
+    from datetime import datetime, timedelta
+
+    stock_code = normalize_stock_code(secid)
+    items = await get_shareholder_increase(stock_code, page_size)
+    if not items:
+        return []
+    
+    # 计算一年前的日期
+    one_year_ago = datetime.now() - timedelta(days=365)
+    
+    result = []
+    for item in items[:page_size]:
+        notice_date_str = item.get('NOTICE_DATE', '')
+        if notice_date_str:
+            notice_date = datetime.strptime(notice_date_str[:10], '%Y-%m-%d')
+            # 过滤近一年的数据
+            if notice_date < one_year_ago:
+                continue
+        
+        result.append({
+            "股东名称": item.get('HOLDER_NAME', '--'),
+            "增减": item.get('DIRECTION', '--'),
+            "变动数量(万股)": convert_amount_unit((item.get('CHANGE_NUM') or 0) * 10000),
+            "占总股本比例": f"{round(item.get('AFTER_CHANGE_RATE', 0), 2)}%" if item.get('AFTER_CHANGE_RATE') else '--',
+            "占流通股比例": f"{round(item.get('CHANGE_FREE_RATIO', 0), 2)}%" if item.get('CHANGE_FREE_RATIO') else '--',
+            "持股总数(万股)": convert_amount_unit((item.get('AFTER_HOLDER_NUM') or 0) * 10000),
+            "持股占总股本比例": f"{round(item.get('HOLD_RATIO', 0), 2)}%" if item.get('HOLD_RATIO') else '--',
+            "持流通股数(万股)": convert_amount_unit((item.get('FREE_SHARES') or 0) * 10000),
+            "持股占流通股比例": f"{round(item.get('FREE_SHARES_RATIO', 0), 2)}%" if item.get('FREE_SHARES_RATIO') else '--',
+            "变动开始日": item.get('START_DATE', '--')[:10] if item.get('START_DATE') else '--',
+            "变动截止日": item.get('END_DATE', '--')[:10] if item.get('END_DATE') else '--',
+            "公告日": notice_date_str[:10] if notice_date_str else '--'
+        })
+    return result
+
+
 async def get_holder_detail_markdown(scode, report_date=None, page_size=100):
     """获取股票主力持仓明细并转换为markdown"""
     from datetime import datetime
@@ -182,3 +232,20 @@ async def get_org_holder_markdown(stock_code, page_size=8, stock_name=None):
     return markdown
 
 
+if __name__ == "__main__":
+    import asyncio
+    import json
+    
+    async def main():
+        stock_code = "002371"
+        stock_name = "北方华创"
+        
+        print(f"测试股票: {stock_code} {stock_name}")
+        print("\n" + "="*50 + "\n")
+        
+        # 测试 JSON 格式
+        result = await get_shareholder_increase_json(stock_code, page_size=20, stock_name=stock_name)
+        print("股东增减持数据 (JSON格式):")
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    
+    asyncio.run(main())

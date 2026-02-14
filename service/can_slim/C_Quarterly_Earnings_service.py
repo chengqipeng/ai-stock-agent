@@ -1,4 +1,4 @@
-from common.prompt.can_slim.C_Quarterly_Earnings_prompt import get_C_Quarterly_Earnings_prompt
+from service.prompt.can_slim import get_C_Quarterly_Earnings_prompt
 from service.llm.deepseek_client import DeepSeekClient
 
 
