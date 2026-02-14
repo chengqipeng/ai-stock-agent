@@ -1,5 +1,7 @@
 import json
 from datetime import datetime
+
+from service.llm.deepseek_client import DeepSeekClient
 from service.llm.volcengine_client import VolcengineClient
 from service.stock_news.can_slim.stock_research_keywork_service import research_stock_news
 
@@ -46,19 +48,35 @@ async def get_search_key_result(secucode="002371.SZ", stock_name=None):
     """调用豆包大模型过滤搜索结果，返回符合条件的搜索信息列表"""
     search_result = await research_stock_news(secucode, stock_name)
     prompt = await get_search_result_filter_prompt(secucode, stock_name, search_result)
-    client = VolcengineClient()
+    print(prompt)
+    print("\n\n")
+
+    client = DeepSeekClient()
+
+    model = "deepseek-chat"
     response = await client.chat(
         messages=[{"role": "user", "content": prompt}],
+        model = model,
         temperature=0.3
     )
     content = response['choices'][0]['message']['content']
     
     try:
         filtered_ids = json.loads(content)
-        if not isinstance(search_result, list):
+        if not isinstance(search_result, dict):
             return []
-        return [item for item in search_result if item.get('id') in filtered_ids]
+        
+        # 从嵌套结构中提取所有搜索结果
+        all_items = []
+        for news_type in ['domestic_news', 'global_news']:
+            for news_group in search_result.get(news_type, []):
+                all_items.extend(news_group.get('results', []))
+        
+        # 根据filtered_ids过滤
+        ret_items = [item for item in all_items if item.get('id') in filtered_ids]
+        return ret_items
     except (json.JSONDecodeError, KeyError):
+        print((f"解析错误: {content}"))
         return []
 
 
@@ -68,5 +86,7 @@ if __name__ == "__main__":
     async def main():
         result = await get_search_key_result("002371.SZ", "北方华创")
         print(json.dumps(result, ensure_ascii=False, indent=2))
+
+        print("\n ==================== \n")
     
     asyncio.run(main())

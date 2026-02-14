@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import datetime, timedelta
 from service.stock_news.can_slim.stock_search_key_word_service import get_search_key_result
 from service.web_search.baidu_search import baidu_search
 from service.web_search.google_search import google_search
@@ -75,6 +76,24 @@ async def research_stock_news(secucode="002371.SZ", stock_name=None):
     
     deduplicate_by_url(results["domestic_news"])
     deduplicate_by_url(results["global_news"])
+    
+    # 过滤30天内的消息
+    def filter_by_date(news_list):
+        current_date = datetime.now()
+        for item in news_list:
+            filtered = []
+            for result in item["results"]:
+                try:
+                    date_str = result.get("date", "")
+                    result_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                    if (current_date - result_date).days <= 30:
+                        filtered.append(result)
+                except (ValueError, TypeError):
+                    continue
+            item["results"] = filtered
+    
+    filter_by_date(results["domestic_news"])
+    filter_by_date(results["global_news"])
     
     # 重新分配ID
     id_counter = 1
