@@ -84,13 +84,28 @@ async def get_search_filter_result(secucode="002371.SZ", stock_name=None):
         return []
 
 
+async def get_search_filter_result_dict(secucode="002371.SZ", stock_name=None):
+    """获取过滤后的搜索结果，返回以category为键的字典格式"""
+    filtered_result = await get_search_filter_result(secucode, stock_name)
+    return {item['category']: item['search_results'] for item in filtered_result}
+
+
 if __name__ == "__main__":
     import asyncio
     
     async def main():
         result = await get_search_filter_result("002371.SZ", "北方华创")
+        print("列表格式结果:")
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
         print("\n ==================== \n")
+        
+        result_dict = await get_search_filter_result_dict("002371.SZ", "北方华创")
+        print("字典格式结果:")
+        print(json.dumps(result_dict, ensure_ascii=False, indent=2))
+        
+        print("\n通过category获取结果示例:")
+        for category in result_dict.keys():
+            print(f"\n{category}: {len(result_dict[category])}条结果")
     
     asyncio.run(main())

@@ -69,6 +69,12 @@ SEARCH_CATEGORY = [
         "search_content" : "管理层变动、十大股东变动、重大投资"
     },
     {
+        "category": "stock_incentive_plan",
+        "intent": "股权激励",
+        "type": "domestic",
+        "search_content": "股权激励计划"
+    },
+    {
         "category": "dividend_policy",
         "intent": "政策红利",
         "type": "domestic",

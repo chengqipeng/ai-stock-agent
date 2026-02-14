@@ -2,12 +2,22 @@ import json
 
 from service.eastmoney.stock_info.stock_holder_data import get_shareholder_increase_json
 from service.eastmoney.stock_info.stock_revenue_analysis import get_revenue_analysis_three_years
-from service.stock_news.can_slim.stock_search_result_filter_service import get_search_filter_result
+from service.stock_news.can_slim.stock_search_result_filter_service import get_search_filter_result, \
+    get_search_filter_result_dict
+
 
 async def get_N_Products_Management_Highs_prompt(secucode, stock_name):
-    search_filter_result = await get_search_filter_result(secucode, stock_name)
     shareholder_increase_result = await get_shareholder_increase_json(secucode, stock_name)
     revenue_analysis_three_years = await get_revenue_analysis_three_years(secucode, stock_name)
+
+    search_filter_result_dict = await get_search_filter_result_dict(secucode, stock_name)
+
+    announcements = search_filter_result_dict['search_filter_result_dict']
+    finance_and_expectations = search_filter_result_dict['finance_and_expectations']
+    corporate_governance = search_filter_result_dict['corporate_governance']
+    stock_incentive_plan = search_filter_result_dict['stock_incentive_plan']
+
+
     return f"""
 在 CAN SLIM 系统中，N (New Products, New Management, New Highs) 是最具爆发力的维度。如果说 C 和 A 是火药（基本面支撑），那么 N 就是引爆它的火花（催化剂）。
 在华尔街，有一句名言：“Great stocks always have something NEW.”（伟大的股票总有新东西。）
@@ -20,11 +30,11 @@ async def get_N_Products_Management_Highs_prompt(secucode, stock_name):
 1. 新产品/新技术 (New Products/Services)
   这是最常见也是最强劲的驱动力。
   
-  ** 公司公告（新产品发布会、专利获得）、行业研报（新技术的市场渗透率数据）、创新业务占总营收以及未来预期分析数据 **
-  {json.dumps(search_filter_result, ensure_ascii=False, indent=2)}
+  ** 公司公告（新产品发布会、专利获得）（网络数据）**
+  {json.dumps(announcements, ensure_ascii=False, indent=2)}
   
-  ** 增减持股变动明细（近一年数据） **
-  {json.dumps(shareholder_increase_result, ensure_ascii=False, indent=2)}
+  ** 行业研报（新技术的市场渗透率数据）、创新业务占总营收以及未来预期（网络数据） **
+  {json.dumps(finance_and_expectations, ensure_ascii=False, indent=2)}
   
   ** 营收结构分析（新业务占总营收的比例是否在快速提升？）分析数据**
   {json.dumps(revenue_analysis_three_years, ensure_ascii=False, indent=2)}
@@ -36,10 +46,15 @@ async def get_N_Products_Management_Highs_prompt(secucode, stock_name):
 
 2. 新管理层/新变革 (New Management/Strategy)
 当一家老牌公司换了 CEO，或者实施了新的战略转型，往往会带来股价的重估。
-具体数据：
-  董事会决议公告（高管变更）。
-  股权激励计划（考核目标是什么？）。
-  内部人交易数据（管理层是在买入还是卖出？）。
+    ** 管理层变动、十大股东变动、重大投资（网络数据） **
+    {json.dumps(corporate_governance, ensure_ascii=False, indent=2)}
+    
+    ** 股权激励计划 **
+    {json.dumps(stock_incentive_plan, ensure_ascii=False, indent=2)}
+    
+    ** 增减持股变动明细（近一年数据） **
+    {json.dumps(shareholder_increase_result, ensure_ascii=False, indent=2)}
+    
 分析逻辑：
   “新官上任三把火”：新 CEO 通常会清理旧账（洗澡），然后通过降本增效或剥离亏损资产来释放利润。
   对于 A 股的特殊修正——“新政策/新产业趋势”：在中国市场，国家政策往往是最大的“新因素”。例如“国产替代”、“碳中和”政策出台，直接改变了行业的供需格局。
@@ -60,7 +75,6 @@ async def get_N_Products_Management_Highs_prompt(secucode, stock_name):
 严禁追高： 如果股价已经从底部突破点上涨超过 5%-10%，请警告我‘已脱离买入区间（Extended）’，不要追涨。”
 成交量标注： 突破当日的成交量至少要比50日平均成交量高出 40%-50%。
 只有机构大举买入才能制造这种放量。如果是缩量创新高，视为‘假突破’，予以剔除。
-
 
 二、 N 维度深度解读与实战判定表
 在实战中，请使用以下清单对股票进行 N 维度扫描：
