@@ -6,13 +6,14 @@ from service.llm.volcengine_client import VolcengineClient
 from service.stock_news.can_slim.stock_research_keywork_service import research_stock_news
 
 
-async def get_search_result_filter_prompt(secucode="002371.SZ", stock_name = None, search_result = None):
+async def get_search_result_filter_prompt(secucode="002371.SZ", stock_name=None, category=None, search_results=None):
     return f"""
 # Role
 你是一位资深的证券分析师与量化策略专家，擅长从海量碎片化信息中识别具有"股价驱动力"的核心事件。
 
 当前日期：{datetime.now().strftime('%Y-%m-%d')}
 公司名称：{stock_name}({secucode})
+分析类别：{category}
 
 # Task
 请对提供的网络搜索结果（Context）进行深度筛选。你的目标是识别出那些会对上市公司基本面产生**直接且重大**影响、且足以驱动股价当前或未来走势的核心信息。
@@ -32,10 +33,11 @@ async def get_search_result_filter_prompt(secucode="002371.SZ", stock_name = Non
 # 数据选择
 - 需要保证消息的时效性（一个月以内）
 - 相关性和时效性最高的排序在最前面
-- 选择分数最高的前15条数据
+- 相关性较低的可以直接忽略
+- 选择分数最高的最多5条数据
 
 # 网络搜索结果：
-{json.dumps(search_result, ensure_ascii=False)}
+{json.dumps(search_results, ensure_ascii=False)}
 
 # Output Format
 只能返回符合上述要求的检索数据 ID 列表JSON数据，以标准 JSON 数组格式输出。禁止输出任何解释性文字。
@@ -44,44 +46,59 @@ async def get_search_result_filter_prompt(secucode="002371.SZ", stock_name = Non
 """
 
 
-async def get_search_filter_result(secucode="002371.SZ", stock_name=None):
-    """调用豆包大模型过滤搜索结果，返回符合条件的搜索信息列表"""
-    search_result = await research_stock_news(secucode, stock_name)
-    prompt = await get_search_result_filter_prompt(secucode, stock_name, search_result)
-    print(prompt)
-    print("\n\n")
-
-    client = DeepSeekClient()
-
-    model = "deepseek-reasoner"
-    response = await client.chat(
-        messages=[{"role": "user", "content": prompt}],
-        model = model,
-        temperature=0.3
-    )
-    content = response['choices'][0]['message']['content']
-    
-    try:
-        filtered_ids = json.loads(content)
-        if not isinstance(search_result, list):
-            return []
+async def filter_category_results(secucode, stock_name, category_data, client, semaphore):
+    """过滤单个category的搜索结果"""
+    async with semaphore:
+        search_results = category_data.get('search_results', [])
+        if not search_results:
+            return None
         
-        filtered_result = []
+        prompt = await get_search_result_filter_prompt(
+            secucode, stock_name, category_data['category'], search_results
+        )
         
-        for category_data in search_result:
-            filtered_results = [item for item in category_data.get('search_results', []) if item.get('id') in filtered_ids]
+        try:
+            response = await client.chat(
+                messages=[{"role": "user", "content": prompt}],
+                model="deepseek-chat",
+                temperature=0.3
+            )
+            content = response['choices'][0]['message']['content']
+            filtered_ids = json.loads(content)
+            
+            filtered_results = [item for item in search_results if item.get('id') in filtered_ids]
+            
             if filtered_results:
-                filtered_result.append({
+                return {
                     'category': category_data['category'],
                     'intent': category_data['intent'],
                     'type': category_data['type'],
                     'search_results': filtered_results
-                })
+                }
+        except (json.JSONDecodeError, KeyError, Exception) as e:
+            print(f"过滤{category_data['category']}时出错: {e}")
         
-        return filtered_result
-    except (json.JSONDecodeError, KeyError):
-        print((f"解析错误: {content}"))
+        return None
+
+
+async def get_search_filter_result(secucode="002371.SZ", stock_name=None):
+    """调用大模型并行过滤搜索结果，返回符合条件的搜索信息列表"""
+    import asyncio
+    
+    search_result = await research_stock_news(secucode, stock_name)
+    if not isinstance(search_result, list):
         return []
+    
+    client = DeepSeekClient()
+    semaphore = asyncio.Semaphore(5)
+    
+    tasks = [
+        filter_category_results(secucode, stock_name, category_data, client, semaphore)
+        for category_data in search_result
+    ]
+    
+    results = await asyncio.gather(*tasks)
+    return [r for r in results if r is not None]
 
 
 async def get_search_filter_result_dict(secucode="002371.SZ", stock_name=None):

@@ -118,7 +118,7 @@ async def get_search_key_result_single(secucode, stock_name, category_info):
     response = await client.chat(
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7,
-        model="deepseek-reasoner"
+        model="deepseek-chat"
     )
     content = response['choices'][0]['message']['content']
     
