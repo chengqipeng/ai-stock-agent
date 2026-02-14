@@ -2,6 +2,7 @@ import aiohttp
 import asyncio
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 
 MAX_RECENT_PERIODS = 24
 SHARE_FIELDS = ['TOTAL_SHARES', 'LIMITED_SHARES', 'UNLIMITED_SHARES', 'LISTED_A_SHARES', 'FREE_SHARES', 'LIMITED_A_SHARES']
@@ -73,6 +74,13 @@ async def get_equity_data_to_markdown(stock_info: StockInfo, indicator_keys=None
 
 async def get_equity_structure_data(stock_info: StockInfo, page_size=20, page_number=1):
     """获取股本结构数据"""
+    cache_path = get_cache_path("equity_structure", stock_info.stock_code)
+    
+    # 检查缓存
+    cached_data = load_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
     url = "https://datacenter.eastmoney.com/securities/api/data/v1/get"
     
     params = {
@@ -104,7 +112,10 @@ async def get_equity_structure_data(stock_info: StockInfo, page_size=20, page_nu
         async with session.get(url, params=params, headers=headers) as response:
             data = await response.json(content_type=None)
             if data.get("result") and data["result"].get("data"):
-                return data["result"]["data"]
+                result = data["result"]["data"]
+                # 保存缓存
+                save_cache(cache_path, result)
+                return result
             else:
                 raise Exception(f"未获取到证券代码 {stock_info.stock_code_normalize} 的股本结构数据")
 
