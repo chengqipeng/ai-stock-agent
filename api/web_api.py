@@ -76,8 +76,8 @@ async def read_batch():
 
 @app.get("/api/stocks")
 async def get_stocks():
-    from common.constants.stocks_data import STOCKS
-    return {"success": True, "data": STOCKS}
+    from common.constants.stocks_data import ALL_STOCKS
+    return {"success": True, "data": ALL_STOCKS}
 
 
 @app.post("/api/can_slim")

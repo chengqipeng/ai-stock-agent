@@ -44,8 +44,18 @@ async def get_ke_chuang_kline_data(stock_name="科创综指"):
     stock_info: StockInfo = get_stock_info_by_name(stock_name)
     return await get_stock_history_kline_max_min(stock_info, 250)
 
+async def get_ke_chuang_50_kline_data(stock_name="创业板50"):
+    """获取股票K线数据，提供默认值"""
+    stock_info: StockInfo = get_stock_info_by_name(stock_name)
+    return await get_stock_history_kline_max_min(stock_info, 250)
+
+async def get_zhong_zheng_A500_kline_data(stock_name="中证A500"):
+    """获取股票K线数据，提供默认值"""
+    stock_info: StockInfo = get_stock_info_by_name(stock_name)
+    return await get_stock_history_kline_max_min(stock_info, 250)
+
 async def main():
-    result = await get_ke_chuang_kline_data()
+    result = await get_ke_chuang_50_kline_data()
     print("K线数据:")
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
