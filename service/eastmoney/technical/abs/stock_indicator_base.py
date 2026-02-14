@@ -69,8 +69,8 @@ def _parse_kline_fields(kline):
         'change_hand': float(fields[10])
     }
 
-async def get_stock_history_kline_max_min(stock_info: StockInfo):
-    klines = await get_stock_day_range_kline(stock_info)
+async def get_stock_history_kline_max_min(stock_info: StockInfo, limit=400):
+    klines = await get_stock_day_range_kline(stock_info, limit)
     result = {}
     for kline in klines:
         data = _parse_kline_fields(kline)
