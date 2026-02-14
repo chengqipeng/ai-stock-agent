@@ -1,6 +1,7 @@
 from common.utils.amount_utils import convert_amount_unit
 from common.http.http_utils import EASTMONEY_API_URL, fetch_eastmoney_api
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 
 
 # async def get_financial_data(stock_info: StockInfo, page_size=5, page_number=1):
@@ -81,6 +82,13 @@ async def get_financial_report(stock_info: StockInfo, page_size=5, page_number=1
 
 async def get_financial_report_markdown(stock_info: StockInfo , page_size=5):
     """获取业绩报表明细并转换为markdown"""
+    cache_path = get_cache_path("financial_report", stock_info.stock_code)
+    
+    # 检查缓存
+    cached_data = load_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
     report_data_1 = await get_financial_report(stock_info, page_size, 1)
     report_data_2 = await get_financial_report(stock_info, page_size, 2)
     report_data = report_data_1 + report_data_2
@@ -110,7 +118,12 @@ async def get_financial_report_markdown(stock_info: StockInfo , page_size=5):
         assigndscrpt = item.get('ASSIGNDSCRPT', '-') if item.get('ASSIGNDSCRPT') else '-'
         notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
         markdown += f"| {report_date} | {basic_eps} | {deduct_eps} | {income_str} | {ystz} | {yshz} | {profit_str} | {sjltz} | {sjlhz} | {bps} | {roe} | {mgjyxjje} | {xsmll} | {assigndscrpt} | {notice_date} |\n"
-    return markdown + "\n"
+    
+    result = markdown + "\n"
+    # 保存缓存
+    save_cache(cache_path, result)
+    
+    return result
 
 
 # async def get_financial_fast_report_markdown(stock_info: StockInfo, page_size=15):
