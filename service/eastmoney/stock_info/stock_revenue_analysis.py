@@ -3,10 +3,19 @@ from common.utils.amount_utils import convert_amount_unit
 from datetime import datetime, timedelta
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 
 
 async def get_revenue_analysis(stock_info: StockInfo, report_date="2024-12-31", page_size=200):
     """获取主营业务构成数据"""
+    cache_key = f"{stock_info.stock_code}_{report_date}"
+    cache_path = get_cache_path("revenue_analysis", cache_key)
+    
+    # 检查缓存
+    cached_data = load_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
     url = "https://datacenter.eastmoney.com/securities/api/data/v1/get"
     params = {
         "reportName": "RPT_F10_FN_MAINOP",
@@ -22,7 +31,10 @@ async def get_revenue_analysis(stock_info: StockInfo, report_date="2024-12-31", 
     
     data = await fetch_eastmoney_api(url, params, referer="https://emweb.securities.eastmoney.com/")
     if data.get("result") and data["result"].get("data"):
-        return data["result"]["data"]
+        result = data["result"]["data"]
+        # 保存缓存
+        save_cache(cache_path, result)
+        return result
     else:
         raise Exception(f"未获取到股票 {stock_info.stock_code_normalize} 的主营业务构成数据")
 
