@@ -120,6 +120,20 @@ async def get_stock_history_kline_max_min(secid="0.002371"):
         raise Exception(f"未获取到股票 {secid} 的K线数据")
 
 
+async def get_stock_history_volume_amount_yearly(secid="0.002371"):
+    """获取一年的成交量和成交额数据，返回JSON格式"""
+    kline_data = await get_stock_history_kline_max_min(secid)
+    result = []
+    for date, data in sorted(kline_data.items(), reverse=True)[:250]:
+        result.append({
+            "成交日期": date,
+            "成交量": data["trading_volume"],
+            "成交额": data["trading_amount"]
+        })
+    print(result)
+    return result
+
+
 if __name__ == "__main__":
-    asyncio.run(get_stock_history_kline_max_min(secid="0.002371"))
+    asyncio.run(get_stock_history_volume_amount_yearly(secid="0.002371"))
 
