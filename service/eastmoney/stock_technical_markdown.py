@@ -18,16 +18,13 @@ from service.prompt.stock_technical_indicator_simple_prompt import get_technical
 
 async def get_technical_indicators_markdown(stock_info: StockInfo):
     """汇总所有技术指标数据为markdown格式"""
-    # 统一调用一次get_stock_day_range_kline，使用最大需求的limit
-    klines = await get_stock_day_range_kline(stock_info, limit=400)
-    
     markdown = await get_fund_flow_history_markdown(stock_info)
-    markdown += await get_boll_markdown(stock_info, klines)
-    markdown += await get_macd_markdown(stock_info, klines)
-    markdown += await get_rsi_markdown(stock_info, klines)
-    markdown += await get_vwma_markdown(stock_info, klines)
-    markdown += await get_atr_markdown(stock_info, klines)
-    markdown += await generate_can_slim_50_200_summary(stock_info, klines)
+    markdown += await get_boll_markdown(stock_info)
+    markdown += await get_macd_markdown(stock_info)
+    markdown += await get_rsi_markdown(stock_info)
+    markdown += await get_vwma_markdown(stock_info)
+    markdown += await get_atr_markdown(stock_info)
+    markdown += await generate_can_slim_50_200_summary(stock_info)
 
     return markdown
 

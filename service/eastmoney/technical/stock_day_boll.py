@@ -21,8 +21,9 @@ CAN SLIM 选股逻辑下的数据需求虽然 20 条数据就能算出指标，�
 图形观察： 建议 60 条（看清近期趋势）。
 完整分析： 建议 250 条（对齐 RS 评级和年度业绩周期）。
 """
-def calculate_bollinger_bands(klines, window=20, num_std=2):
+async def calculate_bollinger_bands(stock_info: StockInfo, window=20, num_std=2):
     """计算布林线指标"""
+    klines = await get_stock_day_range_kline(stock_info)
     df = parse_klines_to_df(klines)
     
     boll = df['close_price'].rolling(window=window).mean()
@@ -34,16 +35,16 @@ def calculate_bollinger_bands(klines, window=20, num_std=2):
     
     return process_indicator_data(df, 'boll')
 
-async def get_boll_markdown(stock_info: StockInfo, klines):
+async def get_boll_markdown(stock_info: StockInfo):
     """将布林线数据转换为markdown格式"""
     config = INDICATOR_CONFIG['boll']
-    boll_data = calculate_bollinger_bands(klines)
+    boll_data = await calculate_bollinger_bands(stock_info)
 
     markdown = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 布林线数据\n\n"
     markdown += "| 日期 | 收盘价 | BOLL | BOLL_UB | BOLL_LB |\n"
     markdown += "|------|--------|------|---------|---------|\n"
     for item in boll_data[:config['markdown_limit']]:
-        markdown += f"| {item['date']} | {item['close']:.2f} | {item['boll']} | {item['boll_ub']} | {item['boll_lb']} |\n"
+        markdown += f"| {item['date']} | {item['close_price']:.2f} | {item['boll']} | {item['boll_ub']} | {item['boll_lb']} |\n"
     markdown += "\n"
     return markdown
 
@@ -51,7 +52,7 @@ async def get_boll_markdown(stock_info: StockInfo, klines):
 
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
-    boll_data = await get_boll_markdown(stock_info, [])
+    boll_data = await get_boll_markdown(stock_info)
     print(boll_data)
 
 if __name__ == "__main__":

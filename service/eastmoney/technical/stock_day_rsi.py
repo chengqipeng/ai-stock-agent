@@ -18,8 +18,9 @@ B. 确认“相对强度” (RS Rating)虽然你问的是 RSI，但在 CAN SLIM 
 全系统扫描 (CAN SLIM Filter)250 条 (约1年)保证 RSI 计算完全平滑，并能计算年度 EPS 增长和相对强度排名。
 """
 
-def calculate_rsi(klines, window=14):
+async def calculate_rsi(stock_info: StockInfo, window=14):
     """计算 RSI 指标"""
+    klines = await get_stock_day_range_kline(stock_info)
     df = parse_klines_to_df(klines)
     
     delta = df['close_price'].diff()
@@ -34,10 +35,10 @@ def calculate_rsi(klines, window=14):
     
     return process_indicator_data(df, 'rsi')
 
-async def get_rsi_markdown(stock_info: StockInfo, klines):
+async def get_rsi_markdown(stock_info: StockInfo):
     """将RSI数据转换为markdown格式"""
     config = INDICATOR_CONFIG['rsi']
-    rsi_data = calculate_rsi(klines)
+    rsi_data = await calculate_rsi(stock_info)
 
     markdown = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - RSI数据\n\n"
     markdown += "| 日期 | 收盘价 | RSI(14) | 状态 |\n"
@@ -45,13 +46,13 @@ async def get_rsi_markdown(stock_info: StockInfo, klines):
     for item in rsi_data[:config['markdown_limit']]:
         rsi = item.get('rsi', 'N/A')
         status = '超买' if rsi != 'N/A' and rsi > 70 else ('超卖' if rsi != 'N/A' and rsi < 30 else '正常')
-        markdown += f"| {item['date']} | {item['close']:.2f} | {rsi} | {status} |\n"
+        markdown += f"| {item['date']} | {item['close_price']:.2f} | {rsi} | {status} |\n"
     markdown += "\n"
     return markdown
 
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
-    rsi_data = await get_rsi_markdown(stock_info, [])
+    rsi_data = await get_rsi_markdown(stock_info)
     print(rsi_data)
 
 if __name__ == "__main__":

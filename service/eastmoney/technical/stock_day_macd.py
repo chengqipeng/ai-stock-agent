@@ -17,8 +17,9 @@ CAN SLIM 系统下的“实战”阈值（战略数据量）
 CAN SLIM 实战250 (1年)配合分析 C、A 增长及中长期杯柄形态。
 """
 
-def calculate_macd(klines, fast=12, slow=26, signal=9):
+async def calculate_macd(stock_info: StockInfo, fast=12, slow=26, signal=9):
     """计算MACD指标"""
+    klines = await get_stock_day_range_kline(stock_info)
     df = parse_klines_to_df(klines)
     
     ema_fast = df['close_price'].ewm(span=fast, adjust=False).mean()
@@ -30,16 +31,16 @@ def calculate_macd(klines, fast=12, slow=26, signal=9):
     
     return process_indicator_data(df, 'macd')
 
-async def get_macd_markdown(stock_info: StockInfo, klines):
+async def get_macd_markdown(stock_info: StockInfo):
     """将MACD数据转换为markdown格式"""
     config = INDICATOR_CONFIG['macd']
-    macd_data = calculate_macd(klines)
+    macd_data = await calculate_macd(stock_info)
 
     markdown = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - MACD数据\n\n"
     markdown += "| 日期 | 收盘价 | MACD | MACDS | MACDH |\n"
     markdown += "|------|--------|------|-------|-------|\n"
     for item in macd_data[:config['markdown_limit']]:
-        markdown += f"| {item['date']} | {item['close']:.2f} | {item['macd']} | {item['macds']} | {item['macdh']} |\n"
+        markdown += f"| {item['date']} | {item['close_price']:.2f} | {item['macd']} | {item['macds']} | {item['macdh']} |\n"
     markdown += "\n"
     return markdown
 
@@ -47,7 +48,7 @@ async def get_macd_markdown(stock_info: StockInfo, klines):
 
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
-    macd_data = await get_macd_markdown(stock_info, [])
+    macd_data = await get_macd_markdown(stock_info)
     print(macd_data)
 
 if __name__ == "__main__":

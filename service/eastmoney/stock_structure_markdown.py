@@ -97,8 +97,7 @@ async def _build_stock_markdown(stock_info: StockInfo, history_page_size=120, in
         parts.append(increase_md)
     
     if include_ma:
-        klines = await get_stock_day_range_kline(stock_info, limit=400)
-        parts.append(await generate_can_slim_50_200_summary(stock_info, klines))
+        parts.append(await generate_can_slim_50_200_summary(stock_info))
     
     return "\n\n".join(parts)
 

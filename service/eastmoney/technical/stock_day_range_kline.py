@@ -17,8 +17,9 @@ from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to
 200-SMA	200	250 - 300	核心红线。 过滤掉所有处于下降通道的弱势股。
 
 """
-def calculate_moving_averages(klines, stock_info: StockInfo):
+async def calculate_moving_averages(stock_info: StockInfo):
     """计算移动平均线指标"""
+    klines = await get_stock_day_range_kline(stock_info)
     df = parse_klines_to_df(klines)
     
     # 10日EMA - 使用adjust=True
@@ -37,8 +38,9 @@ def calculate_moving_averages(klines, stock_info: StockInfo):
     return df[['date', 'close_10_ema', 'close_50_sma', 'close_200_sma', 'is_bullish_alignment']].tail(config['tail_limit']).to_dict('records')[::-1]
 
 
-async def generate_can_slim_50_200_summary(stock_info: StockInfo, klines):
+async def generate_can_slim_50_200_summary(stock_info: StockInfo):
     """生成CAN SLIM 10/50/200日均线分析摘要"""
+    klines = await get_stock_day_range_kline(stock_info)
     df = parse_klines_to_df(klines)
     
     # 计算均线和EMA10
@@ -49,7 +51,7 @@ async def generate_can_slim_50_200_summary(stock_info: StockInfo, klines):
 
     # 提取最新数据点
     latest = df.iloc[-1]
-    curr_price = latest['close']
+    curr_price = latest['close_price']
     ema10 = latest['close_10_ema']
     sma50 = latest['SMA50']
     sma200 = latest['SMA200']
@@ -71,7 +73,7 @@ async def generate_can_slim_50_200_summary(stock_info: StockInfo, klines):
     recent_10 = df.iloc[-10:]
     avg_vol_50 = df['trading_volume'].rolling(window=50).mean().iloc[-1]
     anomalies = sum(1 for _, day in recent_10.iterrows() 
-                    if day['low'] < day['close_10_ema'] and day['close'] > day['close_10_ema'] and day['volume'] > avg_vol_50)
+                    if day['low_price'] < day['close_10_ema'] and day['close_price'] > day['close_10_ema'] and day['trading_volume'] > avg_vol_50)
 
     # 格式化输出数据包
     summary = f"""## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 均线状态总结 (截至{latest['date']})：
@@ -83,10 +85,10 @@ async def generate_can_slim_50_200_summary(stock_info: StockInfo, klines):
     return summary
 
 
-async def get_moving_averages_markdown(stock_info: StockInfo, klines):
+async def get_moving_averages_markdown(stock_info: StockInfo):
     """将移动平均线数据转换为markdown格式"""
     config = INDICATOR_CONFIG['ma']
-    ma_data = calculate_moving_averages(klines, stock_info)
+    ma_data = await calculate_moving_averages(stock_info)
 
     markdown = f"## <{stock_info.stock_name}（ {stock_info.stock_code_normalize}）> - 移动平均线数据\n\n"
     markdown += "| 日期 | 10日EMA | 50日SMA | 200日SMA | 多头排列 |\n"
@@ -98,10 +100,9 @@ async def get_moving_averages_markdown(stock_info: StockInfo, klines):
 
 
 async def get_moving_averages_json(stock_info: StockInfo):
-    klines = await get_stock_day_range_kline(stock_info)
     """返回移动平均线数据的JSON格式"""
     config = INDICATOR_CONFIG['ma']
-    ma_data = calculate_moving_averages(klines, stock_info)
+    ma_data = await calculate_moving_averages(stock_info)
     
     return {
         "stock_code": stock_info.stock_code_normalize,
@@ -123,7 +124,7 @@ async def get_stock_history_volume_amount_yearly(stock_info: StockInfo):
 
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
-    klines = await get_moving_averages_json(stock_info)
+    klines = await generate_can_slim_50_200_summary(stock_info)
     print(klines)
 
 if __name__ == "__main__":

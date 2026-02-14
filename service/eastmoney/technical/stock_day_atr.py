@@ -14,8 +14,9 @@ Tips: It's a reactive measure, so use it as part of a broader risk management st
 回测研究覆盖整个回测时段观察波动率在不同市场周期下的表现。
 """
 
-def calculate_atr(klines, period=14):
+async def calculate_atr(stock_info: StockInfo, period=14):
     """计算 ATR 指标"""
+    klines = await get_stock_day_range_kline(stock_info)
     df = parse_klines_to_df(klines)
     
     df['h_l'] = df['high_price'] - df['low_price']
@@ -29,24 +30,24 @@ def calculate_atr(klines, period=14):
     
     return process_indicator_data(df, 'atr')
 
-async def get_atr_markdown(stock_info: StockInfo, klines):
+async def get_atr_markdown(stock_info: StockInfo):
     """将ATR数据转换为markdown格式"""
     config = INDICATOR_CONFIG['atr']
-    atr_data = calculate_atr(klines)
+    atr_data = await calculate_atr(stock_info)
 
     markdown = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - ATR数据\n\n"
     markdown += "| 日期 | 收盘价 | ATR(14) | 波动率 |\n"
     markdown += "|------|------|---------|--------|\n"
     for item in atr_data[:config['markdown_limit']]:
         atr = item.get('atr', 'N/A')
-        volatility = '高' if atr != 'N/A' and atr > item['close'] * 0.03 else ('低' if atr != 'N/A' and atr < item['close'] * 0.01 else '中')
-        markdown += f"| {item['date']} | {item['close']:.2f} | {atr} | {volatility} |\n"
+        volatility = '高' if atr != 'N/A' and atr > item['close_price'] * 0.03 else ('低' if atr != 'N/A' and atr < item['close_price'] * 0.01 else '中')
+        markdown += f"| {item['date']} | {item['close_price']:.2f} | {atr} | {volatility} |\n"
     markdown += "\n"
     return markdown
 
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
-    atr_data = await get_atr_markdown(stock_info, [])
+    atr_data = await get_atr_markdown(stock_info)
     print(atr_data)
 
 if __name__ == "__main__":
