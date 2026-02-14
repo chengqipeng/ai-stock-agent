@@ -3,7 +3,7 @@ import pandas as pd
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, \
-    INDICATOR_CONFIG, get_stock_day_range_kline
+    INDICATOR_CONFIG, get_stock_day_range_kline, get_stock_history_kline_max_min
 
 """
 核心原则：必须拥有 250 条（约 1 年）以上的历史数据
@@ -23,13 +23,13 @@ def calculate_moving_averages(klines, stock_info: StockInfo):
     df = parse_klines_to_df(klines)
     
     # 10日EMA - 使用adjust=True
-    df['close_10_ema'] = df['close'].rolling(window=10).mean().round(2)
+    df['close_10_ema'] = df['close_price'].rolling(window=10).mean().round(2)
     
     # 50日SMA
-    df['close_50_sma'] = df['close'].rolling(window=50).mean().round(2)
+    df['close_50_sma'] = df['close_price'].rolling(window=50).mean().round(2)
     
     # 200日SMA
-    df['close_200_sma'] = df['close'].rolling(window=200).mean().round(2)
+    df['close_200_sma'] = df['close_price'].rolling(window=200).mean().round(2)
     
     # 多头排列判断
     df['is_bullish_alignment'] = (df['close_10_ema'] > df['close_50_sma']) & (df['close_50_sma'] > df['close_200_sma'])
@@ -42,9 +42,9 @@ async def generate_can_slim_50_200_summary(stock_info: StockInfo, klines):
     df = parse_klines_to_df(klines)
     
     # 计算均线和EMA10
-    df['close_10_ema'] = df['close'].rolling(window=10).mean()
-    df['SMA50'] = df['close'].rolling(window=50).mean()
-    df['SMA200'] = df['close'].rolling(window=200).mean()
+    df['close_10_ema'] = df['close_price'].rolling(window=10).mean()
+    df['SMA50'] = df['close_price'].rolling(window=50).mean()
+    df['SMA200'] = df['close_price'].rolling(window=200).mean()
     df['sma200_diff'] = df['SMA200'].diff()
 
     # 提取最新数据点
@@ -64,12 +64,12 @@ async def generate_can_slim_50_200_summary(stock_info: StockInfo, klines):
 
     # 相对位置计算
     bias_200 = ((curr_price - sma200) / sma200) * 100
-    high_52w = df['high'].rolling(window=250).max().iloc[-1]
+    high_52w = df['high_price'].rolling(window=250).max().iloc[-1]
     drop_from_high = ((curr_price - high_52w) / high_52w) * 100
 
     # 异常波动捕捉
     recent_10 = df.iloc[-10:]
-    avg_vol_50 = df['volume'].rolling(window=50).mean().iloc[-1]
+    avg_vol_50 = df['trading_volume'].rolling(window=50).mean().iloc[-1]
     anomalies = sum(1 for _, day in recent_10.iterrows() 
                     if day['low'] < day['close_10_ema'] and day['close'] > day['close_10_ema'] and day['volume'] > avg_vol_50)
 
@@ -107,6 +107,19 @@ async def get_moving_averages_json(stock_info: StockInfo, klines):
         "stock_name": stock_info.stock_name,
         "data": ma_data[:config['markdown_limit']]
     }
+
+async def get_stock_history_volume_amount_yearly(stock_info: StockInfo):
+    """获取一年的成交量和成交额数据，返回JSON格式"""
+    kline_data = await get_stock_history_kline_max_min(stock_info)
+    result = []
+    for date, data in sorted(kline_data.items(), reverse=True)[:250]:
+        result.append({
+            "成交日期": date,
+            "成交量": data["trading_volume"],
+            "成交额": data["trading_amount"]
+        })
+    print(result)
+    return result
 
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")

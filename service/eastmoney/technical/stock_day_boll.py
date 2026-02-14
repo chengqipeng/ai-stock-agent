@@ -25,8 +25,8 @@ def calculate_bollinger_bands(klines, window=20, num_std=2):
     """计算布林线指标"""
     df = parse_klines_to_df(klines)
     
-    boll = df['close'].rolling(window=window).mean()
-    rolling_std = df['close'].rolling(window=window).std()
+    boll = df['close_price'].rolling(window=window).mean()
+    rolling_std = df['close_price'].rolling(window=window).std()
     
     df['boll'] = boll.round(4)
     df['boll_ub'] = (boll + rolling_std * num_std).round(4)

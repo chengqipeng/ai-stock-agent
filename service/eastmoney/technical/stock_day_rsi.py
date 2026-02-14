@@ -22,7 +22,7 @@ def calculate_rsi(klines, window=14):
     """计算 RSI 指标"""
     df = parse_klines_to_df(klines)
     
-    delta = df['close'].diff()
+    delta = df['close_price'].diff()
     gain = delta.where(delta > 0, 0)
     loss = (-delta.where(delta < 0, 0))
     

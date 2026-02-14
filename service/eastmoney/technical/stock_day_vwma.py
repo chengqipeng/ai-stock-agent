@@ -13,9 +13,9 @@ def calculate_vwma(klines, window=20):
     """计算成交量加权移动平均线 (VWMA)"""
     df = parse_klines_to_df(klines)
     
-    pv = df['close'] * df['volume']
+    pv = df['close_price'] * df['trading_volume']
     pv_sum = pv.rolling(window=window).sum()
-    vol_sum = df['volume'].rolling(window=window).sum()
+    vol_sum = df['trading_volume'].rolling(window=window).sum()
     df['vwma'] = (pv_sum / vol_sum).round(2)
     
     return process_indicator_data(df, 'vwma')

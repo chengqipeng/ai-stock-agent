@@ -21,8 +21,8 @@ def calculate_macd(klines, fast=12, slow=26, signal=9):
     """计算MACD指标"""
     df = parse_klines_to_df(klines)
     
-    ema_fast = df['close'].ewm(span=fast, adjust=False).mean()
-    ema_slow = df['close'].ewm(span=slow, adjust=False).mean()
+    ema_fast = df['close_price'].ewm(span=fast, adjust=False).mean()
+    ema_slow = df['close_price'].ewm(span=slow, adjust=False).mean()
     
     df['macd'] = (ema_fast - ema_slow).round(4)
     df['macds'] = df['macd'].ewm(span=signal, adjust=False).mean().round(4)

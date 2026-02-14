@@ -18,9 +18,9 @@ def calculate_atr(klines, period=14):
     """计算 ATR 指标"""
     df = parse_klines_to_df(klines)
     
-    df['h_l'] = df['high'] - df['low']
-    df['h_pc'] = abs(df['high'] - df['close'].shift(1))
-    df['l_pc'] = abs(df['low'] - df['close'].shift(1))
+    df['h_l'] = df['high_price'] - df['low_price']
+    df['h_pc'] = abs(df['high_price'] - df['close_price'].shift(1))
+    df['l_pc'] = abs(df['low_price'] - df['close_price'].shift(1))
     
     df['TR'] = df[['h_l', 'h_pc', 'l_pc']].max(axis=1)
     df['atr'] = df['TR'].ewm(alpha=1/period, adjust=False).mean().round(2)

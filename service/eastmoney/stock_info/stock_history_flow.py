@@ -1,9 +1,8 @@
-import asyncio
-
 from common.utils.amount_utils import convert_amount_unit
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.http.http_utils import fetch_eastmoney_api, EASTMONEY_PUSH2HIS_API_URL
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+from service.eastmoney.technical.abs.stock_indicator_base import get_stock_history_kline_max_min
 
 
 async def get_fund_flow_history(stock_info: StockInfo):
@@ -69,70 +68,67 @@ async def get_fund_flow_history_markdown(stock_info: StockInfo, page_size = 120)
             main_net = super_net + big_net
             main_net_str = convert_amount_unit(main_net)
             main_pct = f"{round(float(fields[6]), 2)}%" if fields[6] != '-' else "--"
-            markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} | {kline_max_min_item['high_price']} | {kline_max_min_item['low_price']} | {kline_max_min_item['change_hands']}% | {kline_max_min_item['trading_volume']} | {kline_max_min_item['trading_amount']} |\n"
+            markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} | {kline_max_min_item['high_price']} | {kline_max_min_item['low_price']} | {kline_max_min_item['change_hand']}% | {kline_max_min_item['trading_volume']} | {kline_max_min_item['trading_amount']} |\n"
     return markdown + "\n"
 
 
-async def get_stock_history_kline_max_min(stock_info: StockInfo):
-    """获取股票K线数据"""
-    cache_path = get_cache_path("kline", stock_info.stock_code)
-    
-    # 检查缓存
-    cached_data = load_cache(cache_path)
-    if cached_data:
-        return cached_data
-    
-    # 获取数据
-    url = f"{EASTMONEY_PUSH2HIS_API_URL}/stock/kline/get"
-    params = {
-        "secid": stock_info.secid,
-        "ut": "fa5fd1943c7b386f172d6893dbfba10b",
-        "fields1": "f1,f2,f3,f4,f5,f6",
-        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
-        "klt": "101",
-        "fqt": "1",
-        "end": "20500101",
-        "smplmt": "460",
-        "lmt": "400"
-    }
-    data = await fetch_eastmoney_api(url, params, referer="https://quote.eastmoney.com/")
-    if data.get("data") and data["data"].get("klines"):
-        klines = data["data"]["klines"]
-        result = {}
-        for kline in klines:
-            fields = kline.split(',')
-            date = fields[0]
-            high_price = float(fields[2])
-            low_price = float(fields[3])
-            trading_volume = f"{round(float(fields[5])/10000, 2)}"
-            trading_amount = convert_amount_unit(float(fields[6]))
-            change_hands = float(fields[10])
-
-            result[date] = {"high_price": high_price, "low_price": low_price, "change_hands": change_hands, "trading_volume": trading_volume, "trading_amount": trading_amount}
-        
-        # 保存缓存
-        save_cache(cache_path, result)
-        
-        return result
-    else:
-        raise Exception(f"未获取到股票 {stock_info.secid} 的K线数据")
-
-
-async def get_stock_history_volume_amount_yearly(stock_info: StockInfo):
-    """获取一年的成交量和成交额数据，返回JSON格式"""
-    kline_data = await get_stock_history_kline_max_min(stock_info)
-    result = []
-    for date, data in sorted(kline_data.items(), reverse=True)[:250]:
-        result.append({
-            "成交日期": date,
-            "成交量": data["trading_volume"],
-            "成交额": data["trading_amount"]
-        })
-    print(result)
-    return result
+# async def get_stock_history_kline_max_min(stock_info: StockInfo):
+#     """获取股票K线数据"""
+#     cache_path = get_cache_path("kline", stock_info.stock_code)
+#
+#     # 检查缓存
+#     cached_data = load_cache(cache_path)
+#     if cached_data:
+#         return cached_data
+#
+#     # 获取数据
+#     url = f"{EASTMONEY_PUSH2HIS_API_URL}/stock/kline/get"
+#     params = {
+#         "secid": stock_info.secid,
+#         "ut": "fa5fd1943c7b386f172d6893dbfba10b",
+#         "fields1": "f1,f2,f3,f4,f5,f6",
+#         "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
+#         "klt": "101",
+#         "fqt": "1",
+#         "end": datetime.now().strftime("%Y%m%d"),
+#         "smplmt": "460",
+#         "lmt": "400"
+#     }
+#     data = await fetch_eastmoney_api(url, params, referer="https://quote.eastmoney.com/")
+#     if data.get("data") and data["data"].get("klines"):
+#         klines = data["data"]["klines"]
+#         result = {}
+#         for kline in klines:
+#             fields = kline.split(',')
+#             date = fields[0]
+#             high_price = float(fields[2])
+#             low_price = float(fields[3])
+#             trading_volume = f"{round(float(fields[5])/10000, 2)}"
+#             trading_amount = convert_amount_unit(float(fields[6]))
+#             change_hands = float(fields[10])
+#
+#             result[date] = {"high_price": high_price, "low_price": low_price, "change_hands": change_hands, "trading_volume": trading_volume, "trading_amount": trading_amount}
+#
+#         # 保存缓存
+#         save_cache(cache_path, result)
+#
+#         return result
+#     else:
+#         raise Exception(f"未获取到股票 {stock_info.secid} 的K线数据")
 
 
 if __name__ == "__main__":
-    stock_info: StockInfo = get_stock_info_by_name("北方华创")
-    asyncio.run(get_stock_history_volume_amount_yearly(stock_info))
+    import asyncio
+    import json
+
+
+    async def main():
+        stock_name = "北方华创"
+        stock_info: StockInfo = get_stock_info_by_name(stock_name)
+        # 测试 JSON 格式
+        result = await get_fund_flow_history_markdown(stock_info)
+        print("股东增减持数据 (JSON格式):")
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+
+    asyncio.run(main())
 
