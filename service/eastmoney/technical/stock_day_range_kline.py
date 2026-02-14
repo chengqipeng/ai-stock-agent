@@ -118,12 +118,11 @@ async def get_stock_history_volume_amount_yearly(stock_info: StockInfo):
             "成交量": data["trading_volume"],
             "成交额": data["trading_amount"]
         })
-    print(result)
     return result
 
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
-    klines = await generate_can_slim_50_200_summary(stock_info, [])
+    klines = await get_stock_history_volume_amount_yearly(stock_info)
     print(klines)
 
 if __name__ == "__main__":
