@@ -2,6 +2,7 @@ import asyncio
 import json
 from datetime import datetime
 
+from service.llm.volcengine_client import VolcengineClient
 from service.stock_news.can_slim.stock_industry_service import get_industry_result
 from service.llm.deepseek_client import DeepSeekClient
 
@@ -57,14 +58,14 @@ async def get_search_key_prompt(secucode="002371.SZ", stock_name = None):
     {{
       "intent": "创新产品发布及行业壁垒",
       "search_key": ["搜索词1", "搜索词2"],
-      "search_key_time_range": [<搜索数据的时间范围，具体数字，禁止直接返回‘90天’这类格式>, <搜索数据的时间范围>]
+      "search_key_time_range": <搜索数据的时间范围，具体数字，禁止直接返回‘90天’这类格式>
     }}
   ],
   "search_global_news": [
     {{
       "intent": "北美前五大同类型业务公司",
       "search_key": [],
-      "search_key_time_range": []
+      "search_key_time_range": <搜索数据的时间范围，具体数字，禁止直接返回‘90天’这类格式>
     }},
   ]
 }}
@@ -74,7 +75,7 @@ async def get_search_key_prompt(secucode="002371.SZ", stock_name = None):
 
 async def get_search_key_result(secucode="002371.SZ", stock_name = None):
     prompt = await get_search_key_prompt(secucode, stock_name)
-    client = DeepSeekClient()
+    client = VolcengineClient()
     response = await client.chat(
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7
