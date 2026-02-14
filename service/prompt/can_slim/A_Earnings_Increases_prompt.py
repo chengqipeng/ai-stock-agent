@@ -1,6 +1,8 @@
 from datetime import datetime
 import json
-from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json, MAX_RECENT_PERIODS
+
+from common.utils.stock_info_utils import StockInfo
+from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json
 
 
 def calculate_cagr(eps_compare_data):
@@ -80,14 +82,15 @@ def calculate_reality_check(raw_data):
     return result
 
 
-async def get_A_Earnings_Increases_prompt(secucode, stock_name):
+async def get_A_Earnings_Increases_prompt(stock_info: StockInfo):
     # eps_data = await calculate_eps_from_deducted_profit(secucode)
-    eps_kc_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'EPSKCJB'])
-    roe_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'ROEKCJQ'])
-    eps_compare_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'EPSJB'])
-    cash_flow_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'MGJYXJJE'])
-    profit_growth_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'KCFJCXSYJLRTZ'])
-    raw_reality_check_data = await get_financial_data_to_json(secucode, indicator_keys=['REPORT_DATE', 'MGJYXJJE', 'EPSJB'])
+
+    eps_kc_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'EPSKCJB'])
+    roe_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'ROEKCJQ'])
+    eps_compare_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'EPSJB'])
+    cash_flow_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'MGJYXJJE'])
+    profit_growth_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'KCFJCXSYJLRTZ'])
+    raw_reality_check_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'MGJYXJJE', 'EPSJB'])
     the_reality_check_data = calculate_reality_check(raw_reality_check_data)
     
     cagr_value, cagr_description = calculate_cagr(eps_compare_data)
@@ -99,7 +102,7 @@ async def get_A_Earnings_Increases_prompt(secucode, stock_name):
 以下是基于欧奈尔 CAN SLIM 模型的 A 维度 深度拆解，包含了你必须抓取的核心数据、底层逻辑以及实战判读标准。
 
 #分析的股票（{datetime.now().strftime('%Y-%m-%d')}）
-{stock_name}({secucode})
+{stock_info.stock_name}（{stock_info.stock_code_normalize}）
 
 一、 核心数据清单 (The "Must-Have" Data)
 在分析 A 维度时，请基于我接下来提供的财报数据，调取以下 4 组关键年度数据，严格按照以下标准进行评估：

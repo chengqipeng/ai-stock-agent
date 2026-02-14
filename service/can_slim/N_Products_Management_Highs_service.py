@@ -1,7 +1,8 @@
+from common.utils.stock_info_utils import StockInfo
 from service.llm.deepseek_client import DeepSeekClient
 from service.prompt.can_slim.N_Products_Management_Highs import get_N_Products_Management_Highs_prompt
 
-async def execute_N_Products_Management_Highs(secucode: str, stock_name: str, deep_thinking: bool = False) -> str:
+async def execute_N_Products_Management_Highs(stock_info: StockInfo, deep_thinking: bool = False) -> str:
     """
     执行N新产品/新管理层/新高点分析
     
@@ -13,7 +14,7 @@ async def execute_N_Products_Management_Highs(secucode: str, stock_name: str, de
     Returns:
         分析结果字符串
     """
-    prompt = await get_N_Products_Management_Highs_prompt(secucode, stock_name)
+    prompt = await get_N_Products_Management_Highs_prompt(stock_info)
 
     print(prompt)
     print("\n =============================== \n")

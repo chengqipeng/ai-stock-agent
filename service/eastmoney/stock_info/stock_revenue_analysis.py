@@ -2,14 +2,16 @@ from common.http.http_utils import fetch_eastmoney_api
 from common.utils.amount_utils import convert_amount_unit
 from datetime import datetime, timedelta
 
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
-async def get_revenue_analysis(secucode="002371.SZ", report_date="2024-12-31", page_size=200):
+
+async def get_revenue_analysis(stock_info: StockInfo, report_date="2024-12-31", page_size=200):
     """获取主营业务构成数据"""
     url = "https://datacenter.eastmoney.com/securities/api/data/v1/get"
     params = {
         "reportName": "RPT_F10_FN_MAINOP",
         "columns": "SECUCODE,SECURITY_CODE,REPORT_DATE,MAINOP_TYPE,ITEM_NAME,MAIN_BUSINESS_INCOME,MBI_RATIO,MAIN_BUSINESS_COST,MBC_RATIO,MAIN_BUSINESS_RPOFIT,MBR_RATIO,GROSS_RPOFIT_RATIO,RANK",
-        "filter": f'(SECUCODE="{secucode}")(REPORT_DATE=\'{report_date}\')',
+        "filter": f'(SECUCODE="{stock_info.stock_code_normalize}")(REPORT_DATE=\'{report_date}\')',
         "pageNumber": "1",
         "pageSize": str(page_size),
         "sortTypes": "1,1",
@@ -22,16 +24,16 @@ async def get_revenue_analysis(secucode="002371.SZ", report_date="2024-12-31", p
     if data.get("result") and data["result"].get("data"):
         return data["result"]["data"]
     else:
-        raise Exception(f"未获取到股票 {secucode} 的主营业务构成数据")
+        raise Exception(f"未获取到股票 {stock_info.stock_code_normalize} 的主营业务构成数据")
 
 
-async def get_revenue_analysis_with_count(secucode="002371.SZ", report_date="2024-12-31", page_size=200):
+async def get_revenue_analysis_with_count(stock_info: StockInfo, report_date="2024-12-31", page_size=200):
     """获取主营业务构成数据及数量"""
-    data = await get_revenue_analysis(secucode, report_date, page_size)
+    data = await get_revenue_analysis(stock_info, report_date, page_size)
     return {"data": data, "count": len(data)}
 
 
-async def get_revenue_analysis_three_years(secucode="002371.SZ", stock_name = None, page_size=200):
+async def get_revenue_analysis_three_years(stock_info: StockInfo, page_size=200):
     """获取过去三年的主营业务构成数据（每年4个季度）"""
     current_year = datetime.now().year
     quarters = ["12-31", "09-30", "06-30", "03-31"]
@@ -41,7 +43,7 @@ async def get_revenue_analysis_three_years(secucode="002371.SZ", stock_name = No
         for quarter in quarters:
             date = f"{year}-{quarter}"
             try:
-                data = await get_revenue_analysis(secucode, date, page_size)
+                data = await get_revenue_analysis(stock_info, date, page_size)
                 all_data.extend(data)
             except:
                 pass
@@ -49,15 +51,13 @@ async def get_revenue_analysis_three_years(secucode="002371.SZ", stock_name = No
     return {"data": all_data, "count": len(all_data)}
 
 
-async def get_revenue_analysis_markdown(secucode="002371.SZ", report_date="2024-12-31", stock_code=None, stock_name=None):
+async def get_revenue_analysis_markdown(stock_info: StockInfo, report_date="2024-12-31"):
     """获取主营业务构成并转换为markdown"""
-    data = await get_revenue_analysis(secucode, report_date)
+    data = await get_revenue_analysis(stock_info, report_date)
     if not data:
         return ""
-    
-    if not stock_code:
-        stock_code = secucode.split('.')[0]
-    header = f"## <{stock_code} {stock_name}> - 主营业务构成 ({report_date})" if stock_name else f"## 主营业务构成 ({report_date})"
+
+    header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 主营业务构成 ({report_date})"
     
     markdown = f"""{header}
 | 类型 | 项目名称 | 主营收入(元) | 收入比例 | 主营成本(元) | 成本比例 | 主营利润(元) | 利润比例 | 毛利率(%) |
@@ -80,7 +80,7 @@ async def get_revenue_analysis_markdown(secucode="002371.SZ", report_date="2024-
     return markdown + "\n"
 
 
-async def get_revenue_analysis_three_years_markdown(secucode="002371.SZ", stock_code=None, stock_name=None):
+async def get_revenue_analysis_three_years_markdown(stock_info: StockInfo):
     """获取过去三年的主营业务构成并转换为markdown（每年4个季度）"""
     current_year = datetime.now().year
     quarters = ["12-31", "09-30", "06-30", "03-31"]
@@ -90,7 +90,7 @@ async def get_revenue_analysis_three_years_markdown(secucode="002371.SZ", stock_
         for quarter in quarters:
             date = f"{year}-{quarter}"
             try:
-                md = await get_revenue_analysis_markdown(secucode, date, stock_code, stock_name)
+                md = await get_revenue_analysis_markdown(stock_info, date)
                 if md:
                     markdown += md
             except:
@@ -104,11 +104,12 @@ if __name__ == "__main__":
     
     async def main():
         # 测试获取过去三年json数据
-        result = await get_revenue_analysis_three_years("002371.SZ")
+        stock_info: StockInfo = get_stock_info_by_name("北方华创")
+        result = await get_revenue_analysis_three_years(stock_info)
         print(f"过去三年数据条数: {result['count']}\n")
         
         # 测试生成过去三年markdown
-        markdown = await get_revenue_analysis_three_years_markdown("002371.SZ", "002371", "北方华创")
+        markdown = await get_revenue_analysis_three_years_markdown(stock_info)
         print(markdown)
     
     asyncio.run(main())

@@ -1,23 +1,12 @@
 from common.utils.amount_utils import convert_amount_unit, convert_amount_org_holder, convert_amount_org_holder_1
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.http.http_utils import EASTMONEY_API_URL, fetch_eastmoney_api
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
 
-def normalize_stock_code(stock_code):
-    """标准化股票代码格式，移除前缀0和后缀.SH/.SZ"""
-    if not stock_code:
-        return stock_code
-    # 移除 .SH 或 .SZ 后缀
-    stock_code = stock_code.split('.')[0]
-    # 移除前导 0.
-    if stock_code.startswith('0.'):
-        stock_code = stock_code[2:]
-    return stock_code
-
-
-async def get_org_holder(stock_code="002371", page_size=8, page_number=1):
+async def get_org_holder(stock_info: StockInfo, page_size=8, page_number=1):
     """获取机构持仓数据"""
-    cache_path = get_cache_path("org_holder", stock_code)
+    cache_path = get_cache_path("org_holder", stock_info.stock_code)
     
     # 检查缓存
     cached_data = load_cache(cache_path)
@@ -28,7 +17,7 @@ async def get_org_holder(stock_code="002371", page_size=8, page_number=1):
         "reportName": "RPT_MAIN_ORGHOLD",
         "columns": "ALL",
         "quoteColumns": "",
-        "filter": f"(SECURITY_CODE=\"{stock_code}\")",
+        "filter": f"(SECURITY_CODE=\"{stock_info.stock_code}\")",
         "pageNumber": str(page_number),
         "pageSize": str(page_size),
         "sortTypes": "",
@@ -46,9 +35,9 @@ async def get_org_holder(stock_code="002371", page_size=8, page_number=1):
         return []
 
 
-async def get_shareholder_increase(stock_code="601698", page_size=300, page_number=1):
+async def get_shareholder_increase(stock_info: StockInfo, page_size=300, page_number=1):
     """获取股东增持数据"""
-    cache_path = get_cache_path("shareholder_increase", stock_code)
+    cache_path = get_cache_path("shareholder_increase", stock_info.stock_code)
     
     # 检查缓存
     cached_data = load_cache(cache_path)
@@ -66,7 +55,7 @@ async def get_shareholder_increase(stock_code="601698", page_size=300, page_numb
         "columns": "ALL",
         "source": "WEB",
         "client": "WEB",
-        "filter": f"(SECURITY_CODE=\"{stock_code}\")"
+        "filter": f"(SECURITY_CODE=\"{stock_info.stock_code}\")"
     }
     data = await fetch_eastmoney_api(EASTMONEY_API_URL, params)
     if data.get("result") and data["result"].get("data"):
@@ -77,13 +66,13 @@ async def get_shareholder_increase(stock_code="601698", page_size=300, page_numb
         return None
 
 
-async def get_holder_detail(scode, report_date=None, page_num=1, page_size=100, sh_type="", sh_code="", sort_field="HOLDER_CODE", sort_direc=1):
+async def get_holder_detail(stock_info: StockInfo, report_date=None, page_num=1, page_size=100, sh_type="", sh_code="", sort_field="HOLDER_CODE", sort_direc=1):
     """获取股票主力持仓明细"""
     from datetime import datetime
     if report_date is None:
         report_date = datetime.now().strftime("%Y-%m-%d")
     
-    cache_path = get_cache_path("holder_detail", scode)
+    cache_path = get_cache_path("holder_detail", stock_info.stock_code)
     
     # 检查缓存
     cached_data = load_cache(cache_path)
@@ -94,7 +83,7 @@ async def get_holder_detail(scode, report_date=None, page_num=1, page_size=100, 
     params = {
         "SHType": sh_type,
         "SHCode": sh_code,
-        "SCode": scode,
+        "SCode": stock_info.stock_code,
         "ReportDate": report_date,
         "sortField": sort_field,
         "sortDirec": sort_direc,
@@ -110,12 +99,12 @@ async def get_holder_detail(scode, report_date=None, page_num=1, page_size=100, 
         return []
 
 
-async def get_shareholder_increase_markdown(stock_code="601698", page_size=20, stock_name=None):
+async def get_shareholder_increase_markdown(stock_info: StockInfo, page_size=20):
     """获取股东增减持明细并转换为markdown"""
-    items = await get_shareholder_increase(stock_code, page_size)
+    items = await get_shareholder_increase(stock_info, page_size)
     if not items:
         return ""
-    header = f"## <{stock_code} {stock_name}> - 股东增减持明细" if stock_name else f"## 股东增减持明细 (股票代码: {stock_code})"
+    header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 股东增减持明细"
     markdown = f"{header}\n\n"
     markdown += "| 股东名称 | 增减 | 变动数量(万股) | 占总股本比例 | 占流通股比例 | 持股总数(万股) | 占总股本比例 | 持流通股数(万股) | 占流通股比例 | 变动开始日 | 变动截止日 | 公告日 |\n"
     markdown += "|---------|------|--------------|------------|------------|--------------|------------|----------------|------------|----------|----------|--------|\n"
@@ -136,12 +125,11 @@ async def get_shareholder_increase_markdown(stock_code="601698", page_size=20, s
     return markdown + "\n"
 
 
-async def get_shareholder_increase_json(secid="0.601698", stock_name=None, page_size=20):
+async def get_shareholder_increase_json(stock_info: StockInfo, page_size=20):
     """获取股东增减持明细并转换为JSON格式"""
     from datetime import datetime, timedelta
 
-    stock_code = normalize_stock_code(secid)
-    items = await get_shareholder_increase(stock_code, page_size)
+    items = await get_shareholder_increase(stock_info, page_size)
     if not items:
         return []
     
@@ -174,12 +162,12 @@ async def get_shareholder_increase_json(secid="0.601698", stock_name=None, page_
     return result
 
 
-async def get_holder_detail_markdown(scode, report_date=None, page_size=100):
+async def get_holder_detail_markdown(stock_info: StockInfo, report_date=None, page_size=100):
     """获取股票主力持仓明细并转换为markdown"""
     from datetime import datetime
     if report_date is None:
         report_date = datetime.now().strftime("%Y-%m-%d")
-    data = await get_holder_detail(scode, report_date, page_size=page_size)
+    data = await get_holder_detail(stock_info, report_date, page_size=page_size)
     if not data:
         return ""
     markdown = f"## 主力持仓明细 (报告日期: {report_date})\n\n"
@@ -196,9 +184,9 @@ async def get_holder_detail_markdown(scode, report_date=None, page_size=100):
     return markdown + "\n"
 
 
-async def get_org_holder_markdown(stock_code, page_size=8, stock_name=None):
+async def get_org_holder_markdown(stock_info: StockInfo, page_size=8):
     """获取机构持仓明细并转换为markdown"""
-    holder_data = await get_org_holder(stock_code, page_size)
+    holder_data = await get_org_holder(stock_info, page_size)
     if not holder_data:
         return ""
     from collections import defaultdict
@@ -208,7 +196,7 @@ async def get_org_holder_markdown(stock_code, page_size=8, stock_name=None):
         grouped_data[report_date].append(item)
     markdown = ""
     for report_date, items in grouped_data.items():
-        header = f"## <{stock_code} {stock_name}> - {report_date} 机构持仓明细" if stock_name else f"## {report_date} 机构持仓明细"
+        header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - {report_date} 机构持仓明细"
         markdown += f"""{header}
 
 | 机构名称 | 持股家数(家) | 持股总数(万股) | 持股市值(亿元) |占总股本比例(%) | 占流通股比例(%) |
@@ -237,14 +225,10 @@ if __name__ == "__main__":
     import json
     
     async def main():
-        stock_code = "002371"
         stock_name = "北方华创"
-        
-        print(f"测试股票: {stock_code} {stock_name}")
-        print("\n" + "="*50 + "\n")
-        
+        stock_info: StockInfo = get_stock_info_by_name(stock_name)
         # 测试 JSON 格式
-        result = await get_shareholder_increase_json(stock_code, page_size=20, stock_name=stock_name)
+        result = await get_shareholder_increase(stock_info, page_size=20)
         print("股东增减持数据 (JSON格式):")
         print(json.dumps(result, ensure_ascii=False, indent=2))
     

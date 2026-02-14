@@ -31,11 +31,3 @@ def convert_amount_org_holder_1(amount):
     else:
         return str(amount)
 
-def normalize_stock_code(code):
-    """自动添加市场前缀: SH结尾添加1., SZ结尾添加0."""
-    code = code.strip()
-    if code.endswith('.SH'):
-        return f"1.{code.split('.')[0]}"
-    elif code.endswith('.SZ'):
-        return f"0.{code.split('.')[0]}"
-    return code

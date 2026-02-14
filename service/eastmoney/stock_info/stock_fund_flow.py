@@ -1,12 +1,14 @@
 from common.utils.amount_utils import convert_amount_unit
 from common.http.http_utils import EASTMONEY_PUSH_API_URL, fetch_eastmoney_api, EASTMONEY_PUSH2HIS_API_URL
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
-async def get_main_fund_flow(secids="0.002371"):
+
+async def get_main_fund_flow(stock_info: StockInfo):
     """获取资金流向数据"""
     url = f"{EASTMONEY_PUSH_API_URL}/ulist.np/get"
     params = {
         "fltt": "2",
-        "secids": secids,
+        "secids": stock_info.secid,
         "fields": "f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f64,f65,f70,f71,f76,f77,f82,f83,f164,f166,f168,f170,f172,f252,f253,f254,f255,f256,f124,f6,f278,f279,f280,f281,f282",
         "ut": "b2884a393a59ad64002292a3e90d46a5"
     }
@@ -43,17 +45,15 @@ async def get_main_fund_flow(secids="0.002371"):
             result.append(stock_info)
         return result
     else:
-        raise Exception(f"未获取到股票 {secids} 的主力资金流向数据")
+        raise Exception(f"未获取到股票 {stock_info.secid} 的主力资金流向数据")
 
-async def get_main_fund_flow_markdown(secids="0.002371", stock_code=None, stock_name=None):
+async def get_main_fund_flow_markdown(stock_info: StockInfo):
     """获取主力资金流向并转换为markdown"""
-    fund_flow_data = await get_main_fund_flow(secids)
+    fund_flow_data = await get_main_fund_flow(stock_info)
     if not fund_flow_data:
         return ""
     flow_data = fund_flow_data[0]
-    if not stock_code:
-        stock_code = secids.split('.')[-1]
-    header = f"## <{stock_code} {stock_name}> - 当日资金流向" if stock_name else "## 当日资金流向"
+    header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 当日资金流向"
     return f"""{header}
 - **成交额**: {flow_data.get('成交额', '--')}
 - **主力净流入**: {flow_data.get('主力净流入', '--')}
@@ -91,3 +91,14 @@ async def get_main_fund_flow_markdown(secids="0.002371", stock_code=None, stock_
 # - **中单流出**: {flow_data.get('中单流出', '--')}
 # - **小单流入**: {flow_data.get('小单流入', '--')}
 # - **小单流出**: {flow_data.get('小单流出', '--')}"""
+
+
+if __name__ == "__main__":
+    import asyncio
+    
+    async def main():
+        stock_info: StockInfo = get_stock_info_by_name("北方华创")
+        result = await get_main_fund_flow_markdown(stock_info)
+        print(result)
+    
+    asyncio.run(main())

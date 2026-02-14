@@ -1,5 +1,6 @@
 import asyncio
 
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, \
     INDICATOR_CONFIG, get_stock_day_range_kline
 
@@ -28,12 +29,12 @@ def calculate_atr(klines, period=14):
     
     return process_indicator_data(df, 'atr')
 
-async def get_atr_markdown(stock_code, stock_name, klines):
+async def get_atr_markdown(stock_info: StockInfo, klines):
     """将ATR数据转换为markdown格式"""
     config = INDICATOR_CONFIG['atr']
     atr_data = calculate_atr(klines)
 
-    markdown = f"## <{stock_code} {stock_name}> - ATR数据\n\n"
+    markdown = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - ATR数据\n\n"
     markdown += "| 日期 | 收盘价 | ATR(14) | 波动率 |\n"
     markdown += "|------|------|---------|--------|\n"
     for item in atr_data[:config['markdown_limit']]:
@@ -44,7 +45,8 @@ async def get_atr_markdown(stock_code, stock_name, klines):
     return markdown
 
 async def main():
-    atr_data = await get_atr_markdown("0.002371", "002371", "北方华创")
+    stock_info: StockInfo = get_stock_info_by_name("北方华创")
+    atr_data = await get_atr_markdown(stock_info, [])
     print(atr_data)
 
 if __name__ == "__main__":

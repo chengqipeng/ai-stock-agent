@@ -2,12 +2,13 @@ import asyncio
 import json
 from datetime import datetime
 
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.volcengine_client import VolcengineClient
 from service.stock_news.can_slim.stock_industry_service import get_industry_result
 
-async def get_search_key_prompt(secucode="002371.SZ", stock_name = None, search_intent= None, search_content = None):
-    industry_data_str = await get_industry_result(secucode)
+async def get_search_key_prompt(stock_info: StockInfo, search_intent= None, search_content = None):
+    industry_data_str = await get_industry_result(stock_info)
     industry_data = json.loads(industry_data_str)
     return f"""
 # Role: 资深金融投资研究员 / 证券分析师
@@ -22,7 +23,7 @@ async def get_search_key_prompt(secucode="002371.SZ", stock_name = None, search_
 **注意：你的回复必须是严格的 JSON 格式，不能包含任何额外的自然语言解释或 Markdown 格式（如 ```json 标签），以便于程序直接解析。**
 
 ## Input
-- 公司名称：{stock_name}
+- 公司名称：{stock_info.stock_name}
 - 所属行业：{industry_data['industry']}
 - 主营业务描述: {industry_data['description']}
 
@@ -106,11 +107,10 @@ SEARCH_CATEGORY = [
     }
 ]
 
-async def get_search_key_result_single(secucode, stock_name, category_info):
+async def get_search_key_result_single(stock_info: StockInfo, category_info):
     """单个类别的搜索关键词获取"""
     prompt = await get_search_key_prompt(
-        secucode, 
-        stock_name, 
+        stock_info,
         search_intent=category_info['intent'],
         search_content=category_info['search_content']
     )
@@ -141,13 +141,13 @@ async def get_search_key_result_single(secucode, stock_name, category_info):
         }
 
 
-async def get_search_key_result(secucode="002371.SZ", stock_name=None):
+async def get_search_key_result(stock_info: StockInfo):
     """并发获取所有类别的搜索关键词，限制5个并发"""
     semaphore = asyncio.Semaphore(5)
     
     async def limited_task(category):
         async with semaphore:
-            return await get_search_key_result_single(secucode, stock_name, category)
+            return await get_search_key_result_single(stock_info, category)
     
     tasks = [limited_task(category) for category in SEARCH_CATEGORY]
     results = await asyncio.gather(*tasks)
@@ -156,7 +156,8 @@ async def get_search_key_result(secucode="002371.SZ", stock_name=None):
 
 if __name__ == "__main__":
     async def main():
-        result = await get_search_key_result("002371.SZ", "北方华创")
+        stock_info = get_stock_info_by_name("北方华创")
+        result = await get_search_key_result(stock_info)
         print(result)
     
     asyncio.run(main())

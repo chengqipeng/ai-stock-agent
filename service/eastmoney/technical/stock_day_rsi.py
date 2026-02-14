@@ -1,5 +1,6 @@
 import asyncio
 
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, \
     INDICATOR_CONFIG, get_stock_day_range_kline
 
@@ -33,12 +34,12 @@ def calculate_rsi(klines, window=14):
     
     return process_indicator_data(df, 'rsi')
 
-async def get_rsi_markdown(stock_code, stock_name, klines):
+async def get_rsi_markdown(stock_info: StockInfo, klines):
     """将RSI数据转换为markdown格式"""
     config = INDICATOR_CONFIG['rsi']
     rsi_data = calculate_rsi(klines)
 
-    markdown = f"## <{stock_code} {stock_name}> - RSI数据\n\n"
+    markdown = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - RSI数据\n\n"
     markdown += "| 日期 | 收盘价 | RSI(14) | 状态 |\n"
     markdown += "|------|--------|---------|------|\n"
     for item in rsi_data[:config['markdown_limit']]:
@@ -49,7 +50,8 @@ async def get_rsi_markdown(stock_code, stock_name, klines):
     return markdown
 
 async def main():
-    rsi_data = await get_rsi_markdown("0.002371", "002371", "北方华创")
+    stock_info: StockInfo = get_stock_info_by_name("北方华创")
+    rsi_data = await get_rsi_markdown(stock_info, [])
     print(rsi_data)
 
 if __name__ == "__main__":

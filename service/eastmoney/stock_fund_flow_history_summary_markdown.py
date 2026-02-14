@@ -1,6 +1,7 @@
 import asyncio
 import pandas as pd
 
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history, get_stock_history_kline_max_min
 
 
@@ -353,10 +354,10 @@ def analyze_pivot_breakout(df, lookback_window=20, volume_threshold_ratio=2.0):
 * 判定逻辑：资金流入量是日常水平的 {surge_ratio:.1f} 倍，符合有效突破标准"""
 
 
-async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_code=None, stock_name=None):
+async def generate_fund_flow_history_can_slim_summary(stock_info: StockInfo):
     """生成CAN SLIM分析摘要"""
-    klines = await get_fund_flow_history(secid)
-    kline_max_min_map = await get_stock_history_kline_max_min(secid)
+    klines = await get_fund_flow_history(stock_info)
+    kline_max_min_map = await get_stock_history_kline_max_min(stock_info)
     
     data_list = []
     for kline in klines:
@@ -387,10 +388,8 @@ async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_co
     rs_text = calculate_relative_strength(df, period=60)
     institutional_text = analyze_institutional_sponsorship(df, recent_window=20)
     pivot_breakout_text = analyze_pivot_breakout(df)
-    
-    if not stock_code:
-        stock_code = secid.split('.')[-1]
-    header = f"## <{stock_code} {stock_name}> - CAN SLIM 分析摘要" if stock_name else "## CAN SLIM 分析摘要"
+
+    header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - CAN SLIM 分析摘要"
     
     markdown = f"""{header}
 
@@ -415,4 +414,6 @@ async def generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_co
 
 
 if __name__ == "__main__":
-    asyncio.run(generate_fund_flow_history_can_slim_summary(secid="0.002371", stock_code="002371", stock_name="北方华创"))
+    stock_name = "北方华创"
+    stock_info: StockInfo = get_stock_info_by_name(stock_name)
+    asyncio.run(generate_fund_flow_history_can_slim_summary(stock_info))

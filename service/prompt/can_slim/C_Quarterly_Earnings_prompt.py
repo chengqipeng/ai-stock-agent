@@ -1,3 +1,4 @@
+from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.forecast.stock_institution_forecast_list import get_institution_forecast_future_to_json, \
     get_institution_forecast_historical_to_json
 from service.eastmoney.forecast.stock_institution_forecast_summary import get_institution_forecast_summary_future_json, \
@@ -7,14 +8,14 @@ import json
 from datetime import datetime
 
 
-async def get_C_Quarterly_Earnings_prompt(secucode, stock_name):
-    financial_revenue = await get_financial_data_to_json(secucode=secucode, indicator_keys=['REPORT_DATE', 'TOTALOPERATEREVETZ', 'SINGLE_QUARTER_REVENUE', 'TOTALOPERATEREVE', 'SINGLE_QUARTER_REVENUETZ'])
-    financial_profit = await get_financial_data_to_json(secucode=secucode, indicator_keys=['REPORT_DATE', 'SINGLE_QUARTER_PARENTNETPROFITTZ', 'SINGLE_QUARTER_KCFJCXSYJLRTZ'])
-    financial_eps = await get_financial_data_to_json(secucode=secucode, indicator_keys=['REPORT_DATE', 'EPSJB'])
-    historical_forecast_json = await get_institution_forecast_historical_to_json(secucode=secucode)
-    future_forecast_json = await get_institution_forecast_future_to_json(secucode=secucode)
-    historical_forecast_summary = await get_institution_forecast_summary_historical_json(secucode=secucode)
-    future_forecast_summary = await get_institution_forecast_summary_future_json(secucode=secucode)
+async def get_C_Quarterly_Earnings_prompt(stock_info: StockInfo):
+    financial_revenue = await get_financial_data_to_json(stock_info=stock_info, indicator_keys=['REPORT_DATE', 'TOTALOPERATEREVETZ', 'SINGLE_QUARTER_REVENUE', 'TOTALOPERATEREVE', 'SINGLE_QUARTER_REVENUETZ'])
+    financial_profit = await get_financial_data_to_json(stock_info=stock_info, indicator_keys=['REPORT_DATE', 'SINGLE_QUARTER_PARENTNETPROFITTZ', 'SINGLE_QUARTER_KCFJCXSYJLRTZ'])
+    financial_eps = await get_financial_data_to_json(stock_info=stock_info, indicator_keys=['REPORT_DATE', 'EPSJB'])
+    historical_forecast_json = await get_institution_forecast_historical_to_json(stock_info=stock_info)
+    future_forecast_json = await get_institution_forecast_future_to_json(stock_info=stock_info)
+    historical_forecast_summary = await get_institution_forecast_summary_historical_json(stock_info=stock_info)
+    future_forecast_summary = await get_institution_forecast_summary_future_json(stock_info=stock_info)
     
     return f"""
 
@@ -22,7 +23,7 @@ async def get_C_Quarterly_Earnings_prompt(secucode, stock_name):
 要捕捉到真正的“超级成长股”（Super Growth Stocks），你必须组合观察以下 3 个核心杀手级指标。缺一不可，这就是区别“平庸股”与“大牛股”的分水岭。
 
 #分析的股票（{datetime.now().strftime('%Y-%m-%d')}）
-{stock_name}({secucode})
+{stock_info.stock_name}（{stock_info.stock_code_normalize}）
 
 #分析要求：
 ## 所有增长率计算必须基于'同比'，即本季度与去年同一季度对比。严禁使用环比数据，以消除季节性干扰。

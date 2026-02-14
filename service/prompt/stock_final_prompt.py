@@ -1,10 +1,12 @@
+from common.utils.stock_info_utils import StockInfo
 
-def get_final_prompt(stock_code, stock_name, can_slim_conclusion, technical_conclusion, news_conclusion):
+
+def get_final_prompt(stock_info: StockInfo, can_slim_conclusion, technical_conclusion, news_conclusion):
     return f"""
 # 股票终极综合评估与决策提示词
 
 ## 任务背景
-我已对股票 **[{stock_name}({stock_code})]** 进行了初步审计。现在需要你作为一名**首席投资风险官 (CRO)**，基于我提供的三个维度的结论进行深度逻辑对撞，评估风险，并输出最终的操作执行方案。
+我已对股票 **[{stock_info.stock_name}（{stock_info.stock_code_normalize}）]** 进行了初步审计。现在需要你作为一名**首席投资风险官 (CRO)**，基于我提供的三个维度的结论进行深度逻辑对撞，评估风险，并输出最终的操作执行方案。
 
 ## 输入数据 (分析结论)
 

@@ -1,8 +1,9 @@
+from common.utils.stock_info_utils import StockInfo
 from service.prompt.can_slim.A_Earnings_Increases_prompt import get_A_Earnings_Increases_prompt
 from service.llm.deepseek_client import DeepSeekClient
 
 
-async def execute_A_Earnings_Increases(secucode: str, stock_name: str, deep_thinking: bool = False) -> str:
+async def execute_A_Earnings_Increases(stock_info: StockInfo, deep_thinking: bool = False) -> str:
     """
     执行A年度盈利增长分析
     
@@ -14,7 +15,7 @@ async def execute_A_Earnings_Increases(secucode: str, stock_name: str, deep_thin
     Returns:
         分析结果字符串
     """
-    prompt = await get_A_Earnings_Increases_prompt(secucode, stock_name)
+    prompt = await get_A_Earnings_Increases_prompt(stock_info)
 
     print(prompt)
     print("\n =============================== \n")

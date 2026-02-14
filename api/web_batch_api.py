@@ -7,7 +7,7 @@ import asyncio
 import re
 from datetime import datetime
 
-from common.utils.amount_utils import normalize_stock_code
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from common.utils.stock_list_parser import parse_stock_list
 from data_results.database.batch_db import (
     create_batch, add_batch_stock, update_batch_stock,
@@ -80,11 +80,10 @@ async def batch_execute(batch_id: int, deep_thinking: bool = False):
                 async with semaphore:
                     try:
                         stock_name = stock['stock_name']
-                        stock_code = stock['stock_code']
-                        normalized_code = normalize_stock_code(stock_code)
-                        
-                        full_prompt = await get_stock_markdown(normalized_code, stock_name)
-                        prompt = await get_stock_markdown_for_score(normalized_code, stock_name)
+                        stock_info: StockInfo = get_stock_info_by_name(stock_name)
+
+                        full_prompt = await get_stock_markdown(stock_info)
+                        prompt = await get_stock_markdown_for_score(stock_info)
                         
                         client = DeepSeekClient()
                         result = ""
@@ -96,9 +95,7 @@ async def batch_execute(batch_id: int, deep_thinking: bool = False):
                         
                         score, reason = extract_score_and_reason(result)
                         
-                        technical_prompt = await get_technical_indicators_prompt_score(
-                            normalized_code, stock_code, stock_name
-                        )
+                        technical_prompt = await get_technical_indicators_prompt_score(stock_info)
                         
                         technical_result = ""
                         async for technical_content in client.chat_stream(
@@ -109,7 +106,7 @@ async def batch_execute(batch_id: int, deep_thinking: bool = False):
                         
                         technical_score, technical_reason = extract_score_and_reason(technical_result)
                         
-                        update_batch_stock(batch_id, stock_code, prompt, result, score, reason, 
+                        update_batch_stock(batch_id, stock_info.stock_code_normalize, prompt, result, score, reason,
                                          technical_prompt, technical_result, technical_score, 
                                          technical_reason, "", 1 if deep_thinking else 0, full_prompt)
                         
@@ -118,10 +115,10 @@ async def batch_execute(batch_id: int, deep_thinking: bool = False):
                                'stock_name': stock_name, 'score': score}
                     except Exception as e:
                         error_msg = str(e)
-                        print(f"[错误] {stock_name} ({stock_code}): {error_msg}")
+                        print(f"[错误] {stock_info.stock_name} ({stock_info.stock_code_normalize}): {error_msg}")
                         import traceback
                         traceback.print_exc()
-                        update_batch_stock(batch_id, stock_code, "", "", 0, "", "", "", 0, "", 
+                        update_batch_stock(batch_id, stock_info.stock_code_normalize, "", "", 0, "", "", "", 0, "",
                                          error_msg, 1 if deep_thinking else 0, "")
                         completed += 1
                         return {'stage': 'progress', 'completed': completed, 'total': len(stocks), 

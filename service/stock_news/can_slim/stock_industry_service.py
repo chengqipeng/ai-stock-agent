@@ -2,12 +2,13 @@ import asyncio
 import json
 from datetime import datetime
 
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.stock_info.stock_busi_desc import get_stock_board_type
 from service.llm.volcengine_client import VolcengineClient
 
 
-async def get_industry_prompt(secucode="002371.SZ"):
-    industry_data = await get_stock_board_type(secucode)
+async def get_industry_prompt(stock_info: StockInfo):
+    industry_data = await get_stock_board_type(stock_info)
     return f"""
 # Role
 你是一位资深的证券分析师，擅长从复杂的上市公司非结构化或结构化数据中，精准提炼核心商业逻辑和行业分类。
@@ -35,9 +36,9 @@ async def get_industry_prompt(secucode="002371.SZ"):
 {json.dumps(industry_data, ensure_ascii=False)}
 """
 
-async def get_industry_result(secucode="002371.SZ") -> str:
+async def get_industry_result(stock_info: StockInfo) -> str:
     """调用豆包大模型并返回content结果"""
-    prompt = await get_industry_prompt(secucode)
+    prompt = await get_industry_prompt(stock_info)
     client = VolcengineClient()
     response = await client.chat(
         messages=[{"role": "user", "content": prompt}],
@@ -47,5 +48,6 @@ async def get_industry_result(secucode="002371.SZ") -> str:
 
 
 if __name__ == '__main__':
-    result = asyncio.run(get_industry_result("002371.SZ"))
+    stock_info = get_stock_info_by_name("北方华创")
+    result = asyncio.run(get_industry_result(stock_info))
     print(result)

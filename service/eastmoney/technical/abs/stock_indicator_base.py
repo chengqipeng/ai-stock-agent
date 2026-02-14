@@ -1,6 +1,7 @@
 from datetime import datetime
 import pandas as pd
 from common.http.http_utils import EASTMONEY_PUSH2HIS_API_URL, fetch_eastmoney_api
+from common.utils.stock_info_utils import StockInfo
 
 # 指标数据配置
 INDICATOR_CONFIG = {
@@ -17,11 +18,11 @@ INDICATOR_CONFIG = {
     'vwma': {'kline_limit': 200, 'tail_limit': 200, 'markdown_limit': 60}
 }
 
-async def get_stock_day_range_kline(secid, limit=400):
+async def get_stock_day_range_kline(stock_info: StockInfo, limit=400):
     """获取股票K线数据"""
     url = f"{EASTMONEY_PUSH2HIS_API_URL}/stock/kline/get"
     params = {
-        "secid": secid,
+        "secid": stock_info.secid,
         "ut": "fa5fd1943c7b386f172d6893dbfba10b",
         "fields1": "f1,f2,f3,f4,f5,f6",
         "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",

@@ -1,15 +1,16 @@
 from common.utils.amount_utils import convert_amount_unit
 from common.http.http_utils import EASTMONEY_PUSH2_API_URL, fetch_eastmoney_api
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
 
-async def get_stock_detail(secid="0.002371"):
+async def get_stock_detail(stock_info: StockInfo):
     """获取股票详细数据"""
     url = f"{EASTMONEY_PUSH2_API_URL}/stock/get"
     params = {
         "invt": "2",
         "fltt": "1",
         "fields": "f58,f734,f107,f57,f43,f59,f169,f301,f60,f170,f152,f177,f111,f46,f44,f45,f47,f260,f48,f261,f279,f277,f278,f288,f19,f17,f531,f15,f13,f11,f20,f18,f16,f14,f12,f39,f37,f35,f33,f31,f40,f38,f36,f34,f32,f211,f212,f213,f214,f215,f210,f209,f208,f207,f206,f161,f49,f171,f50,f86,f84,f85,f168,f108,f116,f167,f164,f162,f163,f92,f71,f117,f292,f51,f52,f191,f192,f262,f294,f181,f295,f269,f270,f256,f257,f285,f286,f748,f747",
-        "secid": secid,
+        "secid": stock_info.secid,
         "ut": "fa5fd1943c7b386f172d6893dbfba10b",
         "wbp2u": "|0|0|0|web",
         "dect": "1"
@@ -18,15 +19,13 @@ async def get_stock_detail(secid="0.002371"):
     if data.get("data"):
         return data["data"]
     else:
-        raise Exception(f"未获取到股票 {secid} 的详细数据")
+        raise Exception(f"未获取到股票 {stock_info.secid} 的详细数据")
 
 
-async def get_stock_base_info_markdown(secid="0.002371", stock_code=None, stock_name=None):
+async def get_stock_base_info_markdown(stock_info: StockInfo):
     """获取股票基本信息并转换为markdown"""
-    detail_data = await get_stock_detail(secid)
-    if not stock_code:
-        stock_code = secid.split('.')[-1]
-    header = f"## <{stock_code} {stock_name}> - 股票基本信息" if stock_name else "## 股票基本信息"
+    detail_data = await get_stock_detail(stock_info)
+    header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 股票基本信息"
     markdown = f"""{header}\n"""
     markdown += f"- **股票代码**: {detail_data.get('f57', '--')}\n"
     markdown += f"- **股票名称**: {detail_data.get('f58', '--')}\n"
@@ -47,3 +46,14 @@ async def get_stock_base_info_markdown(secid="0.002371", stock_code=None, stock_
     markdown += f"- **涨停**: {round(detail_data.get('f51', 0) / 100, 2) if detail_data.get('f51') else '--'}\n"
     markdown += f"- **跌停**: {round(detail_data.get('f52', 0) / 100, 2) if detail_data.get('f52') else '--'}\n"
     return markdown + "\n"
+
+
+if __name__ == "__main__":
+    import asyncio
+    
+    async def main():
+        stock_info: StockInfo = get_stock_info_by_name("北方华创")
+        result = await get_stock_base_info_markdown(stock_info)
+        print(result)
+    
+    asyncio.run(main())

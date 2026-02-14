@@ -2,6 +2,7 @@ import aiohttp
 import asyncio
 from common.utils.amount_utils import convert_amount_unit
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
 # 最近期数配置
 MAX_RECENT_PERIODS = 13
@@ -60,9 +61,9 @@ FINANCIAL_INDICATORS = [
 ]
 
 
-async def get_financial_data_to_json(secucode="002371.SZ", indicator_keys=None):
+async def get_financial_data_to_json(stock_info: StockInfo, indicator_keys=None):
     """将财务数据转换为JSON格式"""
-    data_list = await get_main_financial_data(secucode)
+    data_list = await get_main_financial_data(stock_info)
     if not data_list:
         return []
     
@@ -98,9 +99,9 @@ async def get_financial_data_to_json(secucode="002371.SZ", indicator_keys=None):
     return result
 
 
-async def get_financial_data_to_markdown(secucode="002371.SZ", indicator_keys=None):
+async def get_financial_data_to_markdown(stock_info: StockInfo, indicator_keys=None):
     """将财务数据转换为Markdown格式"""
-    data_list = await get_main_financial_data(secucode)
+    data_list = await get_main_financial_data(stock_info)
     if not data_list:
         return "暂无财务数据"
     
@@ -316,10 +317,9 @@ def _calculate_single_quarter_yoy_growth(data_list):
             d['SINGLE_QUARTER_KCFJCXSYJLRTZ'] = None
 
 
-async def get_main_financial_data(secucode="002371.SZ", page_size=200, page_number=1):
+async def get_main_financial_data(stock_info: StockInfo, page_size=200, page_number=1):
     """获取主要财务指标数据"""
-    stock_code = secucode.split('.')[0]
-    cache_path = get_cache_path("financial_main", stock_code)
+    cache_path = get_cache_path("financial_main", stock_info.stock_code)
     
     # 检查缓存
     cached_data = load_cache(cache_path)
@@ -333,7 +333,7 @@ async def get_main_financial_data(secucode="002371.SZ", page_size=200, page_numb
         "type": "RPT_F10_FINANCE_MAINFINADATA",
         "sty": "APP_F10_MAINFINADATA",
         "quoteColumns": "",
-        "filter": f'(SECUCODE="{secucode}")',
+        "filter": f'(SECUCODE="{stock_info.stock_code_normalize}")',
         "p": str(page_number),
         "ps": str(page_size),
         "sr": "-1",
@@ -360,15 +360,16 @@ async def get_main_financial_data(secucode="002371.SZ", page_size=200, page_numb
                 save_cache(cache_path, result)
                 return result
             else:
-                raise Exception(f"未获取到证券代码 {secucode} 的主要财务指标数据")
+                raise Exception(f"未获取到证券代码 {stock_info.stock_code_normalize} 的主要财务指标数据")
 
 
 if __name__ == "__main__":
     async def main():
-        markdown = await get_financial_data_to_markdown("002371.SZ")
+        stock_info: StockInfo = get_stock_info_by_name("北方华创")
+        markdown = await get_financial_data_to_markdown(stock_info)
         print(markdown)
 
-        json = await get_financial_data_to_json("002371.SZ")
+        json = await get_financial_data_to_json(stock_info)
         print(json)
     
     asyncio.run(main())

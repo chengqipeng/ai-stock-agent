@@ -1,5 +1,6 @@
 import asyncio
 
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, \
     INDICATOR_CONFIG, get_stock_day_range_kline
 
@@ -29,12 +30,12 @@ def calculate_macd(klines, fast=12, slow=26, signal=9):
     
     return process_indicator_data(df, 'macd')
 
-async def get_macd_markdown(stock_code, stock_name, klines):
+async def get_macd_markdown(stock_info: StockInfo, klines):
     """将MACD数据转换为markdown格式"""
     config = INDICATOR_CONFIG['macd']
     macd_data = calculate_macd(klines)
 
-    markdown = f"## <{stock_code} {stock_name}> - MACD数据\n\n"
+    markdown = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - MACD数据\n\n"
     markdown += "| 日期 | 收盘价 | MACD | MACDS | MACDH |\n"
     markdown += "|------|--------|------|-------|-------|\n"
     for item in macd_data[:config['markdown_limit']]:
@@ -45,7 +46,8 @@ async def get_macd_markdown(stock_code, stock_name, klines):
 
 
 async def main():
-    macd_data = await get_macd_markdown("0.002371", "002371", "北方华创")
+    stock_info: StockInfo = get_stock_info_by_name("北方华创")
+    macd_data = await get_macd_markdown(stock_info, [])
     print(macd_data)
 
 if __name__ == "__main__":

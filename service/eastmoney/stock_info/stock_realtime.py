@@ -1,14 +1,14 @@
 from common.utils.amount_utils import convert_amount_unit
 from common.http.http_utils import EASTMONEY_PUSH_API_URL, fetch_eastmoney_api
+from common.utils.stock_info_utils import StockInfo
 
-
-async def get_stock_realtime(secid="1.601698"):
+async def get_stock_realtime(stock_info: StockInfo):
     """获取股票实时数据"""
     url = f"{EASTMONEY_PUSH_API_URL}/stock/get"
     params = {
         "fltt": "2",
         "invt": "2",
-        "secid": secid,
+        "secid": stock_info.secid,
         "fields": "f57,f58,f43,f47,f48,f168,f169,f170,f152",
         "ut": "b2884a393a59ad64002292a3e90d46a5"
     }
@@ -16,15 +16,13 @@ async def get_stock_realtime(secid="1.601698"):
     if data.get("data"):
         return data["data"]
     else:
-        raise Exception(f"未获取到股票 {secid} 的实时数据")
+        raise Exception(f"未获取到股票 {stock_info.secid} 的实时数据")
 
 
-async def get_stock_realtime_markdown(secid="1.601698", stock_code=None, stock_name=None):
+async def get_stock_realtime_markdown(stock_info: StockInfo):
     """获取实时交易信息并转换为markdown"""
-    realtime_data = await get_stock_realtime(secid)
-    if not stock_code:
-        stock_code = secid.split('.')[-1]
-    header = f"## <{stock_code} {stock_name}> - 当日交易信息" if stock_name else "## 当日交易信息"
+    realtime_data = await get_stock_realtime(stock_info)
+    header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 当日交易信息"
     return f"""{header}
 - **股票代码**: {realtime_data.get('f57', '--')}
 - **最新价**: {realtime_data.get('f43', '--')}
@@ -33,3 +31,16 @@ async def get_stock_realtime_markdown(secid="1.601698", stock_code=None, stock_n
 - **成交量**: {convert_amount_unit(realtime_data.get('f47', "-"))}
 - **成交额**: {convert_amount_unit(realtime_data.get('f48', "-"))}
 - **换手率**: {realtime_data.get('f168', '--')}% \n"""
+
+
+if __name__ == "__main__":
+    import asyncio
+    from common.utils.stock_info_utils import get_stock_info_by_name
+    
+    async def main():
+        stock_name = "北方华创"
+        stock_info: StockInfo = get_stock_info_by_name(stock_name)
+        result = await get_stock_realtime_markdown(stock_info)
+        print(result)
+    
+    asyncio.run(main())

@@ -2,15 +2,17 @@ import asyncio
 import json
 import os
 from datetime import datetime
+
+from common.utils.stock_info_utils import StockInfo
 from service.prompt.stock_news_keyword_prompt import get_news_keyword_prompt
-from service.prompt import get_news_prompt
+from service.prompt.stock_news_prompt import get_news_prompt
 from service.web_search.baidu_search import baidu_search
 from service.web_search.google_search import google_search
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.gemini_client import GeminiClient
 
 
-async def process_stock_news(company_name: str, stock_code: str = "", llm_type: str = "deepseek"):
+async def process_stock_news(stock_info: StockInfo, llm_type: str = "deepseek"):
     try:
         if llm_type == "gemini":
             client = GeminiClient()
@@ -19,7 +21,7 @@ async def process_stock_news(company_name: str, stock_code: str = "", llm_type: 
             client = DeepSeekClient()
             model = "deepseek-chat"
         
-        keyword_prompt = get_news_keyword_prompt(company_name)
+        keyword_prompt = get_news_keyword_prompt(stock_info)
         keyword_response = await client.chat(
             messages=[{"role": "user", "content": keyword_prompt}],
             model=model
@@ -32,9 +34,9 @@ async def process_stock_news(company_name: str, stock_code: str = "", llm_type: 
         result_dir = "stock_full_result"
         os.makedirs(result_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d%H%M")
-        keyword_file = f"{result_dir}/news_keywords_{company_name}_{stock_code}_{timestamp}.md"
+        keyword_file = f"{result_dir}/news_keywords_{stock_info.stock_name}_{stock_info.stock_code}_{timestamp}.md"
         with open(keyword_file, "w", encoding="utf-8") as f:
-            f.write(f"# {company_name} 搜索关键字\n\n")
+            f.write(f"# {stock_info.stock_name} 搜索关键字\n\n")
             f.write(keyword_result)
         
         # 清理并提取JSON
@@ -66,7 +68,7 @@ async def process_stock_news(company_name: str, stock_code: str = "", llm_type: 
         # 将二维数组扁平化为一维数组
         flattened_results = [item for sublist in search_results for item in sublist]
         
-        news_prompt = get_news_prompt(company_name, json.dumps(flattened_results, ensure_ascii=False))
+        news_prompt = get_news_prompt(stock_info, json.dumps(flattened_results, ensure_ascii=False))
         final_response = await client.chat(
             messages=[{"role": "user", "content": news_prompt}],
             model=model

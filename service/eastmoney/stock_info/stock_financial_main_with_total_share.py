@@ -1,7 +1,7 @@
 import aiohttp
 import asyncio
-from common.utils.amount_utils import convert_amount_unit
 
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
 MAX_RECENT_PERIODS = 24
 SHARE_FIELDS = ['TOTAL_SHARES', 'LIMITED_SHARES', 'UNLIMITED_SHARES', 'LISTED_A_SHARES', 'FREE_SHARES', 'LIMITED_A_SHARES']
@@ -18,9 +18,9 @@ EQUITY_INDICATORS = [
 ]
 
 
-async def get_equity_data_to_json(secucode="002371.SZ", indicator_keys=None):
+async def get_equity_data_to_json(stock_info: StockInfo, indicator_keys=None):
     """将股本结构数据转换为JSON格式"""
-    data_list = await get_equity_structure_data(secucode, page_size=MAX_RECENT_PERIODS)
+    data_list = await get_equity_structure_data(stock_info, page_size=MAX_RECENT_PERIODS)
     if not data_list:
         return []
     
@@ -42,9 +42,9 @@ async def get_equity_data_to_json(secucode="002371.SZ", indicator_keys=None):
     return result
 
 
-async def get_equity_data_to_markdown(secucode="002371.SZ", indicator_keys=None):
+async def get_equity_data_to_markdown(stock_info: StockInfo, indicator_keys=None):
     """将股本结构数据转换为Markdown格式"""
-    data_list = await get_equity_structure_data(secucode, page_size=MAX_RECENT_PERIODS)
+    data_list = await get_equity_structure_data(stock_info, page_size=MAX_RECENT_PERIODS)
     if not data_list:
         return "暂无股本结构数据"
     
@@ -71,7 +71,7 @@ async def get_equity_data_to_markdown(secucode="002371.SZ", indicator_keys=None)
     return md
 
 
-async def get_equity_structure_data(secucode="002371.SZ", page_size=20, page_number=1):
+async def get_equity_structure_data(stock_info: StockInfo, page_size=20, page_number=1):
     """获取股本结构数据"""
     url = "https://datacenter.eastmoney.com/securities/api/data/v1/get"
     
@@ -79,7 +79,7 @@ async def get_equity_structure_data(secucode="002371.SZ", page_size=20, page_num
         "reportName": "RPT_F10_EH_EQUITY",
         "columns": "SECUCODE,SECURITY_CODE,END_DATE,TOTAL_SHARES,LIMITED_SHARES,LIMITED_OTHARS,LIMITED_DOMESTIC_NATURAL,LIMITED_STATE_LEGAL,LIMITED_OVERSEAS_NOSTATE,LIMITED_OVERSEAS_NATURAL,UNLIMITED_SHARES,LISTED_A_SHARES,B_FREE_SHARE,H_FREE_SHARE,FREE_SHARES,LIMITED_A_SHARES,NON_FREE_SHARES,LIMITED_B_SHARES,OTHER_FREE_SHARES,LIMITED_STATE_SHARES,LIMITED_DOMESTIC_NOSTATE,LOCK_SHARES,LIMITED_FOREIGN_SHARES,LIMITED_H_SHARES,SPONSOR_SHARES,STATE_SPONSOR_SHARES,SPONSOR_SOCIAL_SHARES,RAISE_SHARES,RAISE_STATE_SHARES,RAISE_DOMESTIC_SHARES,RAISE_OVERSEAS_SHARES,CHANGE_REASON",
         "quoteColumns": "",
-        "filter": f'(SECUCODE="{secucode}")',
+        "filter": f'(SECUCODE="{stock_info.stock_code_normalize}")',
         "pageNumber": str(page_number),
         "pageSize": str(page_size),
         "sortTypes": "-1",
@@ -106,16 +106,17 @@ async def get_equity_structure_data(secucode="002371.SZ", page_size=20, page_num
             if data.get("result") and data["result"].get("data"):
                 return data["result"]["data"]
             else:
-                raise Exception(f"未获取到证券代码 {secucode} 的股本结构数据")
+                raise Exception(f"未获取到证券代码 {stock_info.stock_code_normalize} 的股本结构数据")
 
 
 if __name__ == "__main__":
     async def main():
-        markdown = await get_equity_data_to_markdown("002371.SZ")
+        stock_info: StockInfo = get_stock_info_by_name("北方华创")
+        markdown = await get_equity_data_to_markdown(stock_info)
         print(markdown)
         print("\n" + "="*50 + "\n")
         
-        json_data = await get_equity_data_to_json("002371.SZ")
+        json_data = await get_equity_data_to_json(stock_info)
         print(json_data)
     
     asyncio.run(main())

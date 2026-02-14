@@ -1,7 +1,10 @@
 import requests
 
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+
+
 #评级统计
-def get_institution_rating(secucode: str) -> dict:
+def get_institution_rating(stock_info: StockInfo) -> dict:
     """
     获取机构评级数据
     
@@ -17,7 +20,7 @@ def get_institution_rating(secucode: str) -> dict:
         "reportName": "RPT_HSF10_RES_ORGRATING",
         "columns": "SECUCODE,SECURITY_NAME_ABBR,SECURITY_INNER_CODE,ORG_CODE,SECURITY_TYPE_CODE,TRADE_MARKET_CODE,DATE_TYPE_CODE,DATE_TYPE,COMPRE_RATING_NUM,COMPRE_RATING,RATING_ORG_NUM,RATING_BUY_NUM,RATING_ADD_NUM,RATING_NEUTRAL_NUM,RATING_REDUCE_NUM,RATING_SALE_NUM,SECURITY_CODE",
         "quoteColumns": "",
-        "filter": f'(SECUCODE="{secucode}")',
+        "filter": f'(SECUCODE="{stock_info.stock_code_normalize}")',
         "pageNumber": 1,
         "pageSize": 200,
         "sortTypes": 1,
@@ -80,10 +83,12 @@ def format_to_markdown(data: dict) -> str:
 
 
 if __name__ == "__main__":
-    secucode = "002371.SZ"
-    print(f"正在获取 {secucode} 的机构评级数据...\n")
+    stock_name = "北方华创"
+    stock_info: StockInfo = get_stock_info_by_name(stock_name)
+
+    print(f"正在获取 {stock_name} 的机构评级数据...\n")
     
-    result = get_institution_rating(secucode)
+    result = get_institution_rating(stock_info)
     markdown = format_to_markdown(result)
     
     print(markdown)

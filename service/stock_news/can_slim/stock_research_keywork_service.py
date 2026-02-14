@@ -1,14 +1,16 @@
 import asyncio
 import json
 from datetime import datetime
+
+from common.utils.stock_info_utils import StockInfo
 from service.stock_news.can_slim.stock_search_key_word_service import get_search_key_result
 from service.web_search.baidu_search import baidu_search
 from service.web_search.google_search import google_search
 
 
-async def research_stock_news(secucode="002371.SZ", stock_name=None):
+async def research_stock_news(stock_info: StockInfo):
     """获取搜索关键词并执行搜索"""
-    search_key_result = await get_search_key_result(secucode, stock_name)
+    search_key_result = await get_search_key_result(stock_info)
     
     semaphore = asyncio.Semaphore(6)
     

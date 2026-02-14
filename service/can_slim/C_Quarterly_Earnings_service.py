@@ -1,8 +1,9 @@
-from service.prompt.can_slim import get_C_Quarterly_Earnings_prompt
+from common.utils.stock_info_utils import StockInfo
 from service.llm.deepseek_client import DeepSeekClient
+from service.prompt.can_slim.C_Quarterly_Earnings_prompt import get_C_Quarterly_Earnings_prompt
 
 
-async def execute_C_Quarterly_Earnings(secucode: str, stock_name: str, deep_thinking: bool = False) -> str:
+async def execute_C_Quarterly_Earnings(stock_info: StockInfo, deep_thinking: bool = False) -> str:
     """
     执行C季度盈利分析
     
@@ -14,7 +15,7 @@ async def execute_C_Quarterly_Earnings(secucode: str, stock_name: str, deep_thin
     Returns:
         分析结果字符串
     """
-    prompt = await get_C_Quarterly_Earnings_prompt(secucode, stock_name)
+    prompt = await get_C_Quarterly_Earnings_prompt(stock_info)
 
     print(prompt)
     print("\n =============================== \n")

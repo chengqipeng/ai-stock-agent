@@ -1,26 +1,28 @@
 import json
 
+from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_history_flow import get_stock_history_volume_amount_yearly
 from service.eastmoney.stock_info.stock_holder_data import get_shareholder_increase_json
 from service.eastmoney.stock_info.stock_revenue_analysis import get_revenue_analysis_three_years
+from service.eastmoney.technical.abs.stock_indicator_base import get_stock_day_range_kline
 from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_json
-from service.stock_news.can_slim.stock_search_result_filter_service import get_search_filter_result, \
-    get_search_filter_result_dict
+from service.stock_news.can_slim.stock_search_result_filter_service import get_search_filter_result_dict
 
-async def get_N_Products_Management_Highs_prompt(secucode, stock_name):
-    shareholder_increase_result = await get_shareholder_increase_json(secucode, stock_name)
-    revenue_analysis_three_years = await get_revenue_analysis_three_years(secucode, stock_name)
+async def get_N_Products_Management_Highs_prompt(stock_info: StockInfo):
+    shareholder_increase_result = await get_shareholder_increase_json(stock_info)
+    revenue_analysis_three_years = await get_revenue_analysis_three_years(stock_info)
 
-    search_filter_result_dict = await get_search_filter_result_dict(secucode, stock_name)
+    search_filter_result_dict = await get_search_filter_result_dict(stock_info)
 
-    announcements = search_filter_result_dict['search_filter_result_dict']
+    announcements = search_filter_result_dict['announcements']
     finance_and_expectations = search_filter_result_dict['finance_and_expectations']
     corporate_governance = search_filter_result_dict['corporate_governance']
     stock_incentive_plan = search_filter_result_dict['stock_incentive_plan']
 
-    moving_averages_json = await get_moving_averages_json(secucode, stock_name)
+    klines = await get_stock_day_range_kline(stock_info, limit=400)
+    moving_averages_json = await get_moving_averages_json(stock_info, klines)
 
-    stock_history_volume_amount_yearly = await get_stock_history_volume_amount_yearly(secucode)
+    stock_history_volume_amount_yearly = await get_stock_history_volume_amount_yearly(stock_info)
 
     return f"""
 在 CAN SLIM 系统中，N (New Products, New Management, New Highs) 是最具爆发力的维度。如果说 C 和 A 是火药（基本面支撑），那么 N 就是引爆它的火花（催化剂）。

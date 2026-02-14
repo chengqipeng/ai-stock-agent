@@ -1,18 +1,19 @@
 import json
 from datetime import datetime
 
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.volcengine_client import VolcengineClient
 from service.stock_news.can_slim.stock_research_keywork_service import research_stock_news
 
 
-async def get_search_result_filter_prompt(secucode="002371.SZ", stock_name=None, category=None, search_results=None):
+async def get_search_result_filter_prompt(stock_info: StockInfo, category=None, search_results=None):
     return f"""
 # Role
 你是一位资深的证券分析师与量化策略专家，擅长从海量碎片化信息中识别具有"股价驱动力"的核心事件。
 
 当前日期：{datetime.now().strftime('%Y-%m-%d')}
-公司名称：{stock_name}({secucode})
+公司名称：{stock_info.stock_name}（{stock_info.stock_code_normalize}）
 分析类别：{category}
 
 # Task
@@ -46,7 +47,7 @@ async def get_search_result_filter_prompt(secucode="002371.SZ", stock_name=None,
 """
 
 
-async def filter_category_results(secucode, stock_name, category_data, client, semaphore):
+async def filter_category_results(stock_info: StockInfo, category_data, client, semaphore):
     """过滤单个category的搜索结果"""
     async with semaphore:
         search_results = category_data.get('search_results', [])
@@ -54,7 +55,7 @@ async def filter_category_results(secucode, stock_name, category_data, client, s
             return None
         
         prompt = await get_search_result_filter_prompt(
-            secucode, stock_name, category_data['category'], search_results
+            stock_info, category_data['category'], search_results
         )
         
         try:
@@ -81,11 +82,11 @@ async def filter_category_results(secucode, stock_name, category_data, client, s
         return None
 
 
-async def get_search_filter_result(secucode="002371.SZ", stock_name=None):
+async def get_search_filter_result(stock_info: StockInfo):
     """调用大模型并行过滤搜索结果，返回符合条件的搜索信息列表"""
     import asyncio
     
-    search_result = await research_stock_news(secucode, stock_name)
+    search_result = await research_stock_news(stock_info)
     if not isinstance(search_result, list):
         return []
     
@@ -93,7 +94,7 @@ async def get_search_filter_result(secucode="002371.SZ", stock_name=None):
     semaphore = asyncio.Semaphore(5)
     
     tasks = [
-        filter_category_results(secucode, stock_name, category_data, client, semaphore)
+        filter_category_results(stock_info, category_data, client, semaphore)
         for category_data in search_result
     ]
     
@@ -101,9 +102,9 @@ async def get_search_filter_result(secucode="002371.SZ", stock_name=None):
     return [r for r in results if r is not None]
 
 
-async def get_search_filter_result_dict(secucode="002371.SZ", stock_name=None):
+async def get_search_filter_result_dict(stock_info: StockInfo):
     """获取过滤后的搜索结果，返回以category为键的字典格式"""
-    filtered_result = await get_search_filter_result(secucode, stock_name)
+    filtered_result = await get_search_filter_result(stock_info)
     return {item['category']: item['search_results'] for item in filtered_result}
 
 
@@ -111,13 +112,14 @@ if __name__ == "__main__":
     import asyncio
     
     async def main():
-        result = await get_search_filter_result("002371.SZ", "北方华创")
+        stock_info = get_stock_info_by_name("北方华创")
+        result = await get_search_filter_result(stock_info)
         print("列表格式结果:")
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
         print("\n ==================== \n")
         
-        result_dict = await get_search_filter_result_dict("002371.SZ", "北方华创")
+        result_dict = await get_search_filter_result_dict(stock_info)
         print("字典格式结果:")
         print(json.dumps(result_dict, ensure_ascii=False, indent=2))
         

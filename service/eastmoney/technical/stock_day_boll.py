@@ -1,6 +1,7 @@
 import asyncio
 import pandas as pd
 
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.technical.abs.stock_indicator_base import process_indicator_data, INDICATOR_CONFIG, \
     get_stock_day_range_kline, parse_klines_to_df
 
@@ -33,12 +34,12 @@ def calculate_bollinger_bands(klines, window=20, num_std=2):
     
     return process_indicator_data(df, 'boll')
 
-async def get_boll_markdown(stock_code, stock_name, klines):
+async def get_boll_markdown(stock_info: StockInfo, klines):
     """将布林线数据转换为markdown格式"""
     config = INDICATOR_CONFIG['boll']
     boll_data = calculate_bollinger_bands(klines)
 
-    markdown = f"## <{stock_code} {stock_name}> - 布林线数据\n\n"
+    markdown = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 布林线数据\n\n"
     markdown += "| 日期 | 收盘价 | BOLL | BOLL_UB | BOLL_LB |\n"
     markdown += "|------|--------|------|---------|---------|\n"
     for item in boll_data[:config['markdown_limit']]:
@@ -49,7 +50,8 @@ async def get_boll_markdown(stock_code, stock_name, klines):
 
 
 async def main():
-    boll_data = await get_boll_markdown("0.002371", "002371", "北方华创")
+    stock_info: StockInfo = get_stock_info_by_name("北方华创")
+    boll_data = await get_boll_markdown(stock_info, [])
     print(boll_data)
 
 if __name__ == "__main__":

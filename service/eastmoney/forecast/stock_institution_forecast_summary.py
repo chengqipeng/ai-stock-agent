@@ -2,7 +2,7 @@ import requests
 import asyncio
 from typing import Dict, List, Tuple
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
-
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
 # 指标配置：(字段名, 计数字段名, 显示名称, 格式化函数)
 METRICS_CONFIG = [
@@ -16,10 +16,9 @@ METRICS_CONFIG = [
 ]
 
 
-async def get_institution_forecast_summary(secucode: str) -> dict:
+async def get_institution_forecast_summary(stock_info: StockInfo) -> dict:
     """获取机构预测统计汇总数据"""
-    stock_code = secucode.split('.')[0]
-    cache_path = get_cache_path("forecast_summary", stock_code)
+    cache_path = get_cache_path("forecast_summary", stock_info.stock_code)
     
     # 检查缓存
     cached_data = load_cache(cache_path)
@@ -32,7 +31,7 @@ async def get_institution_forecast_summary(secucode: str) -> dict:
         "reportName": "RPT_HSF10_RESPREDICT_COUNTSTATISTICS",
         "columns": "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,YEAR,YEAR_MARK,EPS,EPS_LASTMONTHS,BVPS,ROE,PARENT_NETPROFIT,TOTAL_OPERATE_INCOME,OPERATE_PROFIT,EPS_COUNT,EPS_LASTMONTHS_COUNT,BVPS_COUNT,ROE_COUNT,PARENT_NETPROFIT_COUNT,TOTAL_OPERATE_INCOME_COUNT,OPERATE_PROFIT_COUNT,RANK",
         "quoteColumns": "",
-        "filter": f'(SECUCODE="{secucode}")',
+        "filter": f'(SECUCODE="{stock_info.stock_code_normalize}")',
         "pageNumber": 1,
         "pageSize": 200,
         "sortTypes": "1",
@@ -102,7 +101,7 @@ def _parse_raw_data(data: dict, limit_years: int = None, current_and_next_only: 
     return stock_name, stock_code, year_data, years
 
 
-def _build_json_result(stock_name: str, stock_code: str, year_data: Dict[str, dict], years: List[str]) -> list:
+def _build_json_result(stock_info: StockInfo, year_data: Dict[str, dict], years: List[str]) -> list:
     """构建JSON格式结果"""
     result = []
     for year in years:
@@ -115,9 +114,9 @@ def _build_json_result(stock_name: str, stock_code: str, year_data: Dict[str, di
     return result
 
 
-def _build_markdown_result(stock_name: str, stock_code: str, year_data: Dict[str, dict], years: List[str]) -> str:
+def _build_markdown_result(stock_info: StockInfo, year_data: Dict[str, dict], years: List[str]) -> str:
     """构建Markdown格式结果"""
-    md = f"# {stock_name}({stock_code}) 机构预测统计汇总\n\n"
+    md = f"# {stock_info.stock_name}（{stock_info.stock_code_normalize}） 机构预测统计汇总\n\n"
     md += "| 预测指标 | " + " | ".join([f"{year}年" if '预测' not in year_data[year]['year_mark'] else f"{year}年预测" for year in years]) + " |\n"
     md += "|" + "|".join(["------"] * (len(years) + 1)) + "|\n"
     
@@ -133,74 +132,75 @@ def _build_markdown_result(stock_name: str, stock_code: str, year_data: Dict[str
     return md
 
 
-async def get_institution_forecast_summary_historical_json(secucode: str) -> list:
+async def get_institution_forecast_summary_historical_json(stock_info: StockInfo) -> list:
     """获取机构预测统计汇总数据并转换为JSON格式（历年预测：小于当年）"""
     from datetime import datetime
     current_year = datetime.now().year
     
-    data = await get_institution_forecast_summary(secucode)
+    data = await get_institution_forecast_summary(stock_info)
     stock_name, stock_code, year_data, years = _parse_raw_data(data)
     historical_years = [y for y in years if y < current_year]
-    return _build_json_result(stock_name, stock_code, year_data, historical_years) if historical_years else []
+    return _build_json_result(stock_info, year_data, historical_years) if historical_years else []
 
 
-async def get_institution_forecast_summary_future_json(secucode: str) -> list:
+async def get_institution_forecast_summary_future_json(stock_info: StockInfo) -> list:
     """获取机构预测统计汇总数据并转换为JSON格式（未来预测：大于等于当年）"""
     from datetime import datetime
     current_year = datetime.now().year
     
-    data = await get_institution_forecast_summary(secucode)
+    data = await get_institution_forecast_summary(stock_info)
     stock_name, stock_code, year_data, years = _parse_raw_data(data)
     future_years = [y for y in years if y >= current_year]
-    return _build_json_result(stock_name, stock_code, year_data, future_years) if future_years else []
+    return _build_json_result(stock_info, year_data, future_years) if future_years else []
 
 
-async def get_institution_forecast_summary_current_next_year_json(secucode: str) -> list:
+async def get_institution_forecast_summary_current_next_year_json(stock_info: StockInfo) -> list:
     """获取机构预测统计汇总数据并转换为JSON格式（仅今年和未来一年）"""
-    data = await get_institution_forecast_summary(secucode)
+    data = await get_institution_forecast_summary(stock_info)
     stock_name, stock_code, year_data, years = _parse_raw_data(data, current_and_next_only=True)
-    return _build_json_result(stock_name, stock_code, year_data, years) if years else []
+    return _build_json_result(stock_info, year_data, years) if years else []
 
 
-async def get_institution_forecast_summary_markdown(secucode: str) -> str:
+async def get_institution_forecast_summary_markdown(stock_info: StockInfo) -> str:
     """获取机构预测统计汇总数据并转换为Markdown格式"""
-    data = await get_institution_forecast_summary(secucode)
+    data = await get_institution_forecast_summary(stock_info)
     stock_name, stock_code, year_data, years = _parse_raw_data(data)
-    return _build_markdown_result(stock_name, stock_code, year_data, years) if years else "# 无数据\n"
+    return _build_markdown_result(stock_info, year_data, years) if years else "# 无数据\n"
 
 
-async def get_institution_forecast_summary_current_next_year_markdown(secucode: str) -> str:
+async def get_institution_forecast_summary_current_next_year_markdown(stock_info: StockInfo) -> str:
     """获取机构预测统计汇总数据并转换为Markdown格式（仅今年和未来一年）"""
-    data = await get_institution_forecast_summary(secucode)
+    data = await get_institution_forecast_summary(stock_info)
     stock_name, stock_code, year_data, years = _parse_raw_data(data, current_and_next_only=True)
-    return _build_markdown_result(stock_name, stock_code, year_data, years) if years else "# 无数据\n"
+    return _build_markdown_result(stock_info, year_data, years) if years else "# 无数据\n"
 
 
 if __name__ == "__main__":
     import json
     
     async def main():
-        secucode = "002371.SZ"
-        print(f"正在获取 {secucode} 的机构预测统计汇总数据...\n")
+        stock_name = "北方华创"
+        print(f"正在获取 {stock_name} 的机构预测统计汇总数据...\n")
         
         print("\n=== JSON格式（历年预测） ===")
-        json_historical = await get_institution_forecast_summary_historical_json(secucode)
+        stock_info: StockInfo = get_stock_info_by_name(stock_name)
+        json_historical = await get_institution_forecast_summary_historical_json(stock_info)
         print(json.dumps(json_historical, ensure_ascii=False, indent=2))
         
         print("\n=== JSON格式（未来预测） ===")
-        json_future = await get_institution_forecast_summary_future_json(secucode)
+        json_future = await get_institution_forecast_summary_future_json(stock_info)
         print(json.dumps(json_future, ensure_ascii=False, indent=2))
         
         print("\n=== JSON格式（当前年+未来一年） ===")
-        json_data_recent = await get_institution_forecast_summary_current_next_year_json(secucode)
+        json_data_recent = await get_institution_forecast_summary_current_next_year_json(stock_info)
         print(json.dumps(json_data_recent, ensure_ascii=False, indent=2))
         
         print("\n=== Markdown格式（所有年份） ===")
-        markdown = await get_institution_forecast_summary_markdown(secucode)
+        markdown = await get_institution_forecast_summary_markdown(stock_info)
         print(markdown)
         
         print("\n=== Markdown格式（当前年+未来一年） ===")
-        markdown_recent = await get_institution_forecast_summary_current_next_year_markdown(secucode)
+        markdown_recent = await get_institution_forecast_summary_current_next_year_markdown(stock_info)
         print(markdown_recent)
     
     asyncio.run(main())

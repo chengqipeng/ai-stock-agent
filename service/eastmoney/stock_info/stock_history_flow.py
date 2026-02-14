@@ -3,11 +3,12 @@ import asyncio
 from common.utils.amount_utils import convert_amount_unit
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.http.http_utils import fetch_eastmoney_api, EASTMONEY_PUSH2HIS_API_URL
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
-async def get_fund_flow_history(secid="0.002371"):
+
+async def get_fund_flow_history(stock_info: StockInfo):
     """获取资金流向历史数据"""
-    stock_code = secid.split('.')[-1]
-    cache_path = get_cache_path("fund_flow", stock_code)
+    cache_path = get_cache_path("fund_flow", stock_info.stock_code)
     
     # 检查缓存
     cached_data = load_cache(cache_path)
@@ -22,7 +23,7 @@ async def get_fund_flow_history(secid="0.002371"):
         "fields1": "f1,f2,f3,f7",
         "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65",
         "ut": "b2884a393a59ad64002292a3e90d46a5",
-        "secid": secid,
+        "secid": stock_info.secid,
         "_": 1715330901
     }
     data = await fetch_eastmoney_api(url, params, referer="https://quote.eastmoney.com/")
@@ -35,15 +36,13 @@ async def get_fund_flow_history(secid="0.002371"):
         
         return klines
     else:
-        raise Exception(f"未获取到股票 {secid} 的资金流向历史数据")
+        raise Exception(f"未获取到股票 {stock_info.secid} 的资金流向历史数据")
 
-async def get_fund_flow_history_markdown(secid="0.002371", stock_code=None, stock_name=None, page_size = 120):
+async def get_fund_flow_history_markdown(stock_info: StockInfo, page_size = 120):
     """获取资金流向历史数据并转换为markdown"""
-    klines = await get_fund_flow_history(secid)
-    kline_max_min_map = await get_stock_history_kline_max_min(secid)
-    if not stock_code:
-        stock_code = secid.split('.')[-1]
-    header = f"## <{stock_code} {stock_name}> - 历史资金流向" if stock_name else "## 历史资金流向"
+    klines = await get_fund_flow_history(stock_info)
+    kline_max_min_map = await get_stock_history_kline_max_min(stock_info)
+    header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 历史资金流向"
     markdown = f"""{header}
 | 日期 | 收盘价 | 涨跌幅 | 主力净流入净额 | 主力净流入净占比 | 超大单净流入净额 | 超大单净流入净占比 | 大单净流入净额 | 大单净流入净占比 | 中单净流入净额 | 中单净流入占比 | 小单净流入净额 | 小单净流入净占比 | 当日最高价 | 当日最低价 | 换手率 | 成交量(万手) | 成交额 |
 |-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|----------|-----------|-------|------------|-------|
@@ -74,10 +73,9 @@ async def get_fund_flow_history_markdown(secid="0.002371", stock_code=None, stoc
     return markdown + "\n"
 
 
-async def get_stock_history_kline_max_min(secid="0.002371"):
+async def get_stock_history_kline_max_min(stock_info: StockInfo):
     """获取股票K线数据"""
-    stock_code = secid.split('.')[-1]
-    cache_path = get_cache_path("kline", stock_code)
+    cache_path = get_cache_path("kline", stock_info.stock_code)
     
     # 检查缓存
     cached_data = load_cache(cache_path)
@@ -87,7 +85,7 @@ async def get_stock_history_kline_max_min(secid="0.002371"):
     # 获取数据
     url = f"{EASTMONEY_PUSH2HIS_API_URL}/stock/kline/get"
     params = {
-        "secid": secid,
+        "secid": stock_info.secid,
         "ut": "fa5fd1943c7b386f172d6893dbfba10b",
         "fields1": "f1,f2,f3,f4,f5,f6",
         "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
@@ -117,12 +115,12 @@ async def get_stock_history_kline_max_min(secid="0.002371"):
         
         return result
     else:
-        raise Exception(f"未获取到股票 {secid} 的K线数据")
+        raise Exception(f"未获取到股票 {stock_info.secid} 的K线数据")
 
 
-async def get_stock_history_volume_amount_yearly(secid="0.002371"):
+async def get_stock_history_volume_amount_yearly(stock_info: StockInfo):
     """获取一年的成交量和成交额数据，返回JSON格式"""
-    kline_data = await get_stock_history_kline_max_min(secid)
+    kline_data = await get_stock_history_kline_max_min(stock_info)
     result = []
     for date, data in sorted(kline_data.items(), reverse=True)[:250]:
         result.append({
@@ -135,5 +133,6 @@ async def get_stock_history_volume_amount_yearly(secid="0.002371"):
 
 
 if __name__ == "__main__":
-    asyncio.run(get_stock_history_volume_amount_yearly(secid="0.002371"))
+    stock_info: StockInfo = get_stock_info_by_name("北方华创")
+    asyncio.run(get_stock_history_volume_amount_yearly(stock_info))
 

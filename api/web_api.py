@@ -7,7 +7,7 @@ from typing import Optional, AsyncIterator, Callable
 import json
 
 from common.constants.stocks_data import get_stock_code
-from common.utils.amount_utils import normalize_stock_code
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from data_results.database.history_db import init_db, insert_history, get_all_history, get_history_content
 from data_results.database.batch_db import init_batch_tables
 from service.eastmoney.stock_structure_markdown import get_stock_markdown, get_stock_markdown_for_llm_analyse
@@ -27,10 +27,10 @@ init_batch_tables()
 # 注册批量处理路由
 app.include_router(batch_router)
 
-def save_result(analysis_type: str, stock_name: str, stock_code: str, result: str):
+def save_result(analysis_type: str, stock_info: StockInfo, result: str):
     """保存分析结果到数据库"""
     formatted_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    insert_history(analysis_type, stock_name, stock_code, formatted_time, result)
+    insert_history(analysis_type, stock_info.stock_name, stock_info.stock_code_normalize, formatted_time, result)
 
 
 @app.get("/api/history")
@@ -83,14 +83,14 @@ async def get_stocks():
 @app.post("/api/can_slim")
 async def get_can_slim_analysis(request: StockRequest):
     try:
-        stock_code = get_stock_code(request.stock_name)
-        main_stock_result = await get_stock_markdown(normalize_stock_code(stock_code), request.stock_name)
+        stock_info: StockInfo = get_stock_info_by_name(request.stock_name)
+        main_stock_result = await get_stock_markdown(stock_info)
         operation_advice = get_operation_advice(request.advice_type, request.holding_price)
         if operation_advice:
             main_stock_result += f"# {operation_advice}\n"
         
         # 保存结果
-        save_result("can_slim", request.stock_name, stock_code, main_stock_result)
+        save_result("can_slim", stock_info, main_stock_result)
         
         return {"success": True, "data": main_stock_result}
     except Exception as e:
@@ -100,16 +100,14 @@ async def get_can_slim_analysis(request: StockRequest):
 @app.post("/api/technical")
 async def get_technical_analysis(request: StockRequest):
     try:
-        stock_code = get_stock_code(request.stock_name)
-        technical_stock_result = await get_technical_indicators_prompt(
-            normalize_stock_code(stock_code), stock_code, request.stock_name
-        )
+        stock_info: StockInfo = get_stock_info_by_name(request.stock_name)
+        technical_stock_result = await get_technical_indicators_prompt(stock_info)
         operation_advice = get_operation_advice(request.advice_type, request.holding_price)
         if operation_advice:
             technical_stock_result += f"# {operation_advice}\n"
         
         # 保存结果
-        save_result("technical", request.stock_name, stock_code, technical_stock_result)
+        save_result("technical", stock_info, technical_stock_result)
         
         return {"success": True, "data": technical_stock_result}
     except Exception as e:
@@ -127,9 +125,8 @@ async def _stream_llm_analysis(
     try:
         yield f"data: {json.dumps({'stage': 'fetching', 'message': '正在获取数据'}, ensure_ascii=False)}\n\n"
         
-        stock_code = get_stock_code(request.stock_name)
-        main_stock_result = await get_stock_markdown_for_llm_analyse(
-            normalize_stock_code(stock_code), request.stock_name
+        stock_info: StockInfo = get_stock_info_by_name(request.stock_name)
+        main_stock_result = await get_stock_markdown_for_llm_analyse(stock_info
         )
         operation_advice = get_operation_advice(request.advice_type, request.holding_price)
         if operation_advice:
@@ -146,7 +143,7 @@ async def _stream_llm_analysis(
             yield f"data: {json.dumps({'stage': 'streaming', 'content': content}, ensure_ascii=False)}\n\n"
         
         # 保存结果
-        save_result(analysis_type, request.stock_name, stock_code, full_result)
+        save_result(analysis_type, stock_info, full_result)
         
         yield f"data: {json.dumps({'stage': 'done'}, ensure_ascii=False)}\n\n"
     except Exception as e:
@@ -174,9 +171,8 @@ async def get_can_slim_gemini_analysis(request: StockRequest):
 async def _stream_full_analysis(request: StockRequest, llm_type: str = "deepseek") -> AsyncIterator[str]:
     """全量分析流式响应"""
     try:
-        stock_code = get_stock_code(request.stock_name)
-        normalized_code = normalize_stock_code(stock_code)
-        
+        stock_info: StockInfo = get_stock_info_by_name(request.stock_name)
+
         # 创建一个队列来传递进度消息
         import asyncio
         progress_queue = asyncio.Queue()
@@ -186,7 +182,7 @@ async def _stream_full_analysis(request: StockRequest, llm_type: str = "deepseek
         
         # 启动分析任务
         analysis_task = asyncio.create_task(
-            stock_full_analysis(normalized_code, request.stock_name, progress_callback, llm_type)
+            stock_full_analysis(stock_info, progress_callback, llm_type)
         )
         
         # 发送初始状态
@@ -222,7 +218,7 @@ async def _stream_full_analysis(request: StockRequest, llm_type: str = "deepseek
                 yield f"data: {json.dumps({'stage': stage, 'message': message}, ensure_ascii=False)}\n\n"
         
         # 保存结果
-        save_result(f"full_analysis_{llm_type}", request.stock_name, stock_code, result)
+        save_result(f"full_analysis_{llm_type}", stock_info, result)
         
         yield f"data: {json.dumps({'stage': 'streaming', 'content': result}, ensure_ascii=False)}\n\n"
         yield f"data: {json.dumps({'stage': 'done'}, ensure_ascii=False)}\n\n"
@@ -256,10 +252,8 @@ async def get_technical_deepseek_analysis(request: StockRequest):
         try:
             yield f"data: {json.dumps({'stage': 'fetching', 'message': '正在获取技术指标数据'}, ensure_ascii=False)}\n\n"
             
-            stock_code = get_stock_code(request.stock_name)
-            technical_result = await get_technical_indicators_prompt(
-                normalize_stock_code(stock_code), stock_code, request.stock_name
-            )
+            stock_info: StockInfo = get_stock_info_by_name(request.stock_name)
+            technical_result = await get_technical_indicators_prompt(stock_info)
             operation_advice = get_operation_advice(request.advice_type, request.holding_price)
             if operation_advice:
                 technical_result += f"# {operation_advice}\n"
@@ -274,7 +268,7 @@ async def get_technical_deepseek_analysis(request: StockRequest):
                 full_result += content
                 yield f"data: {json.dumps({'stage': 'streaming', 'content': content}, ensure_ascii=False)}\n\n"
             
-            save_result("technical_deepseek", request.stock_name, stock_code, full_result)
+            save_result("technical_deepseek", stock_info, full_result)
             yield f"data: {json.dumps({'stage': 'done'}, ensure_ascii=False)}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'stage': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
@@ -290,10 +284,8 @@ async def get_technical_gemini_analysis(request: StockRequest):
         try:
             yield f"data: {json.dumps({'stage': 'fetching', 'message': '正在获取技术指标数据'}, ensure_ascii=False)}\n\n"
             
-            stock_code = get_stock_code(request.stock_name)
-            technical_result = await get_technical_indicators_prompt(
-                normalize_stock_code(stock_code), stock_code, request.stock_name
-            )
+            stock_info: StockInfo = get_stock_info_by_name(request.stock_name)
+            technical_result = await get_technical_indicators_prompt(stock_info)
             operation_advice = get_operation_advice(request.advice_type, request.holding_price)
             if operation_advice:
                 technical_result += f"# {operation_advice}\n"
@@ -308,7 +300,7 @@ async def get_technical_gemini_analysis(request: StockRequest):
                 full_result += content
                 yield f"data: {json.dumps({'stage': 'streaming', 'content': content}, ensure_ascii=False)}\n\n"
             
-            save_result("technical_gemini", request.stock_name, stock_code, full_result)
+            save_result("technical_gemini", stock_info, full_result)
             yield f"data: {json.dumps({'stage': 'done'}, ensure_ascii=False)}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'stage': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"

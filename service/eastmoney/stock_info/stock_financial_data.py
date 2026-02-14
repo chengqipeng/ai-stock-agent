@@ -1,8 +1,9 @@
 from common.utils.amount_utils import convert_amount_unit
 from common.http.http_utils import EASTMONEY_API_URL, fetch_eastmoney_api
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
 
-async def get_financial_data(stock_code="002371", page_size=5, page_number=1):
+async def get_financial_data(stock_info: StockInfo, page_size=5, page_number=1):
     """获取财务数据"""
     params = {
         "sortColumns": "REPORTDATE",
@@ -10,7 +11,7 @@ async def get_financial_data(stock_code="002371", page_size=5, page_number=1):
         "pageSize": str(page_size),
         "pageNumber": str(page_number),
         "columns": "ALL",
-        "filter": f"(SECURITY_CODE=\"{stock_code}\")",
+        "filter": f"(SECURITY_CODE=\"{stock_info.stock_code}\")",
         "reportName": "RPT_LICO_FN_CPD"
     }
 
@@ -18,10 +19,10 @@ async def get_financial_data(stock_code="002371", page_size=5, page_number=1):
     if data.get("result") and data["result"].get("data"):
         return data["result"]["data"]
     else:
-        raise Exception(f"未获取到股票 {stock_code} 的财务数据")
+        raise Exception(f"未获取到股票 {stock_info.stock_code} 的财务数据")
 
 
-async def get_financial_report(stock_code="002371", page_size=5, page_number=1):
+async def get_financial_report(stock_info: StockInfo, page_size=5, page_number=1):
     """业绩报表明细"""
     params = {
         "sortColumns": "REPORTDATE",
@@ -29,7 +30,7 @@ async def get_financial_report(stock_code="002371", page_size=5, page_number=1):
         "pageSize": str(page_size),
         "pageNumber": str(page_number),
         "columns": "ALL",
-        "filter": f"(SECURITY_CODE=\"{stock_code}\")",
+        "filter": f"(SECURITY_CODE=\"{stock_info.stock_code}\")",
         "reportName": "RPT_LICO_FN_CPD"
     }
 
@@ -37,10 +38,10 @@ async def get_financial_report(stock_code="002371", page_size=5, page_number=1):
     if data.get("result") and data["result"].get("data"):
         return data["result"]["data"]
     else:
-        raise Exception(f"未获取到股票 {stock_code} 的财务报表数据")
+        raise Exception(f"未获取到股票 {stock_info.stock_code} 的财务报表数据")
 
 
-async def get_financial_fast_report(stock_code="002371", page_size=15, page_number=1):
+async def get_financial_fast_report(stock_info: StockInfo, page_size=15, page_number=1):
     """获取业绩预告数据"""
     params = {
         "sortColumns": "REPORT_DATE",
@@ -48,7 +49,7 @@ async def get_financial_fast_report(stock_code="002371", page_size=15, page_numb
         "pageSize": str(page_size),
         "pageNumber": str(page_number),
         "columns": "ALL",
-        "filter": f"(SECURITY_CODE=\"{stock_code}\")",
+        "filter": f"(SECURITY_CODE=\"{stock_info.stock_code}\")",
         "reportName": "RPT_FCI_PERFORMANCEE"
     }
 
@@ -56,10 +57,10 @@ async def get_financial_fast_report(stock_code="002371", page_size=15, page_numb
     if data.get("result") and data["result"].get("data"):
         return data["result"]["data"]
     else:
-        raise Exception(f"未获取到股票 {stock_code} 的业绩预告数据")
+        raise Exception(f"未获取到股票 {stock_info.stock_code} 的业绩预告数据")
 
 
-async def get_performance_forecast(stock_code="002371", page_size=15, page_number=1):
+async def get_performance_forecast(stock_info: StockInfo , page_size=15, page_number=1):
     """获取业绩预告数据"""
     params = {
         "sortColumns": "REPORT_DATE",
@@ -67,7 +68,7 @@ async def get_performance_forecast(stock_code="002371", page_size=15, page_numbe
         "pageSize": str(page_size),
         "pageNumber": str(page_number),
         "columns": "ALL",
-        "filter": f"(SECURITY_CODE=\"{stock_code}\")",
+        "filter": f"(SECURITY_CODE=\"{stock_info.stock_code}\")",
         "reportName": "RPT_PUBLIC_OP_NEWPREDICT"
     }
 
@@ -75,17 +76,17 @@ async def get_performance_forecast(stock_code="002371", page_size=15, page_numbe
     if data.get("result") and data["result"].get("data"):
         return data["result"]["data"]
     else:
-        raise Exception(f"未获取到股票 {stock_code} 的业绩预告数据")
+        raise Exception(f"未获取到股票 {stock_info.stock_code} 的业绩预告数据")
 
 
-async def get_financial_report_markdown(stock_code, page_size=5, stock_name=None):
+async def get_financial_report_markdown(stock_info: StockInfo , page_size=5):
     """获取业绩报表明细并转换为markdown"""
-    report_data_1 = await get_financial_report(stock_code, page_size, 1)
-    report_data_2 = await get_financial_report(stock_code, page_size, 2)
+    report_data_1 = await get_financial_report(stock_info, page_size, 1)
+    report_data_2 = await get_financial_report(stock_info, page_size, 2)
     report_data = report_data_1 + report_data_2
     if not report_data:
         return ""
-    header = f"## <{stock_code} {stock_name}> - 业绩报表明细" if stock_name else "## 业绩报表明细"
+    header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}） > - 业绩报表明细"
     markdown = f"""{header}
 | 截止日期 | 每股收益(元) | 每股收益(扣除)(元) | 营业总收入（元） | 营业总收入同步增长（%） | 营业总收入季度环比增长（%） | 净利润（元） | 净利润同步增长（%） | 净利润环比增长（%） | 每股净资产(元) | 净资产收益率(%) | 每股经营现金流量(元) | 销售毛利率(%) | 利润分配 | 首次公告日期 |
 |----------|-----------|------------------|---------------|----------------------|------------------------|------------|------------------|------------------|--------------|---------------|-------------------|--------------|--------|------------|
@@ -112,9 +113,9 @@ async def get_financial_report_markdown(stock_code, page_size=5, stock_name=None
     return markdown + "\n"
 
 
-async def get_financial_fast_report_markdown(stock_code, page_size=15):
+async def get_financial_fast_report_markdown(stock_info: StockInfo, page_size=15):
     """获取业绩快报明细并转换为markdown"""
-    forecast_data = await get_financial_fast_report(stock_code, page_size)
+    forecast_data = await get_financial_fast_report(stock_info, page_size)
     if not forecast_data:
         return ""
     markdown = """## 业绩快报明细
@@ -145,12 +146,12 @@ async def get_financial_fast_report_markdown(stock_code, page_size=15):
     return markdown
 
 
-async def get_performance_forecast_markdown(stock_code, page_size=15, stock_name=None):
+async def get_performance_forecast_markdown(stock_info: StockInfo, page_size=15):
     """获取业绩预告明细并转换为markdown"""
-    forecast_data = await get_performance_forecast(stock_code, page_size)
+    forecast_data = await get_performance_forecast(stock_info, page_size)
     if not forecast_data:
         return ""
-    header = f"## <{stock_code} {stock_name}> - 业绩预告明细" if stock_name else "## 业绩预告明细"
+    header = f"## <{stock_info.stock_name} ({stock_info.stock_code_normalize})> - 业绩预告明细"
     markdown = f"""{header}
 | 截止日期 | 预测指标 | 业绩变动 | 预测数值(元) | 业绩变动同比 | 业绩变动环比 | 业绩变动原因 | 预告类型 | 上年同期值(元) | 公告日期 |
 |----------|---------|---------|------------|------------|------------|------------|---------|--------------|----------|
@@ -181,3 +182,24 @@ async def get_performance_forecast_markdown(stock_code, page_size=15, stock_name
         notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
         markdown += f"| {report_date} | {predict_finance} | {predict_content} | {predict_value} | {add_amp} | {predict_ratio} | {change_reason} | {predict_type} | {preyear_str} | {notice_date} |\n"
     return markdown + "\n"
+
+
+if __name__ == "__main__":
+    import asyncio
+    
+    async def main():
+        stock_info: StockInfo = get_stock_info_by_name("北方华创")
+        
+        print("=== 业绩报表明细 ===")
+        result1 = await get_financial_report_markdown(stock_info)
+        print(result1)
+        
+        print("\n=== 业绩快报明细 ===")
+        result2 = await get_financial_fast_report_markdown(stock_info)
+        print(result2)
+        
+        print("\n=== 业绩预告明细 ===")
+        result3 = await get_performance_forecast_markdown(stock_info)
+        print(result3)
+    
+    asyncio.run(main())

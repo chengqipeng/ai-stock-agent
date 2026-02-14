@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from abc import ABC, abstractmethod
 
-from common.utils.amount_utils import normalize_stock_code
+from common.utils.stock_info_utils import get_stock_info_by_name, StockInfo
 from service.eastmoney.stock_structure_markdown import get_stock_markdown_for_score
 
 
@@ -24,7 +24,9 @@ class BaseStockProcessor(ABC):
         async with semaphore:
             stock_code = stock['code']
             stock_name = stock['name']
-            main_stock_result = await get_stock_markdown_for_score(normalize_stock_code(stock_code), stock_name)
+
+            stock_info: StockInfo = get_stock_info_by_name(stock_name)
+            main_stock_result = await get_stock_markdown_for_score(stock_info)
             
             messages = [{"role": "user", "content": main_stock_result}]
 

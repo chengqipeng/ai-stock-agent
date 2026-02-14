@@ -1,5 +1,7 @@
 import asyncio
 from datetime import datetime
+
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.stock_structure_markdown import get_stock_markdown_with_llm_result
 from service.eastmoney.stock_technical_markdown import get_technical_indicators_for_llm_analysis_prompt
 from service.prompt.stock_final_prompt import get_final_prompt
@@ -8,16 +10,14 @@ from service.llm.gemini_client import GeminiClient
 from service.stock_news.stock_news_markdown import process_stock_news
 
 
-async def stock_full_analysis(secid: str, stock_name: str, progress_callback=None, llm_type: str = "deepseek"):
+async def stock_full_analysis(stock_info: StockInfo, progress_callback=None, llm_type: str = "deepseek"):
     """完整股票分析流程"""
-    stock_code = secid.split('.')[-1]
-    timestamp = datetime.now().strftime("%Y%m%d%H%M")
-    
+
     # 并行调用三个分析方法，每个阶段发送开始和结束进度
     async def analyze_can_slim():
         if progress_callback:
             await progress_callback('progress', '基本面数据分析', 'start')
-        result = await get_stock_markdown_with_llm_result(secid, stock_name, llm_type=llm_type)
+        result = await get_stock_markdown_with_llm_result(stock_info, llm_type=llm_type)
         if progress_callback:
             await progress_callback('progress', '基本面数据分析', 'done')
         return result
@@ -25,7 +25,7 @@ async def stock_full_analysis(secid: str, stock_name: str, progress_callback=Non
     async def analyze_technical():
         if progress_callback:
             await progress_callback('progress', '技术维度数据分析', 'start')
-        result = await get_technical_indicators_for_llm_analysis_prompt(secid, stock_code, stock_name, llm_type=llm_type)
+        result = await get_technical_indicators_for_llm_analysis_prompt(stock_info, llm_type=llm_type)
         if progress_callback:
             await progress_callback('progress', '技术维度数据分析', 'done')
         return result
@@ -33,7 +33,7 @@ async def stock_full_analysis(secid: str, stock_name: str, progress_callback=Non
     async def analyze_news():
         if progress_callback:
             await progress_callback('progress', '咨询数据分析', 'start')
-        result = await process_stock_news(stock_name, stock_code, llm_type=llm_type)
+        result = await process_stock_news(stock_info, llm_type=llm_type)
         if progress_callback:
             await progress_callback('progress', '咨询数据分析', 'done')
         return result
@@ -48,8 +48,7 @@ async def stock_full_analysis(secid: str, stock_name: str, progress_callback=Non
     if progress_callback:
         await progress_callback('processing', '正在生成分析提示词')
     final_prompt = get_final_prompt(
-        stock_code=stock_code,
-        stock_name=stock_name,
+        stock_info=stock_info,
         can_slim_conclusion=can_slim_result,
         technical_conclusion=technical_result,
         news_conclusion=news_result
@@ -81,5 +80,7 @@ async def stock_full_analysis(secid: str, stock_name: str, progress_callback=Non
 
 
 if __name__ == "__main__":
-    result = asyncio.run(stock_full_analysis("0.002371", "北方华创"))
+    stock_name = "北方华创"
+    stock_info = get_stock_info_by_name(stock_name)
+    result = asyncio.run(stock_full_analysis(stock_info))
     print(result)

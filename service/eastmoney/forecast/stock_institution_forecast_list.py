@@ -2,9 +2,10 @@ import requests
 import asyncio
 from datetime import datetime
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
 
-async def get_institution_forecast(secucode: str) -> dict:
+async def get_institution_forecast(stock_info: StockInfo) -> dict:
     """
     获取机构预测数据（每季每股收益、市盈率）
     
@@ -14,8 +15,7 @@ async def get_institution_forecast(secucode: str) -> dict:
     Returns:
         dict: 机构预测数据
     """
-    stock_code = secucode.split('.')[0]
-    cache_path = get_cache_path("forecast_list", stock_code)
+    cache_path = get_cache_path("forecast_list", stock_info.stock_code)
     
     # 检查缓存
     cached_data = load_cache(cache_path)
@@ -29,7 +29,7 @@ async def get_institution_forecast(secucode: str) -> dict:
         "reportName": "RPT_HSF10_RES_ORGPREDICT",
         "columns": "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,PUBLISH_DATE,ORG_CODE,ORG_NAME_ABBR,YEAR1,YEAR_MARK1,EPS1,PE1,YEAR2,YEAR_MARK2,EPS2,PE2,YEAR3,YEAR_MARK3,EPS3,PE3,YEAR4,YEAR_MARK4,EPS4,PE4",
         "quoteColumns": "",
-        "filter": f'(SECUCODE="{secucode}")',
+        "filter": f'(SECUCODE="{stock_info.stock_code_normalize}")',
         "pageNumber": 1,
         "pageSize": 200,
         "sortTypes": "",
@@ -121,9 +121,9 @@ def _process_forecast_data(data: dict, year_filter=None) -> list:
     return forecasts
 
 
-async def get_institution_forecast_historical_to_json(secucode: str) -> list:
+async def get_institution_forecast_historical_to_json(stock_info: StockInfo) -> list:
     """将机构预测数据转换为JSON格式（只显示历年预测，小于当年）"""
-    data = await get_institution_forecast(secucode)
+    data = await get_institution_forecast(stock_info)
     if not data.get('success') or not data.get('result', {}).get('data'):
         return []
     
@@ -149,9 +149,9 @@ async def get_institution_forecast_historical_to_json(secucode: str) -> list:
     return forecasts
 
 
-async def get_institution_forecast_future_to_json(secucode: str) -> list:
+async def get_institution_forecast_future_to_json(stock_info: StockInfo) -> list:
     """将机构预测数据转换为JSON格式（只显示未来预测，大于等于当年）"""
-    data = await get_institution_forecast(secucode)
+    data = await get_institution_forecast(stock_info)
     if not data.get('success') or not data.get('result', {}).get('data'):
         return []
     
@@ -177,17 +177,15 @@ async def get_institution_forecast_future_to_json(secucode: str) -> list:
     return forecasts
 
 
-async def get_institution_forecast_to_markdown(secucode: str) -> str:
+async def get_institution_forecast_to_markdown(stock_info: StockInfo) -> str:
     """将机构预测数据转换为Markdown格式（显示所有年份）"""
-    data = await get_institution_forecast(secucode)
+    data = await get_institution_forecast(stock_info)
     if not data.get('success') or not data.get('result', {}).get('data'):
         return "# 无数据\n"
-    
+
     items = data['result']['data']
-    stock_name = items[0].get('SECURITY_NAME_ABBR', '')
-    stock_code = items[0].get('SECURITY_CODE', '')
-    
-    md = f"# {stock_name}({stock_code}) 机构预测\n\n"
+
+    md = f"# {stock_info.stock_name}（{stock_info.stock_code_normalize}） 机构预测\n\n"
     md += _build_table_header(["发布日期", "机构名称", "24年收益", "24年市盈率", "25年收益", "25年市盈率", "26年收益", "26年市盈率", "27年收益", "27年市盈率"])
     
     for item in items:
@@ -207,17 +205,17 @@ async def get_institution_forecast_to_markdown(secucode: str) -> str:
     return md
 
 
-async def get_institution_forecast_current_next_year_to_json(secucode: str) -> list:
+async def get_institution_forecast_current_next_year_to_json(stock_info: StockInfo) -> list:
     """将机构预测数据转换为JSON格式（只显示当前年和未来一年）"""
-    data = await get_institution_forecast(secucode)
+    data = await get_institution_forecast(stock_info)
     current_year = datetime.now().year
     next_year = current_year + 1
     return _process_forecast_data(data, year_filter=[current_year, next_year])
 
 
-async def get_institution_forecast_current_next_year_to_markdown(secucode: str) -> str:
+async def get_institution_forecast_current_next_year_to_markdown(stock_info: StockInfo) -> str:
     """将机构预测数据转换为Markdown格式（只显示当前年和未来一年）"""
-    data = await get_institution_forecast(secucode)
+    data = await get_institution_forecast(stock_info)
     if not data.get('success') or not data.get('result', {}).get('data'):
         return "# 无数据\n"
     
@@ -246,27 +244,28 @@ if __name__ == "__main__":
     import json
     
     async def main():
-        secucode = "002371.SZ"
-        print(f"正在获取 {secucode} 的机构预测数据...\n")
+        stock_name = "北方华创"
+        print(f"正在获取 {stock_name} 的机构预测数据...\n")
         
         print("=== 显示所有年份数据（Markdown） ===")
-        markdown = await get_institution_forecast_to_markdown(secucode)
+        stock_info: StockInfo = get_stock_info_by_name(stock_name)
+        markdown = await get_institution_forecast_to_markdown(stock_info)
         print(markdown)
         
         print("\n=== 显示历年预测数据（JSON） ===")
-        json_historical = await get_institution_forecast_historical_to_json(secucode)
+        json_historical = await get_institution_forecast_historical_to_json(stock_info)
         print(json.dumps(json_historical, ensure_ascii=False, indent=2))
         
         print("\n=== 显示未来预测数据（JSON） ===")
-        json_future = await get_institution_forecast_future_to_json(secucode)
+        json_future = await get_institution_forecast_future_to_json(stock_info)
         print(json.dumps(json_future, ensure_ascii=False, indent=2))
         
         print("\n=== 只显示当前年和未来一年数据（Markdown） ===")
-        markdown_filtered = await get_institution_forecast_current_next_year_to_markdown(secucode)
+        markdown_filtered = await get_institution_forecast_current_next_year_to_markdown(stock_info)
         print(markdown_filtered)
         
         print("\n=== 只显示当前年和未来一年数据（JSON） ===")
-        json_filtered = await get_institution_forecast_current_next_year_to_json(secucode)
+        json_filtered = await get_institution_forecast_current_next_year_to_json(stock_info)
         print(json.dumps(json_filtered, ensure_ascii=False, indent=2))
     
     asyncio.run(main())

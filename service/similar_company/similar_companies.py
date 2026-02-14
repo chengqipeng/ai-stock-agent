@@ -1,4 +1,6 @@
 import json
+
+from common.utils.stock_info_utils import StockInfo
 from service.llm.deepseek_client import DeepSeekClient
 from service.prompt.stock_similar_companies_prompt import SIMILAR_COMPANIES_PROMPT
 
@@ -6,11 +8,11 @@ class SimilarCompaniesGenerator:
     def __init__(self):
         self.client = DeepSeekClient()
     
-    async def generate(self, company_name: str, stock_code: str, company_num: int = 5) -> dict:
+    async def generate(self, stock_info: StockInfo, company_num: int = 5) -> dict:
         """生成相似公司推荐"""
         prompt = SIMILAR_COMPANIES_PROMPT.format(
-            company_name=company_name,
-            stock_code=stock_code,
+            company_name=stock_info.stock_name,
+            stock_code=stock_info.stock_code_normalize,
             company_num=company_num
         )
         
