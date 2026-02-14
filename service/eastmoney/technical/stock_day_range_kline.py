@@ -1,9 +1,8 @@
 import asyncio
-import pandas as pd
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, \
-    INDICATOR_CONFIG, get_stock_day_range_kline, get_stock_history_kline_max_min
+    INDICATOR_CONFIG, get_stock_history_kline_max_min, get_stock_day_range_kline
 
 """
 核心原则：必须拥有 250 条（约 1 年）以上的历史数据
@@ -34,7 +33,8 @@ def calculate_moving_averages(klines, stock_info: StockInfo):
     # 多头排列判断
     df['is_bullish_alignment'] = (df['close_10_ema'] > df['close_50_sma']) & (df['close_50_sma'] > df['close_200_sma'])
     
-    return process_indicator_data(df, 'ma')
+    config = INDICATOR_CONFIG.get('ma', {'tail_limit': 400})
+    return df[['date', 'close_10_ema', 'close_50_sma', 'close_200_sma', 'is_bullish_alignment']].tail(config['tail_limit']).to_dict('records')[::-1]
 
 
 async def generate_can_slim_50_200_summary(stock_info: StockInfo, klines):
@@ -89,15 +89,16 @@ async def get_moving_averages_markdown(stock_info: StockInfo, klines):
     ma_data = calculate_moving_averages(klines, stock_info)
 
     markdown = f"## <{stock_info.stock_name}（ {stock_info.stock_code_normalize}）> - 移动平均线数据\n\n"
-    markdown += "| 日期 | 收盘价 | 10日EMA | 50日SMA | 200日SMA | 多头排列 |\n"
-    markdown += "|------|------|---------|---------|----------|--------|\n"
+    markdown += "| 日期 | 10日EMA | 50日SMA | 200日SMA | 多头排列 |\n"
+    markdown += "|------|---------|---------|----------|--------|\n"
     for item in ma_data[:config['markdown_limit']]:
-        markdown += f"| {item['date']} | {item['close']:.2f} | {item.get('close_10_ema', 'N/A')} | {item.get('close_50_sma', 'N/A')} | {item.get('close_200_sma', 'N/A')} | {'是' if item.get('is_bullish_alignment') else '否'} |\n"
+        markdown += f"| {item['date']} | {item.get('close_10_ema', 'N/A')} | {item.get('close_50_sma', 'N/A')} | {item.get('close_200_sma', 'N/A')} | {'是' if item.get('is_bullish_alignment') else '否'} |\n"
     markdown += "\n"
     return markdown
 
 
-async def get_moving_averages_json(stock_info: StockInfo, klines):
+async def get_moving_averages_json(stock_info: StockInfo):
+    klines = await get_stock_day_range_kline(stock_info)
     """返回移动平均线数据的JSON格式"""
     config = INDICATOR_CONFIG['ma']
     ma_data = calculate_moving_averages(klines, stock_info)
@@ -122,7 +123,7 @@ async def get_stock_history_volume_amount_yearly(stock_info: StockInfo):
 
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
-    klines = await get_stock_history_volume_amount_yearly(stock_info)
+    klines = await get_moving_averages_json(stock_info)
     print(klines)
 
 if __name__ == "__main__":

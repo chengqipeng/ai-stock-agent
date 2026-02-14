@@ -19,8 +19,7 @@ async def get_N_Products_Management_Highs_prompt(stock_info: StockInfo):
     corporate_governance = search_filter_result_dict['corporate_governance']
     stock_incentive_plan = search_filter_result_dict['stock_incentive_plan']
 
-    klines = await get_stock_day_range_kline(stock_info, limit=400)
-    moving_averages_json = await get_moving_averages_json(stock_info, klines)
+    moving_averages_json = await get_moving_averages_json(stock_info)
 
     stock_history_volume_amount_yearly = await get_stock_history_volume_amount_yearly(stock_info)
 

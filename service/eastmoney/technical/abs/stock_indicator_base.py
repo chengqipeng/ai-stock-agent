@@ -2,6 +2,7 @@ from datetime import datetime
 import pandas as pd
 from common.http.http_utils import EASTMONEY_PUSH2HIS_API_URL, fetch_eastmoney_api
 from common.utils.amount_utils import convert_amount_unit
+from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
 # 指标数据配置
@@ -21,6 +22,14 @@ INDICATOR_CONFIG = {
 
 async def get_stock_day_range_kline(stock_info: StockInfo, limit=400):
     """获取股票K线数据"""
+    cache_path = get_cache_path("kline", stock_info.stock_code)
+    
+    # 检查缓存
+    cached_data = load_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
+    # 获取数据
     url = f"{EASTMONEY_PUSH2HIS_API_URL}/stock/kline/get"
     params = {
         "secid": stock_info.secid,
@@ -40,7 +49,12 @@ async def get_stock_day_range_kline(stock_info: StockInfo, limit=400):
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
     }
     result = await fetch_eastmoney_api(url, params, headers)
-    return result.get('data', {}).get('klines', [])
+    klines = result.get('data', {}).get('klines', [])
+    
+    # 保存缓存
+    save_cache(cache_path, klines)
+    
+    return klines
 
 def _parse_kline_fields(kline):
     """解析单条K线数据字段"""
