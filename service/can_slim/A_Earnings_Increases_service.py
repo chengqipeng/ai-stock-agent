@@ -1,4 +1,7 @@
-from common.prompt.can_slim.A_Earnings_Increases_prompt import get_A_Earnings_Increases_prompt
+import json
+from datetime import datetime
+
+from common.prompt.can_slim.A_Earnings_Increases_prompt import A_EARNINGS_INCREASES_PROMPT_TEMPLATE
 from common.utils.stock_info_utils import StockInfo
 from service.llm.deepseek_client import DeepSeekClient
 from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json
@@ -80,35 +83,6 @@ def calculate_reality_check(raw_data):
     
     return result
 
-
-async def get_A_Earnings_data(stock_info: StockInfo):
-    """获取A维度分析所需的所有数据
-    
-    Returns:
-        包含所有分析数据的字典
-    """
-    eps_kc_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'EPSKCJB'])
-    roe_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'ROEKCJQ'])
-    eps_compare_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'EPSJB'])
-    cash_flow_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'MGJYXJJE'])
-    profit_growth_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'KCFJCXSYJLRTZ'])
-    raw_reality_check_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'MGJYXJJE', 'EPSJB'])
-    
-    the_reality_check_data = calculate_reality_check(raw_reality_check_data)
-    cagr_value, cagr_description = calculate_cagr(eps_compare_data)
-    
-    return {
-        'eps_kc_data': eps_kc_data,
-        'roe_data': roe_data,
-        'eps_compare_data': eps_compare_data,
-        'cash_flow_data': cash_flow_data,
-        'profit_growth_data': profit_growth_data,
-        'the_reality_check_data': the_reality_check_data,
-        'cagr_value': cagr_value,
-        'cagr_description': cagr_description
-    }
-
-
 async def execute_A_Earnings_Increases(stock_info: StockInfo, deep_thinking: bool = False) -> str:
     """
     执行A年度盈利增长分析
@@ -121,8 +95,30 @@ async def execute_A_Earnings_Increases(stock_info: StockInfo, deep_thinking: boo
     Returns:
         分析结果字符串
     """
-    data = await get_A_Earnings_data(stock_info)
-    prompt = await get_A_Earnings_Increases_prompt(data, stock_info)
+    eps_kc_data_json = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'EPSKCJB'])
+    roe_data_json = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'ROEKCJQ'])
+    eps_compare_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'EPSJB'])
+    cash_flow_data_json = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'MGJYXJJE'])
+    profit_growth_data_json = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'KCFJCXSYJLRTZ'])
+    raw_reality_check_data = await get_financial_data_to_json(stock_info,
+                                                              indicator_keys=['REPORT_DATE', 'MGJYXJJE', 'EPSJB'])
+
+    reality_check_data_json = calculate_reality_check(raw_reality_check_data)
+    cagr_value, cagr_description = calculate_cagr(eps_compare_data)
+
+    """构建A年度盈利增长分析提示词"""
+    return A_EARNINGS_INCREASES_PROMPT_TEMPLATE.format(
+        current_date=datetime.now().strftime('%Y-%m-%d'),
+        stock_name=stock_info.stock_name,
+        stock_code=stock_info.stock_code_normalize,
+        eps_kc_data_json=json.dumps(eps_kc_data_json, ensure_ascii=False, indent=2),
+        roe_data_json=json.dumps(roe_data_json, ensure_ascii=False, indent=2),
+        cash_flow_data_json=json.dumps(cash_flow_data_json, ensure_ascii=False, indent=2),
+        profit_growth_data_json=json.dumps(profit_growth_data_json, ensure_ascii=False, indent=2),
+        cagr_value=cagr_value,
+        cagr_description=cagr_description,
+        reality_check_data_json=json.dumps(reality_check_data_json, ensure_ascii=False, indent=2)
+    )
 
     print(prompt)
     print("\n =============================== \n")

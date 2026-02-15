@@ -1,52 +1,42 @@
-from datetime import datetime
+"""A年度盈利增长分析提示词模板"""
+
 import json
+from datetime import datetime
 
-from common.utils.stock_info_utils import StockInfo
-
-async def get_A_Earnings_Increases_prompt(data: dict, stock_info: StockInfo):
-
-    eps_kc_data = data['eps_kc_data']
-    roe_data = data['roe_data']
-    cash_flow_data = data['cash_flow_data']
-    profit_growth_data = data['profit_growth_data']
-    the_reality_check_data = data['the_reality_check_data']
-    cagr_value = data['cagr_value']
-    cagr_description = data['cagr_description']
-
-    return f"""
+A_EARNINGS_INCREASES_PROMPT_TEMPLATE = """
 在华尔街，我们常说："C 吸引眼球，A 留住资金。"（"C" catches the eye, "A" keeps the money.）如果一家公司只有强劲的季度报表，但缺乏稳健的年度增长记录，那它很可能只是昙花一现的"烟花股"。
 以下是基于欧奈尔 CAN SLIM 模型的 A 维度 深度拆解，包含了你必须抓取的核心数据、底层逻辑以及实战判读标准。
 
-#分析的股票（{datetime.now().strftime('%Y-%m-%d')}）
-{stock_info.stock_name}（{stock_info.stock_code_normalize}）
+#分析的股票（{current_date}）
+{stock_name}（{stock_code}）
 
 一、 核心数据清单 (The "Must-Have" Data)
 在分析 A 维度时，请基于我接下来提供的财报数据，调取以下 4 组关键年度数据，严格按照以下标准进行评估：
 1. 过去 3-5 年的年度 EPS（扣非每股收益）
    分析使用的数据源：
    <扣非每股收益>
-   {json.dumps(eps_kc_data, ensure_ascii=False)}
+   {eps_kc_data_json}
 
 2. 过去 3-5 年的年度 ROE（净资产收益率(扣非/加权)）
    提取指标：净资产收益率(扣非/加权)(%) - 取过去三年
    作用：衡量资金使用效率。
    分析使用的数据源：
    <净资产收益率(扣非/加权)>
-   {json.dumps(roe_data, ensure_ascii=False)}
+   {roe_data_json}
 
 3. 每股经营现金流 (Operating Cash Flow per Share)
    提取指标：每股经营现金流(元) - 取过去三年
    作用：验证利润的"含金量"。
    分析使用的数据源：
    <每股经营现金流(元)>
-   {json.dumps(cash_flow_data, ensure_ascii=False)}
+   {cash_flow_data_json}
 
 4. 扣非净利润同比增长(%)
    提取指标：扣非净利润同比增长(%) - 取过去三年
    作用：判断盈利能力的趋势。
    分析使用的数据源：
    <扣非净利润同比增长(%)>
-   {json.dumps(profit_growth_data, ensure_ascii=False)}
+   {profit_growth_data_json}
 
 二、 深度分析逻辑与解读 (The Logic & Interpretation)
 1. 年度 EPS 增长率：寻找"复利机器"
@@ -94,7 +84,7 @@ async def get_A_Earnings_Increases_prompt(data: dict, stock_info: StockInfo):
   警戒区：< 0.8 （需要检查应收账款是否暴增）。
   分析使用的数据源（最近三年）：
   <现金流/收益比>
-  {json.dumps(the_reality_check_data, ensure_ascii=False)}
+  {reality_check_data_json}
 
 四、 针对 A 股半导体（如北方华创）的修正视角
 作为专家，在应用 CAN SLIM 分析中国硬科技股时，我会对 A 维度 做微调：
@@ -106,6 +96,3 @@ async def get_A_Earnings_Increases_prompt(data: dict, stock_info: StockInfo):
 总结一句：
 在 A 维度，我们要找的是**"利润长牛"和"现金奶牛"的结合体。如果一只股票能连续 3 年保持 EPS 30% 以上增长，且 ROE 维持在 20% 以上，这就是机构抱团**最坚实的理由。
 """
-
-
-
