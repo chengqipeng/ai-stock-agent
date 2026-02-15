@@ -6,7 +6,7 @@ from service.eastmoney.stock_technical_markdown import get_technical_indicators_
 from common.prompt.stock_final_prompt import get_final_prompt
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.gemini_client import GeminiClient
-from service.stock_news.stock_news_markdown import process_stock_news
+from service.stock_search_news.stock_news_markdown import process_stock_news
 
 
 async def stock_full_analysis(stock_info: StockInfo, progress_callback=None, llm_type: str = "deepseek"):
