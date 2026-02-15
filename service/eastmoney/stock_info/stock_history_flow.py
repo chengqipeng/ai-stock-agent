@@ -153,21 +153,14 @@ async def get_volume_avg(stock_info: StockInfo, days=20, page_size=120):
                   ...
               ]
     """
-    result = await get_fund_flow_history_json(stock_info, ['date', 'trading_volume'], page_size=page_size+days-1)
-    data = result["data"]
+    import pandas as pd
     
-    volume_avg_list = []
+    result = await get_fund_flow_history_json(stock_info, ['date', 'trading_volume'], page_size=max(page_size, days * 2))
+    df = pd.DataFrame(result["data"][::-1])
     
-    for i in range(days-1, min(len(data), page_size+days-1)):
-        volume_sum = sum(item['trading_volume'] for item in data[i-days+1:i+1])
-        avg = round(volume_sum / days, 2)
-        
-        volume_avg_list.append({
-            "date": data[i]['date'],
-            "volume_avg": avg
-        })
+    df['volume_avg'] = df['trading_volume'].rolling(window=days).mean().round(2)
     
-    return volume_avg_list
+    return df[['date', 'volume_avg']].tail(page_size).to_dict('records')
 
 async def get_volume_avg_cn(stock_info: StockInfo, days=20, page_size=120):
     """计算N日成交量均值（中文键）
