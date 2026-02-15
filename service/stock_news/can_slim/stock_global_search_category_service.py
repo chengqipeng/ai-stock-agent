@@ -7,7 +7,7 @@ from service.stock_news.can_slim.stock_industry_service import get_industry_resu
 from service.llm.volcengine_client import VolcengineClient
 
 
-async def get_search_key_prompt(stock_info: StockInfo, industry_result):
+async def get_global_search_category_prompt(stock_info: StockInfo, industry_result):
     return f"""
 # Role
 你是一位半导体行业资深分析师，精通{industry_result['industry']}市场格局。
@@ -45,7 +45,7 @@ async def get_global_search_category_result(stock_info: StockInfo) -> tuple[list
     industry_result = json.loads(industry_result_str)
 
     if industry_result['is_science'] == 1 or industry_result['is_science'] == "1":
-        prompt = await get_search_key_prompt(stock_info, industry_result)
+        prompt = await get_global_search_category_prompt(stock_info, industry_result)
         client = VolcengineClient()
         response = await client.chat(
             messages=[{"role": "user", "content": prompt}],
