@@ -245,8 +245,7 @@ async def get_org_holder_json(stock_info: StockInfo, page_size=8):
                 "持股市值(亿元)": convert_amount_org_holder_2(item.get('FREE_MARKET_CAP', 0)) if item.get('FREE_MARKET_CAP') else '--',
                 "占总股本比例(%)": f"{round(item.get('TOTALSHARES_RATIO', 0), 2)}%" if item.get('TOTALSHARES_RATIO') else '--',
                 "占流通股比例(%)": f"{round((item.get('FREESHARES_RATIO') or 0), 2)}%",
-                "持股变化(万股)": convert_amount_org_holder_1(item.get('HOLDCHA_NUM', 0)),
-                "持股变化比例": item.get('HOLDCHA_RATIO', 0)
+                "持股变化(万股)": convert_amount_org_holder_1(item.get('HOLDCHA_NUM', 0))
             })
         
         if not has_other:
