@@ -89,7 +89,7 @@ async def get_top_ten_shareholders_circulation_json(stock_info: StockInfo, end_d
             "股东类型": item.get('HOLDER_TYPE', '--'),
             "持股数量(股)": item.get('HOLD_NUM'),
             "占流通股比例": f"{round(item.get('FREE_HOLDNUM_RATIO', 0), 2)}%" if item.get('FREE_HOLDNUM_RATIO') else '--',
-            "持股变化(万股)": item.get('HOLD_NUM_CHANGE'),
+            "持股变化(股)": item.get('HOLD_NUM_CHANGE'),
             "变化比例": f"{round(item.get('CHANGE_RATIO', 0), 2)}%" if item.get('CHANGE_RATIO') else '--',
             "报告期": item.get('END_DATE', '')[:10] if item.get('END_DATE') else '--'
         })
