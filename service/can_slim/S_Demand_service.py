@@ -4,7 +4,7 @@ from datetime import datetime
 from common.prompt.can_slim.S_Demand_prompt import S_DEMAND_PROMPT_TEMPLATE
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_financial_main_with_total_share import get_equity_data_to_json
-from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_json, get_fund_flow_history_json_cn
+from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_json, get_fund_flow_history_json_cn, get_20day_volume_avg_cn
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_json
 from service.eastmoney.stock_info.stock_lock_up_period import get_stock_lock_up_period_year_range
 from service.eastmoney.stock_info.stock_realtime import get_stock_realtime_json
@@ -44,12 +44,12 @@ async def build_S_Demand_prompt(stock_info: StockInfo) -> str:
     equity_data_with_unlimited_shares_to_json = await get_equity_data_to_json(stock_info, ['END_DATE', 'UNLIMITED_SHARES'])
     top_ten_shareholders_circulation_by_dates = await get_top_ten_shareholders_circulation_by_dates(stock_info, page_size=3, limit=3)
     org_holder_json = await get_org_holder_json(stock_info)
-    moving_averages_result = await get_moving_averages_json(stock_info, ['close_50_sma'], 50)
     stock_realtime_json = await get_stock_realtime_json(stock_info, ['stock_name', 'stock_code', 'volume'])
     fund_flow_history_json_cn = await get_fund_flow_history_json_cn(stock_info, ['date', 'change_hand', 'trading_volume', 'trading_amount'])
     stock_lock_up_period_year_range = await get_stock_lock_up_period_year_range(stock_info)
     stock_repurchase_json = await get_stock_repurchase_json(stock_info)
     five_day_volume_ratio = await get_5_day_volume_ratio(stock_info)
+    day_20_volume_avg_cn = await get_20day_volume_avg_cn(stock_info, 50)
     
     return S_DEMAND_PROMPT_TEMPLATE.format(
         current_date=datetime.now().strftime('%Y-%m-%d'),
@@ -59,7 +59,7 @@ async def build_S_Demand_prompt(stock_info: StockInfo) -> str:
         unlimited_shares_json=json.dumps(equity_data_with_unlimited_shares_to_json, ensure_ascii=False, indent=2),
         top_ten_holders_json=json.dumps(top_ten_shareholders_circulation_by_dates[:10], ensure_ascii=False, indent=2),
         org_holder_json=json.dumps(org_holder_json[:2], ensure_ascii=False, indent=2),
-        moving_averages_json=json.dumps(moving_averages_result['data'], ensure_ascii=False, indent=2),
+        day_20_volume_avg_cn=json.dumps(day_20_volume_avg_cn, ensure_ascii=False, indent=2),
         stock_realtime_json=json.dumps(stock_realtime_json, ensure_ascii=False, indent=2),
         five_day_volume_ratio_json=json.dumps(five_day_volume_ratio, ensure_ascii=False, indent=2),
         fund_flow_history_json_cn=json.dumps(fund_flow_history_json_cn, ensure_ascii=False, indent=2),

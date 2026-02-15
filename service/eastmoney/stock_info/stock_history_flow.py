@@ -137,6 +137,65 @@ async def get_fund_flow_history_json_cn(stock_info: StockInfo, fields = None, pa
         "数据": cn_data
     }
 
+async def get_volume_avg(stock_info: StockInfo, days=20, page_size=120):
+    """计算N日成交量均值
+    
+    Args:
+        stock_info: 股票信息
+        days: 计算均值的天数，默认20
+        page_size: 返回数据条数，默认120
+    
+    Returns:
+        list: 包含日期和N日成交量均值的字典列表
+              [
+                  {"date": "2024-01-01", "volume_avg": 1234.56},
+                  {"date": "2024-01-02", "volume_avg": 2345.67},
+                  ...
+              ]
+    """
+    result = await get_fund_flow_history_json(stock_info, ['date', 'trading_volume'], page_size=page_size+days-1)
+    data = result["data"]
+    
+    volume_avg_list = []
+    
+    for i in range(days-1, min(len(data), page_size+days-1)):
+        volume_sum = sum(item['trading_volume'] for item in data[i-days+1:i+1])
+        avg = round(volume_sum / days, 2)
+        
+        volume_avg_list.append({
+            "date": data[i]['date'],
+            "volume_avg": avg
+        })
+    
+    return volume_avg_list
+
+async def get_volume_avg_cn(stock_info: StockInfo, days=20, page_size=120):
+    """计算N日成交量均值（中文键）
+    
+    Args:
+        stock_info: 股票信息
+        days: 计算均值的天数，默认20
+        page_size: 返回数据条数，默认120
+    
+    Returns:
+        list: 包含日期和N日成交量均值的字典列表（中文键）
+              [
+                  {"日期": "2024-01-01", "20日均成交量": 1234.56},
+                  {"日期": "2024-01-02", "20日均成交量": 2345.67},
+                  ...
+              ]
+    """
+    result = await get_volume_avg(stock_info, days, page_size)
+    return [{"日期": item["date"], f"{days}日均成交量": item["volume_avg"]} for item in result]
+
+async def get_20day_volume_avg(stock_info: StockInfo, page_size=120):
+    """计算50日成交量均值（已废弃，请使用get_volume_avg）"""
+    return await get_volume_avg(stock_info, days=20, page_size=page_size)
+
+async def get_20day_volume_avg_cn(stock_info: StockInfo, page_size=120):
+    """计算50日成交量均值（中文键）（已废弃，请使用get_volume_avg_cn）"""
+    return await get_volume_avg_cn(stock_info, days=20, page_size=page_size)
+
 async def get_fund_flow_history_markdown(stock_info: StockInfo, page_size = 120):
     """获取资金流向历史数据并转换为markdown"""
     klines = await get_fund_flow_history(stock_info)
@@ -172,50 +231,6 @@ async def get_fund_flow_history_markdown(stock_info: StockInfo, page_size = 120)
     return markdown + "\n"
 
 
-# async def get_stock_history_kline_max_min(stock_info: StockInfo):
-#     """获取股票K线数据"""
-#     cache_path = get_cache_path("kline", stock_info.stock_code)
-#
-#     # 检查缓存
-#     cached_data = load_cache(cache_path)
-#     if cached_data:
-#         return cached_data
-#
-#     # 获取数据
-#     url = f"{EASTMONEY_PUSH2HIS_API_URL}/stock/kline/get"
-#     params = {
-#         "secid": stock_info.secid,
-#         "ut": "fa5fd1943c7b386f172d6893dbfba10b",
-#         "fields1": "f1,f2,f3,f4,f5,f6",
-#         "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
-#         "klt": "101",
-#         "fqt": "1",
-#         "end": datetime.now().strftime("%Y%m%d"),
-#         "smplmt": "460",
-#         "lmt": "400"
-#     }
-#     data = await fetch_eastmoney_api(url, params, referer="https://quote.eastmoney.com/")
-#     if data.get("data") and data["data"].get("klines"):
-#         klines = data["data"]["klines"]
-#         result = {}
-#         for kline in klines:
-#             fields = kline.split(',')
-#             date = fields[0]
-#             high_price = float(fields[2])
-#             low_price = float(fields[3])
-#             trading_volume = f"{round(float(fields[5])/10000, 2)}"
-#             trading_amount = convert_amount_unit(float(fields[6]))
-#             change_hands = float(fields[10])
-#
-#             result[date] = {"high_price": high_price, "low_price": low_price, "change_hands": change_hands, "trading_volume": trading_volume, "trading_amount": trading_amount}
-#
-#         # 保存缓存
-#         save_cache(cache_path, result)
-#
-#         return result
-#     else:
-#         raise Exception(f"未获取到股票 {stock_info.secid} 的K线数据")
-
 
 if __name__ == "__main__":
     import asyncio
@@ -226,7 +241,7 @@ if __name__ == "__main__":
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         # 测试 JSON 格式
-        result = await get_fund_flow_history_json_cn(stock_info, ['date', 'change_hand', 'trading_volume', 'trading_amount'])
+        result = await get_20day_volume_avg_cn(stock_info)
         print("资金流向历史数据 (JSON格式):")
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
