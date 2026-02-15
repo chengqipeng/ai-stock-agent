@@ -56095,5 +56095,7 @@ def get_stock_code(name):
         raise ValueError(f"股票名称 '{name}' 不存在")
     return code
 
+STOCK_INDICES_DICT = {stock['code']: stock for stock in ALL_STOCKS}
+
 if __name__ == '__main__':
     print(STOCK_DICT)
