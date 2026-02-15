@@ -1,6 +1,7 @@
 import json
 
 from common.utils.stock_info_utils import StockInfo
+from service.eastmoney.indices.stock_market_data import get_stock_relative_strength
 from service.eastmoney.stock_info.stock_holder_data import get_shareholder_increase_json
 from service.eastmoney.stock_info.stock_revenue_analysis import get_revenue_analysis_three_years
 from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_json, \
@@ -21,6 +22,8 @@ async def get_N_Products_Management_Highs_prompt(stock_info: StockInfo):
     moving_averages_json = await get_moving_averages_json(stock_info)
 
     stock_history_volume_amount_yearly = await get_stock_history_volume_amount_yearly(stock_info)
+
+    stock_relative_strength = await get_stock_relative_strength(stock_info)
 
     return f"""
 在 CAN SLIM 系统中，N (New Products, New Management, New Highs) 是最具爆发力的维度。如果说 C 和 A 是火药（基本面支撑），那么 N 就是引爆它的火花（催化剂）。
@@ -69,6 +72,7 @@ async def get_N_Products_Management_Highs_prompt(stock_info: StockInfo):
     {json.dumps(moving_averages_json, ensure_ascii=False, indent=2)}
     
     相对强度（RS）线（这一点至关重要）。
+    {json.dumps(stock_relative_strength, ensure_ascii=False, indent=2)}
     
     ** 成交量数据（近一年）**
     {json.dumps(stock_history_volume_amount_yearly, ensure_ascii=False, indent=2)}
