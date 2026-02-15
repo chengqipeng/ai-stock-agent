@@ -41,7 +41,7 @@ INDICES_LIST = [
     # }
 ]
 
-async def get_stock_list(fs="m:0+t:6+f:!2,m:0+t:80+f:!2", page=1, page_size=3000):
+async def get_stock_list(fs="m:0+t:6+f:!2,m:0+t:80+f:!2", page=1, page_size=100):
     """获取股票列表
     
     Args:
@@ -52,7 +52,7 @@ async def get_stock_list(fs="m:0+t:6+f:!2,m:0+t:80+f:!2", page=1, page_size=3000
     Returns:
         dict: 包含股票列表的数据
     """
-    cache_key = "indices_" + fs.replace(":", "_").replace("+", "_").replace(",", "_").replace("!", "_")
+    cache_key = "indices_" + str(page) + "_" + fs.replace(":", "_").replace("+", "_").replace(",", "_").replace("!", "_")
     cache_path = get_cache_path("stock_list", cache_key)
     
     # 检查缓存
@@ -145,7 +145,7 @@ async def fetch_all_indices_stocks():
         try:
             page = 1
             while True:
-                stocks = await get_stock_list_simple(fs=index['fs'], page=page, page_size=3000)
+                stocks = await get_stock_list_simple(fs=index['fs'], page=page, page_size=100)
                 if not stocks:
                     break
                 
@@ -164,7 +164,7 @@ async def fetch_all_indices_stocks():
                             all_stocks[stock_key]['indices_stock_names'].append(index['indices_stock_name'])
                             print(f"发现重复股票: {stock_key} ({stock['name']}) - 已存在于 {all_stocks[stock_key]['indices_stock_names'][0]}, 当前在 {index['indices_stock_name']}")
                 
-                if len(stocks) < 3000:
+                if len(stocks) < 100:
                     break
                 page += 1
         except Exception as e:
