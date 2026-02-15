@@ -21,6 +21,11 @@ async def calculate_moving_averages(stock_info: StockInfo):
     """计算移动平均线指标"""
     klines = await get_stock_day_range_kline(stock_info)
     df = parse_klines_to_df(klines)
+
+    df['close_5_ema'] = df['close_price'].rolling(window=10).mean().round(2)
+    
+    # 5日SMA
+    df['close_5_sma'] = df['close_price'].rolling(window=5).mean().round(2)
     
     # 10日EMA - 使用adjust=True
     df['close_10_ema'] = df['close_price'].rolling(window=10).mean().round(2)
@@ -32,10 +37,10 @@ async def calculate_moving_averages(stock_info: StockInfo):
     df['close_200_sma'] = df['close_price'].rolling(window=200).mean().round(2)
     
     # 多头排列判断
-    df['is_bullish_alignment'] = (df['close_10_ema'] > df['close_50_sma']) & (df['close_50_sma'] > df['close_200_sma'])
+    df['is_bullish_alignment'] = (df['close_5_sma'] > df['close_10_ema']) & (df['close_10_ema'] > df['close_50_sma']) & (df['close_50_sma'] > df['close_200_sma'])
     
     config = INDICATOR_CONFIG.get('ma', {'tail_limit': 400})
-    return df[['date', 'close_10_ema', 'close_50_sma', 'close_200_sma', 'is_bullish_alignment']].tail(config['tail_limit']).to_dict('records')[::-1]
+    return df[['date', 'close_5_sma', 'close_10_ema', 'close_50_sma', 'close_200_sma', 'is_bullish_alignment']].tail(config['tail_limit']).to_dict('records')[::-1]
 
 
 async def generate_can_slim_50_200_summary(stock_info: StockInfo):
@@ -91,23 +96,46 @@ async def get_moving_averages_markdown(stock_info: StockInfo):
     ma_data = await calculate_moving_averages(stock_info)
 
     markdown = f"## <{stock_info.stock_name}（ {stock_info.stock_code_normalize}）> - 移动平均线数据\n\n"
-    markdown += "| 日期 | 10日EMA | 50日SMA | 200日SMA | 多头排列 |\n"
-    markdown += "|------|---------|---------|----------|--------|\n"
+    markdown += "| 日期 | 5日SMA | 10日EMA | 50日SMA | 200日SMA | 多头排列 |\n"
+    markdown += "|------|--------|---------|---------|----------|--------|\n"
     for item in ma_data[:config['markdown_limit']]:
-        markdown += f"| {item['date']} | {item.get('close_10_ema', 'N/A')} | {item.get('close_50_sma', 'N/A')} | {item.get('close_200_sma', 'N/A')} | {'是' if item.get('is_bullish_alignment') else '否'} |\n"
+        markdown += f"| {item['date']} | {item.get('close_5_sma', 'N/A')} | {item.get('close_10_ema', 'N/A')} | {item.get('close_50_sma', 'N/A')} | {item.get('close_200_sma', 'N/A')} | {'是' if item.get('is_bullish_alignment') else '否'} |\n"
     markdown += "\n"
     return markdown
 
 
-async def get_moving_averages_json(stock_info: StockInfo):
-    """返回移动平均线数据的JSON格式"""
+async def get_moving_averages_json(stock_info: StockInfo, include_fields: list[str] = None, limit: int = None):
+    """返回移动平均线数据的JSON格式
+    
+    Args:
+        stock_info: 股票信息
+        include_fields: 可选字段列表，可选值: ['close_5_sma', 'close_10_ema', 'close_50_sma', 'close_200_sma', 'is_bullish_alignment']
+                       如果为None，则返回所有字段
+        limit: 返回数据条数限制，如果为None则使用配置中的默认值
+    """
     config = INDICATOR_CONFIG['ma']
     ma_data = await calculate_moving_averages(stock_info)
+    
+    # 确定返回数量
+    data_limit = limit if limit is not None else config['markdown_limit']
+    
+    # 如果指定了字段，则过滤数据
+    if include_fields:
+        filtered_data = []
+        for item in ma_data[:data_limit]:
+            filtered_item = {'date': item['date']}
+            for field in include_fields:
+                if field in item:
+                    filtered_item[field] = item[field]
+            filtered_data.append(filtered_item)
+        data = filtered_data
+    else:
+        data = ma_data[:data_limit]
     
     return {
         "stock_code": stock_info.stock_code_normalize,
         "stock_name": stock_info.stock_name,
-        "data": ma_data[:config['markdown_limit']]
+        "data": data
     }
 
 async def get_stock_history_volume_amount_yearly(stock_info: StockInfo):
@@ -124,7 +152,7 @@ async def get_stock_history_volume_amount_yearly(stock_info: StockInfo):
 
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
-    klines = await generate_can_slim_50_200_summary(stock_info)
+    klines = await get_moving_averages_json(stock_info, ['close_5_sma'], 50)
     print(klines)
 
 if __name__ == "__main__":

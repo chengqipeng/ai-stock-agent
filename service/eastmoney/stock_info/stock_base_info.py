@@ -48,12 +48,51 @@ async def get_stock_base_info_markdown(stock_info: StockInfo):
     return markdown + "\n"
 
 
+async def get_stock_base_info_json(stock_info: StockInfo, fields: list[str] = None):
+    """获取股票基本信息并转换为JSON格式
+    
+    Args:
+        stock_info: 股票信息对象
+        fields: 需要返回的字段列表（英文），为None时返回所有字段
+                可选字段: stock_code, stock_name, latest_price, change_percent, change_amount,
+                         volume, amount, pe_ratio, total_market_value, circulation_market_value,
+                         turnover_rate, volume_ratio, high, low, open, prev_close, limit_up, limit_down
+    """
+    detail_data = await get_stock_detail(stock_info)
+    
+    field_mapping = {
+        "stock_code": ("股票代码", detail_data.get('f57', '--')),
+        "stock_name": ("股票名称", detail_data.get('f58', '--')),
+        "latest_price": ("最新价", round(detail_data.get('f43', 0) / 100, 2) if detail_data.get('f43') else '--'),
+        "change_percent": ("涨跌幅", round(detail_data.get('f170', 0) / 100, 2) if detail_data.get('f170') else '--'),
+        "change_amount": ("涨跌额", round(detail_data.get('f169', 0) / 100, 2) if detail_data.get('f169') else '--'),
+        "volume": ("成交量", convert_amount_unit(detail_data.get('f47'))),
+        "amount": ("成交额", convert_amount_unit(detail_data.get('f48'))),
+        "pe_ratio": ("市盈率", round(detail_data.get('f162', 0) / 100, 2) if detail_data.get('f162') else '--'),
+        "total_market_value": ("总市值", convert_amount_unit(detail_data.get('f116'))),
+        "circulation_market_value": ("流通市值", convert_amount_unit(detail_data.get('f117'))),
+        "turnover_rate": ("换手率", round(detail_data.get('f168', 0) / 100, 2) if detail_data.get('f168') else '--'),
+        "volume_ratio": ("量比", round(detail_data.get('f50', 0) / 100, 2) if detail_data.get('f50') else '--'),
+        "high": ("最高", round(detail_data.get('f44', 0) / 100, 2) if detail_data.get('f44') else '--'),
+        "low": ("最低", round(detail_data.get('f45', 0) / 100, 2) if detail_data.get('f45') else '--'),
+        "open": ("今开", round(detail_data.get('f46', 0) / 100, 2) if detail_data.get('f46') else '--'),
+        "prev_close": ("昨收", round(detail_data.get('f60', 0) / 100, 2) if detail_data.get('f60') else '--'),
+        "limit_up": ("涨停", round(detail_data.get('f51', 0) / 100, 2) if detail_data.get('f51') else '--'),
+        "limit_down": ("跌停", round(detail_data.get('f52', 0) / 100, 2) if detail_data.get('f52') else '--')
+    }
+    
+    if fields is None:
+        return {cn_name: value for _, (cn_name, value) in field_mapping.items()}
+    
+    return {field_mapping[f][0]: field_mapping[f][1] for f in fields if f in field_mapping}
+
+
 if __name__ == "__main__":
     import asyncio
     
     async def main():
         stock_info: StockInfo = get_stock_info_by_name("北方华创")
-        result = await get_stock_base_info_markdown(stock_info)
+        result = await get_stock_base_info_json(stock_info)
         print(result)
     
     asyncio.run(main())

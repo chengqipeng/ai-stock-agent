@@ -126,8 +126,8 @@ if __name__ == "__main__":
         markdown = await get_equity_data_to_markdown(stock_info)
         print(markdown)
         print("\n" + "="*50 + "\n")
-        
-        json_data = await get_equity_data_to_json(stock_info)
+
+        json_data = await get_equity_data_to_json(stock_info, ['END_DATE', 'TOTAL_SHARES'])
         print(json_data)
     
     asyncio.run(main())

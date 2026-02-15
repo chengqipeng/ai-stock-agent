@@ -220,6 +220,49 @@ async def get_org_holder_markdown(stock_info: StockInfo, page_size=8):
     return markdown
 
 
+async def get_org_holder_json(stock_info: StockInfo, page_size=8):
+    """获取机构持仓明细并转换为JSON格式"""
+    holder_data = await get_org_holder(stock_info, page_size)
+    if not holder_data:
+        return []
+    from collections import defaultdict
+    grouped_data = defaultdict(list)
+    for item in holder_data:
+        report_date = item.get('REPORT_DATE', '--')[:10] if item.get('REPORT_DATE') else '--'
+        grouped_data[report_date].append(item)
+    
+    result = []
+    for report_date, items in grouped_data.items():
+        report_items = []
+        has_other = any(item.get('ORG_TYPE_NAME') == '其他' for item in items)
+        
+        for item in items:
+            report_items.append({
+                "机构名称": item.get('ORG_TYPE_NAME', '--'),
+                "持股家数(家)": item.get('HOULD_NUM'),
+                "持股总数(万股)": convert_amount_org_holder(item.get('FREE_SHARES', 0)) if item.get('FREE_SHARES') else '--',
+                "持股市值(亿元)": convert_amount_org_holder_1(item.get('FREE_MARKET_CAP', 0)) if item.get('FREE_MARKET_CAP') else '--',
+                "占总股本比例(%)": f"{round(item.get('TOTALSHARES_RATIO', 0), 2)}%" if item.get('TOTALSHARES_RATIO') else '--',
+                "占流通股比例(%)": f"{round((item.get('FREESHARES_RATIO') or 0), 2)}%"
+            })
+        
+        if not has_other:
+            report_items.append({
+                "机构名称": "其他",
+                "持股家数(家)": "-",
+                "持股总数(万股)": "0.00",
+                "持股市值(亿元)": "-",
+                "占总股本比例(%)": "-",
+                "占流通股比例(%)": "-"
+            })
+        
+        result.append({
+            "报告日期": report_date,
+            "机构持仓": report_items
+        })
+    return result
+
+
 if __name__ == "__main__":
     import asyncio
     import json
@@ -228,8 +271,8 @@ if __name__ == "__main__":
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         # 测试 JSON 格式
-        result = await get_shareholder_increase(stock_info, page_size=20)
+        result = await get_org_holder_json(stock_info)
         print("股东增减持数据 (JSON格式):")
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result[0], ensure_ascii=False, indent=2))
     
     asyncio.run(main())
