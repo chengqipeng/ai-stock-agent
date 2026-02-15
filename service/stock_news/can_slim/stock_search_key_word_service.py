@@ -6,6 +6,7 @@ from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.volcengine_client import VolcengineClient
 from service.stock_news.can_slim.stock_industry_service import get_industry_result
+from service.stock_news.can_slim.stock_global_search_category_service import get_global_search_category_result
 
 async def get_search_key_prompt(stock_info: StockInfo, search_intent= None, search_content = None):
     industry_data_str = await get_industry_result(stock_info)
@@ -80,30 +81,6 @@ SEARCH_CATEGORY = [
         "intent": "政策红利",
         "type": "domestic",
         "search_content" : "国产替代、业绩预告、产能扩张及大基金动向"
-    },
-    {
-        "category": "global_competition_pattern",
-        "intent": "竞争格局",
-        "type": "global",
-        "search_content" : "北美排名前五的同类型/对标业务公司"
-    },
-    {
-        "category": "global_supply_side",
-        "intent": "供给端",
-        "type": "global",
-        "search_content" : "同行业在北美地区的产能预测或建厂规划"
-    },
-    {
-        "category": "global_demand_side",
-        "intent": "需求端",
-        "type": "global",
-        "search_content" : "同行业前十大核心客户的采购预期、资本开支指引"
-    },
-    {
-        "category": "geopolitics",
-        "intent": "地缘政治",
-        "type": "global",
-        "search_content" : "聚焦出口管制、BIS禁令、美联储宏观政策及全球竞争对手（如 AMAT, Lam Research）的对比"
     }
 ]
 
@@ -140,18 +117,50 @@ async def get_search_key_result_single(stock_info: StockInfo, category_info):
             "search_key_time_range": 30
         }
 
-
 async def get_search_key_result(stock_info: StockInfo):
     """并发获取所有类别的搜索关键词，限制5个并发"""
     semaphore = asyncio.Semaphore(5)
+
+    ALL_SEARCH_CATEGORY = await get_merged_search_categories(stock_info)
     
     async def limited_task(category):
         async with semaphore:
             return await get_search_key_result_single(stock_info, category)
     
-    tasks = [limited_task(category) for category in SEARCH_CATEGORY]
+    tasks = [limited_task(category) for category in ALL_SEARCH_CATEGORY]
     results = await asyncio.gather(*tasks)
     return list(results)
+
+async def get_merged_search_categories(stock_info: StockInfo):
+    """合并SEARCH_CATEGORY和全球搜索结果"""
+    companies, customers = await get_global_search_category_result(stock_info)
+
+    if customers and companies:
+        merged_categories = SEARCH_CATEGORY.copy()
+        merged_categories.extend([
+            {
+                "category": "global_competitors",
+                "intent": "全球竞争对手",
+                "type": "global",
+                "search_content": "、".join(companies) + " 未来产能预测或建厂规划"
+            },
+            {
+                "category": "global_customers",
+                "intent": "核心客户",
+                "type": "global",
+                "search_content": "、 ".join(customers) + " 未来采购预期、资本开支指引"
+            },
+            {
+                "category": "geopolitics",
+                "intent": "地缘政治",
+                "type": "global",
+                "search_content" : "聚焦出口管制、BIS禁令、美联储宏观政策及全球竞争对手（如 AMAT, Lam Research）的对比"
+            }
+        ])
+    
+        return merged_categories
+    else:
+        return SEARCH_CATEGORY
 
 
 if __name__ == "__main__":

@@ -29,7 +29,8 @@ async def get_industry_prompt(stock_info: StockInfo):
 # Output Format
 {{
    "industry": "<所属行业>",
-   "description": "<高度精炼的产品及业务逻辑描述>"
+   "description": "<高度精炼的产品及业务逻辑描述>",
+   "is_science": "< 0 / 1 0非科技行业 1科技行业>"
 }}
 
 # Input Data
