@@ -42,7 +42,7 @@ async def build_S_Demand_prompt(stock_info: StockInfo) -> str:
     """构建S供需分析提示词"""
     equity_data_with_total_shares_to_json = await get_equity_data_to_json(stock_info, ['END_DATE', 'TOTAL_SHARES'])
     equity_data_with_unlimited_shares_to_json = await get_equity_data_to_json(stock_info, ['END_DATE', 'UNLIMITED_SHARES'])
-    top_ten_shareholders_circulation_by_dates = await get_top_ten_shareholders_circulation_by_dates(stock_info)
+    top_ten_shareholders_circulation_by_dates = await get_top_ten_shareholders_circulation_by_dates(stock_info, page_size=3, limit=3)
     org_holder_json = await get_org_holder_json(stock_info)
     moving_averages_result = await get_moving_averages_json(stock_info, ['close_50_sma'], 50)
     stock_realtime_json = await get_stock_realtime_json(stock_info, ['stock_name', 'stock_code', 'volume'])
