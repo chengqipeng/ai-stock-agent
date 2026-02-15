@@ -160,7 +160,7 @@ async def get_volume_avg(stock_info: StockInfo, days=20, page_size=120):
     
     df['volume_avg'] = df['trading_volume'].rolling(window=days).mean().round(2)
     
-    return df[['date', 'volume_avg']].tail(page_size).to_dict('records')
+    return df[['date', 'volume_avg']].tail(page_size).to_dict('records')[::-1]
 
 async def get_volume_avg_cn(stock_info: StockInfo, days=20, page_size=120):
     """计算N日成交量均值（中文键）

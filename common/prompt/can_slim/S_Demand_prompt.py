@@ -19,7 +19,7 @@ S_DEMAND_PROMPT_TEMPLATE = """
    {org_holder_json}
   
 2. 交易量数据：
-   ** 日均成交量 (Average Daily Volume, ADV) — 50日平均**
+   ** 日均成交量 (Average Daily Volume, ADV) — 20日平均**
    {day_20_volume_avg_cn}
    
    ** 最新成交量 (Current Volume) **

@@ -51,7 +51,7 @@ async def build_S_Demand_prompt(stock_info: StockInfo) -> str:
     stock_lock_up_period_year_range = await get_stock_lock_up_period_year_range(stock_info)
     stock_repurchase_json = await get_stock_repurchase_json(stock_info)
     five_day_volume_ratio = await get_5_day_volume_ratio(stock_info)
-    day_20_volume_avg_cn = await get_20day_volume_avg_cn(stock_info, 50)
+    day_20_volume_avg_cn = await get_20day_volume_avg_cn(stock_info, 200)
     
     return S_DEMAND_PROMPT_TEMPLATE.format(
         current_date=datetime.now().strftime('%Y-%m-%d'),
@@ -61,7 +61,7 @@ async def build_S_Demand_prompt(stock_info: StockInfo) -> str:
         unlimited_shares_json=json.dumps(equity_data_with_unlimited_shares_to_json, ensure_ascii=False, indent=2),
         top_ten_holders_json=json.dumps(top_ten_shareholders_circulation_by_dates[:10], ensure_ascii=False, indent=2),
         org_holder_json=json.dumps(org_holder_json[:2], ensure_ascii=False, indent=2),
-        day_20_volume_avg_cn=json.dumps(day_20_volume_avg_cn, ensure_ascii=False, indent=2),
+        day_20_volume_avg_cn=json.dumps(day_20_volume_avg_cn[:20], ensure_ascii=False, indent=2),
         stock_realtime_json=json.dumps(stock_realtime_json, ensure_ascii=False, indent=2),
         five_day_volume_ratio_json=json.dumps(five_day_volume_ratio, ensure_ascii=False, indent=2),
         fund_flow_history_json_cn=json.dumps(fund_flow_history_json_cn, ensure_ascii=False, indent=2),
@@ -104,6 +104,6 @@ if __name__ == "__main__":
         stock_name = "北方华创"
         stock_info = get_stock_info_by_name(stock_name)
         result = await get_5_day_volume_ratio(stock_info)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result[:50], ensure_ascii=False, indent=2))
     
     asyncio.run(main())
