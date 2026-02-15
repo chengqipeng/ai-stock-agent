@@ -74,7 +74,7 @@ async def get_N_Products_Management_Highs_prompt(stock_info: StockInfo):
      ** 相对强度（RS）线（这一点至关重要，近一年数据） ** 
     {json.dumps(stock_relative_strength, ensure_ascii=False, indent=2)}
     
-    ** 成交量数据（近一年）**
+    ** 成交量数据（近一年数据）**
     {json.dumps(stock_history_volume_amount_yearly, ensure_ascii=False, indent=2)}
     
     
