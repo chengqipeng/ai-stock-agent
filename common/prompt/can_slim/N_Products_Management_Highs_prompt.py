@@ -1,25 +1,12 @@
-import json
-from datetime import datetime
+"""N新产品/新管理层/新高点分析提示词模板"""
 
-from common.utils.stock_info_utils import StockInfo
-
-def get_N_Products_Management_Highs_prompt(data: dict, stock_info: StockInfo) -> str:
-    """
-    生成N维度分析提示词
-    
-    Args:
-        data: 包含所有分析数据的字典
-    
-    Returns:
-        格式化的提示词字符串
-    """
-    return f"""
+N_PRODUCTS_MANAGEMENT_HIGHS_PROMPT_TEMPLATE = """
 在 CAN SLIM 系统中，N (New Products, New Management, New Highs) 是最具爆发力的维度。如果说 C 和 A 是火药（基本面支撑），那么 N 就是引爆它的火花（催化剂）。
 在华尔街，有一句名言："Great stocks always have something NEW."（伟大的股票总有新东西。）
 作为拥有 30 年经验的投资专家，我将为你深度拆解 N 维度 的分析逻辑。这不仅是寻找新闻，更是寻找质变。
 
-#分析的股票（{datetime.now().strftime('%Y-%m-%d')}）
-{stock_info.stock_name}（{stock_info.stock_code_normalize}）
+#分析的股票（{current_date}）
+{stock_name}（{stock_code}）
 
 一、 N 维度的核心逻辑：寻找"第二增长曲线"
 股价的大幅上涨不仅仅是因为"低估值"，而是因为市场对公司未来的预期发生了彻底改变。N 维度的核心就是识别这种改变的源头。
@@ -29,13 +16,13 @@ def get_N_Products_Management_Highs_prompt(data: dict, stock_info: StockInfo) ->
   这是最常见也是最强劲的驱动力。
   
   ** 公司公告（新产品发布会、专利获得）（网络数据）**
-  {json.dumps(data['announcements'], ensure_ascii=False, indent=2)}
+  {announcements_json}
   
   ** 行业研报（新技术的市场渗透率数据）、创新业务占总营收以及未来预期（网络数据） **
-  {json.dumps(data['finance_and_expectations'], ensure_ascii=False, indent=2)}
+  {finance_and_expectations_json}
   
   ** 营收结构分析（新业务占总营收的比例是否在快速提升？）分析数据**
-  {json.dumps(data['revenue_analysis_three_years'], ensure_ascii=False, indent=2)}
+  {revenue_analysis_json}
   
   分析逻辑：
     颠覆性：这个新产品是改良型的（如 iPhone 14 到 15），还是颠覆性的（如燃油车到电动车，或 ChatGPT 的出现）？我们要找的是颠覆性。
@@ -45,13 +32,13 @@ def get_N_Products_Management_Highs_prompt(data: dict, stock_info: StockInfo) ->
 2. 新管理层/新变革 (New Management/Strategy)
 当一家老牌公司换了 CEO，或者实施了新的战略转型，往往会带来股价的重估。
     ** 管理层变动、十大股东变动、重大投资（网络数据） **
-    {json.dumps(data['corporate_governance'], ensure_ascii=False, indent=2)}
+    {corporate_governance_json}
     
     ** 股权激励计划 **
-    {json.dumps(data['stock_incentive_plan'], ensure_ascii=False, indent=2)}
+    {stock_incentive_plan_json}
     
     ** 增减持股变动明细（近一年数据） **
-    {json.dumps(data['shareholder_increase_result'], ensure_ascii=False, indent=2)}
+    {shareholder_increase_json}
     
 分析逻辑：
   "新官上任三把火"：新 CEO 通常会清理旧账（洗澡），然后通过降本增效或剥离亏损资产来释放利润。
@@ -60,13 +47,13 @@ def get_N_Products_Management_Highs_prompt(data: dict, stock_info: StockInfo) ->
 3. 股价创新高 (New Highs) —— 这是散户最难接受的一点
 这是 CAN SLIM 区别于价值投资（Value Investing）的最大特征。欧奈尔铁律：买入刚创出新高的股票，而不是抄底跌得很惨的股票。
     ** 股价走势图（10日、50日、200日均线）数据**
-    {json.dumps(data['moving_averages_json'], ensure_ascii=False, indent=2)}
+    {moving_averages_json}
     
      ** 相对强度（RS）线（这一点至关重要，近一年数据） ** 
-    {json.dumps(data['stock_relative_strength'], ensure_ascii=False, indent=2)}
+    {stock_relative_strength_json}
     
     ** 成交量数据（近一年数据）**
-    {json.dumps(data['stock_history_volume_amount_yearly'], ensure_ascii=False, indent=2)}
+    {stock_history_volume_json}
     
     
 分析逻辑（必须深刻理解）：
@@ -112,5 +99,4 @@ A. RS 线新高（RS Blue Dot）
 
 B. 大盘回调期间的走势
 大盘跌，股价横盘： RS 线会迅速拉升。
-
 """
