@@ -6,6 +6,7 @@ from service.eastmoney.stock_info.stock_base_info import get_stock_base_info_jso
 from service.eastmoney.stock_info.stock_financial_main_with_total_share import get_equity_data_to_json
 from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_json, get_fund_flow_history_json_cn
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_json
+from service.eastmoney.stock_info.stock_lock_up_period import get_stock_lock_up_period_year_range
 from service.eastmoney.stock_info.stock_realtime import get_stock_realtime_json
 from service.eastmoney.stock_info.stock_top_ten_shareholders_circulation import \
     get_top_ten_shareholders_circulation_by_dates
@@ -43,7 +44,7 @@ async def get_S_Demand_prompt(stock_info: StockInfo) -> str:
     moving_averages_json = await get_moving_averages_json(stock_info, ['close_50_sma'], 50)
     stock_realtime_json = get_stock_realtime_json(stock_info, ['stock_name', 'stock_code', 'volume'])
     fund_flow_history_json_cn = await get_fund_flow_history_json_cn(stock_info, ['date', 'change_hand', 'trading_volume', 'trading_amount'])
-
+    stock_lock_up_period_year_range = await get_stock_lock_up_period_year_range(stock_info)
     return f"""
 #分析的股票（{datetime.now().strftime('%Y-%m-%d')}）
 {stock_info.stock_name}（{stock_info.stock_code_normalize}）
@@ -76,7 +77,9 @@ async def get_S_Demand_prompt(stock_info: StockInfo) -> str:
    ** 换手率 (Turnover Rate) 近半年**
    {json.dumps(fund_flow_history_json_cn, ensure_ascii=False, indent=2)}
    
-   解禁日期 (Lock-up Expiration Date) —— 巨大的潜在供给。
+   ** 解禁日期 (Lock-up Expiration Date) — 巨大的潜在供给 **
+   {json.dumps(stock_lock_up_period_year_range, ensure_ascii=False, indent=2)}
+   
    回购注销数据 (Buybacks) —— 供给减少的最强信号。
 
    数据来源：https://quote.eastmoney.com/sz002371.html
