@@ -26,8 +26,10 @@ def convert_amount_org_holder_1(amount):
     """根据金额大小自动转换单位：大于亿转换为亿，大于万转换为万"""
     if amount is None:
         return "--"
-    if abs(amount) >= 10000:  # >= 1亿
-        return f"{round(amount / 10000, 4)}"
-    else:
-        return str(amount)
+    return f"{round(amount / 10000, 4)}"
 
+def convert_amount_org_holder_2(amount):
+    """根据金额大小自动转换单位：大于亿转换为亿，大于万转换为万"""
+    if amount is None:
+        return "--"
+    return f"{round(amount / 100000000, 4)}"

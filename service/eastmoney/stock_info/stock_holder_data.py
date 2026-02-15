@@ -1,4 +1,5 @@
-from common.utils.amount_utils import convert_amount_unit, convert_amount_org_holder, convert_amount_org_holder_1
+from common.utils.amount_utils import convert_amount_unit, convert_amount_org_holder, convert_amount_org_holder_1, \
+    convert_amount_org_holder_2
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.http.http_utils import EASTMONEY_API_URL, fetch_eastmoney_api
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
@@ -241,9 +242,11 @@ async def get_org_holder_json(stock_info: StockInfo, page_size=8):
                 "机构名称": item.get('ORG_TYPE_NAME', '--'),
                 "持股家数(家)": item.get('HOULD_NUM'),
                 "持股总数(万股)": convert_amount_org_holder_1(item.get('FREE_SHARES', 0)) if item.get('FREE_SHARES') else '--',
-                "持股市值(亿元)": convert_amount_org_holder_1(item.get('FREE_MARKET_CAP', 0)) if item.get('FREE_MARKET_CAP') else '--',
+                "持股市值(亿元)": convert_amount_org_holder_2(item.get('FREE_MARKET_CAP', 0)) if item.get('FREE_MARKET_CAP') else '--',
                 "占总股本比例(%)": f"{round(item.get('TOTALSHARES_RATIO', 0), 2)}%" if item.get('TOTALSHARES_RATIO') else '--',
-                "占流通股比例(%)": f"{round((item.get('FREESHARES_RATIO') or 0), 2)}%"
+                "占流通股比例(%)": f"{round((item.get('FREESHARES_RATIO') or 0), 2)}%",
+                "持股变化(万股)": convert_amount_org_holder_1(item.get('HOLDCHA_NUM', 0)),
+                "持股变化比例": item.get('HOLDCHA_RATIO', 0)
             })
         
         if not has_other:
