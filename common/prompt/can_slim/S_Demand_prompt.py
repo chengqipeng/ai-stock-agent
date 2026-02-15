@@ -4,7 +4,7 @@ from datetime import datetime
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_base_info import get_stock_base_info_json
 from service.eastmoney.stock_info.stock_financial_main_with_total_share import get_equity_data_to_json
-from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_json
+from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_json, get_fund_flow_history_json_cn
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_json
 from service.eastmoney.stock_info.stock_realtime import get_stock_realtime_json
 from service.eastmoney.stock_info.stock_top_ten_shareholders_circulation import \
@@ -13,7 +13,7 @@ from service.eastmoney.technical.stock_day_range_kline import get_moving_average
 
 async def get_5_day_volume_ratio(stock_info: StockInfo):
     moving_averages_json = await get_moving_averages_json(stock_info, ['close_5_sma'], 50)
-    fund_flow_history_json = await get_fund_flow_history_json(stock_info)
+    fund_flow_history_json = await get_fund_flow_history_json(stock_info, ['date', 'close_price', 'change_pct'])
 
     ma_dict = {item['date']: item['close_5_sma'] for item in moving_averages_json}
     
@@ -21,7 +21,7 @@ async def get_5_day_volume_ratio(stock_info: StockInfo):
     for item in fund_flow_history_json[:50]:
         date = item['date']
         close_price = item['close_price']
-        change_percent = item['change_percent']
+        change_pct = item['change_pct']
         
         if date in ma_dict and ma_dict[date]:
             close_5_sma = ma_dict[date]
@@ -29,7 +29,7 @@ async def get_5_day_volume_ratio(stock_info: StockInfo):
             result.append({
                 'date': date,
                 'close_price': close_price,
-                'change_percent': change_percent,
+                'change_pct': change_pct,
                 'quantity_relative_ratio': round(quantity_relative_ratio, 4)
             })
     
@@ -42,12 +42,9 @@ async def get_S_Demand_prompt(stock_info: StockInfo) -> str:
     org_holder_json = await get_org_holder_json(stock_info)
     moving_averages_json = await get_moving_averages_json(stock_info, ['close_50_sma'], 50)
     stock_realtime_json = get_stock_realtime_json(stock_info, ['stock_name', 'stock_code', 'volume'])
-    stock_base_info_json = await get_stock_base_info_json(stock_info)
+    fund_flow_history_json_cn = await get_fund_flow_history_json_cn(stock_info, ['date', 'change_hand', 'trading_volume', 'trading_amount'])
 
     return f"""
-    在华尔街，我们把 C 和 A 看作“引擎的马力”，而 S 则是“车身的重量”。 如果引擎很强（业绩好），但车身太重（盘子太大、筹码太散），车子依然跑不快。 反之，如果供给稀缺（盘小、筹码锁定），一点点买盘（需求）就能把股价推上天。这就是为什么**中盘股（Mid-caps）往往比大蓝筹（Large-caps）**涨得更猛的原因。
-    以下是针对 S 维度的深度拆解指令，涵盖了筹码结构、量价关系以及A股特有的“流动性陷阱”。
-    
 #分析的股票（{datetime.now().strftime('%Y-%m-%d')}）
 {stock_info.stock_name}（{stock_info.stock_code_normalize}）
 
@@ -66,25 +63,23 @@ async def get_S_Demand_prompt(stock_info: StockInfo) -> str:
    {json.dumps(org_holder_json[0], ensure_ascii=False, indent=2)}
   
 2. 交易量数据：
-   ** 平均日均成交量 (Average Daily Volume, ADV) —— 50日平均线**
+   ** 平均日均成交量 (Average Daily Volume, ADV) — 50日平均线**
    {json.dumps(moving_averages_json, ensure_ascii=False, indent=2)}
    
    ** 最新成交量 (Current Volume) **
    {json.dumps(stock_realtime_json, ensure_ascii=False, indent=2)}
    
-   ** 最新量比 (Volume Ratio) 今日成交量 / 5日均量 **
+   ** 最新量比 (Volume Ratio) 今日成交量 / 5日均量（50日数据） **
    {json.dumps(get_5_day_volume_ratio, ensure_ascii=False, indent=2)}
 
 3. A股特色指标：
-   换手率 (Turnover Rate)。
+   ** 换手率 (Turnover Rate) 近半年**
+   {json.dumps(fund_flow_history_json_cn, ensure_ascii=False, indent=2)}
+   
    解禁日期 (Lock-up Expiration Date) —— 巨大的潜在供给。
    回购注销数据 (Buybacks) —— 供给减少的最强信号。
 
    数据来源：https://quote.eastmoney.com/sz002371.html
-
-
-第二部分：专家级提示词指令 (The Expert Prompt)
-你可以直接复制以下指令给大模型：
 
 你现在是一位精通“筹码供需理论”的资深交易员。请根据我提供的股本和交易数据，对该股票的 CAN SLIM "S" 维度进行压力测试。
 
