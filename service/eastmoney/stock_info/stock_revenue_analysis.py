@@ -1,3 +1,5 @@
+import json
+
 from common.http.http_utils import fetch_eastmoney_api
 from common.utils.amount_utils import convert_amount_unit
 from datetime import datetime, timedelta
@@ -60,56 +62,27 @@ async def get_revenue_analysis_three_years(stock_info: StockInfo, page_size=200)
             except:
                 pass
     
-    return {"data": all_data, "count": len(all_data)}
-
-
-async def get_revenue_analysis_markdown(stock_info: StockInfo, report_date="2024-12-31"):
-    """获取主营业务构成并转换为markdown"""
-    data = await get_revenue_analysis(stock_info, report_date)
-    if not data:
-        return ""
-
-    header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 主营业务构成 ({report_date})"
+    # 转换为中文key
+    chinese_data = []
+    for item in all_data:
+        chinese_item = {
+            "报告日期": item.get("REPORT_DATE"),
+            "类型": "按产品" if item.get('MAINOP_TYPE') == '1' else "按地区" if item.get('MAINOP_TYPE') == '2' else "其他",
+            "项目名称": item.get("ITEM_NAME"),
+            "主营收入": item.get("MAIN_BUSINESS_INCOME"),
+            "收入比例": item.get("MBI_RATIO"),
+            "主营成本": item.get("MAIN_BUSINESS_COST"),
+            "成本比例": item.get("MBC_RATIO"),
+            "主营利润": item.get("MAIN_BUSINESS_RPOFIT"),
+            "利润比例": item.get("MBR_RATIO"),
+            "毛利率": item.get("GROSS_RPOFIT_RATIO")
+        }
+        chinese_data.append(chinese_item)
     
-    markdown = f"""{header}
-| 类型 | 项目名称 | 主营收入(元) | 收入比例 | 主营成本(元) | 成本比例 | 主营利润(元) | 利润比例 | 毛利率(%) |
-|------|---------|------------|---------|------------|---------|------------|---------|----------|
-"""
+    # 按报告日期倒序排序
+    chinese_data.sort(key=lambda x: x.get("报告日期") or "", reverse=True)
     
-    for item in data:
-        mainop_type = "按产品" if item.get('MAINOP_TYPE') == '1' else "按地区" if item.get('MAINOP_TYPE') == '2' else "其他"
-        item_name = item.get('ITEM_NAME', '--')
-        income = convert_amount_unit(item.get('MAIN_BUSINESS_INCOME')) if item.get('MAIN_BUSINESS_INCOME') else '--'
-        income_ratio = f"{round(item.get('MBI_RATIO', 0), 2)}%" if item.get('MBI_RATIO') else '--'
-        cost = convert_amount_unit(item.get('MAIN_BUSINESS_COST')) if item.get('MAIN_BUSINESS_COST') else '--'
-        cost_ratio = f"{round(item.get('MBC_RATIO', 0), 2)}%" if item.get('MBC_RATIO') else '--'
-        profit = convert_amount_unit(item.get('MAIN_BUSINESS_RPOFIT')) if item.get('MAIN_BUSINESS_RPOFIT') else '--'
-        profit_ratio = f"{round(item.get('MBR_RATIO', 0), 2)}%" if item.get('MBR_RATIO') else '--'
-        gross_ratio = f"{round(item.get('GROSS_RPOFIT_RATIO', 0), 2)}%" if item.get('GROSS_RPOFIT_RATIO') else '--'
-        
-        markdown += f"| {mainop_type} | {item_name} | {income} | {income_ratio} | {cost} | {cost_ratio} | {profit} | {profit_ratio} | {gross_ratio} |\n"
-    
-    return markdown + "\n"
-
-
-async def get_revenue_analysis_three_years_markdown(stock_info: StockInfo):
-    """获取过去三年的主营业务构成并转换为markdown（每年4个季度）"""
-    current_year = datetime.now().year
-    quarters = ["12-31", "09-30", "06-30", "03-31"]
-    
-    markdown = ""
-    for year in range(current_year - 3, current_year + 1):
-        for quarter in quarters:
-            date = f"{year}-{quarter}"
-            try:
-                md = await get_revenue_analysis_markdown(stock_info, date)
-                if md:
-                    markdown += md
-            except:
-                pass
-    
-    return markdown
-
+    return {"数据": chinese_data, "数量": len(chinese_data)}
 
 if __name__ == "__main__":
     import asyncio
@@ -118,10 +91,6 @@ if __name__ == "__main__":
         # 测试获取过去三年json数据
         stock_info: StockInfo = get_stock_info_by_name("北方华创")
         result = await get_revenue_analysis_three_years(stock_info)
-        print(f"过去三年数据条数: {result['count']}\n")
-        
-        # 测试生成过去三年markdown
-        markdown = await get_revenue_analysis_three_years_markdown(stock_info)
-        print(markdown)
-    
+        print(f"过去三年数据条数: {json.dumps(result, ensure_ascii=False, indent=2)}\n")
+
     asyncio.run(main())
