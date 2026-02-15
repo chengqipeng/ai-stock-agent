@@ -8,6 +8,7 @@ from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_histor
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_json
 from service.eastmoney.stock_info.stock_lock_up_period import get_stock_lock_up_period_year_range
 from service.eastmoney.stock_info.stock_realtime import get_stock_realtime_json
+from service.eastmoney.stock_info.stock_repurchase import get_stock_repurchase_json
 from service.eastmoney.stock_info.stock_top_ten_shareholders_circulation import \
     get_top_ten_shareholders_circulation_by_dates
 from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_json
@@ -45,6 +46,7 @@ async def get_S_Demand_prompt(stock_info: StockInfo) -> str:
     stock_realtime_json = get_stock_realtime_json(stock_info, ['stock_name', 'stock_code', 'volume'])
     fund_flow_history_json_cn = await get_fund_flow_history_json_cn(stock_info, ['date', 'change_hand', 'trading_volume', 'trading_amount'])
     stock_lock_up_period_year_range = await get_stock_lock_up_period_year_range(stock_info)
+    stock_repurchase_json = await get_stock_repurchase_json(stock_info)
     return f"""
 #分析的股票（{datetime.now().strftime('%Y-%m-%d')}）
 {stock_info.stock_name}（{stock_info.stock_code_normalize}）
@@ -80,9 +82,8 @@ async def get_S_Demand_prompt(stock_info: StockInfo) -> str:
    ** 解禁日期 (Lock-up Expiration Date) — 巨大的潜在供给 **
    {json.dumps(stock_lock_up_period_year_range, ensure_ascii=False, indent=2)}
    
-   回购注销数据 (Buybacks) —— 供给减少的最强信号。
-
-   数据来源：https://quote.eastmoney.com/sz002371.html
+   ** 回购注销数据 (Buybacks) — 供给减少的最强信号 **
+   {json.dumps(stock_repurchase_json, ensure_ascii=False, indent=2)}
 
 你现在是一位精通“筹码供需理论”的资深交易员。请根据我提供的股本和交易数据，对该股票的 CAN SLIM "S" 维度进行压力测试。
 
