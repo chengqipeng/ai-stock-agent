@@ -1,22 +1,18 @@
-from common.utils.stock_info_utils import StockInfo
-from service.eastmoney.forecast.stock_institution_forecast_list import get_institution_forecast_future_to_json, \
-    get_institution_forecast_historical_to_json
-from service.eastmoney.forecast.stock_institution_forecast_summary import get_institution_forecast_summary_future_json, \
-    get_institution_forecast_summary_historical_json
-from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json
-import json
 from datetime import datetime
+import json
+
+from common.utils.stock_info_utils import StockInfo
 
 
-async def get_C_Quarterly_Earnings_prompt(stock_info: StockInfo):
-    financial_revenue = await get_financial_data_to_json(stock_info=stock_info, indicator_keys=['REPORT_DATE', 'TOTALOPERATEREVETZ', 'SINGLE_QUARTER_REVENUE', 'TOTALOPERATEREVE', 'SINGLE_QUARTER_REVENUETZ'])
-    financial_profit = await get_financial_data_to_json(stock_info=stock_info, indicator_keys=['REPORT_DATE', 'SINGLE_QUARTER_PARENTNETPROFITTZ', 'SINGLE_QUARTER_KCFJCXSYJLRTZ'])
-    financial_eps = await get_financial_data_to_json(stock_info=stock_info, indicator_keys=['REPORT_DATE', 'EPSJB'])
-    historical_forecast_json = await get_institution_forecast_historical_to_json(stock_info=stock_info)
-    future_forecast_json = await get_institution_forecast_future_to_json(stock_info=stock_info)
-    historical_forecast_summary = await get_institution_forecast_summary_historical_json(stock_info=stock_info)
-    future_forecast_summary = await get_institution_forecast_summary_future_json(stock_info=stock_info)
-    
+async def get_C_Quarterly_Earnings_prompt(data: dict, stock_info: StockInfo):
+    financial_revenue = data['financial_revenue']
+    financial_profit = data['financial_profit']
+    financial_eps = data['financial_eps']
+    historical_forecast_json = data['historical_forecast_json']
+    future_forecast_json = data['future_forecast_json']
+    historical_forecast_summary = data['historical_forecast_summary']
+    future_forecast_summary = data['future_forecast_summary']
+
     return f"""
 
 作为拥有 30 年经验的华尔街投资专家，我必须强调：在 CAN SLIM 模型的 C (Current Quarterly Earnings) 维度中，“扣非净利润”只是底线（排雷项），而非进攻信号（买入项）。
