@@ -138,6 +138,42 @@ async def get_moving_averages_json(stock_info: StockInfo, include_fields: list[s
         "data": data
     }
 
+async def get_moving_averages_json_cn(stock_info: StockInfo, include_fields: list[str] = None, limit: int = None):
+    """返回移动平均线数据的JSON格式（中文键名）
+    
+    Args:
+        stock_info: 股票信息
+        include_fields: 可选字段列表，可选值: ['close_5_sma', 'close_10_ema', 'close_50_sma', 'close_200_sma', 'is_bullish_alignment']
+                       如果为None，则返回所有字段
+        limit: 返回数据条数限制，如果为None则使用配置中的默认值
+    """
+    result = await get_moving_averages_json(stock_info, include_fields, limit)
+    
+    # 字段映射表
+    field_mapping = {
+        'date': '日期',
+        'close_5_sma': '5日均线',
+        'close_10_ema': '10日均线',
+        'close_50_sma': '50日均线',
+        'close_200_sma': '200日均线',
+        'is_bullish_alignment': '多头排列'
+    }
+    
+    # 转换数据字段
+    cn_data = []
+    for item in result['data']:
+        cn_item = {}
+        for en_key, value in item.items():
+            cn_key = field_mapping.get(en_key, en_key)
+            cn_item[cn_key] = '是' if value is True else ('否' if value is False else value)
+        cn_data.append(cn_item)
+    
+    return {
+        "股票代码": result['stock_code'],
+        "股票名称": result['stock_name'],
+        "数据": cn_data
+    }
+
 async def get_stock_history_volume_amount_yearly(stock_info: StockInfo):
     """获取一年的成交量和成交额数据，返回JSON格式"""
     kline_data = await get_stock_history_kline_max_min(stock_info)
@@ -152,7 +188,7 @@ async def get_stock_history_volume_amount_yearly(stock_info: StockInfo):
 
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
-    klines = await get_moving_averages_json(stock_info, ['close_5_sma'], 50)
+    klines = await get_moving_averages_json_cn(stock_info, ['close_5_sma'], 50)
     print(klines)
 
 if __name__ == "__main__":
