@@ -15,13 +15,13 @@ from service.llm.deepseek_client import DeepSeekClient
 
 async def get_5_day_volume_ratio(stock_info: StockInfo):
     """计算5日量比"""
-    moving_averages_json = await get_moving_averages_json(stock_info, ['close_5_sma'], 50)
+    moving_averages_result = await get_moving_averages_json(stock_info, ['close_5_sma'], 50)
     fund_flow_history_json = await get_fund_flow_history_json(stock_info, ['date', 'close_price', 'change_pct'])
 
-    ma_dict = {item['date']: item['close_5_sma'] for item in moving_averages_json}
+    ma_dict = {item['date']: item['close_5_sma'] for item in moving_averages_result['data']}
     
     result = []
-    for item in fund_flow_history_json[:50]:
+    for item in fund_flow_history_json['data'][:50]:
         date = item['date']
         close_price = item['close_price']
         change_pct = item['change_pct']
@@ -44,8 +44,8 @@ async def build_S_Demand_prompt(stock_info: StockInfo) -> str:
     equity_data_with_unlimited_shares_to_json = await get_equity_data_to_json(stock_info, ['END_DATE', 'UNLIMITED_SHARES'])
     top_ten_shareholders_circulation_by_dates = await get_top_ten_shareholders_circulation_by_dates(stock_info)
     org_holder_json = await get_org_holder_json(stock_info)
-    moving_averages_json = await get_moving_averages_json(stock_info, ['close_50_sma'], 50)
-    stock_realtime_json = get_stock_realtime_json(stock_info, ['stock_name', 'stock_code', 'volume'])
+    moving_averages_result = await get_moving_averages_json(stock_info, ['close_50_sma'], 50)
+    stock_realtime_json = await get_stock_realtime_json(stock_info, ['stock_name', 'stock_code', 'volume'])
     fund_flow_history_json_cn = await get_fund_flow_history_json_cn(stock_info, ['date', 'change_hand', 'trading_volume', 'trading_amount'])
     stock_lock_up_period_year_range = await get_stock_lock_up_period_year_range(stock_info)
     stock_repurchase_json = await get_stock_repurchase_json(stock_info)
@@ -59,7 +59,7 @@ async def build_S_Demand_prompt(stock_info: StockInfo) -> str:
         unlimited_shares_json=json.dumps(equity_data_with_unlimited_shares_to_json, ensure_ascii=False, indent=2),
         top_ten_holders_json=json.dumps(top_ten_shareholders_circulation_by_dates[:10], ensure_ascii=False, indent=2),
         org_holder_json=json.dumps(org_holder_json[0], ensure_ascii=False, indent=2),
-        moving_averages_json=json.dumps(moving_averages_json, ensure_ascii=False, indent=2),
+        moving_averages_json=json.dumps(moving_averages_result['data'], ensure_ascii=False, indent=2),
         stock_realtime_json=json.dumps(stock_realtime_json, ensure_ascii=False, indent=2),
         five_day_volume_ratio_json=json.dumps(five_day_volume_ratio, ensure_ascii=False, indent=2),
         fund_flow_history_json_cn=json.dumps(fund_flow_history_json_cn, ensure_ascii=False, indent=2),

@@ -105,7 +105,7 @@ async def get_stock_lock_up_period_year_range(stock_info: StockInfo) -> Optional
                 "解禁后20日涨跌幅": item.get("A20_ADJCHRATE")
             })
     
-    return result if result else None
+    return result if result else []
 
 
 if __name__ == "__main__":
