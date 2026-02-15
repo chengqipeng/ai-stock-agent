@@ -47,6 +47,7 @@ async def get_S_Demand_prompt(stock_info: StockInfo) -> str:
     fund_flow_history_json_cn = await get_fund_flow_history_json_cn(stock_info, ['date', 'change_hand', 'trading_volume', 'trading_amount'])
     stock_lock_up_period_year_range = await get_stock_lock_up_period_year_range(stock_info)
     stock_repurchase_json = await get_stock_repurchase_json(stock_info)
+    five_day_volume_ratio = await get_5_day_volume_ratio(stock_info)
     return f"""
 #分析的股票（{datetime.now().strftime('%Y-%m-%d')}）
 {stock_info.stock_name}（{stock_info.stock_code_normalize}）
@@ -73,7 +74,7 @@ async def get_S_Demand_prompt(stock_info: StockInfo) -> str:
    {json.dumps(stock_realtime_json, ensure_ascii=False, indent=2)}
    
    ** 最新量比 (Volume Ratio) 今日成交量 / 5日均量（50日数据） **
-   {json.dumps(get_5_day_volume_ratio, ensure_ascii=False, indent=2)}
+   {json.dumps(five_day_volume_ratio, ensure_ascii=False, indent=2)}
 
 3. A股特色指标：
    ** 换手率 (Turnover Rate) 近半年**
