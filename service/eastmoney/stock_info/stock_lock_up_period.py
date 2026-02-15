@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import json
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 
 
 async def get_stock_lock_up_period(stock_info: StockInfo, page_size: int = 500, page_number: int = 1) -> Optional[dict]:
@@ -20,6 +21,13 @@ async def get_stock_lock_up_period(stock_info: StockInfo, page_size: int = 500, 
     Returns:
         解禁数据字典，失败返回None
     """
+    cache_path = get_cache_path("lock_up_period", stock_info.stock_code)
+    
+    # 检查缓存
+    cached_data = load_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
     url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
     
     params = {
@@ -44,7 +52,12 @@ async def get_stock_lock_up_period(stock_info: StockInfo, page_size: int = 500, 
     try:
         response = requests.get(url, params=params, headers=headers, timeout=10)
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        
+        # 保存缓存
+        save_cache(cache_path, data)
+        
+        return data
     except Exception as e:
         print(f"获取限售解禁数据失败: {e}")
         return None
