@@ -37,6 +37,62 @@ async def get_fund_flow_history(stock_info: StockInfo):
     else:
         raise Exception(f"未获取到股票 {stock_info.secid} 的资金流向历史数据")
 
+async def get_fund_flow_history_json(stock_info: StockInfo, page_size = 120):
+    """获取资金流向历史数据并转换为JSON格式"""
+    klines = await get_fund_flow_history(stock_info)
+    kline_max_min_map = await get_stock_history_kline_max_min(stock_info)
+    
+    result = []
+    for kline in klines[:page_size]:
+        fields = kline.split(',')
+        if len(fields) >= 15:
+            date = fields[0]
+            kline_max_min_item = kline_max_min_map[date]
+            close_price = round(float(fields[11]), 2) if fields[11] != '-' else None
+            change_pct = round(float(fields[12]), 2) if fields[12] != '-' else None
+            super_net = float(fields[5]) if fields[5] != '-' else 0
+            super_pct = round(float(fields[10]), 2) if fields[10] != '-' else None
+            big_net = float(fields[4]) if fields[4] != '-' else 0
+            big_pct = round(float(fields[9]), 2) if fields[9] != '-' else None
+            mid_net = float(fields[3]) if fields[3] != '-' else 0
+            mid_pct = round(float(fields[8]), 2) if fields[8] != '-' else None
+            small_net = float(fields[2]) if fields[2] != '-' else 0
+            small_pct = round(float(fields[7]), 2) if fields[7] != '-' else None
+            main_net = super_net + big_net
+            main_pct = round(float(fields[6]), 2) if fields[6] != '-' else None
+            
+            result.append({
+                "date": date,
+                "close_price": close_price,
+                "change_pct": change_pct,
+                "main_net": main_net,
+                "main_net_str": convert_amount_unit(main_net),
+                "main_pct": main_pct,
+                "super_net": super_net,
+                "super_net_str": convert_amount_unit(super_net),
+                "super_pct": super_pct,
+                "big_net": big_net,
+                "big_net_str": convert_amount_unit(big_net),
+                "big_pct": big_pct,
+                "mid_net": mid_net,
+                "mid_net_str": convert_amount_unit(mid_net),
+                "mid_pct": mid_pct,
+                "small_net": small_net,
+                "small_net_str": convert_amount_unit(small_net),
+                "small_pct": small_pct,
+                "high_price": kline_max_min_item['high_price'],
+                "low_price": kline_max_min_item['low_price'],
+                "change_hand": kline_max_min_item['change_hand'],
+                "trading_volume": kline_max_min_item['trading_volume'],
+                "trading_amount": kline_max_min_item['trading_amount']
+            })
+    
+    return {
+        "stock_name": stock_info.stock_name,
+        "stock_code": stock_info.stock_code_normalize,
+        "data": result
+    }
+
 async def get_fund_flow_history_markdown(stock_info: StockInfo, page_size = 120):
     """获取资金流向历史数据并转换为markdown"""
     klines = await get_fund_flow_history(stock_info)
@@ -126,8 +182,8 @@ if __name__ == "__main__":
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         # 测试 JSON 格式
-        result = await get_fund_flow_history_markdown(stock_info)
-        print("股东增减持数据 (JSON格式):")
+        result = await get_fund_flow_history_json(stock_info)
+        print("资金流向历史数据 (JSON格式):")
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
     asyncio.run(main())

@@ -4,6 +4,7 @@ from datetime import datetime
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_base_info import get_stock_base_info_json
 from service.eastmoney.stock_info.stock_financial_main_with_total_share import get_equity_data_to_json
+from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_json
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_json
 from service.eastmoney.stock_info.stock_realtime import get_stock_realtime_json
 from service.eastmoney.stock_info.stock_top_ten_shareholders_circulation import \
@@ -11,7 +12,28 @@ from service.eastmoney.stock_info.stock_top_ten_shareholders_circulation import 
 from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_json
 
 async def get_5_day_volume_ratio(stock_info: StockInfo):
-    return
+    moving_averages_json = await get_moving_averages_json(stock_info, ['close_5_sma'], 50)
+    fund_flow_history_json = await get_fund_flow_history_json(stock_info)
+
+    ma_dict = {item['date']: item['close_5_sma'] for item in moving_averages_json}
+    
+    result = []
+    for item in fund_flow_history_json[:50]:
+        date = item['date']
+        close_price = item['close_price']
+        change_percent = item['change_percent']
+        
+        if date in ma_dict and ma_dict[date]:
+            close_5_sma = ma_dict[date]
+            quantity_relative_ratio = close_price / close_5_sma
+            result.append({
+                'date': date,
+                'close_price': close_price,
+                'change_percent': change_percent,
+                'quantity_relative_ratio': round(quantity_relative_ratio, 4)
+            })
+    
+    return result
 
 async def get_S_Demand_prompt(stock_info: StockInfo) -> str:
     equity_data_with_total_shares_to_json = await get_equity_data_to_json(stock_info, ['END_DATE', 'TOTAL_SHARES'])
@@ -51,7 +73,7 @@ async def get_S_Demand_prompt(stock_info: StockInfo) -> str:
    {json.dumps(stock_realtime_json, ensure_ascii=False, indent=2)}
    
    ** 最新量比 (Volume Ratio) 今日成交量 / 5日均量 **
-   {json.dumps(stock_base_info_json, ensure_ascii=False, indent=2)}
+   {json.dumps(get_5_day_volume_ratio, ensure_ascii=False, indent=2)}
 
 3. A股特色指标：
    换手率 (Turnover Rate)。
