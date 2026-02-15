@@ -2,38 +2,40 @@ import json
 from datetime import datetime
 
 from common.prompt.can_slim.S_Demand_prompt import S_DEMAND_PROMPT_TEMPLATE
-from common.utils.stock_info_utils import StockInfo
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.stock_info.stock_financial_main_with_total_share import get_equity_data_to_json
-from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_json, get_fund_flow_history_json_cn, get_20day_volume_avg_cn
+from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_json, get_fund_flow_history_json_cn, \
+    get_20day_volume_avg_cn, get_20day_volume_avg, get_5day_volume_avg
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_json
 from service.eastmoney.stock_info.stock_lock_up_period import get_stock_lock_up_period_year_range
 from service.eastmoney.stock_info.stock_realtime import get_stock_realtime_json
 from service.eastmoney.stock_info.stock_repurchase import get_stock_repurchase_json
 from service.eastmoney.stock_info.stock_top_ten_shareholders_circulation import get_top_ten_shareholders_circulation_by_dates
-from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_json
 from service.llm.deepseek_client import DeepSeekClient
 
 async def get_5_day_volume_ratio(stock_info: StockInfo):
     """计算5日量比"""
-    moving_averages_result = await get_moving_averages_json(stock_info, ['close_5_sma'], 50)
-    fund_flow_history_json = await get_fund_flow_history_json(stock_info, ['date', 'close_price', 'change_pct'])
+    day_5_volume_avg_result = await get_5day_volume_avg(stock_info, 200)
+    fund_flow_history_json = await get_fund_flow_history_json(stock_info, ['date', 'close_price', 'trading_volume', 'change_pct'])
 
-    ma_dict = {item['date']: item['close_5_sma'] for item in moving_averages_result['data']}
+    ma_dict = {item['date']: item['volume_avg'] for item in day_5_volume_avg_result}
     
     result = []
     for item in fund_flow_history_json['data'][:50]:
         date = item['date']
-        close_price = item['close_price']
+        trading_volume = item['trading_volume']
         change_pct = item['change_pct']
+        close_price = item['close_price']
         
         if date in ma_dict and ma_dict[date]:
-            close_5_sma = ma_dict[date]
-            quantity_relative_ratio = close_price / close_5_sma
+            volume_20_avg = ma_dict[date]
+            quantity_relative_ratio = trading_volume / volume_20_avg
             result.append({
-                'date': date,
-                'close_price': close_price,
-                'change_pct': change_pct,
-                'quantity_relative_ratio': round(quantity_relative_ratio, 4)
+                '日期': date,
+                '交易量': trading_volume,
+                '收盘价': close_price,
+                '涨跌幅': change_pct,
+                '量比（今日成交量/5日均量）': round(quantity_relative_ratio, 4)
             })
     
     return result
@@ -94,3 +96,14 @@ async def execute_S_Demand(stock_info: StockInfo, deep_thinking: bool = False) -
         result += content
 
     return result
+
+if __name__ == "__main__":
+    import asyncio
+    
+    async def main():
+        stock_name = "北方华创"
+        stock_info = get_stock_info_by_name(stock_name)
+        result = await get_5_day_volume_ratio(stock_info)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    
+    asyncio.run(main())

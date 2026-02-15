@@ -192,6 +192,10 @@ async def get_20day_volume_avg(stock_info: StockInfo, page_size=120):
     """计算50日成交量均值（已废弃，请使用get_volume_avg）"""
     return await get_volume_avg(stock_info, days=20, page_size=page_size)
 
+async def get_5day_volume_avg(stock_info: StockInfo, page_size=120):
+    """计算50日成交量均值（已废弃，请使用get_volume_avg）"""
+    return await get_volume_avg(stock_info, days=5, page_size=page_size)
+
 async def get_20day_volume_avg_cn(stock_info: StockInfo, page_size=120):
     """计算50日成交量均值（中文键）（已废弃，请使用get_volume_avg_cn）"""
     return await get_volume_avg_cn(stock_info, days=20, page_size=page_size)
@@ -241,7 +245,7 @@ if __name__ == "__main__":
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         # 测试 JSON 格式
-        result = await get_20day_volume_avg_cn(stock_info)
+        result = await get_20day_volume_avg(stock_info)
         print("资金流向历史数据 (JSON格式):")
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
