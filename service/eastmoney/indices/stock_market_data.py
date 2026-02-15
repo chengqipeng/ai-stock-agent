@@ -10,7 +10,7 @@ async def get_index_kline_data(stock_name, days=250):
     return await get_stock_history_kline_max_min(stock_info, days)
 
 
-async def get_stock_relative_strength(stock_name, days=250):
+async def get_stock_relative_strength(stock_info: StockInfo, days=250):
     """
     获取个股相对指数的强度数据（个股收盘价/指数收盘价）
     
@@ -21,14 +21,13 @@ async def get_stock_relative_strength(stock_name, days=250):
     Returns:
         dict: {日期: 相对强度值}
     """
-    stock_info: StockInfo = get_stock_info_by_name(stock_name)
-    
+
     # 获取个股数据
     stock_data = await get_stock_history_kline_max_min(stock_info, days)
     
     # 获取指数数据
     if not stock_info.indices_stock_name:
-        raise ValueError(f"股票 {stock_name} 没有关联的指数信息")
+        raise ValueError(f"股票 {stock_info.stock_code_normalize} 没有关联的指数信息")
     
     index_data = await get_index_kline_data(stock_info.indices_stock_name, days)
     
@@ -42,7 +41,8 @@ async def get_stock_relative_strength(stock_name, days=250):
 
 async def main():
     # 测试相对强度
-    result = await get_stock_relative_strength("北方华创")
+    stock_info: StockInfo = get_stock_info_by_name("北方华创")
+    result = await get_stock_relative_strength(stock_info)
     print("相对强度数据:")
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
