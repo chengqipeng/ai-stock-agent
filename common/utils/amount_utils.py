@@ -27,7 +27,7 @@ def convert_amount_org_holder_1(amount):
     if amount is None:
         return "--"
     if abs(amount) >= 10000:  # >= 1亿
-        return f"{round(amount / 100000000, 4)}"
+        return f"{round(amount / 10000, 4)}"
     else:
         return str(amount)
 

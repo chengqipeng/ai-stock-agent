@@ -240,7 +240,7 @@ async def get_org_holder_json(stock_info: StockInfo, page_size=8):
             report_items.append({
                 "机构名称": item.get('ORG_TYPE_NAME', '--'),
                 "持股家数(家)": item.get('HOULD_NUM'),
-                "持股总数(万股)": convert_amount_org_holder(item.get('FREE_SHARES', 0)) if item.get('FREE_SHARES') else '--',
+                "持股总数(万股)": convert_amount_org_holder_1(item.get('FREE_SHARES', 0)) if item.get('FREE_SHARES') else '--',
                 "持股市值(亿元)": convert_amount_org_holder_1(item.get('FREE_MARKET_CAP', 0)) if item.get('FREE_MARKET_CAP') else '--',
                 "占总股本比例(%)": f"{round(item.get('TOTALSHARES_RATIO', 0), 2)}%" if item.get('TOTALSHARES_RATIO') else '--',
                 "占流通股比例(%)": f"{round((item.get('FREESHARES_RATIO') or 0), 2)}%"
@@ -273,6 +273,6 @@ if __name__ == "__main__":
         # 测试 JSON 格式
         result = await get_org_holder_json(stock_info)
         print("股东增减持数据 (JSON格式):")
-        print(json.dumps(result[0], ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False, indent=2))
     
     asyncio.run(main())
