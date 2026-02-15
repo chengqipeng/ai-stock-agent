@@ -71,7 +71,7 @@ async def get_N_Products_Management_Highs_prompt(stock_info: StockInfo):
     ** 股价走势图（10日、50日、200日均线）数据**
     {json.dumps(moving_averages_json, ensure_ascii=False, indent=2)}
     
-    相对强度（RS）线（这一点至关重要）。
+     ** 相对强度（RS）线（这一点至关重要，近一年数据） ** 
     {json.dumps(stock_relative_strength, ensure_ascii=False, indent=2)}
     
     ** 成交量数据（近一年）**
