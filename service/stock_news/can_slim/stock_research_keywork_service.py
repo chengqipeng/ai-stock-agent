@@ -21,7 +21,7 @@ async def research_stock_news(stock_info: StockInfo):
                 if category_data['type'] == 'domestic':
                     news = await baidu_search(keyword, days=category_data['search_key_time_range'])
                 else:
-                    news = await google_search(keyword, category_data['search_key_time_range'])
+                    news = await baidu_search(keyword, category_data['search_key_time_range'])
                 all_results.extend(news)
             
             # URL去重

@@ -1,7 +1,12 @@
 import aiohttp
 import asyncio
 import base64
+import json
 from typing import List, Dict
+from datetime import datetime
+from pathlib import Path
+
+from service.web_search.baidu_search import baidu_search
 
 SERPAPI_KEY_1 = "NjFhYzVlNzA0ZDA5YjYxZDQ1MTc0YzBkN2VkODgxZmEwNjU4YWFhZGM4MDNmOTE5MTJhODk0OTYzNGExMzJjMw=="
 SERPAPI_KEY_2 = "NGU5MGJiOWJkNjE5M2ZjNmY0MmZlNmI4Y2Q5YmQ0MzZmNzgzZTM5NWM2Y2ZlNjg1MzgyODc4OGUzYTcwZjk5ZA=="
@@ -19,25 +24,62 @@ SERPAPI_KEY_12 = "NTdkY2FhMGE0YTA4MTIyNzUwNDlhMzk3YzVjMTM4ZWExZmQ3ZGViNTlhNDM4N2
 def _decode_key(encoded_key: str) -> str:
     return base64.b64decode(encoded_key).decode('utf-8')
 
+def _get_cache_file() -> Path:
+    cache_dir = Path.home() / '.cache' / 'ai-stock-agent'
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir / 'serpapi_failed_keys.json'
+
+def _load_failed_keys() -> Dict[str, List[int]]:
+    cache_file = _get_cache_file()
+    if not cache_file.exists():
+        return {}
+    try:
+        with open(cache_file, 'r') as f:
+            data = json.load(f)
+            current_month = datetime.now().strftime('%Y-%m')
+            return {k: v for k, v in data.items() if k == current_month}
+    except:
+        return {}
+
+def _save_failed_keys(failed_keys: List[int]):
+    cache_file = _get_cache_file()
+    current_month = datetime.now().strftime('%Y-%m')
+    data = _load_failed_keys()
+    data[current_month] = failed_keys
+    with open(cache_file, 'w') as f:
+        json.dump(data, f)
+
+def _get_current_month_failed_keys() -> List[int]:
+    data = _load_failed_keys()
+    current_month = datetime.now().strftime('%Y-%m')
+    return data.get(current_month, [])
+
 async def google_search(
     query: str,
-    num_results: int = 5,
+    num_results: int = 20,
     days = 90
 ) -> List[Dict[str, any]]:
-    """使用SerpAPI进行Google搜索，只返回organic_results中的position、title、link、snippet"""
+    """使用SerpAPI进行Google搜索，失败时自动切换到百度搜索"""
     url = "https://serpapi.com/search.json"
     keys = [_decode_key(SERPAPI_KEY_1), _decode_key(SERPAPI_KEY_2), _decode_key(SERPAPI_KEY_3), _decode_key(SERPAPI_KEY_4), _decode_key(SERPAPI_KEY_5), _decode_key(SERPAPI_KEY_6), _decode_key(SERPAPI_KEY_7), _decode_key(SERPAPI_KEY_8), _decode_key(SERPAPI_KEY_9), _decode_key(SERPAPI_KEY_10), _decode_key(SERPAPI_KEY_11), _decode_key(SERPAPI_KEY_12)]
     
-    for i, api_key in enumerate(keys):  # 尝试所有key
+    failed_indices = _get_current_month_failed_keys()
+    new_failed_indices = list(failed_indices)
+    
+    for i, api_key in enumerate(keys):
+        if i in failed_indices:
+            continue
+            
         params = {
             "engine": "google",
             "q": query,
+            "location": "Austin, Texas, United States, Shanghai",  # 地理位置（影响本地化搜索结果）
             "api_key": api_key,
             "num": num_results,
             "tbm": "nws",
             "hl": "en",
             "gl": "us",
-            "tbs": f"qdr:d{days}"  # 限制搜索时间范围
+            "tbs": f"qdr:d{days}"
         }
 
         try:
@@ -46,29 +88,33 @@ async def google_search(
                     response.raise_for_status()
                     result = await response.json()
                     
-                    organic_results = result.get('organic_results', [])
+                    news_results = result.get('news_results', [])
                     return [{
                         'id': item.get('position'),
                         'title': item.get('title'),
                         'url': item.get('link'),
                         'content': item.get('snippet')
-                    } for item in organic_results]
-        except Exception as e:
-            if i == 0:  # 第一次失败，切换key
-                continue
-            raise  # 第二次失败，抛出异常
+                    } for item in news_results]
+        except Exception:
+            if i not in new_failed_indices:
+                new_failed_indices.append(i)
+                _save_failed_keys(new_failed_indices)
+            continue
+    
+    # 所有key都失败，切换到百度搜索
+    return await baidu_search(query, days)
 
 
 if __name__ == "__main__":
     async def main():
         result = await google_search(
-            query="销售易创始人"
+            query="北方华创 同行业2026年销售预测"
         )
         for item in result:
-            print(f"Position: {item['position']}")
+            print(f"ID: {item['id']}")
             print(f"Title: {item['title']}")
-            print(f"Link: {item['link']}")
-            print(f"Snippet: {item['snippet']}")
+            print(f"URL: {item['url']}")
+            print(f"Content: {item['content']}")
             print("-" * 80)
     
     asyncio.run(main())
