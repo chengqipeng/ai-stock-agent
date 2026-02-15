@@ -13,6 +13,8 @@ SERPAPI_KEY_7 = "MjNjMTFlNDVkNTk0ZjM5MzEzYjE0OGQ4MzAyZjRjM2JlYWVkOTdiZTlhZTM2ZmZ
 SERPAPI_KEY_8 = "MWQ3ODdjODdjMjkzYjNhZWU2OGE0ZjNiZmI5Nzg4NmIyNGZlOTQ5NmRmYmM2NWFhNWM1NjE4NGZhOTQ1OWM4NQ=="
 SERPAPI_KEY_9 = "NjFiOGZhMWRjNDZlMzk0ZWM3OGEwMGEyYjE2MDIwZmRlM2NmN2QyYjI1MThlNGM3NWZiMmNjZjQ2MzkyZDI1MQ=="
 SERPAPI_KEY_10 = "YzM0ODMzMTdlY2M0MzEyMThhMDk2N2Y2YWRmZDFhMGVjOTZkY2E1NWFhN2QxNmFjN2RjNmEzZWMwMTI5NTc4Yw=="
+SERPAPI_KEY_11 = "NTkyOWYyNGIyYTViNDFhYjNhZjc2NDdjNTgxZmQ5MjIxMjQzNmNkYjliMTg2NzIzZTZiMDkyZDY3ZGU3MjY4Ng=="
+SERPAPI_KEY_12 = "NTdkY2FhMGE0YTA4MTIyNzUwNDlhMzk3YzVjMTM4ZWExZmQ3ZGViNTlhNDM4N2U1YzU5N2FkMDg3ODE3MDliMg=="
 
 def _decode_key(encoded_key: str) -> str:
     return base64.b64decode(encoded_key).decode('utf-8')
@@ -24,9 +26,9 @@ async def google_search(
 ) -> List[Dict[str, any]]:
     """使用SerpAPI进行Google搜索，只返回organic_results中的position、title、link、snippet"""
     url = "https://serpapi.com/search.json"
-    keys = [_decode_key(SERPAPI_KEY_1), _decode_key(SERPAPI_KEY_2), _decode_key(SERPAPI_KEY_3), _decode_key(SERPAPI_KEY_4), _decode_key(SERPAPI_KEY_5), _decode_key(SERPAPI_KEY_6), _decode_key(SERPAPI_KEY_7), _decode_key(SERPAPI_KEY_8), _decode_key(SERPAPI_KEY_9), _decode_key(SERPAPI_KEY_10)]
+    keys = [_decode_key(SERPAPI_KEY_1), _decode_key(SERPAPI_KEY_2), _decode_key(SERPAPI_KEY_3), _decode_key(SERPAPI_KEY_4), _decode_key(SERPAPI_KEY_5), _decode_key(SERPAPI_KEY_6), _decode_key(SERPAPI_KEY_7), _decode_key(SERPAPI_KEY_8), _decode_key(SERPAPI_KEY_9), _decode_key(SERPAPI_KEY_10), _decode_key(SERPAPI_KEY_11), _decode_key(SERPAPI_KEY_12)]
     
-    for i, api_key in enumerate(keys[:10]):  # 只尝试前10个key
+    for i, api_key in enumerate(keys):  # 尝试所有key
         params = {
             "engine": "google",
             "q": query,
