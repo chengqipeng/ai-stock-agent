@@ -255,7 +255,8 @@ async def get_org_holder_json(stock_info: StockInfo, page_size=8):
                 "持股总数(万股)": "0.00",
                 "持股市值(亿元)": "-",
                 "占总股本比例(%)": "-",
-                "占流通股比例(%)": "-"
+                "占流通股比例(%)": "-",
+                "持股变化(万股)": "-"
             })
         
         result.append({
