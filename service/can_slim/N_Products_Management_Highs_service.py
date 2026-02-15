@@ -1,11 +1,11 @@
-import json
 from common.utils.stock_info_utils import StockInfo
 from service.llm.deepseek_client import DeepSeekClient
 from service.eastmoney.indices.stock_market_data import get_stock_relative_strength
 from service.eastmoney.stock_info.stock_holder_data import get_shareholder_increase_json
 from service.eastmoney.stock_info.stock_revenue_analysis import get_revenue_analysis_three_years
 from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_json, get_stock_history_volume_amount_yearly
-from service.stock_news.can_slim.stock_search_result_filter_service import get_search_filter_result_dict
+from service.stock_search_news.can_slim.stock_search_result_filter_service import get_search_filter_result_dict
+
 
 async def get_N_data(stock_info: StockInfo) -> dict:
     """

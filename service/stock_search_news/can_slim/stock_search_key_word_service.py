@@ -5,8 +5,9 @@ from datetime import datetime
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.volcengine_client import VolcengineClient
-from service.stock_news.can_slim.stock_industry_service import get_industry_result
-from service.stock_news.can_slim.stock_global_search_category_service import get_global_search_category_result
+from service.stock_search_news.can_slim.stock_global_search_category_service import get_global_search_category_result
+from service.stock_search_news.can_slim.stock_industry_service import get_industry_result
+
 
 async def get_domestic_search_key_prompt(stock_info: StockInfo, search_intent= None, search_content = None):
     industry_data_str = await get_industry_result(stock_info)
