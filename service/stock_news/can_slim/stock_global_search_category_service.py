@@ -44,8 +44,6 @@ async def get_global_search_category_result(stock_info: StockInfo) -> tuple[list
     industry_result_str = await get_industry_result(stock_info)
     industry_result = json.loads(industry_result_str)
 
-    print(industry_result_str)
-
     if industry_result['is_science'] == 1 or industry_result['is_science'] == "1":
         prompt = await get_search_key_prompt(stock_info, industry_result)
         client = VolcengineClient()

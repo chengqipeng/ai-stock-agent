@@ -2,7 +2,7 @@ import asyncio
 import json
 from datetime import datetime
 
-from common.utils.stock_info_utils import StockInfo
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.stock_news.can_slim.stock_search_key_word_service import get_search_key_result
 from service.web_search.baidu_search import baidu_search
 from service.web_search.google_search import google_search
@@ -21,7 +21,7 @@ async def research_stock_news(stock_info: StockInfo):
                 if category_data['type'] == 'domestic':
                     news = await baidu_search(keyword, days=category_data['search_key_time_range'])
                 else:
-                    news = await baidu_search(keyword, category_data['search_key_time_range'])
+                    news = await google_search(keyword, category_data['search_key_time_range'])
                 all_results.extend(news)
             
             # URL去重
@@ -68,7 +68,8 @@ async def research_stock_news(stock_info: StockInfo):
 
 if __name__ == "__main__":
     async def main():
-        result = await research_stock_news("002371.SZ", "北方华创")
+        stock_info = get_stock_info_by_name("北方华创")
+        result = await research_stock_news(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
     
     asyncio.run(main())
