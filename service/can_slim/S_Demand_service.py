@@ -5,7 +5,7 @@ from common.prompt.can_slim.S_Demand_prompt import S_DEMAND_PROMPT_TEMPLATE
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.stock_info.stock_financial_main_with_total_share import get_equity_data_to_json
 from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_json, get_fund_flow_history_json_cn, \
-    get_20day_volume_avg_cn, get_20day_volume_avg, get_5day_volume_avg
+    get_20day_volume_avg_cn, get_5day_volume_avg
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_json
 from service.eastmoney.stock_info.stock_lock_up_period import get_stock_lock_up_period_year_range
 from service.eastmoney.stock_info.stock_realtime import get_stock_realtime_json
