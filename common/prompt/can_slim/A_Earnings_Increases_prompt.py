@@ -3,10 +3,8 @@ import json
 
 from common.utils.stock_info_utils import StockInfo
 
-
 async def get_A_Earnings_Increases_prompt(data: dict, stock_info: StockInfo):
 
-    
     eps_kc_data = data['eps_kc_data']
     roe_data = data['roe_data']
     cash_flow_data = data['cash_flow_data']
@@ -15,8 +13,6 @@ async def get_A_Earnings_Increases_prompt(data: dict, stock_info: StockInfo):
     cagr_value = data['cagr_value']
     cagr_description = data['cagr_description']
 
-
-    
     return f"""
 在华尔街，我们常说："C 吸引眼球，A 留住资金。"（"C" catches the eye, "A" keeps the money.）如果一家公司只有强劲的季度报表，但缺乏稳健的年度增长记录，那它很可能只是昙花一现的"烟花股"。
 以下是基于欧奈尔 CAN SLIM 模型的 A 维度 深度拆解，包含了你必须抓取的核心数据、底层逻辑以及实战判读标准。
