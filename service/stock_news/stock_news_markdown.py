@@ -4,8 +4,8 @@ import os
 from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo
-from service.prompt.stock_news_keyword_prompt import get_news_keyword_prompt
-from service.prompt.stock_news_prompt import get_news_prompt
+from common.prompt.stock_news_keyword_prompt import get_news_keyword_prompt
+from common.prompt.stock_news_prompt import get_news_prompt
 from service.web_search.baidu_search import baidu_search
 from service.web_search.google_search import google_search
 from service.llm.deepseek_client import DeepSeekClient

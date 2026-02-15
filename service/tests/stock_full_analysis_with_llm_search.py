@@ -1,10 +1,9 @@
 import asyncio
-from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.stock_structure_markdown import get_stock_markdown_with_llm_result
 from service.eastmoney.stock_technical_markdown import get_technical_indicators_for_llm_analysis_prompt
-from service.prompt.stock_final_prompt import get_final_prompt
+from common.prompt.stock_final_prompt import get_final_prompt
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.gemini_client import GeminiClient
 from service.stock_news.stock_news_markdown import process_stock_news

@@ -2,7 +2,7 @@ import json
 
 from common.utils.stock_info_utils import StockInfo
 from service.llm.deepseek_client import DeepSeekClient
-from service.prompt.stock_similar_companies_prompt import SIMILAR_COMPANIES_PROMPT
+from common.prompt.stock_similar_companies_prompt import SIMILAR_COMPANIES_PROMPT
 
 class SimilarCompaniesGenerator:
     def __init__(self):

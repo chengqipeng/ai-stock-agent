@@ -1,6 +1,6 @@
 from common.utils.stock_info_utils import StockInfo
 from service.llm.deepseek_client import DeepSeekClient
-from service.prompt.can_slim.N_Products_Management_Highs import get_N_Products_Management_Highs_prompt
+from service.prompt import get_N_Products_Management_Highs_prompt
 
 async def execute_N_Products_Management_Highs(stock_info: StockInfo, deep_thinking: bool = False) -> str:
     """

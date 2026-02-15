@@ -1,6 +1,6 @@
 from common.utils.stock_info_utils import StockInfo
 from service.llm.deepseek_client import DeepSeekClient
-from service.prompt.can_slim.C_Quarterly_Earnings_prompt import get_C_Quarterly_Earnings_prompt
+from common.prompt.can_slim import get_C_Quarterly_Earnings_prompt
 
 
 async def execute_C_Quarterly_Earnings(stock_info: StockInfo, deep_thinking: bool = False) -> str:

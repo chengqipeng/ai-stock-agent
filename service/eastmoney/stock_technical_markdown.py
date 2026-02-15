@@ -8,12 +8,11 @@ from service.eastmoney.technical.stock_day_boll import get_boll_markdown
 from service.eastmoney.technical.stock_day_macd import get_macd_markdown
 from service.eastmoney.technical.stock_day_rsi import get_rsi_markdown
 from service.eastmoney.technical.stock_day_vwma import get_vwma_markdown
-from service.eastmoney.technical.stock_day_range_kline import generate_can_slim_50_200_summary, \
-    get_stock_day_range_kline
+from service.eastmoney.technical.stock_day_range_kline import generate_can_slim_50_200_summary
 from service.llm.deepseek_client import DeepSeekClient
 from service.llm.gemini_client import GeminiClient
-from service.prompt.stock_technical_indicator_prompt import get_technical_prompt
-from service.prompt.stock_technical_indicator_simple_prompt import get_technical_prompt_score
+from common.prompt.stock_technical_indicator_prompt import get_technical_prompt
+from common.prompt.stock_technical_indicator_simple_prompt import get_technical_prompt_score
 
 
 async def get_technical_indicators_markdown(stock_info: StockInfo):
