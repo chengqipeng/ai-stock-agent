@@ -58,7 +58,7 @@ async def build_S_Demand_prompt(stock_info: StockInfo) -> str:
         total_shares_json=json.dumps(equity_data_with_total_shares_to_json, ensure_ascii=False, indent=2),
         unlimited_shares_json=json.dumps(equity_data_with_unlimited_shares_to_json, ensure_ascii=False, indent=2),
         top_ten_holders_json=json.dumps(top_ten_shareholders_circulation_by_dates[:10], ensure_ascii=False, indent=2),
-        org_holder_json=json.dumps(org_holder_json[0], ensure_ascii=False, indent=2),
+        org_holder_json=json.dumps(org_holder_json[:2], ensure_ascii=False, indent=2),
         moving_averages_json=json.dumps(moving_averages_result['data'], ensure_ascii=False, indent=2),
         stock_realtime_json=json.dumps(stock_realtime_json, ensure_ascii=False, indent=2),
         five_day_volume_ratio_json=json.dumps(five_day_volume_ratio, ensure_ascii=False, indent=2),
