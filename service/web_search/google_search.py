@@ -20,6 +20,7 @@ SERPAPI_KEY_9 = "NjFiOGZhMWRjNDZlMzk0ZWM3OGEwMGEyYjE2MDIwZmRlM2NmN2QyYjI1MThlNGM
 SERPAPI_KEY_10 = "YzM0ODMzMTdlY2M0MzEyMThhMDk2N2Y2YWRmZDFhMGVjOTZkY2E1NWFhN2QxNmFjN2RjNmEzZWMwMTI5NTc4Yw=="
 SERPAPI_KEY_11 = "NTkyOWYyNGIyYTViNDFhYjNhZjc2NDdjNTgxZmQ5MjIxMjQzNmNkYjliMTg2NzIzZTZiMDkyZDY3ZGU3MjY4Ng=="
 SERPAPI_KEY_12 = "NTdkY2FhMGE0YTA4MTIyNzUwNDlhMzk3YzVjMTM4ZWExZmQ3ZGViNTlhNDM4N2U1YzU5N2FkMDg3ODE3MDliMg=="
+SERPAPI_KEY_13 = "NDFjOThlMzhkMDRhYzc0OWYwY2NlODlhYzA0NTdjOTI4NjRmZTU4YTJhOWE1ZDlmMzIzMjk3ZTRlMzgyMjVjMw=="
 
 def _decode_key(encoded_key: str) -> str:
     return base64.b64decode(encoded_key).decode('utf-8')
@@ -61,7 +62,7 @@ async def google_search(
 ) -> List[Dict[str, any]]:
     """使用SerpAPI进行Google搜索，失败时自动切换到百度搜索"""
     url = "https://serpapi.com/search.json"
-    keys = [_decode_key(SERPAPI_KEY_1), _decode_key(SERPAPI_KEY_2), _decode_key(SERPAPI_KEY_3), _decode_key(SERPAPI_KEY_4), _decode_key(SERPAPI_KEY_5), _decode_key(SERPAPI_KEY_6), _decode_key(SERPAPI_KEY_7), _decode_key(SERPAPI_KEY_8), _decode_key(SERPAPI_KEY_9), _decode_key(SERPAPI_KEY_10), _decode_key(SERPAPI_KEY_11), _decode_key(SERPAPI_KEY_12)]
+    keys = [_decode_key(SERPAPI_KEY_1), _decode_key(SERPAPI_KEY_2), _decode_key(SERPAPI_KEY_3), _decode_key(SERPAPI_KEY_4), _decode_key(SERPAPI_KEY_5), _decode_key(SERPAPI_KEY_6), _decode_key(SERPAPI_KEY_7), _decode_key(SERPAPI_KEY_8), _decode_key(SERPAPI_KEY_9), _decode_key(SERPAPI_KEY_10), _decode_key(SERPAPI_KEY_11), _decode_key(SERPAPI_KEY_12), _decode_key(SERPAPI_KEY_13)]
     
     failed_indices = _get_current_month_failed_keys()
     new_failed_indices = list(failed_indices)
