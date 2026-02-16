@@ -30,7 +30,8 @@ class DeepSeekClient:
         if max_tokens:
             payload["max_tokens"] = max_tokens
         
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=120)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(url, headers=headers, json=payload) as response:
                 return await response.json()
     
@@ -56,7 +57,8 @@ class DeepSeekClient:
         if max_tokens:
             payload["max_tokens"] = max_tokens
         
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=120)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(url, headers=headers, json=payload) as response:
                 async for line in response.content:
                     line = line.decode('utf-8').strip()
