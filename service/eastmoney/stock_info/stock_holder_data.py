@@ -266,6 +266,21 @@ async def get_org_holder_json(stock_info: StockInfo, page_size=8):
     return result
 
 
+async def get_org_holder_count(stock_info: StockInfo, page_size=8):
+    """获取每个季度持股机构的总数"""
+    holder_data = await get_org_holder(stock_info, page_size)
+    if not holder_data:
+        return []
+    from collections import defaultdict
+    grouped_data = defaultdict(int)
+    for item in holder_data:
+        report_date = item.get('REPORT_DATE', '--')[:10] if item.get('REPORT_DATE') else '--'
+        hold_num = item.get('HOULD_NUM', 0) or 0
+        grouped_data[report_date] += hold_num
+    
+    return [{"报告日期": date, "机构总数": count} for date, count in grouped_data.items()]
+
+
 if __name__ == "__main__":
     import asyncio
     import json
@@ -274,7 +289,7 @@ if __name__ == "__main__":
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         # 测试 JSON 格式
-        result = await get_org_holder_json(stock_info)
+        result = await get_org_holder_count(stock_info)
         print("股东增减持数据 (JSON格式):")
         print(json.dumps(result, ensure_ascii=False, indent=2))
     

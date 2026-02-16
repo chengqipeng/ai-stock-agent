@@ -1,8 +1,18 @@
-async def get_I_Sponsorship_prompt():
+import json
+
+from common.utils.stock_info_utils import StockInfo
+from service.eastmoney.stock_info.stock_holder_data import get_org_holder_count
+
+
+async def get_I_Sponsorship_prompt(stock_info: StockInfo):
+    org_holder_count = await get_org_holder_count(stock_info)
+
     return f"""
 大模型不知道谁是“聪明钱”，你需要喂给它具体的持仓数据。在 A 股或美股软件（如 Wind、同花顺、东方财富、Seeking Alpha）中，抓取以下 3 组核心数据：
 1. 机构持仓数量趋势 (Number of Funds):
-  ○ 最近 3-4 个季度的机构总数： 例如 Q1(50家) -> Q2(65家) -> Q3(90家)。
+  ** 最近 3-4 个季度的机构总数： 例如 Q1(50家) -> Q2(65家) -> Q3(90家) **
+  {json.dumps(org_holder_count, ensure_ascii=False, indent=2)}
+  
   ○ 数据源： 季报/年报中的“机构持股家数”。
 
 https://data.eastmoney.com/zlsj/detail/002008.html
