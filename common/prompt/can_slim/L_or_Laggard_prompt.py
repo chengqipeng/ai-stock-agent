@@ -6,12 +6,13 @@ from service.eastmoney.indices.stock_market_data import get_stock_relative_stren
 
 async def get_L_or_Laggard_prompt(stock_info: StockInfo) -> str:
     stock_relative_strength = await get_stock_relative_strength(stock_info)
+    stock_industry_ranking_json = await get_stock_industry_ranking_json(stock_info)
 
     return f"""
     
 大模型不能凭空猜谁是老大，你需要喂给它具体的**“比武数据”**。最关键的是区分 RS（相对强度） 和 RSI（相对强弱指标）——这是两个完全不同的概念，千万别搞混。
 1. ** 相对价格强度 (Price Relative Strength, RS，近一年数据) ** 
-    {json.dumps(stock_relative_strength, ensure_ascii=False, indent=2)}
+  {json.dumps(stock_relative_strength, ensure_ascii=False, indent=2)}
 
 2. 抗跌性表现 (Resilience during Correction):
    最近一次大盘回调（Market Correction）时，该股票的跌幅是多少？
@@ -20,9 +21,8 @@ async def get_L_or_Laggard_prompt(stock_info: StockInfo) -> str:
 3. 行业地位 (Sector Rank):
    该股票在所属细分行业（如“半导体设备”而非笼统的“科技”）中的市值排名。
    同板块其他竞争对手的近期表现。
-
-   数据来源：https://quote.eastmoney.com/sz002371.html
-   提取指标：行业排名
+   {json.dumps(stock_industry_ranking_json, ensure_ascii=False, indent=2)}
+   
 
 [角色设定] 你现在是一位冷酷无情的“选股裁判”。我们遵循 CAN SLIM 原则中的 "L" (Leader or Laggard)。你的任务是剔除平庸的跟随者，只保留市场真正的领军股。
 
