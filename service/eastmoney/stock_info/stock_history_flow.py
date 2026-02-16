@@ -179,7 +179,7 @@ async def get_volume_avg_cn(stock_info: StockInfo, days=20, page_size=120):
               ]
     """
     result = await get_volume_avg(stock_info, days, page_size)
-    return [{"日期": item["date"], f"{days}日均成交量": item["volume_avg"]} for item in result]
+    return [{"日期": item["date"], f"{days}日均成交量（万股）": item["volume_avg"]} for item in result]
 
 async def get_20day_volume_avg(stock_info: StockInfo, page_size=120):
     """计算50日成交量均值（已废弃，请使用get_volume_avg）"""
