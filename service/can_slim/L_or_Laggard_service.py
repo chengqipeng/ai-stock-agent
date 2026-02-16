@@ -1,4 +1,6 @@
 import json
+from datetime import datetime
+
 import pandas as pd
 
 from common.prompt.can_slim.L_or_Laggard_prompt import L_OR_LAGGARD_PROMPT_TEMPLATE
@@ -117,6 +119,9 @@ async def build_L_or_Laggard_prompt(stock_info: StockInfo) -> str:
     resilience_data_cn = format_resilience_to_chinese(resilience_data)
     
     return L_OR_LAGGARD_PROMPT_TEMPLATE.format(
+        current_date=datetime.now().strftime('%Y-%m-%d'),
+        stock_name=stock_info.stock_name,
+        stock_code=stock_info.stock_code_normalize,
         stock_relative_strength_json=json.dumps(stock_relative_strength, ensure_ascii=False, indent=2),
         stock_industry_ranking_json=json.dumps(stock_industry_ranking_json, ensure_ascii=False, indent=2),
         resilience_data_json=json.dumps(resilience_data_cn, ensure_ascii=False, indent=2)

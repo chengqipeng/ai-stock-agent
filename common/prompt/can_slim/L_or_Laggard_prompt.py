@@ -1,5 +1,8 @@
 L_OR_LAGGARD_PROMPT_TEMPLATE = """
 大模型不能凭空猜谁是老大，你需要喂给它具体的**"比武数据"**。最关键的是区分 RS（相对强度） 和 RSI（相对强弱指标）——这是两个完全不同的概念，千万别搞混。
+#分析的股票（{current_date}）
+{stock_name}（{stock_code}）
+
 1. 相对价格强度 (Price Relative Strength, RS，近一年数据) 
    ** 注意： 这不是技术指标里的 RSI (0-100 的震荡指标)。欧奈尔 RS 评级： IBD 的独家数据（1-99分）。如果没有 IBD 数据，你需要提供**"过去 12 个月的股价涨幅 vs 基准指数（如 沪深300 或 S&P 500）涨幅"**。
    {stock_relative_strength_json}
