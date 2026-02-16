@@ -281,6 +281,71 @@ async def get_org_holder_count(stock_info: StockInfo, page_size=8):
     return [{"报告日期": date, "机构总数": count} for date, count in grouped_data.items()]
 
 
+async def get_holder_number(stock_info: StockInfo, page_size=12, page_number=1):
+    """获取股东人数数据"""
+    cache_path = get_cache_path("holder_number_" + str(page_number), stock_info.stock_code)
+    
+    # 检查缓存
+    cached_data = load_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
+    params = {
+        "reportName": "RPT_F10_EH_HOLDERNUM",
+        "columns": "SECUCODE,SECURITY_CODE,END_DATE,HOLDER_TOTAL_NUM,TOTAL_NUM_RATIO,AVG_FREE_SHARES,AVG_FREESHARES_RATIO,HOLD_FOCUS,PRICE,AVG_HOLD_AMT,HOLD_RATIO_TOTAL,FREEHOLD_RATIO_TOTAL",
+        "quoteColumns": "",
+        "filter": f"(SECUCODE=\"{stock_info.stock_code_normalize}\")",
+        "pageNumber": str(page_number),
+        "pageSize": str(page_size),
+        "sortTypes": "-1",
+        "sortColumns": "END_DATE",
+        "source": "HSF10",
+        "client": "PC"
+    }
+    
+    data = await fetch_eastmoney_api(EASTMONEY_API_URL, params)
+    if data.get("result") and data["result"].get("data"):
+        result = data["result"]["data"]
+        save_cache(cache_path, result)
+        return result
+    else:
+        return []
+
+
+async def get_holder_number_json(stock_info: StockInfo, page_size=20):
+    """获取股东人数数据并转换为JSON格式"""
+    data = await get_holder_number(stock_info, 8, 1)
+    if page_size > 8:
+        data_1 = await get_holder_number(stock_info, 8, 2)
+        data.extend(data_1)
+    if not data:
+        return []
+    
+    result = []
+    for item in data:
+        # 处理筹码集中度字段，可能是数字或文本描述
+        hold_focus = item.get('HOLD_FOCUS')
+        if hold_focus:
+            try:
+                hold_focus_str = f"{round(float(hold_focus), 2)}%"
+            except (ValueError, TypeError):
+                hold_focus_str = str(hold_focus)
+        else:
+            hold_focus_str = '--'
+        
+        result.append({
+            "截止日期": item.get('END_DATE', '--')[:10] if item.get('END_DATE') else '--',
+            "股东总数": item.get('HOLDER_TOTAL_NUM', '--'),
+            "较上期变化": f"{round(float(item.get('TOTAL_NUM_RATIO', 0)), 2)}%" if item.get('TOTAL_NUM_RATIO') else '--',
+            "人均流通股(股)": f"{float(item.get('AVG_FREE_SHARES', 0)):.2f}" if item.get('AVG_FREE_SHARES') else '--',
+            "较上期变化率": f"{round(float(item.get('AVG_FREESHARES_RATIO', 0)), 2)}%" if item.get('AVG_FREESHARES_RATIO') else '--',
+            "筹码集中度": hold_focus_str,
+            "股价(元)": f"{float(item.get('PRICE', 0)):.2f}" if item.get('PRICE') else '--',
+            "人均持股金额(元)": f"{float(item.get('AVG_HOLD_AMT', 0)):.2f}" if item.get('AVG_HOLD_AMT') else '--'
+        })
+    return result
+
+
 if __name__ == "__main__":
     import asyncio
     import json
@@ -288,9 +353,9 @@ if __name__ == "__main__":
     async def main():
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
-        # 测试 JSON 格式
-        result = await get_org_holder_count(stock_info)
-        print("股东增减持数据 (JSON格式):")
+        # 测试股东人数数据
+        result = await get_holder_number_json(stock_info, 20)
+        print("股东人数数据 (JSON格式):")
         print(json.dumps(result, ensure_ascii=False, indent=2))
     
     asyncio.run(main())
