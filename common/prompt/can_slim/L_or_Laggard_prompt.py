@@ -2,6 +2,7 @@ import json
 
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.indices.stock_market_data import get_stock_relative_strength
+from service.eastmoney.stock_info.stock_industry_ranking import get_stock_industry_ranking_json
 
 
 async def get_L_or_Laggard_prompt(stock_info: StockInfo) -> str:
@@ -11,16 +12,16 @@ async def get_L_or_Laggard_prompt(stock_info: StockInfo) -> str:
     return f"""
     
 大模型不能凭空猜谁是老大，你需要喂给它具体的**“比武数据”**。最关键的是区分 RS（相对强度） 和 RSI（相对强弱指标）——这是两个完全不同的概念，千万别搞混。
-1. ** 相对价格强度 (Price Relative Strength, RS，近一年数据) ** 
-  {json.dumps(stock_relative_strength, ensure_ascii=False, indent=2)}
+1. 相对价格强度 (Price Relative Strength, RS，近一年数据) 
+   ** 注意： 这不是技术指标里的 RSI (0-100 的震荡指标)。欧奈尔 RS 评级： IBD 的独家数据（1-99分）。如果没有 IBD 数据，你需要提供**“过去 12 个月的股价涨幅 vs 基准指数（如 沪深300 或 S&P 500）涨幅”**。
+   {json.dumps(stock_relative_strength, ensure_ascii=False, indent=2)}
 
 2. 抗跌性表现 (Resilience during Correction):
    最近一次大盘回调（Market Correction）时，该股票的跌幅是多少？
    同期大盘跌幅是多少？
 
 3. 行业地位 (Sector Rank):
-   该股票在所属细分行业（如“半导体设备”而非笼统的“科技”）中的市值排名。
-   同板块其他竞争对手的近期表现。
+   ** 该股票在所属细分行业（如“半导体设备”而非笼统的“科技”）中的市值排名，同板块其他竞争对手的近期表现。** 
    {json.dumps(stock_industry_ranking_json, ensure_ascii=False, indent=2)}
    
 
