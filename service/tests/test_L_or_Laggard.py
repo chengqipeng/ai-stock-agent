@@ -110,6 +110,6 @@ if __name__ == "__main__":
     stock_info = get_stock_info_by_name(stock_name)
     
     # 测试抗跌性分析
-    result = asyncio.run(calculate_resilience(stock_info))
+    result = asyncio.run(execute_L_or_Laggard(stock_info))
     print("抗跌性分析结果:")
     print(result)
