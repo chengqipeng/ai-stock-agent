@@ -3,7 +3,7 @@ from datetime import datetime
 
 from common.prompt.can_slim.N_Products_Management_Highs_prompt import N_PRODUCTS_MANAGEMENT_HIGHS_PROMPT_TEMPLATE
 from common.utils.stock_info_utils import StockInfo
-from service.eastmoney.indices.stock_market_data import get_stock_relative_strength
+from service.eastmoney.indices.stock_market_data import get_stock_relative_strength_cn
 from service.eastmoney.stock_info.stock_holder_data import get_shareholder_increase_json
 from service.eastmoney.stock_info.stock_revenue_analysis import get_revenue_analysis_three_years
 from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_json, \
@@ -28,7 +28,7 @@ async def execute_N_Products_Management_Highs(stock_info: StockInfo, deep_thinki
     search_filter_result_dict = await get_search_filter_result_dict(stock_info)
     moving_averages_json = await get_moving_averages_json_cn(stock_info)
     stock_history_volume_amount_yearly = await get_stock_history_volume_amount_yearly(stock_info)
-    stock_relative_strength_json = await get_stock_relative_strength(stock_info)
+    stock_relative_strength_json = await get_stock_relative_strength_cn(stock_info)
     
     prompt = N_PRODUCTS_MANAGEMENT_HIGHS_PROMPT_TEMPLATE.format(
         current_date=datetime.now().strftime('%Y-%m-%d'),
