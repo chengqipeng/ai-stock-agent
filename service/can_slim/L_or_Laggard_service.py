@@ -1,7 +1,10 @@
+import json
 import pandas as pd
 
-from common.prompt.can_slim.L_or_Laggard_prompt import get_L_or_Laggard_prompt
+from common.prompt.can_slim.L_or_Laggard_prompt import L_OR_LAGGARD_PROMPT_TEMPLATE
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+from service.eastmoney.indices.stock_market_data import get_stock_relative_strength
+from service.eastmoney.stock_info.stock_industry_ranking import get_stock_industry_ranking_json
 from service.eastmoney.technical.abs.stock_indicator_base import get_stock_history_kline_max_min
 from service.llm.deepseek_client import DeepSeekClient
 
@@ -106,6 +109,20 @@ def format_resilience_to_chinese(data):
     return [convert_item(item) for item in data] if isinstance(data, list) else convert_item(data)
 
 
+async def build_L_or_Laggard_prompt(stock_info: StockInfo) -> str:
+    """构建L领军股或落后股分析提示词"""
+    stock_relative_strength = await get_stock_relative_strength(stock_info)
+    stock_industry_ranking_json = await get_stock_industry_ranking_json(stock_info)
+    resilience_data = await calculate_resilience(stock_info, days=250, num_corrections=3)
+    resilience_data_cn = format_resilience_to_chinese(resilience_data)
+    
+    return L_OR_LAGGARD_PROMPT_TEMPLATE.format(
+        stock_relative_strength_json=json.dumps(stock_relative_strength, ensure_ascii=False, indent=2),
+        stock_industry_ranking_json=json.dumps(stock_industry_ranking_json, ensure_ascii=False, indent=2),
+        resilience_data_json=json.dumps(resilience_data_cn, ensure_ascii=False, indent=2)
+    )
+
+
 async def execute_L_or_Laggard(stock_info: StockInfo, deep_thinking: bool = False) -> str:
     """
     执行L领军股或落后股分析
@@ -117,7 +134,7 @@ async def execute_L_or_Laggard(stock_info: StockInfo, deep_thinking: bool = Fals
     Returns:
         分析结果字符串
     """
-    prompt = await get_L_or_Laggard_prompt(stock_info)
+    prompt = await build_L_or_Laggard_prompt(stock_info)
 
     print(prompt)
     print("\n =============================== \n")
