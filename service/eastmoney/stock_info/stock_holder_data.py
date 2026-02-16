@@ -312,38 +312,112 @@ async def get_holder_number(stock_info: StockInfo, page_size=12, page_number=1):
         return []
 
 
-async def get_holder_number_json(stock_info: StockInfo, page_size=20):
-    """获取股东人数数据并转换为JSON格式"""
-    data = await get_holder_number(stock_info, 8, 1)
-    if page_size > 8:
-        data_1 = await get_holder_number(stock_info, 8, 2)
-        data.extend(data_1)
+async def get_holder_number_json(stock_info: StockInfo, page_size=20, lang='en', fields=None):
+    """
+    获取股东人数数据并转换为JSON格式
+    
+    Args:
+        stock_info: 股票信息
+        page_size: 返回数据条数
+        lang: 语言，'en'返回英文key，'cn'返回中文key
+        fields: 指定返回的字段列表，可以使用英文或中文字段名，为None时返回所有字段
+    """
+    data = []
+    page_num = (page_size + 7) // 8
+    for i in range(1, page_num + 1):
+        page_data = await get_holder_number(stock_info, 8, i)
+        if page_data:
+            data.extend(page_data)
     if not data:
         return []
     
+    # 字段映射
+    field_map_en = {
+        'end_date': 'END_DATE',
+        'holder_total_num': 'HOLDER_TOTAL_NUM',
+        'total_num_ratio': 'TOTAL_NUM_RATIO',
+        'avg_free_shares': 'AVG_FREE_SHARES',
+        'avg_freeshares_ratio': 'AVG_FREESHARES_RATIO',
+        'hold_focus': 'HOLD_FOCUS',
+        'price': 'PRICE',
+        'avg_hold_amt': 'AVG_HOLD_AMT'
+    }
+    
+    field_map_cn = {
+        '截止日期': 'END_DATE',
+        '股东总数': 'HOLDER_TOTAL_NUM',
+        '较上期变化': 'TOTAL_NUM_RATIO',
+        '人均流通股(股)': 'AVG_FREE_SHARES',
+        '较上期变化率': 'AVG_FREESHARES_RATIO',
+        '筹码集中度': 'HOLD_FOCUS',
+        '股价(元)': 'PRICE',
+        '人均持股金额(元)': 'AVG_HOLD_AMT'
+    }
+    
+    # 英文到中文的映射
+    en_to_cn = {
+        'end_date': '截止日期',
+        'holder_total_num': '股东总数',
+        'total_num_ratio': '较上期变化',
+        'avg_free_shares': '人均流通股(股)',
+        'avg_freeshares_ratio': '较上期变化率',
+        'hold_focus': '筹码集中度',
+        'price': '股价(元)',
+        'avg_hold_amt': '人均持股金额(元)'
+    }
+    
+    field_map = field_map_cn if lang == 'cn' else field_map_en
+    
+    # 处理fields，支持英文和中文字段名
+    if fields:
+        selected_fields = []
+        for field in fields:
+            if field in field_map:
+                selected_fields.append(field)
+            elif field in field_map_en:
+                # 如果是英文字段且lang='cn'，转换为中文
+                selected_fields.append(en_to_cn[field] if lang == 'cn' else field)
+            elif field in field_map_cn:
+                # 如果是中文字段且lang='en'，转换为英文
+                cn_to_en = {v: k for k, v in en_to_cn.items()}
+                selected_fields.append(cn_to_en[field] if lang == 'en' else field)
+    else:
+        selected_fields = list(field_map.keys())
+    
     result = []
     for item in data:
-        # 处理筹码集中度字段，可能是数字或文本描述
-        hold_focus = item.get('HOLD_FOCUS')
-        if hold_focus:
-            try:
-                hold_focus_str = f"{round(float(hold_focus), 2)}%"
-            except (ValueError, TypeError):
-                hold_focus_str = str(hold_focus)
-        else:
-            hold_focus_str = '--'
+        row = {}
+        for field in selected_fields:
+            if field not in field_map:
+                continue
+            
+            raw_key = field_map[field]
+            value = item.get(raw_key)
+            
+            if raw_key == 'END_DATE':
+                row[field] = value[:10] if value else '--'
+            elif raw_key == 'HOLD_FOCUS':
+                if value:
+                    try:
+                        row[field] = f"{round(float(value), 2)}%"
+                    except (ValueError, TypeError):
+                        row[field] = str(value)
+                else:
+                    row[field] = '--'
+            elif raw_key in ['TOTAL_NUM_RATIO', 'AVG_FREESHARES_RATIO']:
+                row[field] = f"{round(float(value), 2)}%" if value else '--'
+            elif raw_key in ['AVG_FREE_SHARES', 'PRICE', 'AVG_HOLD_AMT']:
+                row[field] = f"{float(value):.2f}" if value else '--'
+            else:
+                row[field] = value if value else '--'
         
-        result.append({
-            "截止日期": item.get('END_DATE', '--')[:10] if item.get('END_DATE') else '--',
-            "股东总数": item.get('HOLDER_TOTAL_NUM', '--'),
-            "较上期变化": f"{round(float(item.get('TOTAL_NUM_RATIO', 0)), 2)}%" if item.get('TOTAL_NUM_RATIO') else '--',
-            "人均流通股(股)": f"{float(item.get('AVG_FREE_SHARES', 0)):.2f}" if item.get('AVG_FREE_SHARES') else '--',
-            "较上期变化率": f"{round(float(item.get('AVG_FREESHARES_RATIO', 0)), 2)}%" if item.get('AVG_FREESHARES_RATIO') else '--',
-            "筹码集中度": hold_focus_str,
-            "股价(元)": f"{float(item.get('PRICE', 0)):.2f}" if item.get('PRICE') else '--',
-            "人均持股金额(元)": f"{float(item.get('AVG_HOLD_AMT', 0)):.2f}" if item.get('AVG_HOLD_AMT') else '--'
-        })
-    return result
+        result.append(row)
+    return result[:page_size]
+
+
+async def get_holder_number_json_cn(stock_info: StockInfo, page_size=20, fields=None):
+    """获取股东人数数据并转换为JSON格式 - 中文key（兼容旧接口）"""
+    return await get_holder_number_json(stock_info, page_size, lang='cn', fields=fields)
 
 
 if __name__ == "__main__":
@@ -354,7 +428,7 @@ if __name__ == "__main__":
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         # 测试股东人数数据
-        result = await get_holder_number_json(stock_info, 20)
+        result = await get_holder_number_json_cn(stock_info, 10, ['end_date', 'holder_total_num'])
         print("股东人数数据 (JSON格式):")
         print(json.dumps(result, ensure_ascii=False, indent=2))
     
