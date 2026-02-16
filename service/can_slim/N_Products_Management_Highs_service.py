@@ -28,7 +28,7 @@ async def execute_N_Products_Management_Highs(stock_info: StockInfo, deep_thinki
     search_filter_result_dict = await get_search_filter_result_dict(stock_info)
     moving_averages_json = await get_moving_averages_json_cn(stock_info)
     stock_history_volume_amount_yearly = await get_stock_history_volume_amount_yearly(stock_info)
-    stock_relative_strength = await get_stock_relative_strength(stock_info)
+    stock_relative_strength_json = await get_stock_relative_strength(stock_info)
     
     prompt = N_PRODUCTS_MANAGEMENT_HIGHS_PROMPT_TEMPLATE.format(
         current_date=datetime.now().strftime('%Y-%m-%d'),
@@ -41,7 +41,7 @@ async def execute_N_Products_Management_Highs(stock_info: StockInfo, deep_thinki
         stock_incentive_plan_json=json.dumps(search_filter_result_dict['stock_incentive_plan'], ensure_ascii=False, indent=2),
         shareholder_increase_json=json.dumps(shareholder_increase_result, ensure_ascii=False, indent=2),
         moving_averages_json=json.dumps(moving_averages_json, ensure_ascii=False, indent=2),
-        stock_relative_strength_json=json.dumps(stock_relative_strength, ensure_ascii=False, indent=2),
+        stock_relative_strength_json=json.dumps(stock_relative_strength_json, ensure_ascii=False, indent=2),
         stock_history_volume_json=json.dumps(stock_history_volume_amount_yearly, ensure_ascii=False, indent=2)
     )
 
