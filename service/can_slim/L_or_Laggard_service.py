@@ -100,8 +100,8 @@ def format_resilience_to_chinese(data):
     def convert_item(item):
         return {
             "回调期间": f"{item['correction_period'][0]} 至 {item['correction_period'][1]}",
-            "指数跌幅": item['index_drop'],
-            "个股跌幅": item['stock_drop'],
+            "指数涨跌幅": item['index_drop'],
+            "个股涨跌幅": item['stock_drop'],
             "相对抗跌性": item['relative_resilience'],
             "是否抗跌": "是" if item['is_resilient'] else "否"
         }
