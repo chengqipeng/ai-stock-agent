@@ -221,8 +221,14 @@ async def get_org_holder_markdown(stock_info: StockInfo, page_size=8):
     return markdown
 
 
-async def get_org_holder_json(stock_info: StockInfo, page_size=8):
-    """获取机构持仓明细并转换为JSON格式"""
+async def get_org_holder_json(stock_info: StockInfo, page_size=8, fields=None):
+    """获取机构持仓明细并转换为JSON格式
+    
+    Args:
+        stock_info: 股票信息
+        page_size: 返回数据条数
+        fields: 指定返回的字段列表（英文key），如 ['ORG_TYPE_NAME', 'HOULD_NUM', 'FREE_SHARES']，None表示返回所有字段
+    """
     holder_data = await get_org_holder(stock_info, page_size)
     if not holder_data:
         return []
@@ -232,37 +238,87 @@ async def get_org_holder_json(stock_info: StockInfo, page_size=8):
         report_date = item.get('REPORT_DATE', '--')[:10] if item.get('REPORT_DATE') else '--'
         grouped_data[report_date].append(item)
     
+    # 字段映射
+    field_map = {
+        'ORG_TYPE_NAME': '机构名称',
+        'HOULD_NUM': '持股家数(家)',
+        'FREE_SHARES': '持股总数(万股)',
+        'FREE_MARKET_CAP': '持股市值(亿元)',
+        'TOTALSHARES_RATIO': '占总股本比例(%)',
+        'FREESHARES_RATIO': '占流通股比例(%)',
+        'HOLDCHA_NUM': '持股变化(万股)'
+    }
+    
     result = []
     for report_date, items in grouped_data.items():
         report_items = []
         has_other = any(item.get('ORG_TYPE_NAME') == '其他' for item in items)
         
         for item in items:
-            report_items.append({
-                "机构名称": item.get('ORG_TYPE_NAME', '--'),
-                "持股家数(家)": item.get('HOULD_NUM'),
-                "持股总数(万股)": convert_amount_org_holder_1(item.get('FREE_SHARES', 0)) if item.get('FREE_SHARES') else '--',
-                "持股市值(亿元)": convert_amount_org_holder_2(item.get('FREE_MARKET_CAP', 0)) if item.get('FREE_MARKET_CAP') else '--',
-                "占总股本比例(%)": f"{round(item.get('TOTALSHARES_RATIO', 0), 2)}%" if item.get('TOTALSHARES_RATIO') else '--',
-                "占流通股比例(%)": f"{round((item.get('FREESHARES_RATIO') or 0), 2)}%",
-                "持股变化(万股)": convert_amount_org_holder_1(item.get('HOLDCHA_NUM', 0))
-            })
+            row = {}
+            for en_key, cn_key in field_map.items():
+                if fields and en_key not in fields:
+                    continue
+                
+                if en_key == 'ORG_TYPE_NAME':
+                    row[cn_key] = item.get(en_key, '--')
+                elif en_key == 'HOULD_NUM':
+                    row[cn_key] = item.get(en_key)
+                elif en_key == 'FREE_SHARES':
+                    row[cn_key] = convert_amount_org_holder_1(item.get(en_key, 0)) if item.get(en_key) else '--'
+                elif en_key == 'FREE_MARKET_CAP':
+                    row[cn_key] = convert_amount_org_holder_2(item.get(en_key, 0)) if item.get(en_key) else '--'
+                elif en_key == 'TOTALSHARES_RATIO':
+                    row[cn_key] = f"{round(item.get(en_key, 0), 2)}%" if item.get(en_key) else '--'
+                elif en_key == 'FREESHARES_RATIO':
+                    row[cn_key] = f"{round((item.get(en_key) or 0), 2)}%"
+                elif en_key == 'HOLDCHA_NUM':
+                    row[cn_key] = convert_amount_org_holder_1(item.get(en_key, 0))
+            
+            report_items.append(row)
         
-        if not has_other:
-            report_items.append({
-                "机构名称": "其他",
-                "持股家数(家)": "-",
-                "持股总数(万股)": "0.00",
-                "持股市值(亿元)": "-",
-                "占总股本比例(%)": "-",
-                "占流通股比例(%)": "-",
-                "持股变化(万股)": "-"
-            })
+        if not has_other and (not fields or 'ORG_TYPE_NAME' in fields):
+            other_row = {}
+            for en_key, cn_key in field_map.items():
+                if fields and en_key not in fields:
+                    continue
+                if en_key == 'ORG_TYPE_NAME':
+                    other_row[cn_key] = '其他'
+                elif en_key == 'HOULD_NUM':
+                    other_row[cn_key] = '-'
+                elif en_key == 'FREE_SHARES':
+                    other_row[cn_key] = '0.00'
+                else:
+                    other_row[cn_key] = '-'
+            report_items.append(other_row)
         
         result.append({
             "报告日期": report_date,
             "机构持仓": report_items
         })
+    return result
+
+
+async def get_org_holder_by_type(stock_info: StockInfo, org_type: str, page_size=8, fields=None):
+    """获取指定机构类型的持仓数据
+    
+    Args:
+        stock_info: 股票信息
+        org_type: 机构类型，如 '社保', '公募', '险资', 'QFII', '信托', '券商', '银行', '其他'
+        page_size: 返回数据条数
+        fields: 指定返回的字段列表（英文key），如 ['ORG_TYPE_NAME', 'HOULD_NUM', 'FREE_SHARES']，None表示返回所有字段
+    """
+    all_data = await get_org_holder_json(stock_info, page_size, fields)
+    
+    result = []
+    for period in all_data:
+        filtered_items = [item for item in period["机构持仓"] if item.get("机构名称") == org_type]
+        if filtered_items:
+            result.append({
+                "报告日期": period["报告日期"],
+                "机构持仓": filtered_items
+            })
+    
     return result
 
 
@@ -428,7 +484,7 @@ if __name__ == "__main__":
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         # 测试股东人数数据
-        result = await get_holder_number_json_cn(stock_info, 10, ['end_date', 'holder_total_num'])
+        result = await get_org_holder_by_type(stock_info, '社保')
         print("股东人数数据 (JSON格式):")
         print(json.dumps(result, ensure_ascii=False, indent=2))
     

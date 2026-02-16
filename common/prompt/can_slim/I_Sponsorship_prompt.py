@@ -2,7 +2,7 @@ import json
 
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_count, get_holder_number_json, \
-    get_holder_number_json_cn
+    get_holder_number_json_cn, get_org_holder_by_type
 from service.eastmoney.stock_info.stock_northbound_funds import get_northbound_funds_cn
 from service.eastmoney.stock_info.stock_top_ten_shareholders_circulation import \
     get_top_ten_shareholders_circulation_by_dates
@@ -16,6 +16,7 @@ async def get_I_Sponsorship_prompt(stock_info: StockInfo):
     top_ten_hold_change_shareholders_circulation_by_dates = await get_top_ten_shareholders_circulation_by_dates(stock_info, page_size=3, limit=3, fields=['rank', 'holder_name', 'hold_change', 'report_date'])
     northbound_funds = await get_northbound_funds_cn(stock_info, ['TRADE_DATE', 'ADD_MARKET_CAP', 'ADD_SHARES_AMP', 'ADD_SHARES_AMP'])
 
+    org_holder_by_type_she_bao = await get_org_holder_by_type(stock_info, '社保')
     return f"""
 大模型不知道谁是“聪明钱”，你需要喂给它具体的持仓数据。在 A 股或美股软件（如 Wind、同花顺、东方财富、Seeking Alpha）中，抓取以下 3 组核心数据：
 1. 机构持仓数量趋势 (Number of Funds):
@@ -33,7 +34,8 @@ async def get_I_Sponsorship_prompt(stock_info: StockInfo):
     ** 北向资金 (Northbound Capital)近期增减持记录: 香港过来的外资，通常被视为“聪明钱”的风向标 **
     {json.dumps(northbound_funds, ensure_ascii=False, indent=2)}
     
-    ■ 社保基金 (National Social Security Fund): 代表国家队的长期稳健资金，背书能力极强。
+    ** 社保基金 (National Social Security Fund): 代表国家队的长期稳健资金，背书能力极强 **
+    {json.dumps(org_holder_by_type_she_bao, ensure_ascii=False, indent=2)}
     
     ■ 明星基金经理： 是否有行业知名大佬（如张坤、葛兰、朱少醒等）新进？
 数据源：https://emweb.securities.eastmoney.com/pc_hsf10/pages/index.html?type=web&code=SZ002008&color=b#/gdyj
