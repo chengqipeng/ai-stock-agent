@@ -204,11 +204,11 @@ if __name__ == "__main__":
         # 测试指定字段
         filtered_data = await get_top_ten_shareholders_circulation_by_dates(
             stock_info,
-            page_size=3,
-            limit=3,
+            page_size=4,
+            limit=4,
             fields=['report_date', 'holder_name', 'rank']
         )
         print("\n指定字段的股东数据:")
-        print(json.dumps(filtered_data[:5], ensure_ascii=False, indent=2))
+        print(json.dumps(filtered_data, ensure_ascii=False, indent=2))
 
     asyncio.run(main())

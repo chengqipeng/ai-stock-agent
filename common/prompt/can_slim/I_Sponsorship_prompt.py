@@ -4,6 +4,7 @@ from datetime import datetime
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_count, get_holder_number_json, \
     get_holder_number_json_cn, get_org_holder_by_type
+from service.eastmoney.stock_info.stock_new_major_shareholders_detector import get_detect_new_major_shareholders
 from service.eastmoney.stock_info.stock_northbound_funds import get_northbound_funds_cn
 from service.eastmoney.stock_info.stock_top_ten_shareholders_circulation import \
     get_top_ten_shareholders_circulation_by_dates
@@ -18,6 +19,9 @@ async def get_I_Sponsorship_prompt(stock_info: StockInfo):
     northbound_funds = await get_northbound_funds_cn(stock_info, ['TRADE_DATE', 'ADD_MARKET_CAP', 'ADD_SHARES_AMP', 'ADD_SHARES_AMP'])
 
     org_holder_by_type_she_bao = await get_org_holder_by_type(stock_info, '社保')
+
+    detect_new_major_shareholders = await get_detect_new_major_shareholders(stock_info)
+
     return f"""
 大模型不知道谁是“聪明钱”，你需要喂给它具体的持仓数据。在 A 股或美股软件（如 Wind、同花顺、东方财富、Seeking Alpha）中，抓取以下 3 组核心数据：
 
@@ -49,7 +53,8 @@ async def get_I_Sponsorship_prompt(stock_info: StockInfo):
   ** 前十大股东是在加仓 (Accumulating) 还是 减仓 (Distributing) **
   {json.dumps(top_ten_hold_change_shareholders_circulation_by_dates, ensure_ascii=False, indent=2)}
   
-  ○ 是否有新进 (New Position) 的大机构？
+  ** 是否有新进 (New Position) 的大机构 **
+  {json.dumps(detect_new_major_shareholders, ensure_ascii=False, indent=2)}
 
 [角色设定] 你现在是一位深谙“资金博弈”的机构行为分析师。我们正在进行 CAN SLIM 中的 "I" (Institutional Sponsorship) 维度分析。你的任务是识别这只股票背后是否有强有力的“庄家”或“长线资金”支持。
 [分析逻辑与评分标准]
