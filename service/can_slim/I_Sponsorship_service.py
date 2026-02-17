@@ -6,6 +6,7 @@ from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_count, get_org_holder_by_type, get_org_holder_json
 from service.eastmoney.stock_info.stock_new_major_shareholders_detector import get_detect_new_major_shareholders
 from service.eastmoney.stock_info.stock_northbound_funds import get_northbound_funds_cn
+from service.eastmoney.stock_info.stock_org_hold_by_sh_sz_hk import get_org_hold_by_sh_sz_hk_rank_cn
 from service.eastmoney.stock_info.stock_top_ten_shareholders_circulation import get_top_ten_shareholders_circulation_by_dates
 from service.llm.deepseek_client import DeepSeekClient
 
@@ -25,6 +26,8 @@ async def build_I_Sponsorship_prompt(stock_info: StockInfo) -> str:
     )
     org_holder_by_type_she_bao = await get_org_holder_by_type(stock_info, '社保')
     detect_new_major_shareholders = await get_detect_new_major_shareholders(stock_info)
+
+    org_hold_by_sh_sz_hk_rank_cn = await get_org_hold_by_sh_sz_hk_rank_cn(stock_info)
     
     return I_SPONSORSHIP_PROMPT_TEMPLATE.format(
         current_date=datetime.now().strftime('%Y-%m-%d'),
@@ -36,7 +39,8 @@ async def build_I_Sponsorship_prompt(stock_info: StockInfo) -> str:
         northbound_funds_json=json.dumps(northbound_funds, ensure_ascii=False, indent=2),
         org_holder_she_bao_json=json.dumps(org_holder_by_type_she_bao, ensure_ascii=False, indent=2),
         top_ten_hold_change_json=json.dumps(top_ten_hold_change_shareholders_circulation_by_dates, ensure_ascii=False, indent=2),
-        detect_new_major_shareholders_json=json.dumps(detect_new_major_shareholders, ensure_ascii=False, indent=2)
+        detect_new_major_shareholders_json=json.dumps(detect_new_major_shareholders, ensure_ascii=False, indent=2),
+        org_hold_by_sh_sz_hk_rank=json.dumps(org_hold_by_sh_sz_hk_rank_cn, ensure_ascii=False, indent=2)
     )
 
 

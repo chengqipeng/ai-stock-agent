@@ -4,7 +4,7 @@ from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.amount_utils import convert_amount_org_holder_1, convert_amount_org_holder_2
 
 
-async def get_mutual_stock_hold_rank(stock_info: StockInfo, page_size: int = 4):
+async def get_org_hold_by_sh_sz_hk_rank(stock_info: StockInfo, page_size: int = 4):
     """获取沪深港通持股排名数据"""
     cache_path = get_cache_path("mutual_stock_hold_rank", stock_info.stock_code)
     
@@ -40,7 +40,7 @@ async def get_mutual_stock_hold_rank(stock_info: StockInfo, page_size: int = 4):
         return []
 
 
-async def get_mutual_stock_hold_rank_cn(stock_info: StockInfo, fields=None, page_size: int = 4):
+async def get_org_hold_by_sh_sz_hk_rank_cn(stock_info: StockInfo, fields=None, page_size: int = 4):
     """获取沪深港通持股排名数据并转换为中文键
     
     Args:
@@ -48,7 +48,7 @@ async def get_mutual_stock_hold_rank_cn(stock_info: StockInfo, fields=None, page
         fields: 可选字段列表（英文key），None表示返回所有字段
         page_size: 返回数据条数
     """
-    data = await get_mutual_stock_hold_rank(stock_info, page_size)
+    data = await get_org_hold_by_sh_sz_hk_rank(stock_info, page_size)
     
     field_map = {
         "TRADE_DATE": "交易日期",
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     
     async def main():
         stock_info = get_stock_info_by_name("北方华创")
-        result = await get_mutual_stock_hold_rank_cn(stock_info)
+        result = await get_org_hold_by_sh_sz_hk_rank_cn(stock_info)
         import json
         print(json.dumps(result, ensure_ascii=False, indent=2))
     

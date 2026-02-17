@@ -22,6 +22,9 @@ I_SPONSORSHIP_PROMPT_TEMPLATE = """
 
   ** 社保基金 (National Social Security Fund): 代表国家队的长期稳健资金，背书能力极强 **
   {org_holder_she_bao_json}
+  
+  ** 沪深港通持股： 代表境外投资者的高度认可 **
+  {org_hold_by_sh_sz_hk_rank}
 
 3. 持仓变动 (Position Changes):
   ** 前十大股东是在加仓 (Accumulating) 还是 减仓 (Distributing) **
