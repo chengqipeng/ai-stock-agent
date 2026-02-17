@@ -333,6 +333,9 @@ async def get_org_holder_count(stock_info: StockInfo, page_size=8):
     from collections import defaultdict
     grouped_data = defaultdict(int)
     for item in holder_data:
+        # 过滤掉机构汇总数据
+        if item.get('ORG_TYPE_NAME') == '机构汇总':
+            continue
         report_date = item.get('REPORT_DATE', '--')[:10] if item.get('REPORT_DATE') else '--'
         hold_num = item.get('HOULD_NUM', 0) or 0
         grouped_data[report_date] += hold_num
