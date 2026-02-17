@@ -5,9 +5,12 @@ from common.http.http_utils import EASTMONEY_API_URL, fetch_eastmoney_api
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
 
-async def get_org_holder(stock_info: StockInfo, page_size=8, page_number=1):
+async def get_org_holder(stock_info: StockInfo, page_size=30, page_number=1):
     """获取机构持仓数据"""
-    cache_path = get_cache_path("org_holder", stock_info.stock_code)
+    from datetime import datetime, timedelta
+    from collections import defaultdict
+    
+    cache_path = get_cache_path("org_holder_" + str(page_size) + "_" + str(page_number), stock_info.stock_code)
     
     # 检查缓存
     cached_data = load_cache(cache_path)
@@ -30,8 +33,21 @@ async def get_org_holder(stock_info: StockInfo, page_size=8, page_number=1):
     data = await fetch_eastmoney_api(EASTMONEY_API_URL, params)
     if data.get("result") and data["result"].get("data"):
         result = data["result"]["data"]
-        save_cache(cache_path, result)
-        return result
+        # 按报告日期分组
+        one_year_ago = datetime.now() - timedelta(days=365)
+        grouped = defaultdict(list)
+        for item in result:
+            report_date_str = item.get('REPORT_DATE', '')
+            if report_date_str:
+                grouped[report_date_str[:10]].append(item)
+        # 过滤近一年的报告日期，保留完整数据
+        filtered_result = []
+        for date_str, items in grouped.items():
+            report_date = datetime.strptime(date_str, '%Y-%m-%d')
+            if report_date >= one_year_ago:
+                filtered_result.extend(items)
+        save_cache(cache_path, filtered_result)
+        return filtered_result
     else:
         return []
 
@@ -221,7 +237,7 @@ async def get_org_holder_markdown(stock_info: StockInfo, page_size=8):
     return markdown
 
 
-async def get_org_holder_json(stock_info: StockInfo, page_size=8, fields=None):
+async def get_org_holder_json(stock_info: StockInfo, page_size=30, fields=None):
     """获取机构持仓明细并转换为JSON格式
     
     Args:
@@ -251,13 +267,13 @@ async def get_org_holder_json(stock_info: StockInfo, page_size=8, fields=None):
     
     result = []
     for report_date, items in grouped_data.items():
+        # 过滤掉机构汇总数据
+        items = [item for item in items if item.get('ORG_TYPE_NAME') != '机构汇总']
+        
         report_items = []
-        has_other = any(item.get('ORG_TYPE_NAME') == '其他' for item in items)
+        #has_other = any(item.get('ORG_TYPE_NAME') == '其他' for item in items)
         
         for item in items:
-            # 过滤掉机构汇总数据
-            if item.get('ORG_TYPE_NAME') == '机构汇总':
-                continue
             row = {}
             for en_key, cn_key in field_map.items():
                 if fields and en_key not in fields:
@@ -268,11 +284,11 @@ async def get_org_holder_json(stock_info: StockInfo, page_size=8, fields=None):
                 elif en_key == 'HOULD_NUM':
                     row[cn_key] = item.get(en_key)
                 elif en_key == 'FREE_SHARES':
-                    row[cn_key] = convert_amount_org_holder_1(item.get(en_key, 0)) if item.get(en_key) else '--'
+                    row[cn_key] = convert_amount_org_holder_1(item.get(en_key, 0)) if item.get(en_key) else '0'
                 elif en_key == 'FREE_MARKET_CAP':
-                    row[cn_key] = convert_amount_org_holder_2(item.get(en_key, 0)) if item.get(en_key) else '--'
+                    row[cn_key] = convert_amount_org_holder_2(item.get(en_key, 0)) if item.get(en_key) else '0'
                 elif en_key == 'TOTALSHARES_RATIO':
-                    row[cn_key] = f"{round(item.get(en_key, 0), 2)}%" if item.get(en_key) else '--'
+                    row[cn_key] = f"{round(item.get(en_key, 0), 2)}%" if item.get(en_key) else '0'
                 elif en_key == 'FREESHARES_RATIO':
                     row[cn_key] = f"{round((item.get(en_key) or 0), 2)}%"
                 elif en_key == 'HOLDCHA_NUM':
@@ -280,20 +296,20 @@ async def get_org_holder_json(stock_info: StockInfo, page_size=8, fields=None):
             
             report_items.append(row)
         
-        if not has_other and (not fields or 'ORG_TYPE_NAME' in fields):
-            other_row = {}
-            for en_key, cn_key in field_map.items():
-                if fields and en_key not in fields:
-                    continue
-                if en_key == 'ORG_TYPE_NAME':
-                    other_row[cn_key] = '其他'
-                elif en_key == 'HOULD_NUM':
-                    other_row[cn_key] = '-'
-                elif en_key == 'FREE_SHARES':
-                    other_row[cn_key] = '0.00'
-                else:
-                    other_row[cn_key] = '-'
-            report_items.append(other_row)
+        # if not has_other and (not fields or 'ORG_TYPE_NAME' in fields):
+        #     other_row = {}
+        #     for en_key, cn_key in field_map.items():
+        #         if fields and en_key not in fields:
+        #             continue
+        #         if en_key == 'ORG_TYPE_NAME':
+        #             other_row[cn_key] = '其他'
+        #         elif en_key == 'HOULD_NUM':
+        #             other_row[cn_key] = '-'
+        #         elif en_key == 'FREE_SHARES':
+        #             other_row[cn_key] = '0.00'
+        #         else:
+        #             other_row[cn_key] = '-'
+        #     report_items.append(other_row)
         
         result.append({
             "报告日期": report_date,
