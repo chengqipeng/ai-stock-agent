@@ -484,7 +484,7 @@ if __name__ == "__main__":
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         # 测试股东人数数据
-        result = await get_org_holder_by_type(stock_info, '社保')
+        result = await get_org_holder_json(stock_info)
         print("股东人数数据 (JSON格式):")
         print(json.dumps(result, ensure_ascii=False, indent=2))
     

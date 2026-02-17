@@ -2,8 +2,7 @@ import json
 from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo
-from service.eastmoney.stock_info.stock_holder_data import get_org_holder_count, get_holder_number_json, \
-    get_holder_number_json_cn, get_org_holder_by_type
+from service.eastmoney.stock_info.stock_holder_data import get_org_holder_count, get_org_holder_by_type, get_org_holder_json
 from service.eastmoney.stock_info.stock_new_major_shareholders_detector import get_detect_new_major_shareholders
 from service.eastmoney.stock_info.stock_northbound_funds import get_northbound_funds_cn
 from service.eastmoney.stock_info.stock_top_ten_shareholders_circulation import \
@@ -12,7 +11,7 @@ from service.eastmoney.stock_info.stock_top_ten_shareholders_circulation import 
 
 async def get_I_Sponsorship_prompt(stock_info: StockInfo):
     org_holder_count = await get_org_holder_count(stock_info)
-    holder_number_json = await get_holder_number_json_cn(stock_info, 10, ['end_date', 'holder_total_num'])
+    org_holder_json = await get_org_holder_json(stock_info)
     top_ten_name_shareholders_circulation_by_dates = await get_top_ten_shareholders_circulation_by_dates(stock_info, page_size=3, limit=3, fields=['rank', 'holder_name', 'report_date'])
 
     top_ten_hold_change_shareholders_circulation_by_dates = await get_top_ten_shareholders_circulation_by_dates(stock_info, page_size=3, limit=3, fields=['rank', 'holder_name', 'hold_change', 'report_date'])
@@ -33,7 +32,7 @@ async def get_I_Sponsorship_prompt(stock_info: StockInfo):
   {json.dumps(org_holder_count, ensure_ascii=False, indent=2)}
   
   ** 季报/年报等公告中的“机构持股家数”近10次变化数据 **
-  {json.dumps(holder_number_json, ensure_ascii=False, indent=2)}
+  {json.dumps(org_holder_json, ensure_ascii=False, indent=2)}
 
 2. “聪明钱”名单 (The Smart Money List):
   ** 前十大流通股东 (Top 10 Holders): 具体的基金公司名称 **
