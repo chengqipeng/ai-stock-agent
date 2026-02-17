@@ -1,57 +1,36 @@
-import json
-from datetime import datetime
+"""I机构认同度分析提示词模板"""
 
-from common.utils.stock_info_utils import StockInfo
-from service.eastmoney.stock_info.stock_holder_data import get_org_holder_count, get_org_holder_by_type, get_org_holder_json
-from service.eastmoney.stock_info.stock_new_major_shareholders_detector import get_detect_new_major_shareholders
-from service.eastmoney.stock_info.stock_northbound_funds import get_northbound_funds_cn
-from service.eastmoney.stock_info.stock_top_ten_shareholders_circulation import \
-    get_top_ten_shareholders_circulation_by_dates
+I_SPONSORSHIP_PROMPT_TEMPLATE = """
+大模型不知道谁是"聪明钱"，你需要喂给它具体的持仓数据。在 A 股或美股软件（如 Wind、同花顺、东方财富、Seeking Alpha）中，抓取以下 3 组核心数据：
 
-
-async def get_I_Sponsorship_prompt(stock_info: StockInfo):
-    org_holder_count = await get_org_holder_count(stock_info)
-    org_holder_json = await get_org_holder_json(stock_info)
-    top_ten_name_shareholders_circulation_by_dates = await get_top_ten_shareholders_circulation_by_dates(stock_info, page_size=3, limit=3, fields=['rank', 'holder_name', 'report_date'])
-
-    top_ten_hold_change_shareholders_circulation_by_dates = await get_top_ten_shareholders_circulation_by_dates(stock_info, page_size=3, limit=3, fields=['rank', 'holder_name', 'hold_change', 'report_date'])
-    northbound_funds = await get_northbound_funds_cn(stock_info, ['TRADE_DATE', 'ADD_MARKET_CAP', 'ADD_SHARES_AMP', 'ADD_SHARES_AMP'])
-
-    org_holder_by_type_she_bao = await get_org_holder_by_type(stock_info, '社保')
-
-    detect_new_major_shareholders = await get_detect_new_major_shareholders(stock_info)
-
-    return f"""
-大模型不知道谁是“聪明钱”，你需要喂给它具体的持仓数据。在 A 股或美股软件（如 Wind、同花顺、东方财富、Seeking Alpha）中，抓取以下 3 组核心数据：
-
-#分析的股票（{datetime.now().strftime('%Y-%m-%d')}）
-{stock_info.stock_name}（{stock_info.stock_code_normalize}）
+#分析的股票（{current_date}）
+{stock_name}（{stock_code}）
 
 1. 机构持仓数量趋势 (Number of Funds):
   ** 最近 3-4 个季度的机构总数： 例如 Q1(50家) -> Q2(65家) -> Q3(90家) **
-  {json.dumps(org_holder_count, ensure_ascii=False, indent=2)}
+  {org_holder_count_json}
   
-  ** 季报/年报等公告中的“机构持股家数”近10次变化数据 **
-  {json.dumps(org_holder_json, ensure_ascii=False, indent=2)}
+  ** 季报/年报等公告中的"机构持股家数"近10次变化数据 **
+  {org_holder_json}
 
-2. “聪明钱”名单 (The Smart Money List):
+2. "聪明钱"名单 (The Smart Money List):
   ** 前十大流通股东 (Top 10 Holders): 具体的基金公司名称 **
-  {json.dumps(top_ten_name_shareholders_circulation_by_dates, ensure_ascii=False, indent=2)}
+  {top_ten_name_shareholders_json}
   
-  ** 北向资金 (Northbound Capital)近期增减持记录: 香港过来的外资，通常被视为“聪明钱”的风向标 **
-  {json.dumps(northbound_funds, ensure_ascii=False, indent=2)}
+  ** 北向资金 (Northbound Capital)近期增减持记录: 香港过来的外资，通常被视为"聪明钱"的风向标 **
+  {northbound_funds_json}
 
   ** 社保基金 (National Social Security Fund): 代表国家队的长期稳健资金，背书能力极强 **
-  {json.dumps(org_holder_by_type_she_bao, ensure_ascii=False, indent=2)}
+  {org_holder_she_bao_json}
 
 3. 持仓变动 (Position Changes):
   ** 前十大股东是在加仓 (Accumulating) 还是 减仓 (Distributing) **
-  {json.dumps(top_ten_hold_change_shareholders_circulation_by_dates, ensure_ascii=False, indent=2)}
+  {top_ten_hold_change_json}
   
   ** 是否有新进 (New Position) 的大机构 **
-  {json.dumps(detect_new_major_shareholders, ensure_ascii=False, indent=2)}
+  {detect_new_major_shareholders_json}
 
-[角色设定] 你现在是一位深谙“资金博弈”的机构行为分析师。我们正在进行 CAN SLIM 中的 "I" (Institutional Sponsorship) 维度分析。你的任务是识别这只股票背后是否有强有力的“庄家”或“长线资金”支持。
+[角色设定] 你现在是一位深谙"资金博弈"的机构行为分析师。我们正在进行 CAN SLIM 中的 "I" (Institutional Sponsorship) 维度分析。你的任务是识别这只股票背后是否有强有力的"庄家"或"长线资金"支持。
 [分析逻辑与评分标准]
 1. 数量趋势分析 (The Trend Test)
 ● 数据输入： 该股票过去 4 个季度的机构持股家数变化。
@@ -63,27 +42,26 @@ async def get_I_Sponsorship_prompt(stock_info: StockInfo):
 ● 数据输入： 前十大流通股东名单。
 ● 判定逻辑：
   ○ 强力背书： 是否有顶级机构（如 A 股的社保基金、汇金、北向资金；美股的 Fidelity, BlackRock）出现在名单中？
-  ○ 业绩验证： 这些持有者是历史业绩优秀的“金牛基金”，还是业绩平平的烂基金？（CAN SLIM 规则：只要有 1-2 家顶级基金持有即可，不求多，但求精。）
-  ○ 新进买入： 重点寻找“新进”的顶级机构。这通常意味着新的上涨周期的开始。
+  ○ 业绩验证： 这些持有者是历史业绩优秀的"金牛基金"，还是业绩平平的烂基金？（CAN SLIM 规则：只要有 1-2 家顶级基金持有即可，不求多，但求精。）
+  ○ 新进买入： 重点寻找"新进"的顶级机构。这通常意味着新的上涨周期的开始。
 3. 拥挤度警示 (Over-owned Warning)
 ● 逻辑： 物极必反。
-● 判定逻辑： 如果几乎所有知名基金都已经是股东了，且机构持股比例超过 70%-80%，请发出**“过度拥挤 (Overcrowded)”** 警告。这意味着潜在的买家已经枯竭，剩下的全是潜在的卖家。
-[最终输出] 请基于以上逻辑，输出结论： “该股票的机构认同度评价为【强力买入 / 稳健持有 / 机构出逃 / 过度拥挤】。其中，【XX机构/北向资金】的动向是最大的加分/减分项。”
+● 判定逻辑： 如果几乎所有知名基金都已经是股东了，且机构持股比例超过 70%-80%，请发出**"过度拥挤 (Overcrowded)"** 警告。这意味着潜在的买家已经枯竭，剩下的全是潜在的卖家。
+[最终输出] 请基于以上逻辑，输出结论： "该股票的机构认同度评价为【强力买入 / 稳健持有 / 机构出逃 / 过度拥挤】。其中，【XX机构/北向资金】的动向是最大的加分/减分项。"
 
 第三部分：为什么要这样设计？(The "Why")
 这个指令解决了 I 维度分析中最容易误导散户的三个陷阱：
-1. 区分了“数量”与“质量”
+1. 区分了"数量"与"质量"
 很多垃圾股也有机构持有（可能是量化基金或指数基金被动配置）。
-● 指令作用： 强制模型去检查**“谁在买”**。如果是社保基金或北向资金（Smart Money）新进，这比 10 个不知名的小私募买入要有力得多。
-2. 捕捉了“新进”信号
-欧奈尔强调，我们最喜欢看到的是**“业绩最好的基金在最近一个季度新建仓”**。
+● 指令作用： 强制模型去检查**"谁在买"**。如果是社保基金或北向资金（Smart Money）新进，这比 10 个不知名的小私募买入要有力得多。
+2. 捕捉了"新进"信号
+欧奈尔强调，我们最喜欢看到的是**"业绩最好的基金在最近一个季度新建仓"**。
 ● 指令作用： 提示词中专门强调了新进 (New Position)。这代表了该机构对公司未来 1-2 年业绩爆发的强烈信心，这往往是主升浪的开始。
-3. 设置了“拥挤度”防火墙
-这是很多老手才会注意的细节。当一只股票人尽皆知、所有基金都配满了的时候，往往是见顶的时候（如 2021 年初的“茅族”抱团股）。
-● 指令作用：拥挤度警示 让大模型帮你判断这是否是一个“迟到的派对”。如果大模型告诉你“过度拥挤”，你应该谨慎追高。
+3. 设置了"拥挤度"防火墙
+这是很多老手才会注意的细节。当一只股票人尽皆知、所有基金都配满了的时候，往往是见顶的时候（如 2021 年初的"茅族"抱团股）。
+● 指令作用：拥挤度警示 让大模型帮你判断这是否是一个"迟到的派对"。如果大模型告诉你"过度拥挤"，你应该谨慎追高。
 导师的实战建议
-在 A 股市场，“北向资金” (Northbound Capital) 是 I 维度中最灵敏的指标。 如果你没有复杂的机构数据，只看这一条：
+在 A 股市场，"北向资金" (Northbound Capital) 是 I 维度中最灵敏的指标。 如果你没有复杂的机构数据，只看这一条：
 如果一只股票在回调（S 维度缩量），但北向资金却在天天净买入（逆势加仓），这就是最标准的 I 维度买入信号。
 跟着聪明钱走，你不需要比市场更聪明，你只需要比散户站得更近一点。
-
 """
