@@ -40,6 +40,58 @@ async def get_org_hold_by_sh_sz_hk_rank(stock_info: StockInfo, page_size: int = 
         return []
 
 
+async def get_org_hold_by_sh_sz_hk_rank_json(stock_info: StockInfo, fields=None, page_size: int = 4):
+    """获取沪深港通持股排名数据并转换为JSON格式（英文键）
+    
+    Args:
+        stock_info: 股票信息
+        fields: 可选字段列表（英文key），None表示返回所有字段
+        page_size: 返回数据条数
+    """
+    data = await get_org_hold_by_sh_sz_hk_rank(stock_info, page_size)
+    
+    result = []
+    for item in data:
+        json_item = {}
+        for k, v in item.items():
+            if fields is None or k in fields:
+                json_item[k] = v
+        
+        if "TRADE_DATE" in json_item and json_item["TRADE_DATE"]:
+            json_item["TRADE_DATE"] = json_item["TRADE_DATE"].split()[0]
+        
+        if "HOLD_SHARES" in json_item and json_item["HOLD_SHARES"] is not None:
+            json_item["HOLD_SHARES"] = convert_amount_org_holder_1(json_item["HOLD_SHARES"])
+        
+        if "HOLD_MARKET_CAP" in json_item and json_item["HOLD_MARKET_CAP"] is not None:
+            json_item["HOLD_MARKET_CAP"] = convert_amount_org_holder_2(json_item["HOLD_MARKET_CAP"])
+        
+        if "ADD_MARKET_CAP" in json_item and json_item["ADD_MARKET_CAP"] is not None:
+            json_item["ADD_MARKET_CAP"] = convert_amount_org_holder_2(json_item["ADD_MARKET_CAP"])
+        
+        if "FREE_SHARES_RATIO" in json_item and json_item["FREE_SHARES_RATIO"] is not None:
+            json_item["FREE_SHARES_RATIO"] = str(round(json_item["FREE_SHARES_RATIO"], 2)) + "%"
+        
+        if "TOTAL_SHARES_RATIO" in json_item and json_item["TOTAL_SHARES_RATIO"] is not None:
+            json_item["TOTAL_SHARES_RATIO"] = str(round(json_item["TOTAL_SHARES_RATIO"], 2)) + "%"
+        
+        if "HOLD_SHARES_CHANGE" in json_item and json_item["HOLD_SHARES_CHANGE"] is not None:
+            json_item["HOLD_SHARES_CHANGE"] = convert_amount_org_holder_1(json_item["HOLD_SHARES_CHANGE"])
+        
+        if "CHANGE_RATE" in json_item and json_item["CHANGE_RATE"] is not None:
+            json_item["CHANGE_RATE"] = str(round(json_item["CHANGE_RATE"], 2)) + "%"
+        
+        if "ADD_SHARES_AMP" in json_item and json_item["ADD_SHARES_AMP"] is not None:
+            json_item["ADD_SHARES_AMP"] = str(round(json_item["ADD_SHARES_AMP"], 2)) + "%"
+        
+        if "PARTICIPANT_NUM" in json_item and json_item["PARTICIPANT_NUM"] is not None:
+            json_item["PARTICIPANT_NUM"] = str(json_item["PARTICIPANT_NUM"])
+        
+        result.append(json_item)
+    
+    return result
+
+
 async def get_org_hold_by_sh_sz_hk_rank_cn(stock_info: StockInfo, fields=None, page_size: int = 4):
     """获取沪深港通持股排名数据并转换为中文键
     
@@ -62,7 +114,8 @@ async def get_org_hold_by_sh_sz_hk_rank_cn(stock_info: StockInfo, fields=None, p
         "ADD_MARKET_CAP": "增持市值（亿元）",
         "ADD_SHARES_AMP": "增持幅度",
         "CLOSE_PRICE": "收盘价",
-        "CHANGE_RATE": "涨跌幅"
+        "CHANGE_RATE": "涨跌幅",
+        "PARTICIPANT_NUM": "持股家数(家)"
     }
     
     result = []
@@ -100,6 +153,9 @@ async def get_org_hold_by_sh_sz_hk_rank_cn(stock_info: StockInfo, fields=None, p
         if "增持幅度" in cn_item and cn_item["增持幅度"] is not None:
             cn_item["增持幅度"] = str(round(cn_item["增持幅度"], 2)) + "%"
         
+        if "持股家数(家)" in cn_item and cn_item["持股家数(家)"] is not None:
+            cn_item["持股家数(家)"] = str(cn_item["持股家数(家)"])
+        
         result.append(cn_item)
     
     return result
@@ -111,7 +167,7 @@ if __name__ == "__main__":
     
     async def main():
         stock_info = get_stock_info_by_name("北方华创")
-        result = await get_org_hold_by_sh_sz_hk_rank_cn(stock_info, ['TRADE_DATE', 'HOLD_SHARES_CHANGE', 'ADD_MARKET_CAP', 'ADD_SHARES_AMP'])
+        result = await get_org_hold_by_sh_sz_hk_rank_cn(stock_info)
         import json
         print(json.dumps(result, ensure_ascii=False, indent=2))
     

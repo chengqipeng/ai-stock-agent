@@ -245,7 +245,11 @@ async def get_org_holder_json(stock_info: StockInfo, page_size=30, fields=None):
         page_size: 返回数据条数
         fields: 指定返回的字段列表（英文key），如 ['ORG_TYPE_NAME', 'HOULD_NUM', 'FREE_SHARES']，None表示返回所有字段
     """
+    from service.eastmoney.stock_info.stock_org_hold_by_sh_sz_hk import get_org_hold_by_sh_sz_hk_rank
+    
     holder_data = await get_org_holder(stock_info, page_size)
+    sh_sz_hk_data = await get_org_hold_by_sh_sz_hk_rank(stock_info, page_size)
+    
     if not holder_data:
         return []
     from collections import defaultdict
@@ -253,6 +257,13 @@ async def get_org_holder_json(stock_info: StockInfo, page_size=30, fields=None):
     for item in holder_data:
         report_date = item.get('REPORT_DATE', '--')[:10] if item.get('REPORT_DATE') else '--'
         grouped_data[report_date].append(item)
+    
+    # 将沪深港通数据按日期分组
+    sh_sz_hk_grouped = {}
+    for item in sh_sz_hk_data:
+        trade_date = item.get('TRADE_DATE', '')[:10] if item.get('TRADE_DATE') else ''
+        if trade_date:
+            sh_sz_hk_grouped[trade_date] = item
     
     # 字段映射
     field_map = {
@@ -267,11 +278,10 @@ async def get_org_holder_json(stock_info: StockInfo, page_size=30, fields=None):
     
     result = []
     for report_date, items in grouped_data.items():
-        # 过滤掉机构汇总数据
-        items = [item for item in items if item.get('ORG_TYPE_NAME') != '机构汇总']
+        # 过滤掉机构汇总和其他类型数据
+        items = [item for item in items if item.get('ORG_TYPE_NAME') not in ['机构汇总', '其他']]
         
         report_items = []
-        #has_other = any(item.get('ORG_TYPE_NAME') == '其他' for item in items)
         
         for item in items:
             row = {}
@@ -296,20 +306,26 @@ async def get_org_holder_json(stock_info: StockInfo, page_size=30, fields=None):
             
             report_items.append(row)
         
-        # if not has_other and (not fields or 'ORG_TYPE_NAME' in fields):
-        #     other_row = {}
-        #     for en_key, cn_key in field_map.items():
-        #         if fields and en_key not in fields:
-        #             continue
-        #         if en_key == 'ORG_TYPE_NAME':
-        #             other_row[cn_key] = '其他'
-        #         elif en_key == 'HOULD_NUM':
-        #             other_row[cn_key] = '-'
-        #         elif en_key == 'FREE_SHARES':
-        #             other_row[cn_key] = '0.00'
-        #         else:
-        #             other_row[cn_key] = '-'
-        #     report_items.append(other_row)
+        # 合并沪深港通数据
+        if report_date in sh_sz_hk_grouped:
+            sh_item = sh_sz_hk_grouped[report_date]
+            sh_row = {}
+            if not fields or 'ORG_TYPE_NAME' in fields:
+                sh_row['机构名称'] = '沪深港通持股'
+            if not fields or 'HOULD_NUM' in fields:
+                sh_row['持股家数(家)'] = str(sh_item.get('PARTICIPANT_NUM')) if sh_item.get('PARTICIPANT_NUM') is not None else None
+            if not fields or 'FREE_SHARES' in fields:
+                sh_row['持股总数(万股)'] = convert_amount_org_holder_1(sh_item.get('HOLD_SHARES', 0)) if sh_item.get('HOLD_SHARES') else '0'
+            if not fields or 'FREE_MARKET_CAP' in fields:
+                sh_row['持股市值(亿元)'] = convert_amount_org_holder_2(sh_item.get('HOLD_MARKET_CAP', 0)) if sh_item.get('HOLD_MARKET_CAP') else '0'
+            if not fields or 'TOTALSHARES_RATIO' in fields:
+                sh_row['占总股本比例(%)'] = f"{round(sh_item.get('TOTAL_SHARES_RATIO', 0), 2)}%" if sh_item.get('TOTAL_SHARES_RATIO') else '0'
+            if not fields or 'FREESHARES_RATIO' in fields:
+                sh_row['占流通股比例(%)'] = f"{round(sh_item.get('FREE_SHARES_RATIO', 0), 2)}%" if sh_item.get('FREE_SHARES_RATIO') else '0'
+            if not fields or 'HOLDCHA_NUM' in fields:
+                sh_row['持股变化(万股)'] = convert_amount_org_holder_1(sh_item.get('HOLD_SHARES_CHANGE', 0)) if sh_item.get('HOLD_SHARES_CHANGE') else '0'
+            
+            report_items.append(sh_row)
         
         result.append({
             "报告日期": report_date,
@@ -349,8 +365,8 @@ async def get_org_holder_count(stock_info: StockInfo, page_size=8):
     from collections import defaultdict
     grouped_data = defaultdict(int)
     for item in holder_data:
-        # 过滤掉机构汇总数据
-        if item.get('ORG_TYPE_NAME') == '机构汇总':
+        # 过滤掉机构汇总和其他类型数据
+        if item.get('ORG_TYPE_NAME') in ['机构汇总', '其他']:
             continue
         report_date = item.get('REPORT_DATE', '--')[:10] if item.get('REPORT_DATE') else '--'
         hold_num = item.get('HOULD_NUM', 0) or 0
