@@ -255,6 +255,9 @@ async def get_org_holder_json(stock_info: StockInfo, page_size=8, fields=None):
         has_other = any(item.get('ORG_TYPE_NAME') == '其他' for item in items)
         
         for item in items:
+            # 过滤掉机构汇总数据
+            if item.get('ORG_TYPE_NAME') == '机构汇总':
+                continue
             row = {}
             for en_key, cn_key in field_map.items():
                 if fields and en_key not in fields:
