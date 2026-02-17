@@ -39,15 +39,11 @@ async def get_I_Sponsorship_prompt(stock_info: StockInfo):
   ** 前十大流通股东 (Top 10 Holders): 具体的基金公司名称 **
   {json.dumps(top_ten_name_shareholders_circulation_by_dates, ensure_ascii=False, indent=2)}
   
-  ○ A 股特供指标：
-    ** 北向资金 (Northbound Capital)近期增减持记录: 香港过来的外资，通常被视为“聪明钱”的风向标 **
-    {json.dumps(northbound_funds, ensure_ascii=False, indent=2)}
-    
-    ** 社保基金 (National Social Security Fund): 代表国家队的长期稳健资金，背书能力极强 **
-    {json.dumps(org_holder_by_type_she_bao, ensure_ascii=False, indent=2)}
-    
-    ■ 明星基金经理： 是否有行业知名大佬（如张坤、葛兰、朱少醒等）新进？
-数据源：https://emweb.securities.eastmoney.com/pc_hsf10/pages/index.html?type=web&code=SZ002008&color=b#/gdyj
+  ** 北向资金 (Northbound Capital)近期增减持记录: 香港过来的外资，通常被视为“聪明钱”的风向标 **
+  {json.dumps(northbound_funds, ensure_ascii=False, indent=2)}
+
+  ** 社保基金 (National Social Security Fund): 代表国家队的长期稳健资金，背书能力极强 **
+  {json.dumps(org_holder_by_type_she_bao, ensure_ascii=False, indent=2)}
 
 3. 持仓变动 (Position Changes):
   ** 前十大股东是在加仓 (Accumulating) 还是 减仓 (Distributing) **
