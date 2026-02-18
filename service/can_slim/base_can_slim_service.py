@@ -46,7 +46,8 @@ class BaseCanSlimService(ABC):
             'stock_code': self.stock_info.stock_code_normalize
         })
         
-        return template.format(**params)
+        prompt = template.format(**params)
+        return self.append_final_output(prompt)
     
     async def execute(self, deep_thinking: bool = False) -> str:
         """执行分析流程"""
@@ -77,3 +78,14 @@ class BaseCanSlimService(ABC):
     def to_json(self, data: Any) -> str:
         """将数据转换为JSON字符串"""
         return json.dumps(data, ensure_ascii=False, indent=2)
+    
+    def get_final_output_instruction(self) -> str:
+        """获取最终输出指令（子类可覆盖以提供特定维度的输出要求）"""
+        return ""
+    
+    def append_final_output(self, prompt: str) -> str:
+        """在提示词末尾追加最终输出指令"""
+        final_output = self.get_final_output_instruction()
+        if final_output:
+            return f"{prompt}\n\n{final_output}"
+        return prompt

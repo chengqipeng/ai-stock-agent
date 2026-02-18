@@ -1,6 +1,7 @@
 from typing import Dict, Any
 
 from common.prompt.can_slim.A_Earnings_Increases_prompt import A_EARNINGS_INCREASES_PROMPT_TEMPLATE
+from common.constants.can_slim_final_outputs import A_FINAL_OUTPUT
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json
 from service.can_slim.base_can_slim_service import BaseCanSlimService
@@ -112,6 +113,9 @@ class AEarningsIncreasesService(BaseCanSlimService):
             'cagr_description': self.data_cache['cagr_description'],
             'reality_check_data_json': self.to_json(self.data_cache['reality_check'])
         }
+    
+    def get_final_output_instruction(self) -> str:
+        return A_FINAL_OUTPUT
 
 
 async def execute_A_Earnings_Increases(stock_info: StockInfo, deep_thinking: bool = False) -> str:

@@ -3,6 +3,7 @@ from typing import Dict, Any
 import pandas as pd
 
 from common.prompt.can_slim.L_or_Laggard_prompt import L_OR_LAGGARD_PROMPT_TEMPLATE
+from common.constants.can_slim_final_outputs import L_FINAL_OUTPUT
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.indices.stock_market_data import get_stock_relative_strength_cn
 from service.eastmoney.stock_info.stock_industry_ranking import get_stock_industry_ranking_json
@@ -132,6 +133,9 @@ class LOrLaggardService(BaseCanSlimService):
             'stock_industry_ranking_json': self.to_json(self.data_cache['stock_industry_ranking']),
             'resilience_data_json': self.to_json(self.data_cache['resilience_data_cn'])
         }
+    
+    def get_final_output_instruction(self) -> str:
+        return L_FINAL_OUTPUT
 
 
 async def build_L_or_Laggard_prompt(stock_info: StockInfo) -> str:

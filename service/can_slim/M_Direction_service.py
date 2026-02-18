@@ -2,6 +2,7 @@ from typing import Dict, Any
 import pandas as pd
 
 from common.prompt.can_slim.M_Direction_prompt import M_DIRECTION_PROMPT_TEMPLATE
+from common.constants.can_slim_final_outputs import M_FINAL_OUTPUT
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.auto_job.stock_history_highest_lowest_price_data import get_new_high_low_count, get_top_strongest_stocks
 from service.eastmoney.technical.stock_day_range_kline import calculate_moving_averages
@@ -66,6 +67,9 @@ class MDirectionService(BaseCanSlimService):
             'new_high_low_count_json': self.to_json(self.data_cache['new_high_low_count']),
             'top_strongest_stocks_json': self.to_json(self.data_cache['top_strongest_stocks'])
         }
+    
+    def get_final_output_instruction(self) -> str:
+        return M_FINAL_OUTPUT
 
 
 async def build_M_Direction_prompt(stock_info: StockInfo) -> str:

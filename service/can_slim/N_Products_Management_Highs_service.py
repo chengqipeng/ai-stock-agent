@@ -1,6 +1,7 @@
 from typing import Dict, Any
 
 from common.prompt.can_slim.N_Products_Management_Highs_prompt import N_PRODUCTS_MANAGEMENT_HIGHS_PROMPT_TEMPLATE
+from common.constants.can_slim_final_outputs import N_FINAL_OUTPUT
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.indices.stock_market_data import get_stock_relative_strength_cn
 from service.eastmoney.stock_info.stock_holder_data import get_shareholder_increase_json
@@ -39,6 +40,9 @@ class NProductsManagementHighsService(BaseCanSlimService):
             'stock_relative_strength_json': self.to_json(self.data_cache['stock_relative_strength']),
             'stock_history_volume_json': self.to_json(self.data_cache['stock_history_volume'])
         }
+    
+    def get_final_output_instruction(self) -> str:
+        return N_FINAL_OUTPUT
 
 async def execute_N_Products_Management_Highs(stock_info: StockInfo, deep_thinking: bool = False) -> str:
     """执行N新产品/新管理层/新高点分析"""

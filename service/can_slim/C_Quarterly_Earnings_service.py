@@ -1,6 +1,7 @@
 from typing import Dict, Any
 
 from common.prompt.can_slim.C_Quarterly_Earnings_prompt import C_QUARTERLY_EARNINGS_PROMPT_TEMPLATE
+from common.constants.can_slim_final_outputs import C_FINAL_OUTPUT
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.forecast.stock_institution_forecast_list import get_institution_forecast_future_to_json, get_institution_forecast_historical_to_json
 from service.eastmoney.forecast.stock_institution_forecast_summary import get_institution_forecast_summary_future_json, get_institution_forecast_summary_historical_json
@@ -34,6 +35,9 @@ class CQuarterlyEarningsService(BaseCanSlimService):
             'historical_forecast_summary': self.data_cache['historical_forecast_summary'],
             'future_forecast_summary': self.data_cache['future_forecast_summary']
         }
+    
+    def get_final_output_instruction(self) -> str:
+        return C_FINAL_OUTPUT
 
 
 async def execute_C_Quarterly_Earnings(stock_info: StockInfo, deep_thinking: bool = False) -> str:

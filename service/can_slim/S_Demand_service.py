@@ -1,6 +1,7 @@
 from typing import Dict, Any
 
 from common.prompt.can_slim.S_Demand_prompt import S_DEMAND_PROMPT_TEMPLATE
+from common.constants.can_slim_final_outputs import S_FINAL_OUTPUT
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_financial_main_with_total_share import get_equity_data_to_json
 from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_json, get_fund_flow_history_json_cn, get_20day_volume_avg_cn, get_5day_volume_avg
@@ -71,6 +72,9 @@ class SDemandService(BaseCanSlimService):
             'stock_lock_up_period_json': self.to_json(self.data_cache['stock_lock_up_period']),
             'stock_repurchase_json': self.to_json(self.data_cache['stock_repurchase'])
         }
+    
+    def get_final_output_instruction(self) -> str:
+        return S_FINAL_OUTPUT
 
 
 async def build_S_Demand_prompt(stock_info: StockInfo) -> str:

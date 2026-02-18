@@ -1,6 +1,7 @@
 from typing import Dict, Any
 
 from common.prompt.can_slim.I_Sponsorship_prompt import I_SPONSORSHIP_PROMPT_TEMPLATE
+from common.constants.can_slim_final_outputs import I_FINAL_OUTPUT
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_count, get_org_holder_by_type, get_org_holder_json
 from service.eastmoney.stock_info.stock_new_major_shareholders_detector import get_detect_new_major_shareholders
@@ -35,6 +36,9 @@ class ISponsorshipService(BaseCanSlimService):
             'top_ten_hold_change_json': self.to_json(self.data_cache['top_ten_hold_change']),
             'detect_new_major_shareholders_json': self.to_json(self.data_cache['detect_new_major_shareholders'])
         }
+    
+    def get_final_output_instruction(self) -> str:
+        return I_FINAL_OUTPUT
 
 
 async def build_I_Sponsorship_prompt(stock_info: StockInfo) -> str:
