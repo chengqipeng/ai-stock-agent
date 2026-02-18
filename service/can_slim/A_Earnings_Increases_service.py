@@ -107,7 +107,7 @@ async def execute_A_Earnings_Increases(stock_info: StockInfo, deep_thinking: boo
     cagr_value, cagr_description = calculate_cagr(eps_compare_data)
 
     """构建A年度盈利增长分析提示词"""
-    return A_EARNINGS_INCREASES_PROMPT_TEMPLATE.format(
+    prompt = A_EARNINGS_INCREASES_PROMPT_TEMPLATE.format(
         current_date=datetime.now().strftime('%Y-%m-%d'),
         stock_name=stock_info.stock_name,
         stock_code=stock_info.stock_code_normalize,
