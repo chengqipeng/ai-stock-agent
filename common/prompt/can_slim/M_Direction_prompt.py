@@ -3,7 +3,7 @@ from datetime import datetime
 import pandas as pd
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
-from service.auto_job.stock_history_highest_lowest_price_data import get_new_high_low_count
+from service.auto_job.stock_history_highest_lowest_price_data import get_new_high_low_count, get_top_strongest_stocks
 from service.eastmoney.technical.stock_day_range_kline import calculate_moving_averages
 from service.eastmoney.technical.abs.stock_indicator_base import get_stock_history_kline_max_min
 
@@ -67,8 +67,9 @@ async def build_M_Direction_prompt(stock_info: StockInfo) -> str:
     indices_stock_info = get_stock_info_by_name(stock_info.indices_stock_name)
     indices_moving_averages = await calculate_moving_averages(indices_stock_info)
     distribution_days = await distribution_Days_Count(indices_stock_info)
-
     new_high_low_count = get_new_high_low_count()
+    top_strongest_stocks = await get_top_strongest_stocks()
+
     return f"""
 #分析的股票（{datetime.now().strftime('%Y-%m-%d')}）
     {stock_info.stock_name}（{stock_info.stock_code_normalize}）    
@@ -83,7 +84,8 @@ async def build_M_Direction_prompt(stock_info: StockInfo) -> str:
     过去120天创新高 vs 创新低家数 (NH/NL)： 是创新高的多，还是创新低的多？
     {json.dumps(new_high_low_count, ensure_ascii=False, indent=2)}
     
-    领军股状态： 市场里最强的 5-10 只股票（如之前的龙头）最近是在创新高，还是在破位大跌？
+    领军股状态： 市场里最强的 10 只股票最近是在创新高，还是在破位大跌？
+    {json.dumps(top_strongest_stocks, ensure_ascii=False, indent=2)}
 
 [角色设定] 你现在是一位极其保守的、遵循欧奈尔趋势跟踪策略的市场分析师。你的任务不是预测明天会涨还是跌，而是根据当下的量价数据，精准判断目前的**"市场阶段" (Market Status)**。
 [判断逻辑与红绿灯机制]
