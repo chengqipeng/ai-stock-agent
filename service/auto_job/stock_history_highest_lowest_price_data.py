@@ -72,21 +72,27 @@ async def get_top_strongest_stocks(days: int = 120, top_n: int = 10) -> list:
     
     start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
-    # 第一步：筛选120天内创新高的股票，按创新高日期排序取前10
+    # 第一步：筛选120天内创新高的股票，粗略计算涨幅并排序取前10
     candidates = []
     for stock in results:
         highest_date = stock.get("highest_date", "")
-        if highest_date >= start_date and stock.get("name"):
+        highest_price = stock.get("highest_price")
+        lowest_price = stock.get("lowest_price")
+        
+        if highest_date >= start_date and highest_price and lowest_price and stock.get("name"):
             days_ago = (datetime.now() - datetime.strptime(highest_date, "%Y-%m-%d")).days
+            rough_gain = round((highest_price - lowest_price) / lowest_price * 100, 2)
+            
             candidates.append({
                 "name": stock.get("name"),
                 "code": stock.get("code"),
-                "highest_price": stock.get("highest_price"),
+                "highest_price": highest_price,
                 "highest_date": highest_date,
-                "days_ago": days_ago
+                "days_ago": days_ago,
+                "rough_gain": rough_gain
             })
     
-    candidates.sort(key=lambda x: x["days_ago"])
+    candidates.sort(key=lambda x: -x["rough_gain"])
     top_candidates = candidates[:top_n]
     
     # 第二步：对前10只股票获取K线数据计算真实涨幅
