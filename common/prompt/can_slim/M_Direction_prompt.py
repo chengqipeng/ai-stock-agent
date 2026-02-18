@@ -3,7 +3,7 @@ from datetime import datetime
 import pandas as pd
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
-from service.auto_job.stock_history_highest_price_auto_job import get_new_high_low_count
+from service.auto_job.stock_history_highest_lowest_price_data import get_new_high_low_count
 from service.eastmoney.technical.stock_day_range_kline import calculate_moving_averages
 from service.eastmoney.technical.abs.stock_indicator_base import get_stock_history_kline_max_min
 
