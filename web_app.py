@@ -1,4 +1,4 @@
-from api.web_api import app
+from api.web_batch_api import app
 
 if __name__ == "__main__":
     import uvicorn

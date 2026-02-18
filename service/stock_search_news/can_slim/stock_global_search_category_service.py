@@ -2,7 +2,7 @@ import asyncio
 import json
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
-from common.prompt.can_slim.search.global_search_category_prompt import get_global_search_category_prompt
+from common.prompt.search.global_search_category_prompt import get_global_search_category_prompt
 from service.llm.volcengine_client import VolcengineClient
 from service.stock_search_news.can_slim.stock_industry_service import get_industry_result
 
