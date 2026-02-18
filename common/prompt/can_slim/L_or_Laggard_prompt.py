@@ -1,4 +1,6 @@
 L_OR_LAGGARD_PROMPT_TEMPLATE = """
+当前系统时间：{system_time}
+
 大模型不能凭空猜谁是老大，你需要喂给它具体的**"比武数据"**。最关键的是区分 RS（相对强度） 和 RSI（相对强弱指标）——这是两个完全不同的概念，千万别搞混。
 #分析的股票（{current_date}）
 {stock_name}（{stock_code}）

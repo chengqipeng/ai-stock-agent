@@ -1,6 +1,8 @@
 """S供需分析提示词模板"""
 
 S_DEMAND_PROMPT_TEMPLATE = """
+当前系统时间：{system_time}
+
 #分析的股票（{current_date}）
 {stock_name}（{stock_code}）
 

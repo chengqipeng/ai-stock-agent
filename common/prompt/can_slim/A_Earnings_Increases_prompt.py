@@ -4,6 +4,8 @@ import json
 from datetime import datetime
 
 A_EARNINGS_INCREASES_PROMPT_TEMPLATE = """
+当前系统时间：{system_time}
+
 在华尔街，我们常说："C 吸引眼球，A 留住资金。"（"C" catches the eye, "A" keeps the money.）如果一家公司只有强劲的季度报表，但缺乏稳健的年度增长记录，那它很可能只是昙花一现的"烟花股"。
 以下是基于欧奈尔 CAN SLIM 模型的 A 维度 深度拆解，包含了你必须抓取的核心数据、底层逻辑以及实战判读标准。
 
@@ -12,7 +14,7 @@ A_EARNINGS_INCREASES_PROMPT_TEMPLATE = """
 
 一、 核心数据清单 (The "Must-Have" Data)
 在分析 A 维度时，请基于我接下来提供的财报数据，调取以下 4 组关键年度数据，严格按照以下标准进行评估：
-1. 过去 3-5 年的年度 EPS（扣非每股收益）
+1. 过去 3 年的年度 EPS（扣非每股收益）
    分析使用的数据源：
    <扣非每股收益>
    {eps_kc_data_json}

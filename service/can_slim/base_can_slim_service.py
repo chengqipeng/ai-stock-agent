@@ -41,6 +41,7 @@ class BaseCanSlimService(ABC):
         
         # 添加通用参数
         params.update({
+            'system_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'current_date': datetime.now().strftime('%Y-%m-%d'),
             'stock_name': self.stock_info.stock_name,
             'stock_code': self.stock_info.stock_code_normalize

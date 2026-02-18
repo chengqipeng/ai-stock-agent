@@ -1,6 +1,8 @@
 """N新产品/新管理层/新高点分析提示词模板"""
 
 N_PRODUCTS_MANAGEMENT_HIGHS_PROMPT_TEMPLATE = """
+当前系统时间：{system_time}
+
 在 CAN SLIM 系统中，N (New Products, New Management, New Highs) 是最具爆发力的维度。如果说 C 和 A 是火药（基本面支撑），那么 N 就是引爆它的火花（催化剂）。
 在华尔街，有一句名言："Great stocks always have something NEW."（伟大的股票总有新东西。）
 作为拥有 30 年经验的投资专家，我将为你深度拆解 N 维度 的分析逻辑。这不仅是寻找新闻，更是寻找质变。

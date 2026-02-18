@@ -1,6 +1,8 @@
 """C季度盈利分析提示词模板"""
 
 C_QUARTERLY_EARNINGS_PROMPT_TEMPLATE = """
+当前系统时间：{system_time}
+
 作为拥有 30 年经验的华尔街投资专家，我必须强调：在 CAN SLIM 模型的 C (Current Quarterly Earnings) 维度中，"扣非净利润"只是底线（排雷项），而非进攻信号（买入项）。
 要捕捉到真正的"超级成长股"（Super Growth Stocks），你必须组合观察以下 3 个核心杀手级指标。缺一不可，这就是区别"平庸股"与"大牛股"的分水岭。
 

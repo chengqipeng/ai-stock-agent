@@ -1,6 +1,8 @@
 """I机构认同度分析提示词模板"""
 
 I_SPONSORSHIP_PROMPT_TEMPLATE = """
+当前系统时间：{system_time}
+
 大模型不知道谁是"聪明钱"，你需要喂给它具体的持仓数据。在 A 股或美股软件（如 Wind、同花顺、东方财富、Seeking Alpha）中，抓取以下 3 组核心数据：
 
 #分析的股票（{current_date}）
