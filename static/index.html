@@ -275,7 +275,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>📊 批量股票分析 <a href="/" style="color: white; font-size: 0.8em; margin-left: 10px; text-decoration: none; border: 1px solid white; padding: 2px 8px; border-radius: 4px;">返回主页</a></h1>
+        <h1>📊 批量股票分析</h1>
     </div>
 
     <div class="container">
@@ -289,10 +289,6 @@
                     <button class="btn btn-primary" onclick="selectAll()">全选</button>
                     <button class="btn btn-primary" onclick="deselectAll()">取消全选</button>
                     <button class="btn btn-success" onclick="startBatchAnalysis()" id="startBtn">开始批量分析 (<span id="selectedCount">0</span>)</button>
-                    <label style="margin-left: 10px; font-size: 11px; display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="deepThinkingMode" style="margin-right: 5px;">
-                        深度思考
-                    </label>
                     <span id="progressSection" style="display: none; margin-left: 8px; padding: 5px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ddd; border-radius: 4px; font-size: 11px; font-weight: 600; vertical-align: top; margin-top: 5px;">
                         <span id="progressText" style="color: #fff;">0/0</span>
                     </span>
@@ -321,7 +317,7 @@
                     <tr style="background: #f5f5f5; border-bottom: 2px solid #667eea;">
                         <th style="padding: 8px; text-align: left; font-size: 12px;">股票名称</th>
                         <th style="padding: 8px; text-align: left; font-size: 12px;">股票代码</th>
-                        <th style="padding: 8px; text-align: center; font-size: 12px;">CAN SLIM打分</th>
+                        <th style="padding: 8px; text-align: center; font-size: 12px; min-width: 120px;">CAN SLIM综合<br><small style="color: #999;">(C-A-N-S-L-I-M)</small></th>
                         <th style="padding: 8px; text-align: center; font-size: 12px;">K线打分</th>
                         <th style="padding: 8px; text-align: center; font-size: 12px;">深度思考</th>
                         <th style="padding: 8px; text-align: center; font-size: 12px;">状态</th>
@@ -476,10 +472,9 @@
                 
                 if (data.success) {
                     const batchId = data.data.batch_id;
-                    const useDeepThinking = document.getElementById('deepThinkingMode').checked;
                     
                     // 执行批量分析
-                    await executeBatchAnalysis(batchId, useDeepThinking);
+                    await executeBatchAnalysis(batchId, false);
                     
                     // 刷新批次列表
                     loadBatchList();
@@ -601,13 +596,19 @@
                 <tr onclick="showStockDetail(${stock.id})" style="cursor: pointer; border-bottom: 1px solid #e0e0e0;">
                     <td style="padding: 8px; font-size: 13px;">${stock.stock_name}</td>
                     <td style="padding: 8px; font-size: 13px;">${stock.stock_code}</td>
-                    <td style="padding: 8px; text-align: center; font-size: 13px; color: #667eea; font-weight: 600;">${stock.score || '-'}</td>
+                    <td style="padding: 8px; text-align: center; font-size: 13px;">
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <div style="color: #667eea; font-weight: 600;">${stock.score || '-'}</div>
+                            <div style="font-size: 10px; color: #999;">
+                                C:${stock.c_score||'-'} A:${stock.a_score||'-'} N:${stock.n_score||'-'} S:${stock.s_score||'-'}<br>
+                                L:${stock.l_score||'-'} I:${stock.i_score||'-'} M:${stock.m_score||'-'}
+                            </div>
+                        </div>
+                    </td>
                     <td style="padding: 8px; text-align: center; font-size: 13px; color: #667eea; font-weight: 600;">${stock.technical_score || '-'}</td>
                     <td style="padding: 8px; text-align: center; font-size: 13px; color: ${isDeepThinking ? '#667eea' : '#999'}; font-weight: ${isDeepThinking ? '600' : 'normal'};">${isDeepThinking ? '是' : '否'}</td>
                     <td style="padding: 8px; text-align: center; font-size: 13px;">
                         ${stock.status === 'completed' ? '✅' : stock.status === 'failed' ? '❌' : '⏳'}
-                        ${stock.reason ? '<span style="margin-left: 5px; cursor: pointer;" onclick="event.stopPropagation(); showReason(' + stock.id + ', \'can_slim\')" title="查看CAN SLIM推理">💡</span>' : ''}
-                        ${stock.technical_reason ? '<span style="margin-left: 5px; cursor: pointer;" onclick="event.stopPropagation(); showReason(' + stock.id + ', \'technical\')" title="查看K线推理">📈</span>' : ''}
                         ${stock.error_message ? '<span style="margin-left: 5px; cursor: pointer;" onclick="event.stopPropagation(); showError(' + stock.id + ')" title="查看错误信息">⚠️</span>' : ''}
                     </td>
                     <td style="padding: 8px; font-size: 11px; color: #666;">${stock.completed_at || '处理中...'}</td>
@@ -624,63 +625,118 @@
                     const stock = data.data;
                     const isDeepThinking = stock.is_deep_thinking === 1 || stock.is_deep_thinking === '1';
                     document.getElementById('modalTitle').textContent = 
-                        `${stock.stock_name} (${stock.stock_code}) - CAN SLIM: ${stock.score} | K线: ${stock.technical_score}${isDeepThinking ? ' 🧠' : ''}`;
+                        `${stock.stock_name} (${stock.stock_code}) - 综合分析${isDeepThinking ? ' 🧠' : ''}`;
                     
-                    // 组合提示词和结果
-                    let content = '<div class="prompt-container">';
+                    let content = '<div style="margin-bottom: 20px;">';
                     
-                    // CAN SLIM评分提示词
-                    if (stock.prompt) {
-                        content += '<div class="prompt-section"><h3>CAN SLIM评分提示词 <button onclick="copyText(\'can_slim_prompt\')" style="padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">复制</button></h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-size: 11px;">' + stock.prompt + '</pre></div>';
-                    }
+                    // 添加深度分析按钮
+                    content += `
+                        <div style="text-align: center; margin-bottom: 20px;">
+                            <button onclick="executeDeepAnalysis(${stockId})" 
+                                    style="padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                                🔍 执行深度分析（所有CAN SLIM维度）
+                            </button>
+                            <label style="margin-left: 15px; font-size: 13px; display: inline-flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" id="modalDeepThinking" style="margin-right: 5px;">
+                                深度思考模式
+                            </label>
+                        </div>
+                    `;
                     
-                    // K线技术提示词
-                    if (stock.technical_prompt) {
-                        content += '<div class="prompt-section"><h3>K线技术提示词 <button onclick="copyText(\'technical_prompt\')" style="padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">复制</button></h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-size: 11px;">' + stock.technical_prompt + '</pre></div>';
-                    }
+                    // CAN SLIM各维度分析结果
+                    const dimensions = [
+                        {key: 'c', name: 'C - 当前季度收益'},
+                        {key: 'a', name: 'A - 年度收益增长'},
+                        {key: 'n', name: 'N - 新产品/新管理/新高点'},
+                        {key: 's', name: 'S - 供需关系'},
+                        {key: 'l', name: 'L - 领导者还是落后者'},
+                        {key: 'i', name: 'I - 机构投资者'},
+                        {key: 'm', name: 'M - 市场方向'}
+                    ];
                     
-                    // 完整CAN SLIM提示词
-                    if (stock.full_prompt) {
-                        content += '<div class="prompt-section"><h3>完整CAN SLIM提示词 <button onclick="copyText(\'full_prompt\')" style="padding: 3px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">复制</button></h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-size: 11px;">' + stock.full_prompt + '</pre></div>';
-                    }
+                    content += '<div class="dimensions-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 20px;">';
+                    
+                    dimensions.forEach(dim => {
+                        const score = stock[`${dim.key}_score`];
+                        const prompt = stock[`${dim.key}_prompt`];
+                        const summary = stock[`${dim.key}_summary`];
+                        
+                        content += `
+                            <div class="dimension-card" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background: #f9f9f9;">
+                                <h4 style="margin: 0 0 10px 0; color: #667eea; font-size: 14px;">
+                                    ${dim.name} 
+                                    ${score ? `<span style="color: #4caf50; font-weight: 600;">(${score}分)</span>` : '<span style="color: #999;">(未分析)</span>'}
+                                </h4>
+                                ${summary ? `<p style="margin: 0 0 10px 0; font-size: 12px; color: #666; line-height: 1.4;">${summary}</p>` : ''}
+                                ${prompt ? `<details style="margin-top: 10px;"><summary style="cursor: pointer; font-size: 11px; color: #667eea;">查看提示词</summary><pre style="margin: 5px 0 0 0; font-size: 10px; background: #fff; padding: 8px; border-radius: 4px; max-height: 150px; overflow-y: auto; white-space: pre-wrap;">${prompt}</pre></details>` : ''}
+                            </div>
+                        `;
+                    });
                     
                     content += '</div>';
                     
-                    // 分析结果并排显示
-                    content += '<div class="result-container">';
-                    
-                    if (stock.result) {
-                        const resultFormat = stock.result_format || 'markdown';
-                        if (resultFormat === 'json') {
-                            content += '<div class="result-section"><h3>CAN SLIM分析结果 (JSON)</h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px; line-height: 1.6;">' + stock.result + '</pre></div>';
-                        } else {
-                            content += '<div class="result-section"><h3>CAN SLIM分析结果</h3><div class="markdown-body">' + marked.parse(stock.result) + '</div></div>';
-                        }
+                    // K线分析
+                    if (stock.kline_score || stock.kline_prompt) {
+                        content += `
+                            <div class="kline-section" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #f0f7ff;">
+                                <h4 style="margin: 0 0 10px 0; color: #667eea; font-size: 14px;">
+                                    K线技术分析 
+                                    ${stock.kline_score ? `<span style="color: #4caf50; font-weight: 600;">(${stock.kline_score}分)</span>` : '<span style="color: #999;">(未分析)</span>'}
+                                </h4>
+                                ${stock.kline_prompt ? `<details><summary style="cursor: pointer; font-size: 11px; color: #667eea;">查看分析详情</summary><pre style="margin: 5px 0 0 0; font-size: 10px; background: #fff; padding: 8px; border-radius: 4px; max-height: 200px; overflow-y: auto; white-space: pre-wrap;">${stock.kline_prompt}</pre></details>` : ''}
+                            </div>
+                        `;
                     }
                     
-                    if (stock.technical_result) {
-                        const technicalFormat = stock.technical_result_format || 'markdown';
-                        if (technicalFormat === 'json') {
-                            content += '<div class="result-section"><h3>K线技术分析结果 (JSON)</h3><pre style="white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px; line-height: 1.6;">' + stock.technical_result + '</pre></div>';
-                        } else {
-                            content += '<div class="result-section"><h3>K线技术分析结果</h3><div class="markdown-body">' + marked.parse(stock.technical_result) + '</div></div>';
-                        }
+                    // 整体分析
+                    if (stock.overall_analysis) {
+                        content += `
+                            <div class="overall-section" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background: #f0fff0;">
+                                <h4 style="margin: 0 0 10px 0; color: #667eea; font-size: 14px;">整体分析总结</h4>
+                                <pre style="margin: 0; font-size: 12px; background: #fff; padding: 10px; border-radius: 4px; white-space: pre-wrap; line-height: 1.4;">${stock.overall_analysis}</pre>
+                            </div>
+                        `;
                     }
                     
                     content += '</div>';
-                    
-                    // 保存提示词到全局变量
-                    window.currentPrompts = {
-                        can_slim_prompt: stock.prompt || '',
-                        technical_prompt: stock.technical_prompt || '',
-                        full_prompt: stock.full_prompt || ''
-                    };
                     
                     document.getElementById('modalContent').innerHTML = content;
                     document.getElementById('detailModal').classList.add('show');
                 }
             } catch (error) {
                 alert('加载详情失败: ' + error.message);
+            }
+        }
+        
+        async function executeDeepAnalysis(stockId) {
+            const useDeepThinking = document.getElementById('modalDeepThinking').checked;
+            
+            if (!confirm(`确定要执行深度分析吗？这将分析所有CAN SLIM维度${useDeepThinking ? '（深度思考模式）' : ''}，可能需要较长时间。`)) {
+                return;
+            }
+            
+            try {
+                // 显示加载状态
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = '🔄 分析中...';
+                button.disabled = true;
+                
+                const response = await fetch(`/api/stock/${stockId}/deep_analysis${useDeepThinking ? '?deep_thinking=true' : ''}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('深度分析完成！');
+                    // 重新加载详情
+                    showStockDetail(stockId);
+                } else {
+                    alert('分析失败: ' + (data.detail || '未知错误'));
+                }
+            } catch (error) {
+                alert('分析失败: ' + error.message);
             }
         }
 
@@ -778,8 +834,7 @@
             disableUI();
             
             try {
-                const useDeepThinking = document.getElementById('deepThinkingMode').checked;
-                await executeBatchAnalysis(batchId, useDeepThinking);
+                await executeBatchAnalysis(batchId, false);
                 loadBatchList();
                 if (currentBatchId === batchId) {
                     loadBatchStocks(batchId);

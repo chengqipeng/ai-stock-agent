@@ -85,16 +85,12 @@ async def execute_can_slim_score(
     service_class = CAN_SLIM_SERVICES[dimension]
     service = service_class(stock_info)
     
-    # 临时覆盖最终输出指令为打分格式
     original_method = service.get_final_output_instruction
-    service.get_final_output_instruction = lambda: SCORE_OUTPUT
-    
-    result = await service.execute(deep_thinking)
-    
-    # 恢复原方法
-    service.get_final_output_instruction = original_method
-    
-    return result
+    try:
+        service.get_final_output_instruction = lambda: SCORE_OUTPUT
+        return await service.execute(deep_thinking)
+    finally:
+        service.get_final_output_instruction = original_method
 
 
 async def execute_can_slim_completion(
@@ -127,13 +123,9 @@ async def execute_can_slim_completion(
     service_class = CAN_SLIM_SERVICES[dimension]
     service = service_class(stock_info)
     
-    # 临时覆盖最终输出指令为完整输出格式
     original_method = service.get_final_output_instruction
-    service.get_final_output_instruction = lambda: COMPLETION_OUTPUT
-    
-    result = await service.execute(deep_thinking)
-    
-    # 恢复原方法
-    service.get_final_output_instruction = original_method
-    
-    return result
+    try:
+        service.get_final_output_instruction = lambda: COMPLETION_OUTPUT
+        return await service.execute(deep_thinking)
+    finally:
+        service.get_final_output_instruction = original_method
