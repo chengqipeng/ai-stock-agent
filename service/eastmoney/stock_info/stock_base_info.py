@@ -21,33 +21,6 @@ async def get_stock_detail(stock_info: StockInfo):
     else:
         raise Exception(f"未获取到股票 {stock_info.secid} 的详细数据")
 
-
-async def get_stock_base_info_markdown(stock_info: StockInfo):
-    """获取股票基本信息并转换为markdown"""
-    detail_data = await get_stock_detail(stock_info)
-    header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 股票基本信息"
-    markdown = f"""{header}\n"""
-    markdown += f"- **股票代码**: {detail_data.get('f57', '--')}\n"
-    markdown += f"- **股票名称**: {detail_data.get('f58', '--')}\n"
-    markdown += f"- **最新价**: {round(detail_data.get('f43', 0) / 100, 2) if detail_data.get('f43') else '--'}\n"
-    markdown += f"- **涨跌幅**: {round(detail_data.get('f170', 0) / 100, 2) if detail_data.get('f170') else '--'}%\n"
-    markdown += f"- **涨跌额**: {round(detail_data.get('f169', 0) / 100, 2) if detail_data.get('f169') else '--'}\n"
-    markdown += f"- **成交量**: {convert_amount_unit(detail_data.get('f47'))}\n"
-    markdown += f"- **成交额**: {convert_amount_unit(detail_data.get('f48'))}\n"
-    markdown += f"- **市盈率**: {round(detail_data.get('f162', 0) / 100, 2) if detail_data.get('f162') else '--'}\n"
-    markdown += f"- **总市值**: {convert_amount_unit(detail_data.get('f116'))}\n"
-    markdown += f"- **流通市值**: {convert_amount_unit(detail_data.get('f117'))}\n"
-    markdown += f"- **换手率**: {round(detail_data.get('f168', 0) / 100, 2) if detail_data.get('f168') else '--'}%\n"
-    markdown += f"- **量比**: {round(detail_data.get('f50', 0) / 100, 2) if detail_data.get('f50') else '--'}\n"
-    markdown += f"- **最高**: {round(detail_data.get('f44', 0) / 100, 2) if detail_data.get('f44') else '--'}\n"
-    markdown += f"- **最低**: {round(detail_data.get('f45', 0) / 100, 2) if detail_data.get('f45') else '--'}\n"
-    markdown += f"- **今开**: {round(detail_data.get('f46', 0) / 100, 2) if detail_data.get('f46') else '--'}\n"
-    markdown += f"- **昨收**: {round(detail_data.get('f60', 0) / 100, 2) if detail_data.get('f60') else '--'}\n"
-    markdown += f"- **涨停**: {round(detail_data.get('f51', 0) / 100, 2) if detail_data.get('f51') else '--'}\n"
-    markdown += f"- **跌停**: {round(detail_data.get('f52', 0) / 100, 2) if detail_data.get('f52') else '--'}\n"
-    return markdown + "\n"
-
-
 async def get_stock_base_info_json(stock_info: StockInfo, fields: list[str] = None):
     """获取股票基本信息并转换为JSON格式
     

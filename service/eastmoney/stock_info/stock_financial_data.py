@@ -80,50 +80,50 @@ async def get_financial_report(stock_info: StockInfo, page_size=5, page_number=1
 #         raise Exception(f"未获取到股票 {stock_info.stock_code} 的业绩预告数据")
 
 
-async def get_financial_report_markdown(stock_info: StockInfo , page_size=5):
-    """获取业绩报表明细并转换为markdown"""
-    cache_path = get_cache_path("financial_report", stock_info.stock_code)
-    
-    # 检查缓存
-    cached_data = load_cache(cache_path)
-    if cached_data:
-        return cached_data
-    
-    report_data_1 = await get_financial_report(stock_info, page_size, 1)
-    report_data_2 = await get_financial_report(stock_info, page_size, 2)
-    report_data = report_data_1 + report_data_2
-    if not report_data:
-        return ""
-    header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}） > - 业绩报表明细"
-    markdown = f"""{header}
-| 截止日期 | 每股收益(元) | 每股收益(扣除)(元) | 营业总收入（元） | 营业总收入同步增长（%） | 营业总收入季度环比增长（%） | 净利润（元） | 净利润同步增长（%） | 净利润环比增长（%） | 每股净资产(元) | 净资产收益率(%) | 每股经营现金流量(元) | 销售毛利率(%) | 利润分配 | 首次公告日期 |
-|----------|-----------|------------------|---------------|----------------------|------------------------|------------|------------------|------------------|--------------|---------------|-------------------|--------------|--------|------------|
-"""
-    for item in report_data:
-        report_date = item.get('REPORTDATE', '--')[:10] if item.get('REPORTDATE') else '--'
-        basic_eps = round(item.get('BASIC_EPS', 0), 2) if item.get('BASIC_EPS') else '--'
-        deduct_eps = round(item.get('DEDUCT_BASIC_EPS', 0), 2) if item.get('DEDUCT_BASIC_EPS') else '-'
-        total_income = item.get('TOTAL_OPERATE_INCOME')
-        income_str = convert_amount_unit(total_income) if total_income else '--'
-        ystz = f"{round(item.get('YSTZ', 0), 2)}%" if item.get('YSTZ') else '--'
-        yshz = f"{round(item.get('YSHZ', 0), 2)}%" if item.get('YSHZ') else '--'
-        net_profit = item.get('PARENT_NETPROFIT')
-        profit_str = convert_amount_unit(net_profit) if net_profit else '--'
-        sjltz = f"{round(item.get('SJLTZ', 0), 2)}%" if item.get('SJLTZ') else '--'
-        sjlhz = f"{round(item.get('SJLHZ', 0), 2)}%" if item.get('SJLHZ') else '--'
-        bps = round(item.get('BPS', 0), 2) if item.get('BPS') else '--'
-        roe = f"{round(item.get('WEIGHTAVG_ROE', 0), 2)}%" if item.get('WEIGHTAVG_ROE') else '--'
-        mgjyxjje = round(item.get('MGJYXJJE', 0), 2) if item.get('MGJYXJJE') else '--'
-        xsmll = f"{round(item.get('XSMLL', 0), 2)}%" if item.get('XSMLL') else '--'
-        assigndscrpt = item.get('ASSIGNDSCRPT', '-') if item.get('ASSIGNDSCRPT') else '-'
-        notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
-        markdown += f"| {report_date} | {basic_eps} | {deduct_eps} | {income_str} | {ystz} | {yshz} | {profit_str} | {sjltz} | {sjlhz} | {bps} | {roe} | {mgjyxjje} | {xsmll} | {assigndscrpt} | {notice_date} |\n"
-    
-    result = markdown + "\n"
-    # 保存缓存
-    save_cache(cache_path, result)
-    
-    return result
+# async def get_financial_report_markdown(stock_info: StockInfo , page_size=5):
+#     """获取业绩报表明细并转换为markdown"""
+#     cache_path = get_cache_path("financial_report", stock_info.stock_code)
+#
+#     # 检查缓存
+#     cached_data = load_cache(cache_path)
+#     if cached_data:
+#         return cached_data
+#
+#     report_data_1 = await get_financial_report(stock_info, page_size, 1)
+#     report_data_2 = await get_financial_report(stock_info, page_size, 2)
+#     report_data = report_data_1 + report_data_2
+#     if not report_data:
+#         return ""
+#     header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}） > - 业绩报表明细"
+#     markdown = f"""{header}
+# | 截止日期 | 每股收益(元) | 每股收益(扣除)(元) | 营业总收入（元） | 营业总收入同步增长（%） | 营业总收入季度环比增长（%） | 净利润（元） | 净利润同步增长（%） | 净利润环比增长（%） | 每股净资产(元) | 净资产收益率(%) | 每股经营现金流量(元) | 销售毛利率(%) | 利润分配 | 首次公告日期 |
+# |----------|-----------|------------------|---------------|----------------------|------------------------|------------|------------------|------------------|--------------|---------------|-------------------|--------------|--------|------------|
+# """
+#     for item in report_data:
+#         report_date = item.get('REPORTDATE', '--')[:10] if item.get('REPORTDATE') else '--'
+#         basic_eps = round(item.get('BASIC_EPS', 0), 2) if item.get('BASIC_EPS') else '--'
+#         deduct_eps = round(item.get('DEDUCT_BASIC_EPS', 0), 2) if item.get('DEDUCT_BASIC_EPS') else '-'
+#         total_income = item.get('TOTAL_OPERATE_INCOME')
+#         income_str = convert_amount_unit(total_income) if total_income else '--'
+#         ystz = f"{round(item.get('YSTZ', 0), 2)}%" if item.get('YSTZ') else '--'
+#         yshz = f"{round(item.get('YSHZ', 0), 2)}%" if item.get('YSHZ') else '--'
+#         net_profit = item.get('PARENT_NETPROFIT')
+#         profit_str = convert_amount_unit(net_profit) if net_profit else '--'
+#         sjltz = f"{round(item.get('SJLTZ', 0), 2)}%" if item.get('SJLTZ') else '--'
+#         sjlhz = f"{round(item.get('SJLHZ', 0), 2)}%" if item.get('SJLHZ') else '--'
+#         bps = round(item.get('BPS', 0), 2) if item.get('BPS') else '--'
+#         roe = f"{round(item.get('WEIGHTAVG_ROE', 0), 2)}%" if item.get('WEIGHTAVG_ROE') else '--'
+#         mgjyxjje = round(item.get('MGJYXJJE', 0), 2) if item.get('MGJYXJJE') else '--'
+#         xsmll = f"{round(item.get('XSMLL', 0), 2)}%" if item.get('XSMLL') else '--'
+#         assigndscrpt = item.get('ASSIGNDSCRPT', '-') if item.get('ASSIGNDSCRPT') else '-'
+#         notice_date = item.get('NOTICE_DATE', '--')[:10] if item.get('NOTICE_DATE') else '--'
+#         markdown += f"| {report_date} | {basic_eps} | {deduct_eps} | {income_str} | {ystz} | {yshz} | {profit_str} | {sjltz} | {sjlhz} | {bps} | {roe} | {mgjyxjje} | {xsmll} | {assigndscrpt} | {notice_date} |\n"
+#
+#     result = markdown + "\n"
+#     # 保存缓存
+#     save_cache(cache_path, result)
+#
+#     return result
 
 
 # async def get_financial_fast_report_markdown(stock_info: StockInfo, page_size=15):
@@ -204,8 +204,8 @@ if __name__ == "__main__":
         stock_info: StockInfo = get_stock_info_by_name("北方华创")
         
         print("=== 业绩报表明细 ===")
-        result1 = await get_financial_report_markdown(stock_info)
-        print(result1)
+        # result1 = await get_financial_report_markdown(stock_info)
+        # print(result1)
 
         # result2 = await get_performance_forecast(stock_info)
         # print(result2)

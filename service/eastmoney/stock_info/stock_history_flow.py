@@ -193,39 +193,39 @@ async def get_20day_volume_avg_cn(stock_info: StockInfo, page_size=120):
     """计算50日成交量均值（中文键）（已废弃，请使用get_volume_avg_cn）"""
     return await get_volume_avg_cn(stock_info, days=20, page_size=page_size)
 
-async def get_fund_flow_history_markdown(stock_info: StockInfo, page_size = 120):
-    """获取资金流向历史数据并转换为markdown"""
-    klines = await get_fund_flow_history(stock_info)
-    kline_max_min_map = await get_stock_history_kline_max_min(stock_info)
-    header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 历史资金流向"
-    markdown = f"""{header}
-| 日期 | 收盘价 | 涨跌幅 | 主力净流入净额 | 主力净流入净占比 | 超大单净流入净额 | 超大单净流入净占比 | 大单净流入净额 | 大单净流入净占比 | 中单净流入净额 | 中单净流入占比 | 小单净流入净额 | 小单净流入净占比 | 当日最高价 | 当日最低价 | 换手率 | 成交量(万手) | 成交额 |
-|-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|----------|-----------|-------|------------|-------|
-"""
-    for kline in klines[:page_size]:
-        fields = kline.split(',')
-        if len(fields) >= 15:
-            date = fields[0]
-            kline_max_min_item = kline_max_min_map[date]
-            close_price = round(float(fields[11]), 2) if fields[11] != '-' else '--'
-            change_pct = f"{round(float(fields[12]), 2)}%" if fields[12] != '-' else "--"
-            super_net = float(fields[5]) if fields[5] != '-' else 0
-            super_pct = f"{round(float(fields[10]), 2)}%" if fields[10] != '-' else "--"
-            super_net_str = convert_amount_unit(super_net)
-            big_net = float(fields[4]) if fields[4] != '-' else 0
-            big_net_str = convert_amount_unit(big_net)
-            big_pct = f"{round(float(fields[9]), 2)}%" if fields[9] != '-' else "--"
-            mid_net = float(fields[3]) if fields[3] != '-' else 0
-            mid_net_str = convert_amount_unit(mid_net)
-            mid_pct = f"{round(float(fields[8]), 2)}%" if fields[8] != '-' else "--"
-            small_net = float(fields[2]) if fields[2] != '-' else 0
-            small_net_str = convert_amount_unit(small_net)
-            small_pct = f"{round(float(fields[7]), 2)}%" if fields[7] != '-' else "--"
-            main_net = super_net + big_net
-            main_net_str = convert_amount_unit(main_net)
-            main_pct = f"{round(float(fields[6]), 2)}%" if fields[6] != '-' else "--"
-            markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} | {kline_max_min_item['high_price']} | {kline_max_min_item['low_price']} | {kline_max_min_item['change_hand']}% | {kline_max_min_item['trading_volume']} | {kline_max_min_item['trading_amount']} |\n"
-    return markdown + "\n"
+# async def get_fund_flow_history_markdown(stock_info: StockInfo, page_size = 120):
+#     """获取资金流向历史数据并转换为markdown"""
+#     klines = await get_fund_flow_history(stock_info)
+#     kline_max_min_map = await get_stock_history_kline_max_min(stock_info)
+#     header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 历史资金流向"
+#     markdown = f"""{header}
+# | 日期 | 收盘价 | 涨跌幅 | 主力净流入净额 | 主力净流入净占比 | 超大单净流入净额 | 超大单净流入净占比 | 大单净流入净额 | 大单净流入净占比 | 中单净流入净额 | 中单净流入占比 | 小单净流入净额 | 小单净流入净占比 | 当日最高价 | 当日最低价 | 换手率 | 成交量(万手) | 成交额 |
+# |-----|-------|-------|--------------|---------------|----------------|-----------------|-------------|----------------|-------------|--------------|--------------|---------------|----------|-----------|-------|------------|-------|
+# """
+#     for kline in klines[:page_size]:
+#         fields = kline.split(',')
+#         if len(fields) >= 15:
+#             date = fields[0]
+#             kline_max_min_item = kline_max_min_map[date]
+#             close_price = round(float(fields[11]), 2) if fields[11] != '-' else '--'
+#             change_pct = f"{round(float(fields[12]), 2)}%" if fields[12] != '-' else "--"
+#             super_net = float(fields[5]) if fields[5] != '-' else 0
+#             super_pct = f"{round(float(fields[10]), 2)}%" if fields[10] != '-' else "--"
+#             super_net_str = convert_amount_unit(super_net)
+#             big_net = float(fields[4]) if fields[4] != '-' else 0
+#             big_net_str = convert_amount_unit(big_net)
+#             big_pct = f"{round(float(fields[9]), 2)}%" if fields[9] != '-' else "--"
+#             mid_net = float(fields[3]) if fields[3] != '-' else 0
+#             mid_net_str = convert_amount_unit(mid_net)
+#             mid_pct = f"{round(float(fields[8]), 2)}%" if fields[8] != '-' else "--"
+#             small_net = float(fields[2]) if fields[2] != '-' else 0
+#             small_net_str = convert_amount_unit(small_net)
+#             small_pct = f"{round(float(fields[7]), 2)}%" if fields[7] != '-' else "--"
+#             main_net = super_net + big_net
+#             main_net_str = convert_amount_unit(main_net)
+#             main_pct = f"{round(float(fields[6]), 2)}%" if fields[6] != '-' else "--"
+#             markdown += f"| {date} | {close_price} | {change_pct} | {main_net_str} | {main_pct} | {super_net_str} | {super_pct} | {big_net_str} | {big_pct} | {mid_net_str} | {mid_pct} | {small_net_str} | {small_pct} | {kline_max_min_item['high_price']} | {kline_max_min_item['low_price']} | {kline_max_min_item['change_hand']}% | {kline_max_min_item['trading_volume']} | {kline_max_min_item['trading_amount']} |\n"
+#     return markdown + "\n"
 
 
 

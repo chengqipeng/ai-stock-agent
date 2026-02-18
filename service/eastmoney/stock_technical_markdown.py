@@ -2,7 +2,6 @@ import asyncio
 from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
-from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_markdown
 from service.eastmoney.technical.stock_day_atr import get_atr_markdown
 from service.eastmoney.technical.stock_day_boll import get_boll_markdown
 from service.eastmoney.technical.stock_day_macd import get_macd_markdown
@@ -17,8 +16,7 @@ from common.prompt.stock_technical_indicator_simple_prompt import get_technical_
 
 async def get_technical_indicators_markdown(stock_info: StockInfo):
     """汇总所有技术指标数据为markdown格式"""
-    markdown = await get_fund_flow_history_markdown(stock_info)
-    markdown += await get_boll_markdown(stock_info)
+    markdown = await get_boll_markdown(stock_info)
     markdown += await get_macd_markdown(stock_info)
     markdown += await get_rsi_markdown(stock_info)
     markdown += await get_vwma_markdown(stock_info)

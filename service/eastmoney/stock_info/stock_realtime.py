@@ -19,18 +19,18 @@ async def get_stock_realtime(stock_info: StockInfo):
         raise Exception(f"未获取到股票 {stock_info.secid} 的实时数据")
 
 
-async def get_stock_realtime_markdown(stock_info: StockInfo):
-    """获取实时交易信息并转换为markdown"""
-    realtime_data = await get_stock_realtime(stock_info)
-    header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 当日交易信息"
-    return f"""{header}
-- **股票代码**: {realtime_data.get('f57', '--')}
-- **最新价**: {realtime_data.get('f43', '--')}
-- **涨跌幅**: {realtime_data.get('f170', '--')}%
-- **涨跌额**: {realtime_data.get('f169', '--')}
-- **成交量**: {convert_amount_unit(realtime_data.get('f47', "-"))}
-- **成交额**: {convert_amount_unit(realtime_data.get('f48', "-"))}
-- **换手率**: {realtime_data.get('f168', '--')}% \n"""
+# async def get_stock_realtime_markdown(stock_info: StockInfo):
+#     """获取实时交易信息并转换为markdown"""
+#     realtime_data = await get_stock_realtime(stock_info)
+#     header = f"## <{stock_info.stock_name}（{stock_info.stock_code_normalize}）> - 当日交易信息"
+#     return f"""{header}
+# - **股票代码**: {realtime_data.get('f57', '--')}
+# - **最新价**: {realtime_data.get('f43', '--')}
+# - **涨跌幅**: {realtime_data.get('f170', '--')}%
+# - **涨跌额**: {realtime_data.get('f169', '--')}
+# - **成交量**: {convert_amount_unit(realtime_data.get('f47', "-"))}
+# - **成交额**: {convert_amount_unit(realtime_data.get('f48', "-"))}
+# - **换手率**: {realtime_data.get('f168', '--')}% \n"""
 
 
 async def get_stock_realtime_json(stock_info: StockInfo, fields: list[str] = None):
