@@ -1,5 +1,4 @@
-import json
-from datetime import datetime
+from typing import Dict, Any
 
 import pandas as pd
 
@@ -8,7 +7,7 @@ from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.indices.stock_market_data import get_stock_relative_strength_cn
 from service.eastmoney.stock_info.stock_industry_ranking import get_stock_industry_ranking_json
 from service.eastmoney.technical.abs.stock_indicator_base import get_stock_history_kline_max_min
-from service.llm.deepseek_client import DeepSeekClient
+from service.can_slim.base_can_slim_service import BaseCanSlimService
 
 
 def _find_corrections(index_df, num_corrections=1, min_drop_pct=0.03):
@@ -111,58 +110,40 @@ def format_resilience_to_chinese(data):
     return [convert_item(item) for item in data] if isinstance(data, list) else convert_item(data)
 
 
+class LOrLaggardService(BaseCanSlimService):
+    """L领军股或落后股分析服务"""
+    
+    async def collect_data(self) -> Dict[str, Any]:
+        return {
+            'stock_relative_strength': await get_stock_relative_strength_cn(self.stock_info),
+            'stock_industry_ranking': await get_stock_industry_ranking_json(self.stock_info),
+            'resilience_data': await calculate_resilience(self.stock_info, days=250, num_corrections=3)
+        }
+    
+    async def process_data(self) -> None:
+        self.data_cache['resilience_data_cn'] = format_resilience_to_chinese(self.data_cache['resilience_data'])
+    
+    def get_prompt_template(self) -> str:
+        return L_OR_LAGGARD_PROMPT_TEMPLATE
+    
+    def get_prompt_params(self) -> Dict[str, Any]:
+        return {
+            'stock_relative_strength_json': self.to_json(self.data_cache['stock_relative_strength']),
+            'stock_industry_ranking_json': self.to_json(self.data_cache['stock_industry_ranking']),
+            'resilience_data_json': self.to_json(self.data_cache['resilience_data_cn'])
+        }
+
+
 async def build_L_or_Laggard_prompt(stock_info: StockInfo) -> str:
     """构建L领军股或落后股分析提示词"""
-    stock_relative_strength = await get_stock_relative_strength_cn(stock_info)
-    stock_industry_ranking_json = await get_stock_industry_ranking_json(stock_info)
-    resilience_data = await calculate_resilience(stock_info, days=250, num_corrections=3)
-    resilience_data_cn = format_resilience_to_chinese(resilience_data)
-    
-    return L_OR_LAGGARD_PROMPT_TEMPLATE.format(
-        current_date=datetime.now().strftime('%Y-%m-%d'),
-        stock_name=stock_info.stock_name,
-        stock_code=stock_info.stock_code_normalize,
-        stock_relative_strength_json=json.dumps(stock_relative_strength, ensure_ascii=False, indent=2),
-        stock_industry_ranking_json=json.dumps(stock_industry_ranking_json, ensure_ascii=False, indent=2),
-        resilience_data_json=json.dumps(resilience_data_cn, ensure_ascii=False, indent=2)
-    )
+    service = LOrLaggardService(stock_info)
+    await service.collect_data()
+    await service.process_data()
+    return service.build_prompt()
 
 
 async def execute_L_or_Laggard(stock_info: StockInfo, deep_thinking: bool = False) -> str:
-    """
-    执行L领军股或落后股分析
-    
-    Args:
-        stock_info: 股票信息对象
-        deep_thinking: 是否使用思考模式，默认False
-    
-    Returns:
-        分析结果字符串
-    """
-    prompt = await build_L_or_Laggard_prompt(stock_info)
+    """执行L领军股或落后股分析"""
+    service = LOrLaggardService(stock_info)
+    return await service.execute(deep_thinking)
 
-    print(prompt)
-    print("\n =============================== \n")
-    
-    model = "deepseek-reasoner" if deep_thinking else "deepseek-chat"
-    client = DeepSeekClient()
-    
-    result = ""
-    async for content in client.chat_stream(
-        messages=[{"role": "user", "content": prompt}],
-        model=model
-    ):
-        result += content
-
-    return result
-
-if __name__ == "__main__":
-    import asyncio
-    
-    async def main():
-        stock_name = "北方华创"
-        stock_info = get_stock_info_by_name(stock_name)
-        result = await execute_L_or_Laggard(stock_info)
-        print(result)
-    
-    asyncio.run(main())

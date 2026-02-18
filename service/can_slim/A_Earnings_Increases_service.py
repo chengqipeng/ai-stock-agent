@@ -1,10 +1,9 @@
-import json
-from datetime import datetime
+from typing import Dict, Any
 
 from common.prompt.can_slim.A_Earnings_Increases_prompt import A_EARNINGS_INCREASES_PROMPT_TEMPLATE
 from common.utils.stock_info_utils import StockInfo
-from service.llm.deepseek_client import DeepSeekClient
 from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json
+from service.can_slim.base_can_slim_service import BaseCanSlimService
 
 
 def calculate_cagr(eps_compare_data):
@@ -83,54 +82,39 @@ def calculate_reality_check(raw_data):
     
     return result
 
+class AEarningsIncreasesService(BaseCanSlimService):
+    """A年度盈利增长分析服务"""
+    
+    async def collect_data(self) -> Dict[str, Any]:
+        return {
+            'eps_kc': await get_financial_data_to_json(self.stock_info, indicator_keys=['REPORT_DATE', 'EPSKCJB']),
+            'roe': await get_financial_data_to_json(self.stock_info, indicator_keys=['REPORT_DATE', 'ROEKCJQ']),
+            'eps_compare': await get_financial_data_to_json(self.stock_info, indicator_keys=['REPORT_DATE', 'EPSJB']),
+            'cash_flow': await get_financial_data_to_json(self.stock_info, indicator_keys=['REPORT_DATE', 'MGJYXJJE']),
+            'profit_growth': await get_financial_data_to_json(self.stock_info, indicator_keys=['REPORT_DATE', 'KCFJCXSYJLRTZ']),
+            'raw_reality_check': await get_financial_data_to_json(self.stock_info, indicator_keys=['REPORT_DATE', 'MGJYXJJE', 'EPSJB'])
+        }
+    
+    async def process_data(self) -> None:
+        self.data_cache['reality_check'] = calculate_reality_check(self.data_cache['raw_reality_check'])
+        self.data_cache['cagr_value'], self.data_cache['cagr_description'] = calculate_cagr(self.data_cache['eps_compare'])
+    
+    def get_prompt_template(self) -> str:
+        return A_EARNINGS_INCREASES_PROMPT_TEMPLATE
+    
+    def get_prompt_params(self) -> Dict[str, Any]:
+        return {
+            'eps_kc_data_json': self.to_json(self.data_cache['eps_kc']),
+            'roe_data_json': self.to_json(self.data_cache['roe']),
+            'cash_flow_data_json': self.to_json(self.data_cache['cash_flow']),
+            'profit_growth_data_json': self.to_json(self.data_cache['profit_growth']),
+            'cagr_value': self.data_cache['cagr_value'],
+            'cagr_description': self.data_cache['cagr_description'],
+            'reality_check_data_json': self.to_json(self.data_cache['reality_check'])
+        }
+
+
 async def execute_A_Earnings_Increases(stock_info: StockInfo, deep_thinking: bool = False) -> str:
-    """
-    执行A年度盈利增长分析
-    
-    Args:
-        secucode: 股票代码
-        stock_name: 股票名称
-        deep_thinking: 是否使用思考模式，默认False
-    
-    Returns:
-        分析结果字符串
-    """
-    eps_kc_data_json = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'EPSKCJB'])
-    roe_data_json = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'ROEKCJQ'])
-    eps_compare_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'EPSJB'])
-    cash_flow_data_json = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'MGJYXJJE'])
-    profit_growth_data_json = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'KCFJCXSYJLRTZ'])
-    raw_reality_check_data = await get_financial_data_to_json(stock_info,
-                                                              indicator_keys=['REPORT_DATE', 'MGJYXJJE', 'EPSJB'])
-
-    reality_check_data_json = calculate_reality_check(raw_reality_check_data)
-    cagr_value, cagr_description = calculate_cagr(eps_compare_data)
-
-    """构建A年度盈利增长分析提示词"""
-    prompt = A_EARNINGS_INCREASES_PROMPT_TEMPLATE.format(
-        current_date=datetime.now().strftime('%Y-%m-%d'),
-        stock_name=stock_info.stock_name,
-        stock_code=stock_info.stock_code_normalize,
-        eps_kc_data_json=json.dumps(eps_kc_data_json, ensure_ascii=False, indent=2),
-        roe_data_json=json.dumps(roe_data_json, ensure_ascii=False, indent=2),
-        cash_flow_data_json=json.dumps(cash_flow_data_json, ensure_ascii=False, indent=2),
-        profit_growth_data_json=json.dumps(profit_growth_data_json, ensure_ascii=False, indent=2),
-        cagr_value=cagr_value,
-        cagr_description=cagr_description,
-        reality_check_data_json=json.dumps(reality_check_data_json, ensure_ascii=False, indent=2)
-    )
-
-    print(prompt)
-    print("\n =============================== \n")
-    
-    model = "deepseek-reasoner" if deep_thinking else "deepseek-chat"
-    client = DeepSeekClient()
-    
-    result = ""
-    async for content in client.chat_stream(
-        messages=[{"role": "user", "content": prompt}],
-        model=model
-    ):
-        result += content
-
-    return result
+    """执行A年度盈利增长分析"""
+    service = AEarningsIncreasesService(stock_info)
+    return await service.execute(deep_thinking)
