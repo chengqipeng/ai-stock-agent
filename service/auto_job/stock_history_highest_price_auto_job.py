@@ -10,7 +10,7 @@ from service.eastmoney.stock_info.stock_month_kline_data import get_stock_month_
 
 # 获取项目根目录
 project_root = Path(__file__).parent.parent.parent
-output_file = project_root / "data_results/stock_highest_price/stock_highest_price.json"
+output_file = project_root / "data_results/stock_highest_lowest_price/stock_highest_lowest_price.json"
 lock = asyncio.Lock()
 completed_count = 0
 total_count = 0
