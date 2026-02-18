@@ -88,19 +88,24 @@ async def main():
     """主函数：5线程遍历所有股票"""
     global completed_count, total_count
     
+    today = datetime.now().strftime("%Y-%m-%d")
+    
     # 加载已处理的股票
     processed_codes = set()
     if output_file.exists():
         with open(output_file, "r", encoding="utf-8") as f:
             existing_results = json.load(f)
-            processed_codes = {r["code"] for r in existing_results}
+            # 只保留今天处理的数据
+            for r in existing_results:
+                if r.get("update_time", "").startswith(today):
+                    processed_codes.add(r["code"])
     
     # 过滤未处理的股票
     remaining_stocks = [s for s in STOCKS if s["code"] not in processed_codes]
     total_count = len(remaining_stocks)
     completed_count = 0
     
-    print(f"开始处理 {total_count} 只股票（已完成 {len(processed_codes)} 只）...")
+    print(f"开始处理 {total_count} 只股票（今日已完成 {len(processed_codes)} 只）...")
     
     if not remaining_stocks:
         print("所有股票已处理完成！")
