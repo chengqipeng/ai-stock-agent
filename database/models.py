@@ -18,30 +18,6 @@ class DatabaseManager:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
-            # 检查并添加缺失的列
-            cursor.execute("PRAGMA table_info(stock_analysis_detail)")
-            existing_columns = {row[1] for row in cursor.fetchall()}
-            
-            new_columns = [
-                'c_score_prompt', 'a_score_prompt', 'n_score_prompt', 
-                's_score_prompt', 'l_score_prompt', 'i_score_prompt', 
-                'm_score_prompt', 'kline_score_prompt',
-                'c_deep_score', 'c_deep_prompt', 'c_deep_summary', 'c_deep_score_prompt',
-                'a_deep_score', 'a_deep_prompt', 'a_deep_summary', 'a_deep_score_prompt',
-                'n_deep_score', 'n_deep_prompt', 'n_deep_summary', 'n_deep_score_prompt',
-                's_deep_score', 's_deep_prompt', 's_deep_summary', 's_deep_score_prompt',
-                'l_deep_score', 'l_deep_prompt', 'l_deep_summary', 'l_deep_score_prompt',
-                'i_deep_score', 'i_deep_prompt', 'i_deep_summary', 'i_deep_score_prompt',
-                'm_deep_score', 'm_deep_prompt', 'm_deep_summary', 'm_deep_score_prompt'
-            ]
-            
-            for col in new_columns:
-                if col not in existing_columns:
-                    col_type = 'INTEGER' if col.endswith('_score') else 'TEXT'
-                    cursor.execute(f"ALTER TABLE stock_analysis_detail ADD COLUMN {col} {col_type}")
-            
-            conn.commit()
-            
             # 批次信息表
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS batch_info (
@@ -118,6 +94,25 @@ class DatabaseManager:
                     FOREIGN KEY (batch_id) REFERENCES batch_info (id)
                 )
             """)
+            
+            # 检查并添加深度分析字段
+            cursor.execute("PRAGMA table_info(stock_analysis_detail)")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            
+            deep_columns = [
+                'c_deep_score', 'c_deep_prompt', 'c_deep_summary', 'c_deep_score_prompt',
+                'a_deep_score', 'a_deep_prompt', 'a_deep_summary', 'a_deep_score_prompt',
+                'n_deep_score', 'n_deep_prompt', 'n_deep_summary', 'n_deep_score_prompt',
+                's_deep_score', 's_deep_prompt', 's_deep_summary', 's_deep_score_prompt',
+                'l_deep_score', 'l_deep_prompt', 'l_deep_summary', 'l_deep_score_prompt',
+                'i_deep_score', 'i_deep_prompt', 'i_deep_summary', 'i_deep_score_prompt',
+                'm_deep_score', 'm_deep_prompt', 'm_deep_summary', 'm_deep_score_prompt'
+            ]
+            
+            for col in deep_columns:
+                if col not in existing_columns:
+                    col_type = 'INTEGER' if col.endswith('_score') else 'TEXT'
+                    cursor.execute(f"ALTER TABLE stock_analysis_detail ADD COLUMN {col} {col_type}")
             
             conn.commit()
     

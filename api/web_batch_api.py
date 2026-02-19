@@ -142,15 +142,43 @@ async def get_batches():
 
 @app.get("/api/batch/{batch_id}/stocks")
 async def get_batch_stocks(batch_id: int):
-    """获取批次中的股票列表"""
+    """获取批次中的股票列表（不含提示词字段）"""
     try:
         stocks = db_manager.get_batch_stocks(batch_id)
-        # 计算综合分数
+        exclude_fields = {
+            f'{dim}{suffix}'
+            for dim in ['c', 'a', 'n', 's', 'l', 'i', 'm', 'kline']
+            for suffix in ['_prompt', '_score_prompt', '_summary', '_deep_prompt', '_deep_score_prompt', '_deep_summary']
+        } | {'overall_analysis'}
         for stock in stocks:
             scores = [stock.get(f'{dim}_score') for dim in ['c', 'a', 'n', 's', 'l', 'i', 'm'] if stock.get(f'{dim}_score')]
             stock['score'] = round(sum(scores) / len(scores)) if scores else None
             stock['technical_score'] = stock.get('kline_score')
+            for f in exclude_fields:
+                stock.pop(f, None)
         return {"success": True, "data": stocks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/batch/stock/{stock_id}/prompt")
+async def get_stock_prompt(stock_id: int, dim: str, type: str = "score"):
+    """按需获取股票某维度的提示词"""
+    try:
+        stock = db_manager.get_stock_detail(stock_id)
+        if not stock:
+            raise HTTPException(status_code=404, detail="股票记录不存在")
+        field_map = {
+            'score': f'{dim}_score_prompt',
+            'deep': f'{dim}_deep_score_prompt',
+            'prompt': f'{dim}_prompt',
+            'deep_prompt': f'{dim}_deep_prompt',
+            'summary': f'{dim}_summary',
+            'deep_summary': f'{dim}_deep_summary',
+        }
+        field = field_map.get(type, f'{dim}_score_prompt')
+        return {"success": True, "data": stock.get(field)}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

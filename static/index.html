@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>批量分析 - AI Stock Agent</title>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -613,37 +612,8 @@
             tbody.innerHTML = stocks.map((stock, idx) => {
                 const stockKey = `stock_${idx}`;
                 window.stockPrompts[stockKey] = {
-                    c: stock.c_prompt,
-                    a: stock.a_prompt,
-                    n: stock.n_prompt,
-                    s: stock.s_prompt,
-                    l: stock.l_prompt,
-                    i: stock.i_prompt,
-                    m: stock.m_prompt,
-                    kline: stock.kline_prompt,
-                    c_score_prompt: stock.c_score_prompt,
-                    a_score_prompt: stock.a_score_prompt,
-                    n_score_prompt: stock.n_score_prompt,
-                    s_score_prompt: stock.s_score_prompt,
-                    l_score_prompt: stock.l_score_prompt,
-                    i_score_prompt: stock.i_score_prompt,
-                    m_score_prompt: stock.m_score_prompt,
-                    kline_score_prompt: stock.kline_score_prompt,
-                    c_deep: stock.c_deep_prompt,
-                    a_deep: stock.a_deep_prompt,
-                    n_deep: stock.n_deep_prompt,
-                    s_deep: stock.s_deep_prompt,
-                    l_deep: stock.l_deep_prompt,
-                    i_deep: stock.i_deep_prompt,
-                    m_deep: stock.m_deep_prompt,
-                    c_deep_score_prompt: stock.c_deep_score_prompt,
-                    a_deep_score_prompt: stock.a_deep_score_prompt,
-                    n_deep_score_prompt: stock.n_deep_score_prompt,
-                    s_deep_score_prompt: stock.s_deep_score_prompt,
-                    l_deep_score_prompt: stock.l_deep_score_prompt,
-                    i_deep_score_prompt: stock.i_deep_score_prompt,
-                    m_deep_score_prompt: stock.m_deep_score_prompt,
-                    name: stock.stock_name
+                    name: stock.stock_name,
+                    stock_id: stock.id
                 };
                 
                 return `
@@ -661,12 +631,12 @@
                             ${stock.c_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">(${stock.c_deep_score})</span>` : ''}
                         </div>
                         <div style="margin-bottom: 2px;">
-                            ${stock.c_prompt ? `<button onclick="showPrompt('${stockKey}', 'c', 'C')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
-                            ${stock.c_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'c_score_prompt', 'C')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
+                            ${stock.c_score ? `<button onclick="showPrompt('${stockKey}', 'c', 'C')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                            ${stock.c_score ? `<button onclick="showPrompt('${stockKey}', 'c_score_prompt', 'C')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
                         <div>
-                            ${stock.c_deep_prompt ? `<button onclick="showPrompt('${stockKey}', 'c_deep', 'C')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
-                            ${stock.c_deep_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'c_deep_score_prompt', 'C')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
+                            ${stock.c_deep_score ? `<button onclick="showPrompt('${stockKey}', 'c_deep', 'C')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
+                            ${stock.c_deep_score ? `<button onclick="showPrompt('${stockKey}', 'c_deep_score_prompt', 'C')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
                     <td style="padding: 6px; text-align: center;">
@@ -675,12 +645,12 @@
                             ${stock.a_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">(${stock.a_deep_score})</span>` : ''}
                         </div>
                         <div style="margin-bottom: 2px;">
-                            ${stock.a_prompt ? `<button onclick="showPrompt('${stockKey}', 'a', 'A')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
-                            ${stock.a_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'a_score_prompt', 'A')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
+                            ${stock.a_score ? `<button onclick="showPrompt('${stockKey}', 'a', 'A')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                            ${stock.a_score ? `<button onclick="showPrompt('${stockKey}', 'a_score_prompt', 'A')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
                         <div>
-                            ${stock.a_deep_prompt ? `<button onclick="showPrompt('${stockKey}', 'a_deep', 'A')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
-                            ${stock.a_deep_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'a_deep_score_prompt', 'A')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
+                            ${stock.a_deep_score ? `<button onclick="showPrompt('${stockKey}', 'a_deep', 'A')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
+                            ${stock.a_deep_score ? `<button onclick="showPrompt('${stockKey}', 'a_deep_score_prompt', 'A')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
                     <td style="padding: 6px; text-align: center;">
@@ -689,12 +659,12 @@
                             ${stock.n_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">(${stock.n_deep_score})</span>` : ''}
                         </div>
                         <div style="margin-bottom: 2px;">
-                            ${stock.n_prompt ? `<button onclick="showPrompt('${stockKey}', 'n', 'N')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
-                            ${stock.n_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'n_score_prompt', 'N')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
+                            ${stock.n_score ? `<button onclick="showPrompt('${stockKey}', 'n', 'N')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                            ${stock.n_score ? `<button onclick="showPrompt('${stockKey}', 'n_score_prompt', 'N')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
                         <div>
-                            ${stock.n_deep_prompt ? `<button onclick="showPrompt('${stockKey}', 'n_deep', 'N')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
-                            ${stock.n_deep_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'n_deep_score_prompt', 'N')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
+                            ${stock.n_deep_score ? `<button onclick="showPrompt('${stockKey}', 'n_deep', 'N')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
+                            ${stock.n_deep_score ? `<button onclick="showPrompt('${stockKey}', 'n_deep_score_prompt', 'N')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
                     <td style="padding: 6px; text-align: center;">
@@ -703,12 +673,12 @@
                             ${stock.s_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">(${stock.s_deep_score})</span>` : ''}
                         </div>
                         <div style="margin-bottom: 2px;">
-                            ${stock.s_prompt ? `<button onclick="showPrompt('${stockKey}', 's', 'S')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
-                            ${stock.s_score_prompt ? `<button onclick="showPrompt('${stockKey}', 's_score_prompt', 'S')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
+                            ${stock.s_score ? `<button onclick="showPrompt('${stockKey}', 's', 'S')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                            ${stock.s_score ? `<button onclick="showPrompt('${stockKey}', 's_score_prompt', 'S')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
                         <div>
-                            ${stock.s_deep_prompt ? `<button onclick="showPrompt('${stockKey}', 's_deep', 'S')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
-                            ${stock.s_deep_score_prompt ? `<button onclick="showPrompt('${stockKey}', 's_deep_score_prompt', 'S')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
+                            ${stock.s_deep_score ? `<button onclick="showPrompt('${stockKey}', 's_deep', 'S')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
+                            ${stock.s_deep_score ? `<button onclick="showPrompt('${stockKey}', 's_deep_score_prompt', 'S')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
                     <td style="padding: 6px; text-align: center;">
@@ -717,12 +687,12 @@
                             ${stock.l_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">(${stock.l_deep_score})</span>` : ''}
                         </div>
                         <div style="margin-bottom: 2px;">
-                            ${stock.l_prompt ? `<button onclick="showPrompt('${stockKey}', 'l', 'L')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
-                            ${stock.l_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'l_score_prompt', 'L')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
+                            ${stock.l_score ? `<button onclick="showPrompt('${stockKey}', 'l', 'L')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                            ${stock.l_score ? `<button onclick="showPrompt('${stockKey}', 'l_score_prompt', 'L')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
                         <div>
-                            ${stock.l_deep_prompt ? `<button onclick="showPrompt('${stockKey}', 'l_deep', 'L')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
-                            ${stock.l_deep_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'l_deep_score_prompt', 'L')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
+                            ${stock.l_deep_score ? `<button onclick="showPrompt('${stockKey}', 'l_deep', 'L')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
+                            ${stock.l_deep_score ? `<button onclick="showPrompt('${stockKey}', 'l_deep_score_prompt', 'L')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
                     <td style="padding: 6px; text-align: center;">
@@ -731,12 +701,12 @@
                             ${stock.i_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">(${stock.i_deep_score})</span>` : ''}
                         </div>
                         <div style="margin-bottom: 2px;">
-                            ${stock.i_prompt ? `<button onclick="showPrompt('${stockKey}', 'i', 'I')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
-                            ${stock.i_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'i_score_prompt', 'I')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
+                            ${stock.i_score ? `<button onclick="showPrompt('${stockKey}', 'i', 'I')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                            ${stock.i_score ? `<button onclick="showPrompt('${stockKey}', 'i_score_prompt', 'I')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
                         <div>
-                            ${stock.i_deep_prompt ? `<button onclick="showPrompt('${stockKey}', 'i_deep', 'I')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
-                            ${stock.i_deep_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'i_deep_score_prompt', 'I')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
+                            ${stock.i_deep_score ? `<button onclick="showPrompt('${stockKey}', 'i_deep', 'I')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
+                            ${stock.i_deep_score ? `<button onclick="showPrompt('${stockKey}', 'i_deep_score_prompt', 'I')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
                     <td style="padding: 6px; text-align: center;">
@@ -745,19 +715,19 @@
                             ${stock.m_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">(${stock.m_deep_score})</span>` : ''}
                         </div>
                         <div style="margin-bottom: 2px;">
-                            ${stock.m_prompt ? `<button onclick="showPrompt('${stockKey}', 'm', 'M')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
-                            ${stock.m_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'm_score_prompt', 'M')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
+                            ${stock.m_score ? `<button onclick="showPrompt('${stockKey}', 'm', 'M')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                            ${stock.m_score ? `<button onclick="showPrompt('${stockKey}', 'm_score_prompt', 'M')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
                         <div>
-                            ${stock.m_deep_prompt ? `<button onclick="showPrompt('${stockKey}', 'm_deep', 'M')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
-                            ${stock.m_deep_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'm_deep_score_prompt', 'M')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
+                            ${stock.m_deep_score ? `<button onclick="showPrompt('${stockKey}', 'm_deep', 'M')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
+                            ${stock.m_deep_score ? `<button onclick="showPrompt('${stockKey}', 'm_deep_score_prompt', 'M')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
                     <td style="padding: 6px;" title="${stock.overall_analysis || ''}">${truncate(stock.overall_analysis, 80)}</td>
                     <td style="padding: 6px; text-align: center;">
                         <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.kline_score || '-'}</div>
-                        ${stock.kline_prompt ? `<button onclick="showPrompt('${stockKey}', 'kline', 'K线')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
-                        ${stock.kline_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'kline_score_prompt', 'K线')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
+                        ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline', 'K线')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                        ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline_score_prompt', 'K线')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
                     </td>
                 </tr>
                 `;
@@ -1043,11 +1013,31 @@
             }
         }
 
-        function showPrompt(stockKey, dimKey, dimName) {
+        async function showPrompt(stockKey, dimKey, dimName) {
             const promptData = window.stockPrompts[stockKey];
             if (!promptData) return;
             
-            const prompt = promptData[dimKey];
+            let prompt = promptData[dimKey];
+            
+            // 所有提示词和回复内容按需从后端获取
+            if (prompt === undefined) {
+                let type;
+                let dim;
+                if (dimKey.endsWith('_deep_score_prompt')) { type = 'deep'; dim = dimKey.replace('_deep_score_prompt', ''); }
+                else if (dimKey.endsWith('_score_prompt')) { type = 'score'; dim = dimKey.replace('_score_prompt', ''); }
+                else if (dimKey.endsWith('_deep')) { type = 'deep_prompt'; dim = dimKey.replace('_deep', ''); }
+                else { type = 'prompt'; dim = dimKey; }
+                try {
+                    const resp = await fetch(`/api/batch/stock/${promptData.stock_id}/prompt?dim=${dim}&type=${type}`);
+                    const result = await resp.json();
+                    prompt = result.data;
+                    promptData[dimKey] = prompt; // 缓存
+                } catch (e) {
+                    alert('获取内容失败: ' + e.message);
+                    return;
+                }
+            }
+            
             if (!prompt) return;
             
             document.getElementById('modalTitle').innerHTML = `
@@ -1076,12 +1066,8 @@
                     content = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-size: 12px; line-height: 1.6;">${prompt}</pre>`;
                 }
             } else {
-                // Markdown格式渲染
-                if (typeof marked !== 'undefined') {
-                    content = `<div class="markdown-body">${marked.parse(prompt)}</div>`;
-                } else {
-                    content = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-size: 12px; line-height: 1.6;">${prompt}</pre>`;
-                }
+                // 文本格式显示
+                content = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-size: 12px; line-height: 1.6;">${prompt}</pre>`;
             }
             
             document.getElementById('modalContent').innerHTML = content;
