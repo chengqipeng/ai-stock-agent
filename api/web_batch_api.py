@@ -199,18 +199,19 @@ async def execute_deep_analysis(stock_id: int, deep_thinking: bool = Query(False
         overall_analysis = []
         
         for dim in dimensions:
-            # 构建打分提示词
+            # 构建深度分析提示词
             service = CAN_SLIM_SERVICES[dim](stock_info)
             service.data_cache = await service.collect_data()
             await service.process_data()
-            score_prompt = service.build_prompt(use_score_output=True)
+            score_prompt = service.build_prompt(use_score_output=False)
             
             # 执行完整分析
             result = await execute_can_slim_completion(dim, stock_info, deep_thinking)
             score = extract_score_from_result(result)
             summary = extract_summary_from_result(result)
             
-            db_manager.update_stock_dimension_score(stock_id, dim.lower(), score, result, summary, score_prompt)
+            # 使用深度分析专用字段
+            db_manager.update_stock_dimension_deep_analysis(stock_id, dim.lower(), score, result, summary, score_prompt)
             overall_analysis.append(f"{dim}维度: {score}分 - {summary}")
         
         # 更新整体分析

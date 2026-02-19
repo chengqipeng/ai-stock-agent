@@ -22,13 +22,23 @@ class DatabaseManager:
             cursor.execute("PRAGMA table_info(stock_analysis_detail)")
             existing_columns = {row[1] for row in cursor.fetchall()}
             
-            score_prompt_columns = ['c_score_prompt', 'a_score_prompt', 'n_score_prompt', 
-                                   's_score_prompt', 'l_score_prompt', 'i_score_prompt', 
-                                   'm_score_prompt', 'kline_score_prompt']
+            new_columns = [
+                'c_score_prompt', 'a_score_prompt', 'n_score_prompt', 
+                's_score_prompt', 'l_score_prompt', 'i_score_prompt', 
+                'm_score_prompt', 'kline_score_prompt',
+                'c_deep_score', 'c_deep_prompt', 'c_deep_summary', 'c_deep_score_prompt',
+                'a_deep_score', 'a_deep_prompt', 'a_deep_summary', 'a_deep_score_prompt',
+                'n_deep_score', 'n_deep_prompt', 'n_deep_summary', 'n_deep_score_prompt',
+                's_deep_score', 's_deep_prompt', 's_deep_summary', 's_deep_score_prompt',
+                'l_deep_score', 'l_deep_prompt', 'l_deep_summary', 'l_deep_score_prompt',
+                'i_deep_score', 'i_deep_prompt', 'i_deep_summary', 'i_deep_score_prompt',
+                'm_deep_score', 'm_deep_prompt', 'm_deep_summary', 'm_deep_score_prompt'
+            ]
             
-            for col in score_prompt_columns:
+            for col in new_columns:
                 if col not in existing_columns:
-                    cursor.execute(f"ALTER TABLE stock_analysis_detail ADD COLUMN {col} TEXT")
+                    col_type = 'INTEGER' if col.endswith('_score') else 'TEXT'
+                    cursor.execute(f"ALTER TABLE stock_analysis_detail ADD COLUMN {col} {col_type}")
             
             conn.commit()
             
@@ -203,6 +213,29 @@ class DatabaseManager:
                 cursor.execute(f"""
                     UPDATE stock_analysis_detail 
                     SET {dimension}_score = ?, {dimension}_prompt = ?, {dimension}_summary = ?
+                    WHERE id = ?
+                """, (score, prompt, summary, stock_id))
+            
+            conn.commit()
+    
+    def update_stock_dimension_deep_analysis(self, stock_id: int, dimension: str, 
+                                            score: int, prompt: str, summary: str = None, score_prompt: str = None):
+        """更新股票维度深度分析"""
+        dimension = dimension.lower()
+        
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            if score_prompt:
+                cursor.execute(f"""
+                    UPDATE stock_analysis_detail 
+                    SET {dimension}_deep_score = ?, {dimension}_deep_prompt = ?, {dimension}_deep_summary = ?, {dimension}_deep_score_prompt = ?
+                    WHERE id = ?
+                """, (score, prompt, summary, score_prompt, stock_id))
+            else:
+                cursor.execute(f"""
+                    UPDATE stock_analysis_detail 
+                    SET {dimension}_deep_score = ?, {dimension}_deep_prompt = ?, {dimension}_deep_summary = ?
                     WHERE id = ?
                 """, (score, prompt, summary, stock_id))
             
