@@ -67,11 +67,11 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                         # 收集数据并构建提示词
                         c_service.data_cache = await c_service.collect_data()
                         await c_service.process_data()
-                        c_score_prompt = c_service.build_prompt()
+                        c_score_prompt = c_service.build_prompt(use_score_output=True)
                         
                         a_service.data_cache = await a_service.collect_data()
                         await a_service.process_data()
-                        a_score_prompt = a_service.build_prompt()
+                        a_score_prompt = a_service.build_prompt(use_score_output=True)
                         
                         # 执行打分
                         c_result = await execute_can_slim_score('C', stock_info, deep_thinking)

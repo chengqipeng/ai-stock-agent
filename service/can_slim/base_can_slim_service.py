@@ -34,8 +34,12 @@ class BaseCanSlimService(ABC):
         """处理数据（可选，子类可覆盖）"""
         pass
     
-    def build_prompt(self) -> str:
-        """构建提示词"""
+    def build_prompt(self, use_score_output: bool = False) -> str:
+        """构建提示词
+        
+        Args:
+            use_score_output: 是否使用打分输出格式（True）还是完整分析输出格式（False）
+        """
         template = self.get_prompt_template()
         params = self.get_prompt_params()
         
@@ -48,7 +52,7 @@ class BaseCanSlimService(ABC):
         })
         
         prompt = template.format(**params)
-        return self.append_final_output(prompt)
+        return self.append_final_output(prompt, use_score_output)
     
     async def execute(self, deep_thinking: bool = False) -> str:
         """执行分析流程"""
@@ -58,8 +62,8 @@ class BaseCanSlimService(ABC):
         # 2. 处理数据
         await self.process_data()
         
-        # 3. 构建提示词
-        prompt = self.build_prompt()
+        # 3. 构建提示词（使用完整分析输出）
+        prompt = self.build_prompt(use_score_output=False)
         print(prompt)
         print("\n =============================== \n")
         
@@ -84,9 +88,18 @@ class BaseCanSlimService(ABC):
         """获取最终输出指令（子类可覆盖以提供特定维度的输出要求）"""
         return ""
     
-    def append_final_output(self, prompt: str) -> str:
-        """在提示词末尾追加最终输出指令"""
-        final_output = self.get_final_output_instruction()
-        if final_output:
-            return f"{prompt}\n\n{final_output}"
-        return prompt
+    def append_final_output(self, prompt: str, use_score_output: bool = False) -> str:
+        """在提示词末尾追加最终输出指令
+        
+        Args:
+            prompt: 原始提示词
+            use_score_output: True使用SCORE_OUTPUT（打分），False使用维度特定的FINAL_OUTPUT（完整分析）
+        """
+        if use_score_output:
+            from common.constants.can_slim_final_outputs import SCORE_OUTPUT
+            return f"{prompt}\n\n{SCORE_OUTPUT}"
+        else:
+            final_output = self.get_final_output_instruction()
+            if final_output:
+                return f"{prompt}\n\n{final_output}"
+            return prompt
