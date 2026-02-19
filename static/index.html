@@ -619,6 +619,14 @@
                     i: stock.i_prompt,
                     m: stock.m_prompt,
                     kline: stock.kline_prompt,
+                    c_score_prompt: stock.c_score_prompt,
+                    a_score_prompt: stock.a_score_prompt,
+                    n_score_prompt: stock.n_score_prompt,
+                    s_score_prompt: stock.s_score_prompt,
+                    l_score_prompt: stock.l_score_prompt,
+                    i_score_prompt: stock.i_score_prompt,
+                    m_score_prompt: stock.m_score_prompt,
+                    kline_score_prompt: stock.kline_score_prompt,
                     name: stock.stock_name
                 };
                 
@@ -630,7 +638,10 @@
                     </td>
                     <td style="padding: 6px; text-align: center;">
                         <div style="color: #667eea; font-weight: 600;">${stock.c_score || '-'}</div>
-                        ${stock.c_prompt ? `<button onclick="showPrompt('${stockKey}', 'c', 'C')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分结果</button>` : ''}
+                        <div style="margin-top: 3px;">
+                            ${stock.c_prompt ? `<button onclick="showPrompt('${stockKey}', 'c', 'C')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin-right: 2px;">查看打分结果</button>` : ''}
+                            ${stock.c_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'c_score_prompt', 'C')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分提示词</button>` : ''}
+                        </div>
                     </td>
                     <td style="padding: 6px;" title="${stock.c_summary || ''}">${truncate(stock.c_summary)}</td>
                     <td style="padding: 6px; text-align: center;">

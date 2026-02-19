@@ -59,14 +59,29 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                     try:
                         stock_info = get_stock_info_by_name(stock['stock_name'])
                         
+                        # 获取打分提示词
+                        from service.can_slim.can_slim_service import CAN_SLIM_SERVICES
+                        c_service = CAN_SLIM_SERVICES['C'](stock_info)
+                        a_service = CAN_SLIM_SERVICES['A'](stock_info)
+                        
+                        # 收集数据并构建提示词
+                        c_service.data_cache = await c_service.collect_data()
+                        await c_service.process_data()
+                        c_score_prompt = c_service.build_prompt()
+                        
+                        a_service.data_cache = await a_service.collect_data()
+                        await a_service.process_data()
+                        a_score_prompt = a_service.build_prompt()
+                        
+                        # 执行打分
                         c_result = await execute_can_slim_score('C', stock_info, deep_thinking)
                         a_result = await execute_can_slim_score('A', stock_info, deep_thinking)
 
                         c_score = extract_score_from_result(c_result)
                         a_score = extract_score_from_result(a_result)
                         
-                        db_manager.update_stock_dimension_score(stock['id'], 'c', c_score, c_result, None)
-                        db_manager.update_stock_dimension_score(stock['id'], 'a', a_score, a_result, None)
+                        db_manager.update_stock_dimension_score(stock['id'], 'c', c_score, c_result, None, c_score_prompt)
+                        db_manager.update_stock_dimension_score(stock['id'], 'a', a_score, a_result, None, a_score_prompt)
                         db_manager.update_stock_status(stock['id'], 'completed', None, deep_thinking)
                         
                         return {
@@ -75,6 +90,7 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                             'score': f'C:{c_score}, A:{a_score}'
                         }
                     except Exception as e:
+                        print(f"Error analyzing {stock['stock_name']}: {e}")
                         db_manager.update_stock_status(stock['id'], 'failed', str(e), deep_thinking)
                         return {
                             'success': False,

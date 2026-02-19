@@ -18,6 +18,20 @@ class DatabaseManager:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
+            # 检查并添加缺失的列
+            cursor.execute("PRAGMA table_info(stock_analysis_detail)")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            
+            score_prompt_columns = ['c_score_prompt', 'a_score_prompt', 'n_score_prompt', 
+                                   's_score_prompt', 'l_score_prompt', 'i_score_prompt', 
+                                   'm_score_prompt', 'kline_score_prompt']
+            
+            for col in score_prompt_columns:
+                if col not in existing_columns:
+                    cursor.execute(f"ALTER TABLE stock_analysis_detail ADD COLUMN {col} TEXT")
+            
+            conn.commit()
+            
             # 批次信息表
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS batch_info (
@@ -44,30 +58,37 @@ class DatabaseManager:
                     c_score INTEGER,
                     c_prompt TEXT,
                     c_summary TEXT,
+                    c_score_prompt TEXT,
                     
                     a_score INTEGER,
                     a_prompt TEXT,
                     a_summary TEXT,
+                    a_score_prompt TEXT,
                     
                     n_score INTEGER,
                     n_prompt TEXT,
                     n_summary TEXT,
+                    n_score_prompt TEXT,
                     
                     s_score INTEGER,
                     s_prompt TEXT,
                     s_summary TEXT,
+                    s_score_prompt TEXT,
                     
                     l_score INTEGER,
                     l_prompt TEXT,
                     l_summary TEXT,
+                    l_score_prompt TEXT,
                     
                     i_score INTEGER,
                     i_prompt TEXT,
                     i_summary TEXT,
+                    i_score_prompt TEXT,
                     
                     m_score INTEGER,
                     m_prompt TEXT,
                     m_summary TEXT,
+                    m_score_prompt TEXT,
                     
                     -- 整体分析
                     overall_analysis TEXT,
@@ -75,6 +96,7 @@ class DatabaseManager:
                     -- K线分析
                     kline_score INTEGER,
                     kline_prompt TEXT,
+                    kline_score_prompt TEXT,
                     
                     -- 状态信息
                     status TEXT DEFAULT 'pending',
@@ -164,18 +186,25 @@ class DatabaseManager:
             return dict(row) if row else None
     
     def update_stock_dimension_score(self, stock_id: int, dimension: str, 
-                                   score: int, prompt: str, summary: str = None):
+                                   score: int, prompt: str, summary: str = None, score_prompt: str = None):
         """更新股票维度打分"""
         dimension = dimension.lower()
         
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
-            cursor.execute(f"""
-                UPDATE stock_analysis_detail 
-                SET {dimension}_score = ?, {dimension}_prompt = ?, {dimension}_summary = ?
-                WHERE id = ?
-            """, (score, prompt, summary, stock_id))
+            if score_prompt:
+                cursor.execute(f"""
+                    UPDATE stock_analysis_detail 
+                    SET {dimension}_score = ?, {dimension}_prompt = ?, {dimension}_summary = ?, {dimension}_score_prompt = ?
+                    WHERE id = ?
+                """, (score, prompt, summary, score_prompt, stock_id))
+            else:
+                cursor.execute(f"""
+                    UPDATE stock_analysis_detail 
+                    SET {dimension}_score = ?, {dimension}_prompt = ?, {dimension}_summary = ?
+                    WHERE id = ?
+                """, (score, prompt, summary, stock_id))
             
             conn.commit()
     
