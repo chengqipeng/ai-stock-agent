@@ -26,7 +26,7 @@
             max-width: 1400px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 400px 1fr;
+            grid-template-columns: 320px 1fr;
             gap: 20px;
         }
         .left-column {
@@ -631,7 +631,7 @@
                             ${stock.c_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">/ ${stock.c_deep_score}</span>` : ''}
                         </div>
                         <div style="margin-bottom: 2px;">
-                            ${stock.c_score ? `<button onclick="showPrompt('${stockKey}', 'c', 'C')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                            ${stock.c_score ? `<button onclick="showPrompt('${stockKey}', 'c', 'C')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分结果</button>` : ''}
                             ${stock.c_score ? `<button onclick="showPrompt('${stockKey}', 'c_score_prompt', 'C')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
                         <div>
@@ -645,7 +645,7 @@
                             ${stock.a_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">/ ${stock.a_deep_score}</span>` : ''}
                         </div>
                         <div style="margin-bottom: 2px;">
-                            ${stock.a_score ? `<button onclick="showPrompt('${stockKey}', 'a', 'A')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                            ${stock.a_score ? `<button onclick="showPrompt('${stockKey}', 'a', 'A')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分结果</button>` : ''}
                             ${stock.a_score ? `<button onclick="showPrompt('${stockKey}', 'a_score_prompt', 'A')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
                         <div>
