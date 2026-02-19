@@ -111,7 +111,7 @@ class DatabaseManager:
             
             for col in deep_columns:
                 if col not in existing_columns:
-                    col_type = 'INTEGER' if col.endswith('_score') else 'TEXT'
+                    col_type = 'REAL' if col.endswith('_score') else 'TEXT'
                     cursor.execute(f"ALTER TABLE stock_analysis_detail ADD COLUMN {col} {col_type}")
             
             conn.commit()
@@ -214,7 +214,7 @@ class DatabaseManager:
             conn.commit()
     
     def update_stock_dimension_deep_analysis(self, stock_id: int, dimension: str, 
-                                            score: int, prompt: str, summary: str = None, score_prompt: str = None):
+                                            score: float, prompt: str, summary: str = None, score_prompt: str = None):
         """更新股票维度深度分析"""
         dimension = dimension.lower()
         

@@ -26,7 +26,7 @@
             max-width: 1400px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 320px 1fr;
+            grid-template-columns: 300px 1fr;
             gap: 20px;
         }
         .left-column {
@@ -114,6 +114,16 @@
         .panel.fullscreen .batch-list,
         .panel.fullscreen > div[style*="max-height"] {
             max-height: calc(100vh - 80px) !important;
+        }
+        .panel.fullscreen #stockResultTable {
+            min-width: unset;
+            width: 100%;
+            table-layout: fixed;
+        }
+        .panel.fullscreen #stockResultTable th,
+        .panel.fullscreen #stockResultTable td {
+            min-width: unset;
+            max-width: unset;
         }
         .fullscreen-btn {
             padding: 5px 10px;
@@ -346,7 +356,7 @@
                 </div>
             </h2>
             <div style="overflow-x: auto; max-height: 600px;">
-                <table id="stockResultTable" style="min-width: 1400px; border-collapse: collapse; display: none; font-size: 11px;">
+                <table id="stockResultTable" style="min-width: 1200px; border-collapse: collapse; display: none; font-size: 11px;">
                     <thead>
                         <tr style="background: #f5f5f5; border-bottom: 2px solid #667eea;">
                             <th style="padding: 6px; text-align: center; position: sticky; left: 0; background: #f5f5f5; z-index: 10; min-width: 40px;">
@@ -361,7 +371,7 @@
                             <th style="padding: 6px; text-align: center; min-width: 120px;">I维</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">M维</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">K线</th>
-                            <th style="padding: 6px; text-align: left; min-width: 200px;">整体分析</th>
+                            <th style="padding: 6px; text-align: left; min-width: 100px; max-width: 150px;">整体分析</th>
                         </tr>
                     </thead>
                     <tbody id="stockResultList"></tbody>
@@ -389,6 +399,7 @@
                 </div>
             </div>
             <div class="progress-modal-info" id="progressModalInfo">准备开始...</div>
+            <div id="deepAnalysisStockList" style="display:none; margin-top:12px; max-height:200px; overflow-y:auto;"></div>
         </div>
     </div>
 
@@ -654,105 +665,105 @@
                         <div style="font-weight: 600;">${stock.stock_name}</div>
                         <div style="font-size: 10px; color: #999;">${stock.stock_code}</div>
                     </td>
-                    <td style="padding: 6px; text-align: center;">
+                    <td style="padding: 6px; text-align: center; vertical-align: top;">
                         <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">
                             ${stock.c_score || '-'}
                             ${stock.c_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">/ ${stock.c_deep_score}</span>` : ''}
                         </div>
-                        <div style="margin-bottom: 2px;">
+                        <div style="white-space: nowrap; min-height: 20px;">
                             ${stock.c_score ? `<button onclick="showPrompt('${stockKey}', 'c', 'C')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分结果</button>` : ''}
                             ${stock.c_score ? `<button onclick="showPrompt('${stockKey}', 'c_score_prompt', 'C')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
-                        <div>
+                        <div style="white-space: nowrap; min-height: 20px;">
                             ${stock.c_deep_score ? `<button onclick="showPrompt('${stockKey}', 'c_deep', 'C')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
                             ${stock.c_deep_score ? `<button onclick="showPrompt('${stockKey}', 'c_deep_score_prompt', 'C')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
-                    <td style="padding: 6px; text-align: center;">
+                    <td style="padding: 6px; text-align: center; vertical-align: top;">
                         <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">
                             ${stock.a_score || '-'}
                             ${stock.a_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">/ ${stock.a_deep_score}</span>` : ''}
                         </div>
-                        <div style="margin-bottom: 2px;">
+                        <div style="white-space: nowrap; min-height: 20px;">
                             ${stock.a_score ? `<button onclick="showPrompt('${stockKey}', 'a', 'A')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分结果</button>` : ''}
                             ${stock.a_score ? `<button onclick="showPrompt('${stockKey}', 'a_score_prompt', 'A')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
-                        <div>
+                        <div style="white-space: nowrap; min-height: 20px;">
                             ${stock.a_deep_score ? `<button onclick="showPrompt('${stockKey}', 'a_deep', 'A')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
                             ${stock.a_deep_score ? `<button onclick="showPrompt('${stockKey}', 'a_deep_score_prompt', 'A')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
-                    <td style="padding: 6px; text-align: center;">
+                    <td style="padding: 6px; text-align: center; vertical-align: top;">
                         <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">
                             ${stock.n_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">${stock.n_deep_score}</span>` : ''}
                         </div>
-                        <div style="margin-bottom: 2px;">
+                        <div style="white-space: nowrap; min-height: 20px;">
                             ${stock.n_score ? `<button onclick="showPrompt('${stockKey}', 'n', 'N')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
                             ${stock.n_score ? `<button onclick="showPrompt('${stockKey}', 'n_score_prompt', 'N')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
-                        <div>
+                        <div style="white-space: nowrap; min-height: 20px;">
                             ${stock.n_deep_score ? `<button onclick="showPrompt('${stockKey}', 'n_deep', 'N')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
                             ${stock.n_deep_score ? `<button onclick="showPrompt('${stockKey}', 'n_deep_score_prompt', 'N')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
-                    <td style="padding: 6px; text-align: center;">
+                    <td style="padding: 6px; text-align: center; vertical-align: top;">
                         <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">
                             ${stock.s_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">${stock.s_deep_score}</span>` : ''}
                         </div>
-                        <div style="margin-bottom: 2px;">
+                        <div style="white-space: nowrap; min-height: 20px;">
                             ${stock.s_score ? `<button onclick="showPrompt('${stockKey}', 's', 'S')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
                             ${stock.s_score ? `<button onclick="showPrompt('${stockKey}', 's_score_prompt', 'S')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
-                        <div>
+                        <div style="white-space: nowrap; min-height: 20px;">
                             ${stock.s_deep_score ? `<button onclick="showPrompt('${stockKey}', 's_deep', 'S')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
                             ${stock.s_deep_score ? `<button onclick="showPrompt('${stockKey}', 's_deep_score_prompt', 'S')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
-                    <td style="padding: 6px; text-align: center;">
+                    <td style="padding: 6px; text-align: center; vertical-align: top;">
                         <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">
                             ${stock.l_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">${stock.l_deep_score}</span>` : ''}
                         </div>
-                        <div style="margin-bottom: 2px;">
+                        <div style="white-space: nowrap; min-height: 20px;">
                             ${stock.l_score ? `<button onclick="showPrompt('${stockKey}', 'l', 'L')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
                             ${stock.l_score ? `<button onclick="showPrompt('${stockKey}', 'l_score_prompt', 'L')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
-                        <div>
+                        <div style="white-space: nowrap; min-height: 20px;">
                             ${stock.l_deep_score ? `<button onclick="showPrompt('${stockKey}', 'l_deep', 'L')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
                             ${stock.l_deep_score ? `<button onclick="showPrompt('${stockKey}', 'l_deep_score_prompt', 'L')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
-                    <td style="padding: 6px; text-align: center;">
+                    <td style="padding: 6px; text-align: center; vertical-align: top;">
                         <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">
                             ${stock.i_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">${stock.i_deep_score}</span>` : ''}
                         </div>
-                        <div style="margin-bottom: 2px;">
+                        <div style="white-space: nowrap; min-height: 20px;">
                             ${stock.i_score ? `<button onclick="showPrompt('${stockKey}', 'i', 'I')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
                             ${stock.i_score ? `<button onclick="showPrompt('${stockKey}', 'i_score_prompt', 'I')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
-                        <div>
+                        <div style="white-space: nowrap; min-height: 20px;">
                             ${stock.i_deep_score ? `<button onclick="showPrompt('${stockKey}', 'i_deep', 'I')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
                             ${stock.i_deep_score ? `<button onclick="showPrompt('${stockKey}', 'i_deep_score_prompt', 'I')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
-                    <td style="padding: 6px; text-align: center;">
+                    <td style="padding: 6px; text-align: center; vertical-align: top;">
                         <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">
                             ${stock.m_deep_score ? `<span style="color: #ff6b6b; margin-left: 5px;" title="深度分析分数">${stock.m_deep_score}</span>` : ''}
                         </div>
-                        <div style="margin-bottom: 2px;">
+                        <div style="white-space: nowrap; min-height: 20px;">
                             ${stock.m_score ? `<button onclick="showPrompt('${stockKey}', 'm', 'M')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
                             ${stock.m_score ? `<button onclick="showPrompt('${stockKey}', 'm_score_prompt', 'M')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">打分提示词</button>` : ''}
                         </div>
-                        <div>
+                        <div style="white-space: nowrap; min-height: 20px;">
                             ${stock.m_deep_score ? `<button onclick="showPrompt('${stockKey}', 'm_deep', 'M')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
                             ${stock.m_deep_score ? `<button onclick="showPrompt('${stockKey}', 'm_deep_score_prompt', 'M')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
-                    <td style="padding: 6px; text-align: center;">
+                    <td style="padding: 6px; text-align: center; vertical-align: top;">
                         <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.kline_score || '-'}</div>
                         ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline', 'K线')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
                         ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline_score_prompt', 'K线')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
                     </td>
-                    <td style="padding: 6px;" title="${stock.overall_analysis || ''}">${truncate(stock.overall_analysis, 80)}</td>
+                    <td style="padding: 6px; min-width: 100px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${stock.overall_analysis || ''}">${truncate(stock.overall_analysis, 30)}</td>
                 </tr>
                 `;
             }).join('');
@@ -863,15 +874,14 @@
                 button.textContent = '🔄 分析中...';
                 button.disabled = true;
                 
-                const response = await fetch(`/api/stock/${stockId}/deep_analysis${useDeepThinking ? '?deep_thinking=true' : ''}`, {
-                    method: 'POST'
+                const response = await fetch(`/api/stock/deep_analysis${useDeepThinking ? '?deep_thinking=true' : ''}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify([stockId])
                 });
-                
                 const data = await response.json();
-                
                 if (data.success) {
                     alert('深度分析完成！');
-                    // 重新加载详情
                     showStockDetail(stockId);
                 } else {
                     alert('分析失败: ' + (data.detail || '未知错误'));
@@ -1159,48 +1169,63 @@
 
             showProgressModal();
             disableUI();
+            document.getElementById('deepAnalysisStockList').style.display = 'block';
+
+            const stockIds = Array.from(batchSelectedStockIds);
+            const total = stockIds.length;
+            const dims = ['C','A','N','S','L','I','M'];
+            const dimLabel = {C:'季度盈利',A:'年度盈利',N:'新高点',S:'供需',L:'领军股',I:'机构',M:'市场'};
 
             try {
-                const stockIds = Array.from(batchSelectedStockIds);
-                const total = stockIds.length;
-                let completed = 0;
+                const url = `/api/stock/deep_analysis${useDeepThinking ? '?deep_thinking=true' : ''}`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(stockIds)
+                });
 
-                updateProgressModal(completed, total, '开始批量深度分析...');
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buf = '';
 
-                for (const stockId of stockIds) {
-                    try {
-                        const response = await fetch(`/api/stock/${stockId}/deep_analysis${useDeepThinking ? '?deep_thinking=true' : ''}`, {
-                            method: 'POST'
-                        });
-                        const data = await response.json();
-                        
-                        completed++;
-                        if (data.success) {
-                            updateProgressModal(completed, total, `✅ 完成 ${completed}/${total}`);
-                        } else {
-                            updateProgressModal(completed, total, `❌ 失败 ${completed}/${total}`);
-                        }
-                    } catch (error) {
-                        completed++;
-                        updateProgressModal(completed, total, `❌ 错误 ${completed}/${total}: ${error.message}`);
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    buf += decoder.decode(value, {stream: true});
+                    const lines = buf.split('\n\n');
+                    buf = lines.pop();
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        const evt = JSON.parse(line.slice(6));
+                        updateProgressModal(evt.completed_dims, evt.total_dims,
+                            `正在分析... ${evt.completed_dims}/${evt.total_dims}个维度`);
+
+                        // 更新股票列表
+                        const listEl = document.getElementById('deepAnalysisStockList');
+                        listEl.innerHTML = (evt.stocks || []).map(s => {
+                            const dimHtml = dims.map(d => {
+                                const st = s.dims[d];
+                                const icon = st === 'done' ? '✅' : st === 'running' ? '🔄' : st === 'error' ? '❌' : '⏳';
+                                return `<span style="margin:0 3px;font-size:11px;" title="${dimLabel[d]}">${icon}${d}</span>`;
+                            }).join('');
+                            return `<div style="padding:4px 0;border-bottom:1px solid #eee;font-size:12px;">
+                                <b>${s.stock_name}</b> ${dimHtml}
+                            </div>`;
+                        }).join('');
+
+                        if (evt.stage === 'done') break;
                     }
                 }
 
-                updateProgressModal(total, total, '✅ 批量深度分析完成！');
-                
-                // 清除选中状态
                 batchSelectedStockIds.clear();
                 document.querySelectorAll('.stock-checkbox').forEach(cb => cb.checked = false);
                 document.getElementById('selectAllStocks').checked = false;
                 updateBatchSelection();
-                
-                // 刷新当前批次数据
-                if (currentBatchId) {
-                    await loadBatchStocks(currentBatchId);
-                }
+                if (currentBatchId) await loadBatchStocks(currentBatchId);
             } catch (error) {
                 alert('批量深度分析失败: ' + error.message);
             } finally {
+                document.getElementById('deepAnalysisStockList').style.display = 'none';
                 hideProgressModal();
                 enableUI();
             }

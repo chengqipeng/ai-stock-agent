@@ -214,54 +214,105 @@ async def clear_batches():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/stock/{stock_id}/deep_analysis")
-async def execute_deep_analysis(stock_id: int, deep_thinking: bool = Query(False)):
-    """执行股票深度分析（所有CAN SLIM维度）"""
-    try:
-        stock = db_manager.get_stock_detail(stock_id)
-        if not stock:
-            raise HTTPException(status_code=404, detail="股票记录不存在")
-        
-        stock_info = get_stock_info_by_name(stock['stock_name'])
-        
-        # 执行所有CAN SLIM维度分析
-        from service.can_slim.can_slim_service import CAN_SLIM_SERVICES
-        dimensions = ['C', 'A', 'N', 'S', 'L', 'I', 'M']
-        overall_analysis = []
-        
-        for dim in dimensions:
-            # 构建深度分析提示词
-            service = CAN_SLIM_SERVICES[dim](stock_info)
-            service.data_cache = await service.collect_data()
-            await service.process_data()
-            score_prompt = service.build_prompt(use_score_output=False)
-            
-            # 执行完整分析
-            result = await execute_can_slim_completion(dim, stock_info, deep_thinking)
-            score = extract_score_from_result(result)
-            summary = extract_summary_from_result(result)
-            
-            # 使用深度分析专用字段
-            db_manager.update_stock_dimension_deep_analysis(stock_id, dim.lower(), score, result, summary, score_prompt)
-            overall_analysis.append(f"{dim}维度: {score}分 - {summary}")
-        
-        # 更新整体分析
-        overall_text = "\n".join(overall_analysis)
-        db_manager.update_stock_overall_analysis(stock_id, overall_text)
-        
-        # 更新状态
-        db_manager.update_stock_status(stock_id, 'completed', None, deep_thinking)
-        
-        return {"success": True, "message": "深度分析完成"}
-    except Exception as e:
-        logger.error(f"深度分析失败 stock_id={stock_id}: {e}", exc_info=True)
-        db_manager.update_stock_status(stock_id, 'failed', str(e), deep_thinking)
-        raise HTTPException(status_code=500, detail=str(e))
+@app.post("/api/stock/deep_analysis")
+async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Query(True)):
+    """执行股票深度分析（SSE流式，支持多股票并行，最多3个股票同时执行）"""
+    from service.can_slim.can_slim_service import CAN_SLIM_SERVICES
 
-def extract_score_from_result(result: str) -> int:
+    async def generate():
+        stock_names = {}
+        for sid in stock_ids:
+            s = db_manager.get_stock_detail(sid)
+            stock_names[sid] = s['stock_name'] if s else str(sid)
+
+        total_dims = len(stock_ids) * 7
+        completed_dims = 0
+        dim_progress = {sid: {} for sid in stock_ids}  # {stock_id: {dim: 'pending'|'done'|'error'}}
+
+        def progress_event(extra=None):
+            payload = {
+                'completed_dims': completed_dims,
+                'total_dims': total_dims,
+                'stocks': [
+                    {
+                        'stock_id': sid,
+                        'stock_name': stock_names[sid],
+                        'dims': dim_progress[sid]
+                    } for sid in stock_ids
+                ]
+            }
+            if extra:
+                payload.update(extra)
+            return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+        yield progress_event()
+
+        async def analyze_stock(stock_id: int):
+            nonlocal completed_dims
+            stock = db_manager.get_stock_detail(stock_id)
+            if not stock:
+                return
+            stock_info = get_stock_info_by_name(stock['stock_name'])
+            dimensions = ['C', 'A', 'N', 'S', 'L', 'I', 'M']
+
+            async def analyze_dim(dim: str):
+                nonlocal completed_dims
+                dim_progress[stock_id][dim] = 'running'
+                try:
+                    service = CAN_SLIM_SERVICES[dim](stock_info)
+                    service.data_cache = await service.collect_data()
+                    await service.process_data()
+                    score_prompt = service.build_prompt(use_score_output=False)
+                    result = await execute_can_slim_completion(dim, stock_info, deep_thinking)
+                    score = extract_score_from_result(result)
+                    summary = extract_summary_from_result(result)
+                    db_manager.update_stock_dimension_deep_analysis(stock_id, dim.lower(), score, result, summary, score_prompt)
+                    dim_progress[stock_id][dim] = 'done'
+                    return f"{dim}维度: {score}分 - {summary}"
+                except Exception as e:
+                    dim_progress[stock_id][dim] = 'error'
+                    raise e
+                finally:
+                    completed_dims += 1
+
+            dim_semaphore = asyncio.Semaphore(7)
+            async def analyze_dim_limited(dim):
+                async with dim_semaphore:
+                    return await analyze_dim(dim)
+
+            results = await asyncio.gather(*[analyze_dim_limited(d) for d in dimensions], return_exceptions=True)
+            overall_text = "\n".join(r for r in results if isinstance(r, str))
+            db_manager.update_stock_overall_analysis(stock_id, overall_text)
+            db_manager.update_stock_status(stock_id, 'completed', None, deep_thinking)
+
+        queue = asyncio.Queue()
+        stock_semaphore = asyncio.Semaphore(3)
+        async def run_limited(sid):
+            async with stock_semaphore:
+                await analyze_stock(sid)
+                await queue.put(sid)
+
+        analysis_task = asyncio.create_task(
+            asyncio.gather(*[run_limited(sid) for sid in stock_ids])
+        )
+
+        finished = 0
+        while finished < len(stock_ids):
+            try:
+                await asyncio.wait_for(queue.get(), timeout=2.0)
+                finished += 1
+            except asyncio.TimeoutError:
+                pass
+            yield progress_event()
+
+        await analysis_task
+        yield progress_event({'stage': 'done'})
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+def extract_score_from_result(result: str) -> float:
     """从分析结果中提取分数"""
     try:
-        # 移除markdown代码块标记
         clean_result = result.strip()
         if clean_result.startswith('```'):
             clean_result = re.sub(r'^```(?:json)?\s*\n', '', clean_result)
@@ -272,22 +323,23 @@ def extract_score_from_result(result: str) -> int:
         if clean_result.startswith('{'):
             data = json.loads(clean_result)
             score = data.get('score', 0)
+            print(score)
             if score:
-                return int(float(score))
-            return 0
+                return round(float(score), 2)
+            return 0.0
         
         score_match = re.search(r'分数[：:](\d+\.?\d*)', result)
         if score_match:
-            return int(float(score_match.group(1)))
+            return round(float(score_match.group(1)), 2)
         
         score_match = re.search(r'(\d+\.?\d*)分', result)
         if score_match:
-            return int(float(score_match.group(1)))
+            return round(float(score_match.group(1)), 2)
         
-        return 0
+        return 0.0
     except Exception as e:
         print(f"Error extracting score: {e}, result: {result[:100]}")
-        return 0
+        return 0.0
 
 def extract_summary_from_result(result: str) -> str:
     """从分析结果中提取总结"""
