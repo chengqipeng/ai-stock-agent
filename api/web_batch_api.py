@@ -61,7 +61,7 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                         
                         c_result = await execute_can_slim_score('C', stock_info, deep_thinking)
                         a_result = await execute_can_slim_score('A', stock_info, deep_thinking)
-                        
+
                         c_score = extract_score_from_result(c_result)
                         a_score = extract_score_from_result(a_result)
                         
@@ -215,15 +215,17 @@ def extract_score_from_result(result: str) -> int:
         if clean_result.startswith('{'):
             data = json.loads(clean_result)
             score = data.get('score', 0)
-            return int(score) if score else 0
+            if score:
+                return int(float(score))
+            return 0
         
-        score_match = re.search(r'分数[：:](\d+)', result)
+        score_match = re.search(r'分数[：:](\d+\.?\d*)', result)
         if score_match:
-            return int(score_match.group(1))
+            return int(float(score_match.group(1)))
         
-        score_match = re.search(r'(\d+)分', result)
+        score_match = re.search(r'(\d+\.?\d*)分', result)
         if score_match:
-            return int(score_match.group(1))
+            return int(float(score_match.group(1)))
         
         return 0
     except Exception as e:
