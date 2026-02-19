@@ -310,22 +310,34 @@
             </div>
         </div>
 
-        <div class="panel">
+        <div class="panel" style="overflow-x: auto;">
             <h2 style="font-size: 14px;">批次股票列表</h2>
-            <table id="stockResultTable" style="width: 100%; border-collapse: collapse; display: none;">
-                <thead>
-                    <tr style="background: #f5f5f5; border-bottom: 2px solid #667eea;">
-                        <th style="padding: 8px; text-align: left; font-size: 12px;">股票名称</th>
-                        <th style="padding: 8px; text-align: left; font-size: 12px;">股票代码</th>
-                        <th style="padding: 8px; text-align: center; font-size: 12px; min-width: 120px;">CAN SLIM综合<br><small style="color: #999;">(C-A-N-S-L-I-M)</small></th>
-                        <th style="padding: 8px; text-align: center; font-size: 12px;">K线打分</th>
-                        <th style="padding: 8px; text-align: center; font-size: 12px;">深度思考</th>
-                        <th style="padding: 8px; text-align: center; font-size: 12px;">状态</th>
-                        <th style="padding: 8px; text-align: left; font-size: 12px;">完成时间</th>
-                    </tr>
-                </thead>
-                <tbody id="stockResultList"></tbody>
-            </table>
+            <div style="overflow-x: auto; max-height: 600px;">
+                <table id="stockResultTable" style="min-width: 1700px; border-collapse: collapse; display: none; font-size: 11px;">
+                    <thead>
+                        <tr style="background: #f5f5f5; border-bottom: 2px solid #667eea;">
+                            <th style="padding: 6px; text-align: left; position: sticky; left: 0; background: #f5f5f5; z-index: 10; min-width: 80px;">股票名称</th>
+                            <th style="padding: 6px; text-align: center; min-width: 100px;">C分</th>
+                            <th style="padding: 6px; text-align: left; min-width: 150px;">C总结</th>
+                            <th style="padding: 6px; text-align: center; min-width: 100px;">A分</th>
+                            <th style="padding: 6px; text-align: left; min-width: 150px;">A总结</th>
+                            <th style="padding: 6px; text-align: center; min-width: 100px;">N分</th>
+                            <th style="padding: 6px; text-align: left; min-width: 150px;">N总结</th>
+                            <th style="padding: 6px; text-align: center; min-width: 100px;">S分</th>
+                            <th style="padding: 6px; text-align: left; min-width: 150px;">S总结</th>
+                            <th style="padding: 6px; text-align: center; min-width: 100px;">L分</th>
+                            <th style="padding: 6px; text-align: left; min-width: 150px;">L总结</th>
+                            <th style="padding: 6px; text-align: center; min-width: 100px;">I分</th>
+                            <th style="padding: 6px; text-align: left; min-width: 150px;">I总结</th>
+                            <th style="padding: 6px; text-align: center; min-width: 100px;">M分</th>
+                            <th style="padding: 6px; text-align: left; min-width: 150px;">M总结</th>
+                            <th style="padding: 6px; text-align: left; min-width: 200px;">整体分析</th>
+                            <th style="padding: 6px; text-align: center; min-width: 100px;">K线分</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stockResultList"></tbody>
+                </table>
+            </div>
             <div id="stockResultEmpty" style="text-align: center; color: #999; padding: 20px;">请选择批次查看</div>
         </div>
     </div>
@@ -567,7 +579,6 @@
                 const response = await fetch(`/api/batch/${batchId}/stocks`);
                 const data = await response.json();
                 if (data.success) {
-                    console.log('API Response:', data.data);
                     renderBatchStocks(data.data);
                 }
             } catch (error) {
@@ -590,28 +601,73 @@
             table.style.display = 'table';
             empty.style.display = 'none';
             
-            tbody.innerHTML = stocks.map(stock => {
-                const isDeepThinking = stock.is_deep_thinking === 1 || stock.is_deep_thinking === '1';
+            window.stockPrompts = {};
+            
+            const truncate = (text, len = 50) => {
+                if (!text) return '-';
+                return text.length > len ? text.substring(0, len) + '...' : text;
+            };
+            
+            tbody.innerHTML = stocks.map((stock, idx) => {
+                const stockKey = `stock_${idx}`;
+                window.stockPrompts[stockKey] = {
+                    c: stock.c_prompt,
+                    a: stock.a_prompt,
+                    n: stock.n_prompt,
+                    s: stock.s_prompt,
+                    l: stock.l_prompt,
+                    i: stock.i_prompt,
+                    m: stock.m_prompt,
+                    kline: stock.kline_prompt,
+                    name: stock.stock_name
+                };
+                
                 return `
-                <tr onclick="showStockDetail(${stock.id})" style="cursor: pointer; border-bottom: 1px solid #e0e0e0;">
-                    <td style="padding: 8px; font-size: 13px;">${stock.stock_name}</td>
-                    <td style="padding: 8px; font-size: 13px;">${stock.stock_code}</td>
-                    <td style="padding: 8px; text-align: center; font-size: 13px;">
-                        <div style="display: flex; flex-direction: column; gap: 2px;">
-                            <div style="color: #667eea; font-weight: 600;">${stock.score || '-'}</div>
-                            <div style="font-size: 10px; color: #999;">
-                                C:${stock.c_score||'-'} A:${stock.a_score||'-'} N:${stock.n_score||'-'} S:${stock.s_score||'-'}<br>
-                                L:${stock.l_score||'-'} I:${stock.i_score||'-'} M:${stock.m_score||'-'}
-                            </div>
-                        </div>
+                <tr style="border-bottom: 1px solid #e0e0e0;">
+                    <td style="padding: 6px; position: sticky; left: 0; background: white; z-index: 5;">
+                        <div style="font-weight: 600;">${stock.stock_name}</div>
+                        <div style="font-size: 10px; color: #999;">${stock.stock_code}</div>
                     </td>
-                    <td style="padding: 8px; text-align: center; font-size: 13px; color: #667eea; font-weight: 600;">${stock.technical_score || '-'}</td>
-                    <td style="padding: 8px; text-align: center; font-size: 13px; color: ${isDeepThinking ? '#667eea' : '#999'}; font-weight: ${isDeepThinking ? '600' : 'normal'};">${isDeepThinking ? '是' : '否'}</td>
-                    <td style="padding: 8px; text-align: center; font-size: 13px;">
-                        ${stock.status === 'completed' ? '✅' : stock.status === 'failed' ? '❌' : '⏳'}
-                        ${stock.error_message ? '<span style="margin-left: 5px; cursor: pointer;" onclick="event.stopPropagation(); showError(' + stock.id + ')" title="查看错误信息">⚠️</span>' : ''}
+                    <td style="padding: 6px; text-align: center;">
+                        <div style="color: #667eea; font-weight: 600;">${stock.c_score || '-'}</div>
+                        ${stock.c_prompt ? `<button onclick="showPrompt('${stockKey}', 'c', 'C')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分</button>` : ''}
                     </td>
-                    <td style="padding: 8px; font-size: 11px; color: #666;">${stock.completed_at || '处理中...'}</td>
+                    <td style="padding: 6px;" title="${stock.c_summary || ''}">${truncate(stock.c_summary)}</td>
+                    <td style="padding: 6px; text-align: center;">
+                        <div style="color: #667eea; font-weight: 600;">${stock.a_score || '-'}</div>
+                        ${stock.a_prompt ? `<button onclick="showPrompt('${stockKey}', 'a', 'A')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分</button>` : ''}
+                    </td>
+                    <td style="padding: 6px;" title="${stock.a_summary || ''}">${truncate(stock.a_summary)}</td>
+                    <td style="padding: 6px; text-align: center;">
+                        <div style="color: #667eea; font-weight: 600;">${stock.n_score || '-'}</div>
+                        ${stock.n_prompt ? `<button onclick="showPrompt('${stockKey}', 'n', 'N')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分</button>` : ''}
+                    </td>
+                    <td style="padding: 6px;" title="${stock.n_summary || ''}">${truncate(stock.n_summary)}</td>
+                    <td style="padding: 6px; text-align: center;">
+                        <div style="color: #667eea; font-weight: 600;">${stock.s_score || '-'}</div>
+                        ${stock.s_prompt ? `<button onclick="showPrompt('${stockKey}', 's', 'S')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分</button>` : ''}
+                    </td>
+                    <td style="padding: 6px;" title="${stock.s_summary || ''}">${truncate(stock.s_summary)}</td>
+                    <td style="padding: 6px; text-align: center;">
+                        <div style="color: #667eea; font-weight: 600;">${stock.l_score || '-'}</div>
+                        ${stock.l_prompt ? `<button onclick="showPrompt('${stockKey}', 'l', 'L')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分</button>` : ''}
+                    </td>
+                    <td style="padding: 6px;" title="${stock.l_summary || ''}">${truncate(stock.l_summary)}</td>
+                    <td style="padding: 6px; text-align: center;">
+                        <div style="color: #667eea; font-weight: 600;">${stock.i_score || '-'}</div>
+                        ${stock.i_prompt ? `<button onclick="showPrompt('${stockKey}', 'i', 'I')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分</button>` : ''}
+                    </td>
+                    <td style="padding: 6px;" title="${stock.i_summary || ''}">${truncate(stock.i_summary)}</td>
+                    <td style="padding: 6px; text-align: center;">
+                        <div style="color: #667eea; font-weight: 600;">${stock.m_score || '-'}</div>
+                        ${stock.m_prompt ? `<button onclick="showPrompt('${stockKey}', 'm', 'M')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分</button>` : ''}
+                    </td>
+                    <td style="padding: 6px;" title="${stock.m_summary || ''}">${truncate(stock.m_summary)}</td>
+                    <td style="padding: 6px;" title="${stock.overall_analysis || ''}">${truncate(stock.overall_analysis, 80)}</td>
+                    <td style="padding: 6px; text-align: center;">
+                        <div style="color: #667eea; font-weight: 600;">${stock.kline_score || '-'}</div>
+                        ${stock.kline_prompt ? `<button onclick="showPrompt('${stockKey}', 'kline', 'K线')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分</button>` : ''}
+                    </td>
                 </tr>
                 `;
             }).join('');
@@ -894,6 +950,45 @@
             } catch (error) {
                 alert('删除失败: ' + error.message);
             }
+        }
+
+        function showPrompt(stockKey, dimKey, dimName) {
+            const promptData = window.stockPrompts[stockKey];
+            if (!promptData) return;
+            
+            const prompt = promptData[dimKey];
+            if (!prompt) return;
+            
+            document.getElementById('modalTitle').textContent = `${promptData.name} - ${dimName}维度打分详情`;
+            
+            let content = '';
+            const cleanPrompt = prompt.trim();
+            
+            // 判断是否为JSON格式
+            if (cleanPrompt.startsWith('{') || cleanPrompt.startsWith('```json')) {
+                let jsonStr = cleanPrompt;
+                if (cleanPrompt.startsWith('```')) {
+                    jsonStr = cleanPrompt.replace(/^```(?:json)?\s*\n/, '').replace(/\n```\s*$/, '').trim();
+                }
+                
+                try {
+                    const jsonData = JSON.parse(jsonStr);
+                    const formattedJson = JSON.stringify(jsonData, null, 2);
+                    content = `<pre style="background: #f5f5f5; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 12px; line-height: 1.6;">${formattedJson}</pre>`;
+                } catch (e) {
+                    content = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-size: 12px; line-height: 1.6;">${prompt}</pre>`;
+                }
+            } else {
+                // Markdown格式渲染
+                if (typeof marked !== 'undefined') {
+                    content = `<div class="markdown-body">${marked.parse(prompt)}</div>`;
+                } else {
+                    content = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-size: 12px; line-height: 1.6;">${prompt}</pre>`;
+                }
+            }
+            
+            document.getElementById('modalContent').innerHTML = content;
+            document.getElementById('detailModal').classList.add('show');
         }
 
         // 初始化

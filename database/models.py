@@ -1,12 +1,15 @@
 """数据库模型定义"""
 import sqlite3
+import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import json
 
 
 class DatabaseManager:
-    def __init__(self, db_path: str = "batch_analysis.db"):
+    def __init__(self, db_path: str = "data_results/sql_lite/batch_analysis.db"):
+        # 确保目录存在
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self.db_path = db_path
         self.init_database()
     

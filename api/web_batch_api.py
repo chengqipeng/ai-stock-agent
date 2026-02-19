@@ -204,9 +204,18 @@ async def execute_deep_analysis(stock_id: int, deep_thinking: bool = Query(False
 def extract_score_from_result(result: str) -> int:
     """从分析结果中提取分数"""
     try:
-        if result.strip().startswith('{'):
-            data = json.loads(result)
-            return data.get('score', 0)
+        # 移除markdown代码块标记
+        clean_result = result.strip()
+        if clean_result.startswith('```'):
+            clean_result = re.sub(r'^```(?:json)?\s*\n', '', clean_result)
+            clean_result = re.sub(r'\n```\s*$', '', clean_result)
+        
+        clean_result = clean_result.strip()
+        
+        if clean_result.startswith('{'):
+            data = json.loads(clean_result)
+            score = data.get('score', 0)
+            return int(score) if score else 0
         
         score_match = re.search(r'分数[：:](\d+)', result)
         if score_match:
@@ -217,16 +226,24 @@ def extract_score_from_result(result: str) -> int:
             return int(score_match.group(1))
         
         return 0
-    except:
+    except Exception as e:
+        print(f"Error extracting score: {e}, result: {result[:100]}")
         return 0
 
 def extract_summary_from_result(result: str) -> str:
     """从分析结果中提取总结"""
     try:
-        if result.strip().startswith('{'):
-            data = json.loads(result)
-            return data.get('summary', data.get('analysis', ''))
+        # 移除markdown代码块标记
+        clean_result = result.strip()
+        if clean_result.startswith('```'):
+            clean_result = re.sub(r'^```(?:json)?\s*\n', '', clean_result)
+            clean_result = re.sub(r'\n```\s*$', '', clean_result)
+        
+        clean_result = clean_result.strip()
+        
+        if clean_result.startswith('{'):
+            data = json.loads(clean_result)
+            return data.get('content', data.get('summary', data.get('analysis', '')))
         return result[:200] + '...' if len(result) > 200 else result
     except:
         return result[:200] + '...' if len(result) > 200 else result
-
