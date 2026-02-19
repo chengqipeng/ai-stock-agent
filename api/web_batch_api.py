@@ -329,7 +329,6 @@ def extract_score_from_result(result: str) -> float:
         if clean_result.startswith('{'):
             data = json.loads(clean_result)
             score = data.get('score', 0)
-            print(score)
             if score:
                 return round(float(score), 2)
             return 0.0
