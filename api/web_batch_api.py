@@ -5,7 +5,10 @@ from typing import List, Optional
 import json
 import asyncio
 import re
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from common.utils.stock_list_parser import parse_stock_list
 from common.utils.stock_info_utils import get_stock_info_by_name
@@ -90,7 +93,7 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                             'score': f'C:{c_score}, A:{a_score}'
                         }
                     except Exception as e:
-                        print(f"Error analyzing {stock['stock_name']}: {e}")
+                        logger.error(f"Error analyzing {stock['stock_name']}: {e}", exc_info=True)
                         db_manager.update_stock_status(stock['id'], 'failed', str(e), deep_thinking)
                         return {
                             'success': False,
@@ -251,6 +254,7 @@ async def execute_deep_analysis(stock_id: int, deep_thinking: bool = Query(False
         
         return {"success": True, "message": "深度分析完成"}
     except Exception as e:
+        logger.error(f"深度分析失败 stock_id={stock_id}: {e}", exc_info=True)
         db_manager.update_stock_status(stock_id, 'failed', str(e), deep_thinking)
         raise HTTPException(status_code=500, detail=str(e))
 

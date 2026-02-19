@@ -331,8 +331,8 @@
                             <th style="padding: 6px; text-align: center; min-width: 120px;">L维</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">I维</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">M维</th>
-                            <th style="padding: 6px; text-align: left; min-width: 200px;">整体分析</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">K线</th>
+                            <th style="padding: 6px; text-align: left; min-width: 200px;">整体分析</th>
                         </tr>
                     </thead>
                     <tbody id="stockResultList"></tbody>
@@ -617,7 +617,7 @@
                 };
                 
                 return `
-                <tr style="border-bottom: 1px solid #e0e0e0;">
+                <tr style="border-bottom: 1px solid #e0e0e0; vertical-align: top;">
                     <td style="padding: 6px; text-align: center; position: sticky; left: 0; background: white; z-index: 5;">
                         <input type="checkbox" class="stock-checkbox" data-stock-id="${stock.id}" onchange="updateBatchSelection()" style="cursor: pointer;">
                     </td>
@@ -718,12 +718,12 @@
                             ${stock.m_deep_score ? `<button onclick="showPrompt('${stockKey}', 'm_deep_score_prompt', 'M')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
-                    <td style="padding: 6px;" title="${stock.overall_analysis || ''}">${truncate(stock.overall_analysis, 80)}</td>
                     <td style="padding: 6px; text-align: center;">
                         <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.kline_score || '-'}</div>
                         ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline', 'K线')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
                         ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline_score_prompt', 'K线')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
                     </td>
+                    <td style="padding: 6px;" title="${stock.overall_analysis || ''}">${truncate(stock.overall_analysis, 80)}</td>
                 </tr>
                 `;
             }).join('');
