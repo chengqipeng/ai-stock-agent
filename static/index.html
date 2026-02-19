@@ -125,6 +125,15 @@
             min-width: unset;
             max-width: unset;
         }
+        .panel.fullscreen #stockResultTable th:first-child,
+        .panel.fullscreen #stockResultTable td:first-child {
+            min-width: 20px;
+            width: 20px;
+        }
+        .panel.fullscreen #stockResultTable th:nth-child(2),
+        .panel.fullscreen #stockResultTable td:nth-child(2) {
+            left: 20px !important;
+        }
         .fullscreen-btn {
             padding: 5px 10px;
             background: #667eea;
@@ -396,12 +405,6 @@
                     <span id="progressModalText">0/0</span>
                 </div>
             </div>
-            <div class="progress-modal-bar" id="overallProgressBar" style="display:none; margin-top:6px;">
-                <div class="progress-modal-fill" id="overallModalFill" style="width: 0%; background: linear-gradient(90deg, #43a047, #66bb6a);"></div>
-                <div class="progress-modal-text">
-                    <span style="font-size:10px;">整体分析 </span><span id="overallModalText">0/0</span>
-                </div>
-            </div>
             <div class="progress-modal-info" id="progressModalInfo">准备开始...</div>
             <div id="deepAnalysisStockList" style="display:none; margin-top:12px; max-height:200px; overflow-y:auto;"></div>
         </div>
@@ -668,6 +671,7 @@
                     <td style="padding: 6px; position: sticky; left: 40px; background: white; z-index: 5;">
                         <div style="font-weight: 600;">${stock.stock_name}</div>
                         <div style="font-size: 10px; color: #999;">${stock.stock_code}</div>
+                        <div style="font-size: 10px; color: #bbb; margin-top: 2px;">${stock.completed_at ? stock.completed_at.slice(0, 16).replace('T', ' ') : '-'}</div>
                     </td>
                     <td style="padding: 6px; text-align: center; vertical-align: top;">
                         <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">
@@ -1010,7 +1014,7 @@
 
         function showProgressModal(title = '正在执行批量分析...') {
             document.getElementById('progressModalTitle').textContent = title;
-            document.getElementById('overallProgressBar').style.display = 'none';
+            document.getElementById('deepAnalysisStockList').innerHTML = '';
             document.getElementById('progressModal').classList.add('show');
             updateProgressModal(0, 100, '准备开始...');
         }
@@ -1021,18 +1025,11 @@
             }, 2000);
         }
 
-        function updateProgressModal(completed, total, info, overallCompleted, overallTotal) {
+        function updateProgressModal(completed, total, info) {
             const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
             document.getElementById('progressModalFill').style.width = percentage + '%';
             document.getElementById('progressModalText').textContent = `${completed}/${total}`;
             document.getElementById('progressModalInfo').textContent = info;
-            if (overallTotal !== undefined) {
-                const overallBar = document.getElementById('overallProgressBar');
-                overallBar.style.display = 'block';
-                const overallPct = overallTotal > 0 ? Math.round((overallCompleted / overallTotal) * 100) : 0;
-                document.getElementById('overallModalFill').style.width = overallPct + '%';
-                document.getElementById('overallModalText').textContent = `${overallCompleted}/${overallTotal}`;
-            }
         }
 
         function disableUI() {
@@ -1186,8 +1183,6 @@
 
             const stockIds = Array.from(batchSelectedStockIds);
             const total = stockIds.length;
-            const dims = ['C','A','N','S','L','I','M'];
-            const dimLabel = {C:'季度盈利',A:'年度盈利',N:'新高点',S:'供需',L:'领军股',I:'机构',M:'市场'};
 
             try {
                 const url = `/api/stock/deep_analysis${useDeepThinking ? '?deep_thinking=true' : ''}`;
@@ -1211,16 +1206,17 @@
                         if (!line.startsWith('data: ')) continue;
                         const evt = JSON.parse(line.slice(6));
                         updateProgressModal(evt.completed_dims, evt.total_dims,
-                            `正在分析... ${evt.completed_dims}/${evt.total_dims}个维度`,
-                            evt.overall_completed, evt.overall_total);
+                            `正在分析... ${evt.completed_dims}/${evt.total_dims}个维度`);
 
                         // 更新股票列表
                         const listEl = document.getElementById('deepAnalysisStockList');
+                        const allDims = ['C','A','N','S','L','I','M','overall'];
+                        const dimLabel = {C:'季度盈利',A:'年度盈利',N:'新高点',S:'供需',L:'领军股',I:'机构',M:'市场',overall:'整体分析'};
                         listEl.innerHTML = (evt.stocks || []).map(s => {
-                            const dimHtml = dims.map(d => {
+                            const dimHtml = allDims.map(d => {
                                 const st = s.dims[d];
                                 const icon = st === 'done' ? '✅' : st === 'running' ? '🔄' : st === 'error' ? '❌' : '⏳';
-                                return `<span style="margin:0 3px;font-size:11px;" title="${dimLabel[d]}">${icon}${d}</span>`;
+                                return `<span style="margin:0 3px;font-size:11px;" title="${dimLabel[d]}">${icon}${d === 'overall' ? '整体' : d}</span>`;
                             }).join('');
                             return `<div style="padding:4px 0;border-bottom:1px solid #eee;font-size:12px;">
                                 <b>${s.stock_name}</b> ${dimHtml}

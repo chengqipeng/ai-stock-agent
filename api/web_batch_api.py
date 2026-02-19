@@ -227,16 +227,12 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
 
         total_dims = len(stock_ids) * 7
         completed_dims = 0
-        overall_completed = 0
-        overall_total = len(stock_ids)
         dim_progress = {sid: {} for sid in stock_ids}  # {stock_id: {dim: 'pending'|'done'|'error'}}
 
         def progress_event(extra=None):
             payload = {
                 'completed_dims': completed_dims,
                 'total_dims': total_dims,
-                'overall_completed': overall_completed,
-                'overall_total': overall_total,
                 'stocks': [
                     {
                         'stock_id': sid,
@@ -284,12 +280,12 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
                 async with dim_semaphore:
                     return await analyze_dim(dim)
 
-            nonlocal overall_completed
+            dim_progress[stock_id]['overall'] = 'running'
             results = await asyncio.gather(*[analyze_dim_limited(d) for d in dimensions], return_exceptions=True)
             overall_text = "\n".join(r for r in results if isinstance(r, str))
             db_manager.update_stock_overall_analysis(stock_id, overall_text)
             db_manager.update_stock_status(stock_id, 'completed', None, deep_thinking)
-            overall_completed += 1
+            dim_progress[stock_id]['overall'] = 'done'
 
         queue = asyncio.Queue()
         stock_semaphore = asyncio.Semaphore(3)
