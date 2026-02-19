@@ -88,18 +88,28 @@ class BaseCanSlimService(ABC):
         """获取最终输出指令（子类可覆盖以提供特定维度的输出要求）"""
         return ""
     
+    def get_dimension_name(self) -> str:
+        """获取维度名称（子类必须实现）"""
+        return self.__class__.__name__[0]  # 默认返回类名的第一个字符
+    
     def append_final_output(self, prompt: str, use_score_output: bool = False) -> str:
         """在提示词末尾追加最终输出指令
         
         Args:
             prompt: 原始提示词
-            use_score_output: True使用SCORE_OUTPUT（打分），False使用维度特定的FINAL_OUTPUT（完整分析）
+            use_score_output: True使用SCORE_OUTPUT（打分），False使用维度特定的COMPLETION_OUTPUT（完整分析）
         """
-        if use_score_output:
-            from common.constants.can_slim_final_outputs import SCORE_OUTPUT
-            return f"{prompt}\n\n{SCORE_OUTPUT}"
-        else:
-            final_output = self.get_final_output_instruction()
-            if final_output:
-                return f"{prompt}\n\n{final_output}"
-            return prompt
+        dim = self.get_dimension_name().upper()
+        try:
+            from common.constants import can_slim_final_outputs
+            if use_score_output:
+                score_output = getattr(can_slim_final_outputs, f"{dim}_SCORE_OUTPUT", None)
+                if score_output:
+                    return f"{prompt}\n\n{score_output}"
+            else:
+                completion_output = getattr(can_slim_final_outputs, f"{dim}_COMPLETION_OUTPUT", None)
+                if completion_output:
+                    return f"{prompt}\n\n{completion_output}"
+        except (ImportError, AttributeError):
+            pass
+        return prompt

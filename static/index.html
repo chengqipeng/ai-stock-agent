@@ -318,29 +318,22 @@
                 </div>
             </h2>
             <div style="overflow-x: auto; max-height: 600px;">
-                <table id="stockResultTable" style="min-width: 1700px; border-collapse: collapse; display: none; font-size: 11px;">
+                <table id="stockResultTable" style="min-width: 1400px; border-collapse: collapse; display: none; font-size: 11px;">
                     <thead>
                         <tr style="background: #f5f5f5; border-bottom: 2px solid #667eea;">
                             <th style="padding: 6px; text-align: center; position: sticky; left: 0; background: #f5f5f5; z-index: 10; min-width: 40px;">
                                 <input type="checkbox" id="selectAllStocks" onchange="toggleSelectAllStocks()" style="cursor: pointer;">
                             </th>
                             <th style="padding: 6px; text-align: left; position: sticky; left: 40px; background: #f5f5f5; z-index: 10; min-width: 80px;">股票名称</th>
-                            <th style="padding: 6px; text-align: center; min-width: 100px;">C分</th>
-                            <th style="padding: 6px; text-align: left; min-width: 150px;">C总结</th>
-                            <th style="padding: 6px; text-align: center; min-width: 100px;">A分</th>
-                            <th style="padding: 6px; text-align: left; min-width: 150px;">A总结</th>
-                            <th style="padding: 6px; text-align: center; min-width: 100px;">N分</th>
-                            <th style="padding: 6px; text-align: left; min-width: 150px;">N总结</th>
-                            <th style="padding: 6px; text-align: center; min-width: 100px;">S分</th>
-                            <th style="padding: 6px; text-align: left; min-width: 150px;">S总结</th>
-                            <th style="padding: 6px; text-align: center; min-width: 100px;">L分</th>
-                            <th style="padding: 6px; text-align: left; min-width: 150px;">L总结</th>
-                            <th style="padding: 6px; text-align: center; min-width: 100px;">I分</th>
-                            <th style="padding: 6px; text-align: left; min-width: 150px;">I总结</th>
-                            <th style="padding: 6px; text-align: center; min-width: 100px;">M分</th>
-                            <th style="padding: 6px; text-align: left; min-width: 150px;">M总结</th>
+                            <th style="padding: 6px; text-align: center; min-width: 120px;">C分</th>
+                            <th style="padding: 6px; text-align: center; min-width: 120px;">A分</th>
+                            <th style="padding: 6px; text-align: center; min-width: 120px;">N分</th>
+                            <th style="padding: 6px; text-align: center; min-width: 120px;">S分</th>
+                            <th style="padding: 6px; text-align: center; min-width: 120px;">L分</th>
+                            <th style="padding: 6px; text-align: center; min-width: 120px;">I分</th>
+                            <th style="padding: 6px; text-align: center; min-width: 120px;">M分</th>
                             <th style="padding: 6px; text-align: left; min-width: 200px;">整体分析</th>
-                            <th style="padding: 6px; text-align: center; min-width: 100px;">K线分</th>
+                            <th style="padding: 6px; text-align: center; min-width: 120px;">K线分</th>
                         </tr>
                     </thead>
                     <tbody id="stockResultList"></tbody>
@@ -649,47 +642,45 @@
                         <div style="font-size: 10px; color: #999;">${stock.stock_code}</div>
                     </td>
                     <td style="padding: 6px; text-align: center;">
-                        <div style="color: #667eea; font-weight: 600;">${stock.c_score || '-'}</div>
-                        <div style="margin-top: 3px;">
-                            ${stock.c_prompt ? `<button onclick="showPrompt('${stockKey}', 'c', 'C')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin-right: 2px;">查看打分结果</button>` : ''}
-                            ${stock.c_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'c_score_prompt', 'C')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分提示词</button>` : ''}
-                        </div>
+                        <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.c_score || '-'}</div>
+                        ${stock.c_prompt ? `<button onclick="showPrompt('${stockKey}', 'c', 'C')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                        ${stock.c_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'c_score_prompt', 'C')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
                     </td>
-                    <td style="padding: 6px;" title="${stock.c_summary || ''}">${truncate(stock.c_summary)}</td>
                     <td style="padding: 6px; text-align: center;">
-                        <div style="color: #667eea; font-weight: 600;">${stock.a_score || '-'}</div>
-                        ${stock.a_prompt ? `<button onclick="showPrompt('${stockKey}', 'a', 'A')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分结果</button>` : ''}
+                        <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.a_score || '-'}</div>
+                        ${stock.a_prompt ? `<button onclick="showPrompt('${stockKey}', 'a', 'A')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                        ${stock.a_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'a_score_prompt', 'A')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
                     </td>
-                    <td style="padding: 6px;" title="${stock.a_summary || ''}">${truncate(stock.a_summary)}</td>
                     <td style="padding: 6px; text-align: center;">
-                        <div style="color: #667eea; font-weight: 600;">${stock.n_score || '-'}</div>
-                        ${stock.n_prompt ? `<button onclick="showPrompt('${stockKey}', 'n', 'N')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分结果</button>` : ''}
+                        <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.n_score || '-'}</div>
+                        ${stock.n_prompt ? `<button onclick="showPrompt('${stockKey}', 'n', 'N')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                        ${stock.n_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'n_score_prompt', 'N')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
                     </td>
-                    <td style="padding: 6px;" title="${stock.n_summary || ''}">${truncate(stock.n_summary)}</td>
                     <td style="padding: 6px; text-align: center;">
-                        <div style="color: #667eea; font-weight: 600;">${stock.s_score || '-'}</div>
-                        ${stock.s_prompt ? `<button onclick="showPrompt('${stockKey}', 's', 'S')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分结果</button>` : ''}
+                        <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.s_score || '-'}</div>
+                        ${stock.s_prompt ? `<button onclick="showPrompt('${stockKey}', 's', 'S')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                        ${stock.s_score_prompt ? `<button onclick="showPrompt('${stockKey}', 's_score_prompt', 'S')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
                     </td>
-                    <td style="padding: 6px;" title="${stock.s_summary || ''}">${truncate(stock.s_summary)}</td>
                     <td style="padding: 6px; text-align: center;">
-                        <div style="color: #667eea; font-weight: 600;">${stock.l_score || '-'}</div>
-                        ${stock.l_prompt ? `<button onclick="showPrompt('${stockKey}', 'l', 'L')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分结果</button>` : ''}
+                        <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.l_score || '-'}</div>
+                        ${stock.l_prompt ? `<button onclick="showPrompt('${stockKey}', 'l', 'L')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                        ${stock.l_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'l_score_prompt', 'L')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
                     </td>
-                    <td style="padding: 6px;" title="${stock.l_summary || ''}">${truncate(stock.l_summary)}</td>
                     <td style="padding: 6px; text-align: center;">
-                        <div style="color: #667eea; font-weight: 600;">${stock.i_score || '-'}</div>
-                        ${stock.i_prompt ? `<button onclick="showPrompt('${stockKey}', 'i', 'I')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分结果</button>` : ''}
+                        <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.i_score || '-'}</div>
+                        ${stock.i_prompt ? `<button onclick="showPrompt('${stockKey}', 'i', 'I')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                        ${stock.i_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'i_score_prompt', 'I')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
                     </td>
-                    <td style="padding: 6px;" title="${stock.i_summary || ''}">${truncate(stock.i_summary)}</td>
                     <td style="padding: 6px; text-align: center;">
-                        <div style="color: #667eea; font-weight: 600;">${stock.m_score || '-'}</div>
-                        ${stock.m_prompt ? `<button onclick="showPrompt('${stockKey}', 'm', 'M')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分结果</button>` : ''}
+                        <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.m_score || '-'}</div>
+                        ${stock.m_prompt ? `<button onclick="showPrompt('${stockKey}', 'm', 'M')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                        ${stock.m_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'm_score_prompt', 'M')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
                     </td>
-                    <td style="padding: 6px;" title="${stock.m_summary || ''}">${truncate(stock.m_summary)}</td>
                     <td style="padding: 6px;" title="${stock.overall_analysis || ''}">${truncate(stock.overall_analysis, 80)}</td>
                     <td style="padding: 6px; text-align: center;">
-                        <div style="color: #667eea; font-weight: 600;">${stock.kline_score || '-'}</div>
-                        ${stock.kline_prompt ? `<button onclick="showPrompt('${stockKey}', 'kline', 'K线')" style="margin-top: 3px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">查看打分结果</button>` : ''}
+                        <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.kline_score || '-'}</div>
+                        ${stock.kline_prompt ? `<button onclick="showPrompt('${stockKey}', 'kline', 'K线')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                        ${stock.kline_score_prompt ? `<button onclick="showPrompt('${stockKey}', 'kline_score_prompt', 'K线')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
                     </td>
                 </tr>
                 `;
@@ -982,7 +973,13 @@
             const prompt = promptData[dimKey];
             if (!prompt) return;
             
-            document.getElementById('modalTitle').textContent = `${promptData.name} - ${dimName}维度打分详情`;
+            document.getElementById('modalTitle').innerHTML = `
+                ${promptData.name} - ${dimName}维度打分详情
+                <button onclick="copyPromptContent()" style="margin-left: 20px; padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">📋 复制内容</button>
+            `;
+            
+            // 存储当前提示词内容供复制使用
+            window.currentPromptContent = prompt;
             
             let content = '';
             const cleanPrompt = prompt.trim();
@@ -1012,6 +1009,19 @@
             
             document.getElementById('modalContent').innerHTML = content;
             document.getElementById('detailModal').classList.add('show');
+        }
+
+        function copyPromptContent() {
+            if (!window.currentPromptContent) {
+                alert('没有可复制的内容');
+                return;
+            }
+            navigator.clipboard.writeText(window.currentPromptContent).then(() => {
+                alert('内容已复制到剪贴板');
+            }).catch(err => {
+                console.error('复制失败:', err);
+                alert('复制失败，请手动复制');
+            });
         }
 
         function toggleSelectAllStocks() {
@@ -1084,6 +1094,12 @@
                 }
 
                 updateProgressModal(total, total, '✅ 批量深度分析完成！');
+                
+                // 清除选中状态
+                batchSelectedStockIds.clear();
+                document.querySelectorAll('.stock-checkbox').forEach(cb => cb.checked = false);
+                document.getElementById('selectAllStocks').checked = false;
+                updateBatchSelection();
                 
                 // 刷新当前批次数据
                 if (currentBatchId) {

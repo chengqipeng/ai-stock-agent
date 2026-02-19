@@ -194,15 +194,23 @@ async def execute_deep_analysis(stock_id: int, deep_thinking: bool = Query(False
         stock_info = get_stock_info_by_name(stock['stock_name'])
         
         # 执行所有CAN SLIM维度分析
+        from service.can_slim.can_slim_service import CAN_SLIM_SERVICES
         dimensions = ['C', 'A', 'N', 'S', 'L', 'I', 'M']
         overall_analysis = []
         
         for dim in dimensions:
+            # 构建打分提示词
+            service = CAN_SLIM_SERVICES[dim](stock_info)
+            service.data_cache = await service.collect_data()
+            await service.process_data()
+            score_prompt = service.build_prompt(use_score_output=True)
+            
+            # 执行完整分析
             result = await execute_can_slim_completion(dim, stock_info, deep_thinking)
             score = extract_score_from_result(result)
             summary = extract_summary_from_result(result)
             
-            db_manager.update_stock_dimension_score(stock_id, dim.lower(), score, result, summary)
+            db_manager.update_stock_dimension_score(stock_id, dim.lower(), score, result, summary, score_prompt)
             overall_analysis.append(f"{dim}维度: {score}分 - {summary}")
         
         # 更新整体分析

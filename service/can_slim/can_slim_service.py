@@ -1,7 +1,6 @@
 """CAN SLIM分析服务统一出口"""
 from typing import Dict, Callable
 from common.utils.stock_info_utils import StockInfo
-from common.constants.can_slim_final_outputs import SCORE_OUTPUT, COMPLETION_OUTPUT
 from service.can_slim.A_Earnings_Increases_service import AEarningsIncreasesService
 from service.can_slim.C_Quarterly_Earnings_service import CQuarterlyEarningsService
 from service.can_slim.I_Sponsorship_service import ISponsorshipService
@@ -85,12 +84,26 @@ async def execute_can_slim_score(
     service_class = CAN_SLIM_SERVICES[dimension]
     service = service_class(stock_info)
     
-    original_method = service.get_final_output_instruction
-    try:
-        service.get_final_output_instruction = lambda: SCORE_OUTPUT
-        return await service.execute(deep_thinking)
-    finally:
-        service.get_final_output_instruction = original_method
+    # 收集数据
+    service.data_cache = await service.collect_data()
+    await service.process_data()
+    
+    # 构建打分提示词
+    prompt = service.build_prompt(use_score_output=True)
+    
+    # 调用LLM
+    from service.llm.deepseek_client import DeepSeekClient
+    model = "deepseek-reasoner" if deep_thinking else "deepseek-chat"
+    client = DeepSeekClient()
+    
+    result = ""
+    async for content in client.chat_stream(
+        messages=[{"role": "user", "content": prompt}],
+        model=model
+    ):
+        result += content
+    
+    return result
 
 
 async def execute_can_slim_completion(
@@ -122,10 +135,4 @@ async def execute_can_slim_completion(
     
     service_class = CAN_SLIM_SERVICES[dimension]
     service = service_class(stock_info)
-    
-    original_method = service.get_final_output_instruction
-    try:
-        service.get_final_output_instruction = lambda: COMPLETION_OUTPUT
-        return await service.execute(deep_thinking)
-    finally:
-        service.get_final_output_instruction = original_method
+    return await service.execute(deep_thinking)

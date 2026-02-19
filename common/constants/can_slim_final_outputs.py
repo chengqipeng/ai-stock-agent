@@ -1,42 +1,60 @@
 """CAN SLIM各维度的最终输出指令"""
 
 # A维度 - 年度盈利增长
-A_FINAL_OUTPUT = """[最终输出] 请基于以上分析，给出结论： 在 A 维度，我们要找的是**"利润长牛"和"现金奶牛"的结合体。如果一只股票能连续 3 年保持 EPS 30% 以上增长，且 ROE 维持在 20% 以上，这就是机构抱团**最坚实的理由。"""
+A_FINAL_OUTPUT = """在 A 维度，我们要找的是**"利润长牛"和"现金奶牛"的结合体。如果一只股票能连续 3 年保持 EPS 30% 以上增长，且 ROE 维持在 20% 以上，这就是机构抱团**最坚实的理由。"""
 
 # C维度 - 季度盈利
-C_FINAL_OUTPUT = """[最终输出] 请基于以上分析，给出结论：在 C 维度，我们要找的是**"业绩爆款"和"高增引擎"的起爆点。如果一只股票最新一季度 EPS 同比飙升 30% 以上（最好超 50%），且营收同步实现 25% 以上的加速增长，这就是引爆股价主升浪**最强劲的导火索。"""
+C_FINAL_OUTPUT = """在 C 维度，我们要找的是**"业绩爆款"和"高增引擎"的起爆点。如果一只股票最新一季度 EPS 同比飙升 30% 以上（最好超 50%），且营收同步实现 25% 以上的加速增长，这就是引爆股价主升浪**最强劲的导火索。"""
 
 # I维度 - 机构认同度
-I_FINAL_OUTPUT = """[最终输出] 请基于以上分析，给出结论：在 I 维度，我们要找的是**"聪明钱"和"主力资金"的蓄水池。如果一只股票最近 3 个季度的机构持仓家数持续攀升，且获得了顶尖公募、社保或明星外资（QFII）的重仓背书，这就是推动股价主升浪**最澎湃的燃料。"""
+I_FINAL_OUTPUT = """在 I 维度，我们要找的是**"聪明钱"和"主力资金"的蓄水池。如果一只股票最近 3 个季度的机构持仓家数持续攀升，且获得了顶尖公募、社保或明星外资（QFII）的重仓背书，这就是推动股价主升浪**最澎湃的燃料。"""
 
 # L维度 - 领军股或落后股
-L_FINAL_OUTPUT = """[最终输出] 请基于以上分析，给出结论： "该股票在 L 维度属于【绝对领军 / 跟随者 / 弱势股】。其相对强度 (RS) 表现【优于 / 弱于】 90% 的市场标的。\""""
+L_FINAL_OUTPUT = """该股票在 L 维度属于【绝对领军 / 跟随者 / 弱势股】。其相对强度 (RS) 表现【优于 / 弱于】 90% 的市场标的。"""
 
 # M维度 - 市场方向
-M_FINAL_OUTPUT = """[最终输出] 请基于上述逻辑，输出结论："当前市场处于【🟢 确立上升 / 🟡 趋势承压 / 🔴 下跌调整】阶段。基于 CAN SLIM 规则，建议总仓位控制在【0% / 30-50% / 80-100%】。主要风险点是【指出具体的出货日或均线压力】。\""""
+M_FINAL_OUTPUT = """当前市场处于【🟢 确立上升 / 🟡 趋势承压 / 🔴 下跌调整】阶段。基于 CAN SLIM 规则，建议总仓位控制在【0% / 30-50% / 80-100%】。主要风险点是【指出具体的出货日或均线压力】。"""
 
 # N维度 - 新产品/新管理层/新高点
-N_FINAL_OUTPUT = """[最终输出] 请基于上述逻辑，输出结论：在 N 维度，我们要找的是**"破局催化剂"和"价值重估"的先锋。如果一家公司推出了爆款新产品、迎来了新管理层或行业新拐点，且股价正强势突破创出 52 周新高，这就是打破估值天花板**最强烈的信号。"""
+N_FINAL_OUTPUT = """在 N 维度，我们要找的是**"破局催化剂"和"价值重估"的先锋。如果一家公司推出了爆款新产品、迎来了新管理层或行业新拐点，且股价正强势突破创出 52 周新高，这就是打破估值天花板**最强烈的信号。"""
 
 # S维度 - 供需分析
-S_FINAL_OUTPUT = """[最终输出] 请基于上述逻辑，输出结论： "该股票的筹码结构是【轻盈/适中/沉重】，且供需状态处于【机构吸筹/散户博弈/主力出货】阶段。\""""
+S_FINAL_OUTPUT = """该股票的筹码结构是【轻盈/适中/沉重】，且供需状态处于【机构吸筹/散户博弈/主力出货】阶段。"""
 
-# 打分输出格式
-SCORE_OUTPUT = """[最终输出] 只能输出json格式数据：
-{
+# 打分输出格式模板
+SCORE_OUTPUT_TEMPLATE = """[最终输出] 只能输出json格式数据：
+{{
   'stock_code': '<股票代码>', 
   'stock_name': '<股票名称>', 
-  'score': '<根据数据进行分析结果进行评分，打分范围0-100分，分数不能固定档次，需要极其精确细化>', 
-  'content': '<如果分析缺少数据需要明确什么维度缺少的数据是什么，不超过80字，没有则不用返回>'
-}
+  'score': '<根据分析结果进行评分，打分范围0-100分，分数不能固定档次，需要极其精确细化>', 
+  'content': '精简输出结果，80字以内：{content_instruction}'
+}}
 """
+
+# 各维度的SCORE_OUTPUT
+A_SCORE_OUTPUT = SCORE_OUTPUT_TEMPLATE.format(content_instruction=A_FINAL_OUTPUT)
+C_SCORE_OUTPUT = SCORE_OUTPUT_TEMPLATE.format(content_instruction=C_FINAL_OUTPUT)
+I_SCORE_OUTPUT = SCORE_OUTPUT_TEMPLATE.format(content_instruction=I_FINAL_OUTPUT)
+L_SCORE_OUTPUT = SCORE_OUTPUT_TEMPLATE.format(content_instruction=L_FINAL_OUTPUT)
+M_SCORE_OUTPUT = SCORE_OUTPUT_TEMPLATE.format(content_instruction=M_FINAL_OUTPUT)
+N_SCORE_OUTPUT = SCORE_OUTPUT_TEMPLATE.format(content_instruction=N_FINAL_OUTPUT)
+S_SCORE_OUTPUT = SCORE_OUTPUT_TEMPLATE.format(content_instruction=S_FINAL_OUTPUT)
 
 # 最终输出格式
-COMPLETION_OUTPUT = """[最终输出] 只能输出json格式数据：
-{
+COMPLETION_OUTPUT_TEMPLATE = """[最终输出] 只能输出json格式数据：
+{{
   'stock_code': '<股票代码>', 
   'stock_name': '<股票名称>', 
-  'score': '<评分，按0-100分，评分需严格根据数据进行分析>', 
-  'content': '<完整的分析结论>'
-}
+  'score': '<根据分析结果进行评分，打分范围0-100分，分数不能固定档次，需要极其精确细化>', 
+  'content': '{content_instruction}'
+}}
 """
+
+# 各维度的COMPLETION_OUTPUT
+A_COMPLETION_OUTPUT = COMPLETION_OUTPUT_TEMPLATE.format(content_instruction=A_FINAL_OUTPUT)
+C_COMPLETION_OUTPUT = COMPLETION_OUTPUT_TEMPLATE.format(content_instruction=C_FINAL_OUTPUT)
+I_COMPLETION_OUTPUT = COMPLETION_OUTPUT_TEMPLATE.format(content_instruction=I_FINAL_OUTPUT)
+L_COMPLETION_OUTPUT = COMPLETION_OUTPUT_TEMPLATE.format(content_instruction=L_FINAL_OUTPUT)
+M_COMPLETION_OUTPUT = COMPLETION_OUTPUT_TEMPLATE.format(content_instruction=M_FINAL_OUTPUT)
+N_COMPLETION_OUTPUT = COMPLETION_OUTPUT_TEMPLATE.format(content_instruction=N_FINAL_OUTPUT)
+S_COMPLETION_OUTPUT = COMPLETION_OUTPUT_TEMPLATE.format(content_instruction=S_FINAL_OUTPUT)
