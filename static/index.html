@@ -316,8 +316,9 @@
         <div class="left-column">
             <div class="panel">
                 <h2 style="font-size: 14px;">待分析股票列表</h2>
-                <div style="margin: 10px 0;">
-                    <input type="text" id="stockSearch" placeholder="搜索股票名称或代码..." style="width: 100%; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 13px; margin-bottom: 10px;" oninput="filterStocks()">
+                <div style="margin: 10px 0; position: relative;">
+                    <input type="text" id="stockSearch" placeholder="搜索股票名称或代码..." style="width: 100%; padding: 8px 28px 8px 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 13px; margin-bottom: 10px; box-sizing: border-box;" oninput="filterStocks()">
+                    <span onclick="document.getElementById('stockSearch').value='';filterStocks()" style="position: absolute; right: 8px; top: 8px; cursor: pointer; color: #aaa; font-size: 14px; line-height: 1;">&times;</span>
                 </div>
                 <div style="margin: 10px 0; display: flex; align-items: center;">
                     <button class="btn btn-primary" onclick="selectAll()">全选</button>
@@ -388,7 +389,7 @@
 
     <div class="progress-modal" id="progressModal">
         <div class="progress-modal-content">
-            <div class="progress-modal-title">正在执行批量分析...</div>
+            <div class="progress-modal-title">正在执行批量深度分析...</div>
             <div class="progress-modal-bar">
                 <div class="progress-modal-fill" id="progressModalFill" style="width: 0%"></div>
                 <div class="progress-modal-text">
