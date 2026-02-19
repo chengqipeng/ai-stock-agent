@@ -292,7 +292,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
                 await analyze_stock(sid)
                 await queue.put(sid)
 
-        analysis_task = asyncio.create_task(
+        analysis_task = asyncio.ensure_future(
             asyncio.gather(*[run_limited(sid) for sid in stock_ids])
         )
 
