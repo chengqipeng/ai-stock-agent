@@ -64,8 +64,6 @@ class BaseCanSlimService(ABC):
         
         # 3. 构建提示词（使用完整分析输出）
         prompt = self.build_prompt(use_score_output=False)
-        print(prompt)
-        print("\n =============================== \n")
         
         # 4. 调用LLM
         model = "deepseek-reasoner" if deep_thinking else "deepseek-chat"

@@ -21,40 +21,245 @@ N_FINAL_OUTPUT = """在 N 维度，我们要找的是**"破局催化剂"和"价�
 # S维度 - 供需分析
 S_FINAL_OUTPUT = """该股票的筹码结构是【轻盈/适中/沉重】，且供需状态处于【机构吸筹/散户博弈/主力出货】阶段。"""
 
+# 各维度评分标准
+A_SCORE_STANDARD = """# 评分标准参考（A维度）：
+# 严格量化打分规则（总分 100 分，必须严格执行公式计算）
+## 指标 1：年度 EPS 复合增长率 CAGR（满分 40 分）
+- **数据源**：直接使用已提供的计算结果 `CAGR = 30.49%`（0.3049）。
+- **计分公式**：
+  - CAGR < 15%，得 0 分。
+  - 15% <= CAGR < 25%，得 10 - 20 分（按比例给分）。
+  - 25% <= CAGR <= 50%，得 20 - 40 分。计算公式：`20 + (CAGR - 25) / 25 * 20`。
+  - CAGR > 50%，得 40 分。
+
+## 指标 2：ROE 质量（满分 30 分）
+- **数据源**：提取最新一个完整年度（2024年报）的“净资产收益率(扣非/加权)(%)”，即 24.6042%。
+- **计分公式**：
+  - ROE < 10%，得 0 分。
+  - 10% <= ROE < 17%，得 10 - 20 分。
+  - 17% <= ROE <= 25%，得 20 - 30 分。计算公式：`20 + (ROE - 17) / 8 * 10`。
+  - ROE > 25%，得 30 分。
+- **趋势加分**：对比 2022、2023、2024 年报的 ROE，如果呈逐年上升趋势，额外加 5 分（单项总分不超过 30 分）。
+
+## 指标 3：现金流验证（满分 30 分）
+- **数据源**：提取最新完整年度（2024年报）的“现金流/收益比”，即 0.2788。
+- **计分公式**：
+  - 比值 < 0.5，得 0 - 10 分。计算公式：`比值 * 20`。
+  - 0.5 <= 比值 < 0.8，得 10 - 20 分。
+  - 0.8 <= 比值 <= 1.0，得 20 - 30 分。
+  - 比值 > 1.0，得 30 分。
+"""
+
+C_SCORE_STANDARD = """# 评分标准参考（C维度）：
+# 严格量化打分规则（总分 100 分，必须严格执行公式计算）
+### 指标 1. 单季营业收入同比增长率（满分 30 分）
+- 数据源：取最近一个季度的“单季营业收入同比增长(%)”。
+- 计分公式：
+  - 增速 < 15%，得 0 分。
+  - 15% <= 增速 < 25%，得 10 分。
+  - 25% <= 增速 <= 50%，按照线性比例给分：10 + (增速 - 25) / 25 * 10 分（例如 37.5% 得 15 分）。
+  - 增速 > 50%，得 25 分。
+  - 如果连续两个季度营收增速都在 30% 以上，额外加 5 分（满分不超过 30 分）。
+
+### 指标 2. 业绩加速趋势（满分 40 分）
+- 数据源：最近三个季度的“单季扣非净利润同比增长(%)”。
+- 计分规则：
+  - 绝对增速分 (20分)：最新一季扣非净利润同比 > 50% 得 20 分；30%-50% 得 15 分；15%-30% 得 10 分；<15% 得 0 分。
+  - 加速度分 (20分)：对比近三个季度的增速轨迹。如果是明显的逐季加速（如 Q1<Q2<Q3），得 20 分；如果是高位维持（连续三季 > 40%），得 15 分；如果增速明显放缓或下滑，得 0-5 分。
+
+### 指标 3. 超出市场预期幅度（满分 30 分）
+- 数据源与计算逻辑：提取 2024 年度的实际 EPS（来自基本每股收益数组的2024年报），对比 2024 年度机构一致预期 EPS（以“近六月平均”或其他近期机构对 2024 的预测均值为准）。
+- 公式：Surprise = (实际 EPS - 一致预期 EPS) / 一致预期 EPS * 100%
+- 计分公式：
+  - Surprise <= 0%，得 0 分。
+  - 0% < Surprise <= 10%，得 10 分。
+  - 10% < Surprise <= 20%，得 20 分。
+  - Surprise > 20%，得 30 分。
+  - （注：若数据缺失无法直接计算该项，请基于现有EPS增速的超常表现给予 15-20 的估算分，并注明原因）。
+"""
+
+I_SCORE_STANDARD = """# 评分标准参考（I维度）：
+# 严格量化打分规则（总分 100 分，必须严格执行公式计算）
+
+**维度一：机构数量趋势分析 (满分 30 分)**
+*提取“机构持仓数量趋势”中最近两个季度的“机构总数”进行对比。*
+- 若 最新季度机构数 > 上一季度机构数 且增幅 ≥ 10%，得 30 分（健康吸筹，共识迅速扩大）
+- 若 最新季度机构数 > 上一季度机构数 但增幅 < 10%，得 20 分（稳步增加）
+- 若 最新季度机构数 == 上一季度机构数，得 10 分（维持现状）
+- 若 最新季度机构数 < 上一季度机构数，得 0 分（机构撤退，散户接盘）
+
+**维度二：聪明钱质量评估 (满分 35 分)**
+*提取“前十大流通股东”名单与“北向资金”变动记录，按以下规则累加得分（最高35分）：*
+1. **北向资金/外资加持 (15分)：** 若“北向资金”近期记录显示“增持幅度”为正，或“香港中央结算”出现在前十大股东且持股增加，得 15 分；否则得 0 分。
+2. **国家队/产业资本背书 (10分)：** 若前十大包含“社保基金”、“国家集成电路”、“汇金/证金”、“国新投资”等明显国家队或大产业资本，得 10 分；否则得 0 分。
+3. **头部公募/核心宽基加持 (10分)：** 若前十大包含大型核心ETF（如沪深300、半导体ETF等）或知名公募基金，得 10 分；否则得 0 分。
+
+**维度三：机构动作与拥挤度排雷 (满分 35 分)**
+*提取“持仓变动”与机构整体持仓比例数据。*
+1. **主力加仓动作 (35分)：** 统计最新一期“前十大股东”中“持股变化”大于 0（或标明“新进/加仓”）的家数。
+   - 若加仓家数 ≥ 5 家，得 35 分（集体抢筹）
+   - 若加仓家数在 3 - 4 家，得 20 分（分歧中吸筹）
+   - 若加仓家数在 1 - 2 家，得 10 分（观望情绪浓）
+   - 若加仓家数为 0，得 0 分。
+2. **拥挤度一票否决 (扣分项)：** 汇总最新报告期“基金”与“券商”等机构的“占流通股比例”。若该总和 > 70%，说明买盘枯竭，触发过度拥挤警告，此维度直接扣减 20 分。
+"""
+
+L_SCORE_STANDARD = """# 评分标准参考（L维度）：
+# 严格量化打分规则（总分 100 分，必须严格执行公式计算）
+
+**维度一：RS 趋势得分 (满分 40 分)**
+- 提取数据 1 中【第一天】的 RS 值和【最后一天】的 RS 值。
+- 计算 RS 涨跌幅公式：(最后一天RS - 第一天RS) / 第一天RS * 100%。
+- 计分标准：
+  - RS涨跌幅 ≥ 20% 得 40 分
+  - RS涨跌幅在 10% 到 20% 之间 得 30 分
+  - RS涨跌幅在 0% 到 10% 之间 得 20 分
+  - RS涨跌幅 < 0% 得 0 分
+
+**维度二：抗跌性得分 (满分 30 分)**
+- 依据数据 2 中提供的“是否抗跌”字段进行统计。共经历 3 次回调。
+- 计分标准：
+  - 每出现 1 次“是”，加 10 分。
+  - 每出现 1 次“否”，加 0 分。
+  - 如果数据中明确标出个股跌幅超过指数跌幅 10% 以上（弱势崩溃），该次回调倒扣 5 分。
+
+**维度三：行业地位得分 (满分 30 分)**
+- 依据数据 3 中的“行业排名”字段（如 1|173 代表第1名）。
+- 计分标准：
+  - “总市值”排名：第 1-2 名得 10 分，3-5 名得 5 分，其余 0 分。
+  - “净利润”排名：第 1-2 名得 10 分，3-5 名得 5 分，其余 0 分。
+  - “ROE”排名：第 1-3 名得 10 分，4-10 名得 5 分，其余 0 分。
+
+"""
+
+M_SCORE_STANDARD = """# 评分标准参考（M维度）：
+# 严格量化打分规则（总分 100 分，必须严格执行公式计算）
+
+**维度一：均线趋势测试 (满分 30 分)**
+*提取“出货日计数”模块中的“当前收盘价”，并与“指数价格与均线”模块中最新日期（如2026-02-13）的 50_sma 和 200_sma 进行对比。*
+- 若 当前收盘价 > 50_sma 且 当前收盘价 > 200_sma，得 30 分。
+- 若 当前收盘价 > 50_sma 但 < 200_sma，得 15 分。
+- 若 当前收盘价 < 50_sma，得 0 分。
+
+**维度二：出货日压力测试 (满分 30 分)**
+*提取“过去25个交易日出货日总数”。*
+- 若出货日 ≤ 2 天，得 30 分（市场抛压极小）。
+- 若出货日为 3-4 天，得 20 分（出现正常分歧）。
+- 若出货日为 5 天，得 10 分（抛压较重，警告信号）。
+- 若出货日 ≥ 6 天，得 0 分（机构密集出逃）。
+
+**维度三：市场广度测试 (满分 20 分)**
+*提取“创新高股票数量”与“创新低股票数量”。*
+- 若 创新高数量 > 创新低数量 × 2，得 20 分（多头绝对控盘）。
+- 若 创新高数量 > 创新低数量，得 10 分（多头略占优）。
+- 若 创新高数量 ≤ 创新低数量，得 0 分（空头占据主导）。
+
+**维度四：领军股健康度测试 (满分 20 分)**
+*统计“领军股状态”列表中，"距最高价跌幅%" 小于或等于 -15%（即跌幅超过15%）的股票家数。*
+- 若破位大跌的领军股 ≤ 1 家，得 20 分（阵型完整）。
+- 若破位大跌的领军股为 2-4 家，得 10 分（部分龙头开始补跌）。
+- 若破位大跌的领军股 ≥ 5 家，得 0 分（领军股全面崩溃）。
+"""
+
+N_SCORE_STANDARD = """# 评分标准参考（N维度）：
+# 严格量化打分规则（总分 100 分，必须严格执行公式计算）
+
+## N1：新产品/新技术与业绩催化（满分 30 分）
+- 数据源：【公司公告】与【行业研报】文本。
+- 计分规则：
+  1. 颠覆性与壁垒（15分）：文本中若明确包含“5nm/先进制程/填补空白/打破垄断”等极高技术壁垒词汇，得 15 分；若只是常规产品迭代，得 5 分；无新产品得 0 分。
+  2. 订单与业绩兑现（15分）：文本中若明确出现“订单排满/份额大幅提升/逆势大增”等字眼（如订单排至2027年），得 15 分；若仅有概念无具体订单表现，得 5 分。
+
+## N2：新管理层/新变革与资金动作（满分 20 分）
+- 数据源：【管理层变动、股权激励、重大投资】文本。
+- 计分规则：
+  - 加分项（+20分）：若公司有明显的扩张或产业支持动作（如：成立产业基金、大额增资、获股权激励或政府实质背书）。
+  - 扣分项（-10分）：若近期出现实控人/高管无理由大额减持逃跑（注：因缴纳税款等合理个人资金需求的微量减持豁免扣分）。
+  - （本项最低 0 分，最高 20 分）。
+
+## N3：均线趋势与创新高（满分 20 分）
+- 数据源：【股价走势图数据】。
+- 计分规则（仅提取数组中的最新一日数据，即“2026-02-13”的数据进行评判）：
+  1. 如果最新一日的“多头排列”字段显示为“是”，直接得 20 分。
+  2. 如果为“否”，但其最新 5日均线数值 严格大于 200日均线数值，说明长线依然在牛市水面之上，得 10 分。
+  3. 若 5日均线跌破 200日均线，得 0 分。
+
+## N4：放量突破与 RS 相对强度（满分 30 分）
+- 数据源：【成交量数据】与【相对强度（RS）线数据】。
+- 计分规则：
+  1. 放量判定（15分）：提取【成交量数据】中最近1个交易日（第一条，2月13日）的成交量，将其与紧接着的前4个交易日（第2至第5条数据）的平均成交量进行对比。
+     - 若最新成交量 > 过去4天均量的 1.5 倍，得 15 分。
+     - 若介于 1.0 ~ 1.5 倍，得 8 分。
+     - 若 < 1.0 倍（缩量），得 0 分。
+  2. RS线判定（15分）：提取【RS数据】中的最新一条（2026-02-13）的 RS 值，对比该数组中最早一条（2025-02-12）的 RS 值。
+     - 若 最新RS > 早期RS（说明过去一年跑赢大盘），得 15 分。
+     - 若 最新RS <= 早期RS，得 0 分。
+"""
+
+S_SCORE_STANDARD = """# 评分标准参考（S维度）：
+# 严格量化打分规则（总分 100 分，必须严格执行公式计算）
+
+**维度一：盘子大小与弹性 (满分 30 分)**
+*提取最新“已流通股份(股)”与最新的“收盘价”，计算流通市值（流通股本 × 收盘价）。*
+- 若流通市值 < 100 亿，得 30 分（极佳，筹码轻盈）
+- 若流通市值在 100 亿 - 500 亿之间，得 15 分（中等，稳健）
+- 若流通市值 > 500 亿，得 0 分（沉重，拉升困难）
+
+**维度二：筹码锁定与潜在供给 (满分 35 分)**
+*分析前十大流通股股东和机构持股、解禁与回购数据。*
+1. **主力控盘度 (15分)：** 提取最新一期“前十大流通股股东”的“占流通股比例”之和。若总和 > 40%，得 15 分；20%-40% 得 10 分；< 20% 得 0 分。
+2. **解禁地雷 (10分)：** 若“解禁日期”数据为空，或未来 6 个月内无解禁，得 10 分。若有解禁，得 0 分。
+3. **回购注销 (10分)：** 若“回购注销数据”包含近期注销记录，得 10 分。若为空，得 0 分。
+
+**维度三：量价行为与换手率验证 (满分 35 分)**
+*分析近 5 个交易日的“量比”与近半年的“换手率”均值。*
+1. **换手率监控 (15分)：** 提取最近 20 个交易日的平均换手率。若均值在 1% - 7% 之间（健康活跃），得 15 分；若均值 > 15%（游资博弈过热）或 < 1%（死水一潭），得 0 分。
+2. **量价配合 (20分)：** 观察最近 5 个交易日的“量比”与“涨跌幅”。
+   - 若出现“涨跌幅 > 0 且 量比 > 1.2”（放量上涨）的天数多于“涨跌幅 < 0 且 量比 > 1.2”（放量下跌）的天数，说明机构在吸筹，得 20 分。
+   - 若两者相等，得 10 分。
+   - 若放量下跌天数更多，说明主力出货，得 0 分。
+"""
+
 # 打分输出格式模板
-SCORE_OUTPUT_TEMPLATE = """[最终输出] 只能输出json格式数据：
+_SCORE_OUTPUT_TEMPLATE = """
+{dimension_score_standard}
+
+[最终输出] 只能输出json格式数据：
 {{
-  'stock_code': '<股票代码>', 
-  'stock_name': '<股票名称>', 
-  'score': '<根据分析结果进行评分，打分范围0-100分，分数不能固定档次，需要极其精确细化>', 
-  'content': '精简输出结果，80字以内：{content_instruction}'
+  'stock_code': '<股票代码>',
+  'stock_name': '<股票名称>',
+  'score': '<根据分析结果进行评分，打分范围0-100分，分数不能固定档次，需要极其精确细化>',
+  'content': '在此撰写基于最终分数的专家点评80字以内：{content_instruction}'
 }}
 """
 
 # 各维度的SCORE_OUTPUT
-A_SCORE_OUTPUT = SCORE_OUTPUT_TEMPLATE.format(content_instruction=A_FINAL_OUTPUT)
-C_SCORE_OUTPUT = SCORE_OUTPUT_TEMPLATE.format(content_instruction=C_FINAL_OUTPUT)
-I_SCORE_OUTPUT = SCORE_OUTPUT_TEMPLATE.format(content_instruction=I_FINAL_OUTPUT)
-L_SCORE_OUTPUT = SCORE_OUTPUT_TEMPLATE.format(content_instruction=L_FINAL_OUTPUT)
-M_SCORE_OUTPUT = SCORE_OUTPUT_TEMPLATE.format(content_instruction=M_FINAL_OUTPUT)
-N_SCORE_OUTPUT = SCORE_OUTPUT_TEMPLATE.format(content_instruction=N_FINAL_OUTPUT)
-S_SCORE_OUTPUT = SCORE_OUTPUT_TEMPLATE.format(content_instruction=S_FINAL_OUTPUT)
+A_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=A_SCORE_STANDARD, content_instruction=A_FINAL_OUTPUT)
+C_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=C_SCORE_STANDARD, content_instruction=C_FINAL_OUTPUT)
+I_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=I_SCORE_STANDARD, content_instruction=I_FINAL_OUTPUT)
+L_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=L_SCORE_STANDARD, content_instruction=L_FINAL_OUTPUT)
+M_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=M_SCORE_STANDARD, content_instruction=M_FINAL_OUTPUT)
+N_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=N_SCORE_STANDARD, content_instruction=N_FINAL_OUTPUT)
+S_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=S_SCORE_STANDARD, content_instruction=S_FINAL_OUTPUT)
 
 # 最终输出格式
-COMPLETION_OUTPUT_TEMPLATE = """[最终输出] 只能输出json格式数据：
+_COMPLETION_OUTPUT_TEMPLATE = """
+{dimension_score_standard}
+
+[最终输出] 只能输出json格式数据：
 {{
-  'stock_code': '<股票代码>', 
-  'stock_name': '<股票名称>', 
-  'score': '<根据分析结果进行评分，打分范围0-100分，分数不能固定档次，需要极其精确细化>', 
-  'content': '{content_instruction}'
+  'stock_code': '<股票代码>',
+  'stock_name': '<股票名称>',
+  'score': '<根据分析结果进行评分，打分范围0-100分，分数不能固定档次，需要极其精确细化>',
+  'content': '在此撰写基于最终分数的专家点评：{content_instruction}'
 }}
 """
 
 # 各维度的COMPLETION_OUTPUT
-A_COMPLETION_OUTPUT = COMPLETION_OUTPUT_TEMPLATE.format(content_instruction=A_FINAL_OUTPUT)
-C_COMPLETION_OUTPUT = COMPLETION_OUTPUT_TEMPLATE.format(content_instruction=C_FINAL_OUTPUT)
-I_COMPLETION_OUTPUT = COMPLETION_OUTPUT_TEMPLATE.format(content_instruction=I_FINAL_OUTPUT)
-L_COMPLETION_OUTPUT = COMPLETION_OUTPUT_TEMPLATE.format(content_instruction=L_FINAL_OUTPUT)
-M_COMPLETION_OUTPUT = COMPLETION_OUTPUT_TEMPLATE.format(content_instruction=M_FINAL_OUTPUT)
-N_COMPLETION_OUTPUT = COMPLETION_OUTPUT_TEMPLATE.format(content_instruction=N_FINAL_OUTPUT)
-S_COMPLETION_OUTPUT = COMPLETION_OUTPUT_TEMPLATE.format(content_instruction=S_FINAL_OUTPUT)
+A_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=A_SCORE_STANDARD, content_instruction=A_FINAL_OUTPUT)
+C_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=C_SCORE_STANDARD, content_instruction=C_FINAL_OUTPUT)
+I_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=I_SCORE_STANDARD, content_instruction=I_FINAL_OUTPUT)
+L_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=L_SCORE_STANDARD, content_instruction=L_FINAL_OUTPUT)
+M_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=M_SCORE_STANDARD, content_instruction=M_FINAL_OUTPUT)
+N_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=N_SCORE_STANDARD, content_instruction=N_FINAL_OUTPUT)
+S_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=S_SCORE_STANDARD, content_instruction=S_FINAL_OUTPUT)

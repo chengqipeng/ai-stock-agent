@@ -103,6 +103,29 @@
             max-height: 200px;
             overflow-y: auto;
         }
+        .panel.fullscreen {
+            position: fixed;
+            inset: 0;
+            z-index: 998;
+            border-radius: 0;
+            overflow-y: auto;
+            max-height: none;
+        }
+        .panel.fullscreen .batch-list,
+        .panel.fullscreen > div[style*="max-height"] {
+            max-height: calc(100vh - 80px) !important;
+        }
+        .fullscreen-btn {
+            padding: 5px 10px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            margin: 5px 2px 0 0;
+        }
         .batch-item {
             padding: 6px;
             margin: 4px 0;
@@ -185,9 +208,10 @@
             color: #667eea;
         }
         .close-btn {
-            position: absolute;
-            top: 15px;
-            right: 15px;
+            position: sticky;
+            top: 0;
+            float: right;
+            margin-left: auto;
             width: 30px;
             height: 30px;
             border: none;
@@ -200,6 +224,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            z-index: 10;
         }
         .close-btn:hover {
             background: #d33;
@@ -301,7 +326,10 @@
             <div class="panel">
                 <h2 style="font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
                     <span>批次记录</span>
-                    <button onclick="clearHistory()" style="padding: 4px 12px; background: #f44; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">清空历史</button>
+                    <div style="display:flex;gap:6px;">
+                        <button class="fullscreen-btn" onclick="toggleFullscreen(this.closest('.panel'))">⛶ 全屏</button>
+                        <button onclick="clearHistory()" style="padding: 4px 12px; background: #f44; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">清空历史</button>
+                    </div>
                 </h2>
                 <div class="batch-list" id="batchList">
                     <p style="text-align: center; color: #999;">加载中...</p>
@@ -312,8 +340,9 @@
         <div class="panel" style="overflow-x: auto;">
             <h2 style="font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
                 <span>批次股票列表</span>
-                <div id="batchActionsBar" style="display: none;">
-                    <button class="btn btn-success" onclick="batchDeepAnalysis()">批量深度分析 (<span id="batchSelectedCount">0</span>)</button>
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <button class="fullscreen-btn" onclick="toggleFullscreen(this.closest('.panel'))">⛶ 全屏</button>
+                    <button id="batchActionsBar" class="btn btn-success" onclick="batchDeepAnalysis()" style="display:none;">批量深度分析 (<span id="batchSelectedCount">0</span>)</button>
                 </div>
             </h2>
             <div style="overflow-x: auto; max-height: 600px;">
@@ -852,6 +881,12 @@
             }
         }
 
+        function toggleFullscreen(panel) {
+            const isFullscreen = panel.classList.toggle('fullscreen');
+            panel.querySelectorAll('.fullscreen-btn').forEach(btn => btn.textContent = isFullscreen ? '✕ 退出' : '⛶ 全屏');
+            document.body.style.overflow = isFullscreen ? 'hidden' : '';
+        }
+
         function closeModal() {
             document.getElementById('detailModal').classList.remove('show');
         }
@@ -1104,7 +1139,7 @@
             
             const count = batchSelectedStockIds.size;
             document.getElementById('batchSelectedCount').textContent = count;
-            document.getElementById('batchActionsBar').style.display = count > 0 ? 'block' : 'none';
+            document.getElementById('batchActionsBar').style.display = count > 0 ? 'inline-block' : 'none';
             
             // 更新全选框状态
             const totalCheckboxes = document.querySelectorAll('.stock-checkbox').length;
