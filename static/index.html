@@ -389,11 +389,17 @@
 
     <div class="progress-modal" id="progressModal">
         <div class="progress-modal-content">
-            <div class="progress-modal-title">正在执行批量深度分析...</div>
+            <div class="progress-modal-title" id="progressModalTitle">正在执行批量分析...</div>
             <div class="progress-modal-bar">
                 <div class="progress-modal-fill" id="progressModalFill" style="width: 0%"></div>
                 <div class="progress-modal-text">
                     <span id="progressModalText">0/0</span>
+                </div>
+            </div>
+            <div class="progress-modal-bar" id="overallProgressBar" style="display:none; margin-top:6px;">
+                <div class="progress-modal-fill" id="overallModalFill" style="width: 0%; background: linear-gradient(90deg, #43a047, #66bb6a);"></div>
+                <div class="progress-modal-text">
+                    <span style="font-size:10px;">整体分析 </span><span id="overallModalText">0/0</span>
                 </div>
             </div>
             <div class="progress-modal-info" id="progressModalInfo">准备开始...</div>
@@ -1002,7 +1008,9 @@
             }
         }
 
-        function showProgressModal() {
+        function showProgressModal(title = '正在执行批量分析...') {
+            document.getElementById('progressModalTitle').textContent = title;
+            document.getElementById('overallProgressBar').style.display = 'none';
             document.getElementById('progressModal').classList.add('show');
             updateProgressModal(0, 100, '准备开始...');
         }
@@ -1013,11 +1021,18 @@
             }, 2000);
         }
 
-        function updateProgressModal(completed, total, info) {
+        function updateProgressModal(completed, total, info, overallCompleted, overallTotal) {
             const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
             document.getElementById('progressModalFill').style.width = percentage + '%';
             document.getElementById('progressModalText').textContent = `${completed}/${total}`;
             document.getElementById('progressModalInfo').textContent = info;
+            if (overallTotal !== undefined) {
+                const overallBar = document.getElementById('overallProgressBar');
+                overallBar.style.display = 'block';
+                const overallPct = overallTotal > 0 ? Math.round((overallCompleted / overallTotal) * 100) : 0;
+                document.getElementById('overallModalFill').style.width = overallPct + '%';
+                document.getElementById('overallModalText').textContent = `${overallCompleted}/${overallTotal}`;
+            }
         }
 
         function disableUI() {
@@ -1165,7 +1180,7 @@
 
             const useDeepThinking = confirm('是否使用深度思考模式？\n\n点击"确定"使用深度思考模式（更准确但更慢）\n点击"取消"使用普通模式');
 
-            showProgressModal();
+            showProgressModal('正在执行批量深度分析...');
             disableUI();
             document.getElementById('deepAnalysisStockList').style.display = 'block';
 
@@ -1196,7 +1211,8 @@
                         if (!line.startsWith('data: ')) continue;
                         const evt = JSON.parse(line.slice(6));
                         updateProgressModal(evt.completed_dims, evt.total_dims,
-                            `正在分析... ${evt.completed_dims}/${evt.total_dims}个维度`);
+                            `正在分析... ${evt.completed_dims}/${evt.total_dims}个维度`,
+                            evt.overall_completed, evt.overall_total);
 
                         // 更新股票列表
                         const listEl = document.getElementById('deepAnalysisStockList');
