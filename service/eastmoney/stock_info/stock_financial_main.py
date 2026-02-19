@@ -5,7 +5,7 @@ from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
 # 最近期数配置
-MAX_RECENT_PERIODS = 13
+MAX_RECENT_PERIODS = 20
 
 # 金额类字段
 AMOUNT_FIELDS = ['TOTALOPERATEREVE', 'PARENTNETPROFIT', 'KCFJCXSYJLR', 'MLR', 'SINGLE_QUARTER_REVENUE', 'SINGLE_QUARTER_KCFJCXSYJLR', 'SINGLE_QUARTER_PARENTNETPROFIT']
