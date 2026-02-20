@@ -252,9 +252,14 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
         dim_progress = {sid: {} for sid in stock_ids}  # {stock_id: {dim: 'pending'|'done'|'error'}}
 
         def progress_event(extra=None):
+            completed_stocks = sum(
+                1 for sid in stock_ids if dim_progress[sid].get('overall') == 'done'
+            )
             payload = {
                 'completed_dims': completed_dims,
                 'total_dims': total_dims,
+                'completed_stocks': completed_stocks,
+                'total_stocks': len(stock_ids),
                 'stocks': [
                     {
                         'stock_id': sid,
@@ -319,7 +324,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
                 finally:
                     completed_dims += 1
 
-            dim_semaphore = asyncio.Semaphore(8)
+            dim_semaphore = asyncio.Semaphore(7)
             async def analyze_dim_limited(dim):
                 async with dim_semaphore:
                     return await analyze_dim(dim)
@@ -328,19 +333,24 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
             results = await asyncio.gather(*[analyze_dim_limited(d) for d in dimensions], return_exceptions=True)
             all_analysis_result = "\n".join(r for r in results if isinstance(r, str))
 
-            from service.can_slim.can_slim_service import execute_overall_analysis
-            overall_prompt, overall_result = await execute_overall_analysis(stock_info, all_analysis_result, deep_thinking)
+            try:
+                from service.can_slim.can_slim_service import execute_overall_analysis
+                overall_prompt, overall_result = await execute_overall_analysis(stock_info, all_analysis_result, deep_thinking)
 
-            db_manager.update_stock_overall_analysis(stock_id, overall_result, overall_prompt)
-            db_manager.update_stock_status(stock_id, 'completed', None, deep_thinking)
-            db_manager.add_deep_analysis_history(
-                batch_id=stock['batch_id'], stock_id=stock_id,
-                stock_name=stock['stock_name'], stock_code=stock['stock_code'],
-                is_deep_thinking=deep_thinking, dim_results=dim_results,
-                overall_analysis=overall_result, overall_prompt=overall_prompt
-            )
-            completed_dims += 1
-            dim_progress[stock_id]['overall'] = 'done'
+                db_manager.update_stock_overall_analysis(stock_id, overall_result, overall_prompt)
+                db_manager.update_stock_status(stock_id, 'completed', None, deep_thinking)
+                db_manager.add_deep_analysis_history(
+                    batch_id=stock['batch_id'], stock_id=stock_id,
+                    stock_name=stock['stock_name'], stock_code=stock['stock_code'],
+                    is_deep_thinking=deep_thinking, dim_results=dim_results,
+                    overall_analysis=overall_result, overall_prompt=overall_prompt
+                )
+                dim_progress[stock_id]['overall'] = 'done'
+            except Exception as e:
+                logger.error(f"Overall analysis failed for {stock['stock_name']}: {e}", exc_info=True)
+                dim_progress[stock_id]['overall'] = 'error'
+            finally:
+                completed_dims += 1
 
         queue = asyncio.Queue()
         stock_semaphore = asyncio.Semaphore(3)

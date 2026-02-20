@@ -437,7 +437,7 @@ class DatabaseManager:
                  n_score, n_result, n_summary, s_score, s_result, s_summary,
                  l_score, l_result, l_summary, i_score, i_result, i_summary,
                  m_score, m_result, m_summary, overall_analysis, overall_prompt)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, (
                 batch_id, stock_id, stock_name, stock_code, 1 if is_deep_thinking else 0,
                 *[v for d in dims for v in (dim_results.get(d, {}).get('score'), dim_results.get(d, {}).get('result'), dim_results.get(d, {}).get('summary'))],

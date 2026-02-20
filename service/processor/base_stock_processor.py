@@ -7,6 +7,7 @@ from pathlib import Path
 from abc import ABC, abstractmethod
 
 from common.utils.stock_info_utils import get_stock_info_by_name, StockInfo
+from common.utils.llm_utils import parse_llm_json
 from service.eastmoney.stock_structure_markdown import get_stock_markdown_for_score
 
 
@@ -33,12 +34,7 @@ class BaseStockProcessor(ABC):
             try:
                 response = await client.chat(messages)
                 content = response.get('choices', [{}])[0].get('message', {}).get('content', '')
-                json_match = re.search(r'```json\s*({.*?})\s*```', content, re.DOTALL)
-                if json_match:
-                    json_str = json_match.group(1)
-                    result = json.loads(json_str)
-                else:
-                    result = json.loads(content)
+                result = parse_llm_json(content)
                 
                 score = result.get('score', '0')
                 print(f"\n[{index}/{total}] {stock_name} ({stock_code}) - score:{score}")

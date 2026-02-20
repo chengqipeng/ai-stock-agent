@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+from common.utils.llm_utils import parse_llm_json
 from service.llm.deepseek_client import DeepSeekClient
 from service.stock_search_news.can_slim.stock_global_search_category_service import get_global_search_category_result
 from service.stock_search_news.can_slim.stock_industry_service import get_industry_result
@@ -10,7 +11,7 @@ from service.stock_search_news.can_slim.stock_industry_service import get_indust
 
 async def get_domestic_search_key_prompt(stock_info: StockInfo, search_intent= None, search_content = None):
     industry_data_str = await get_industry_result(stock_info)
-    industry_data = json.loads(industry_data_str)
+    industry_data = parse_llm_json(industry_data_str)
     return f"""
 # Role: 资深金融投资研究员 / 证券分析师
 
@@ -141,9 +142,8 @@ async def get_search_key_result_single(stock_info: StockInfo, category_info):
         model="deepseek-chat"
     )
     content = response['choices'][0]['message']['content']
-    
     try:
-        data = json.loads(content)
+        data = parse_llm_json(content)
         return {
             "category": category_info['category'],
             "intent": category_info['intent'],

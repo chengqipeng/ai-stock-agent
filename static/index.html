@@ -1223,7 +1223,7 @@
                         if (!line.startsWith('data: ')) continue;
                         const evt = JSON.parse(line.slice(6));
                         updateProgressModal(evt.completed_dims, evt.total_dims,
-                            `正在分析... ${evt.completed_dims}/${evt.total_dims}个维度`);
+                            `正在分析... ${evt.completed_stocks}/${evt.total_stocks}个股票（${evt.completed_dims}/${evt.total_dims}个维度）`);
 
                         // 更新股票列表
                         const listEl = document.getElementById('deepAnalysisStockList');

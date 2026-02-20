@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+from common.utils.llm_utils import parse_llm_json
 from service.llm.deepseek_client import DeepSeekClient
 from service.stock_search_news.can_slim.stock_research_keywork_service import research_stock_news
 
@@ -64,7 +65,7 @@ async def filter_category_results(stock_info: StockInfo, category_data, client, 
                 temperature=0.3
             )
             content = response['choices'][0]['message']['content']
-            filtered_ids = json.loads(content)
+            filtered_ids = parse_llm_json(content)
             
             filtered_results = [item for item in search_results if item.get('id') in filtered_ids]
             
