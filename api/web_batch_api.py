@@ -1,13 +1,12 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse, HTMLResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 import json
 import asyncio
 import re
 import logging
 import uuid
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
