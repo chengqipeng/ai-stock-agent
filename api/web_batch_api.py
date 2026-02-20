@@ -200,6 +200,15 @@ async def get_stock_detail(stock_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/stock/history/{stock_name}")
+async def get_stock_history(stock_name: str):
+    """获取股票历史深度分析记录"""
+    try:
+        records = db_manager.get_stock_deep_analysis_history(stock_name)
+        return {"success": True, "data": records}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.delete("/api/batch/{batch_id}")
 async def delete_batch(batch_id: int):
     """删除批次"""
@@ -258,6 +267,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
                 return
             stock_info = get_stock_info_by_name(stock['stock_name'])
             dimensions = ['C', 'A', 'N', 'S', 'L', 'I', 'M']
+            dim_results = {}
 
             async def analyze_dim(dim: str):
                 nonlocal completed_dims
@@ -277,6 +287,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
                     score = extract_score_from_result(result)
                     summary = extract_summary_from_result(result)
                     db_manager.update_stock_dimension_deep_analysis(stock_id, dim.lower(), score, result, summary, score_prompt)
+                    dim_results[dim.lower()] = {'score': score, 'result': result, 'summary': summary}
                     dim_progress[stock_id][dim] = 'done'
                     return f"{dim}维度: {score}分 - {summary}"
                 except Exception as e:
@@ -299,6 +310,12 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
 
             db_manager.update_stock_overall_analysis(stock_id, overall_result, overall_prompt)
             db_manager.update_stock_status(stock_id, 'completed', None, deep_thinking)
+            db_manager.add_deep_analysis_history(
+                batch_id=stock['batch_id'], stock_id=stock_id,
+                stock_name=stock['stock_name'], stock_code=stock['stock_code'],
+                is_deep_thinking=deep_thinking, dim_results=dim_results,
+                overall_analysis=overall_result, overall_prompt=overall_prompt
+            )
             completed_dims += 1
             dim_progress[stock_id]['overall'] = 'done'
 

@@ -117,6 +117,28 @@ class DatabaseManager:
             if 'overall_prompt' not in existing_columns:
                 cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN overall_prompt TEXT")
             
+            # 深度分析历史记录表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS stock_deep_analysis_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    batch_id INTEGER NOT NULL,
+                    stock_id INTEGER NOT NULL,
+                    stock_name TEXT NOT NULL,
+                    stock_code TEXT NOT NULL,
+                    is_deep_thinking INTEGER DEFAULT 0,
+                    c_score REAL, c_result TEXT, c_summary TEXT,
+                    a_score REAL, a_result TEXT, a_summary TEXT,
+                    n_score REAL, n_result TEXT, n_summary TEXT,
+                    s_score REAL, s_result TEXT, s_summary TEXT,
+                    l_score REAL, l_result TEXT, l_summary TEXT,
+                    i_score REAL, i_result TEXT, i_summary TEXT,
+                    m_score REAL, m_result TEXT, m_summary TEXT,
+                    overall_analysis TEXT,
+                    overall_prompt TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             conn.commit()
     
     def create_batch(self, stock_codes: List[str]) -> int:
@@ -334,6 +356,42 @@ class DatabaseManager:
             cursor.execute("DELETE FROM batch_info")
             
             conn.commit()
+
+    def add_deep_analysis_history(self, batch_id: int, stock_id: int, stock_name: str, stock_code: str,
+                                   is_deep_thinking: bool, dim_results: dict, overall_analysis: str, overall_prompt: str):
+        """写入一条深度分析历史记录"""
+        dims = ['c', 'a', 'n', 's', 'l', 'i', 'm']
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO stock_deep_analysis_history
+                (batch_id, stock_id, stock_name, stock_code, is_deep_thinking,
+                 c_score, c_result, c_summary, a_score, a_result, a_summary,
+                 n_score, n_result, n_summary, s_score, s_result, s_summary,
+                 l_score, l_result, l_summary, i_score, i_result, i_summary,
+                 m_score, m_result, m_summary, overall_analysis, overall_prompt)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (
+                batch_id, stock_id, stock_name, stock_code, 1 if is_deep_thinking else 0,
+                *[v for d in dims for v in (dim_results.get(d, {}).get('score'), dim_results.get(d, {}).get('result'), dim_results.get(d, {}).get('summary'))],
+                overall_analysis, overall_prompt
+            ))
+            conn.commit()
+
+    def get_stock_deep_analysis_history(self, stock_name: str) -> List[Dict[str, Any]]:
+        """按股票名称查询历史深度分析记录，按时间倒序"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, batch_id, stock_id, stock_name, stock_code, is_deep_thinking,
+                    c_score, a_score, n_score, s_score, l_score, i_score, m_score,
+                    overall_analysis, created_at
+                FROM stock_deep_analysis_history
+                WHERE stock_name = ?
+                ORDER BY created_at DESC
+            """, (stock_name,))
+            return [dict(row) for row in cursor.fetchall()]
 
 
 # 全局数据库管理器实例

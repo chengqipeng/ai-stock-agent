@@ -108,6 +108,6 @@ class BaseCanSlimService(ABC):
                 completion_output = getattr(can_slim_final_outputs, f"{dim}_COMPLETION_OUTPUT", None)
                 if completion_output:
                     return f"{prompt}\n\n{completion_output}"
-        except (ImportError, AttributeError):
-            pass
+        except (ImportError, AttributeError) as e:
+            print(e)
         return prompt

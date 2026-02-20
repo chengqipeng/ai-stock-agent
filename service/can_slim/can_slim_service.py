@@ -116,7 +116,6 @@ async def execute_overall_analysis(
     from service.llm.deepseek_client import DeepSeekClient
 
     prompt = await get_ALL_CAN_SLIM(stock_info, all_analysis_result)
-    print(prompt)
     model = "deepseek-reasoner" if deep_thinking else "deepseek-chat"
     client = DeepSeekClient()
     result = ""

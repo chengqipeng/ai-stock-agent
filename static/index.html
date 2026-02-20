@@ -379,12 +379,21 @@
                             <th style="padding: 6px; text-align: center; min-width: 120px;">M维</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">K线</th>
                             <th style="padding: 6px; text-align: left; min-width: 100px; max-width: 150px;">整体分析</th>
+                            <th style="padding: 6px; text-align: center; min-width: 80px;">历史记录</th>
                         </tr>
                     </thead>
                     <tbody id="stockResultList"></tbody>
                 </table>
             </div>
             <div id="stockResultEmpty" style="text-align: center; color: #999; padding: 20px;">请选择批次查看</div>
+        </div>
+    </div>
+
+    <div class="modal" id="historyModal" onclick="if(event.target.id==='historyModal')document.getElementById('historyModal').classList.remove('show')">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <button class="close-btn" onclick="document.getElementById('historyModal').classList.remove('show')">×</button>
+            <h2 id="historyModalTitle"></h2>
+            <div id="historyModalContent"></div>
         </div>
     </div>
 
@@ -777,6 +786,9 @@
                                 <button onclick="showPrompt('${stockKey}', 'overall', '整体分析', 'overall_result')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">整体结果</button>
                             </div>
                         ` : '-'}
+                    </td>
+                    <td style="padding: 6px; text-align: center; vertical-align: top;">
+                        <button onclick="showHistory('${stock.stock_name}')" style="padding: 2px 8px; background: #607d8b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">历史记录</button>
                     </td>
                 </tr>
                 `;
@@ -1245,6 +1257,34 @@
                 document.getElementById('deepAnalysisStockList').style.display = 'none';
                 hideProgressModal();
                 enableUI();
+            }
+        }
+
+        async function showHistory(stockName) {
+            document.getElementById('historyModalTitle').textContent = stockName + ' - 深度分析历史记录';
+            document.getElementById('historyModalContent').innerHTML = '加载中...';
+            document.getElementById('historyModal').classList.add('show');
+            try {
+                const resp = await fetch(`/api/stock/history/${encodeURIComponent(stockName)}`);
+                const data = await resp.json();
+                if (!data.success || data.data.length === 0) {
+                    document.getElementById('historyModalContent').innerHTML = '<p style="color:#999;text-align:center;">暂无历史记录</p>';
+                    return;
+                }
+                const dims = ['c','a','n','s','l','i','m'];
+                document.getElementById('historyModalContent').innerHTML = data.data.map(r => {
+                    const scores = dims.map(d => r[d+'_score'] != null ? `${d.toUpperCase()}:${r[d+'_score']}` : null).filter(Boolean).join(' | ');
+                    return `<div style="border:1px solid #e0e0e0;border-radius:6px;padding:12px;margin-bottom:10px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                            <span style="font-size:12px;color:#666;">${(r.created_at||'').slice(0,16).replace('T',' ')} ${r.is_deep_thinking?'🧠 深度思考':''}</span>
+                            <span style="font-size:11px;color:#607d8b;">批次 #${r.batch_id}</span>
+                        </div>
+                        <div style="font-size:12px;color:#667eea;font-weight:600;margin-bottom:6px;">${scores||'无维度分数'}</div>
+                        ${r.overall_analysis ? `<details><summary style="cursor:pointer;font-size:11px;color:#4caf50;">查看整体分析</summary><pre style="white-space:pre-wrap;font-size:11px;margin-top:6px;background:#f9f9f9;padding:8px;border-radius:4px;max-height:200px;overflow-y:auto;">${r.overall_analysis}</pre></details>` : ''}
+                    </div>`;
+                }).join('');
+            } catch(e) {
+                document.getElementById('historyModalContent').innerHTML = '<p style="color:red;">加载失败: ' + e.message + '</p>';
             }
         }
 

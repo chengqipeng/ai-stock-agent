@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
@@ -42,7 +43,8 @@ async def research_stock_news(stock_info: StockInfo):
                     result_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
                     if (current_date - result_date).days <= category_data['search_key_time_range']:
                         filtered.append(result)
-                except (ValueError, TypeError):
+                except (ValueError, TypeError) as e:
+                    logging.error(e)
                     continue
             
             return {
