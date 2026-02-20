@@ -15,10 +15,16 @@ def parse_stock_list(file_path: str) -> List[Dict]:
             pattern = r'(.+?)\s*\((\S+?)\)\s*-\s*打分[：:]\s*(\d+)'
             matches = re.findall(pattern, content)
             
+            seen_names = set()
+            seen_codes = set()
             for match in matches:
                 stock_name = match[0].strip()
                 stock_code = match[1].strip()
                 score = int(match[2])
+                if stock_name in seen_names or stock_code in seen_codes:
+                    continue
+                seen_names.add(stock_name)
+                seen_codes.add(stock_code)
                 stocks.append({
                     'name': stock_name,
                     'code': stock_code,
