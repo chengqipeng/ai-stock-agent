@@ -1,5 +1,6 @@
 """CAN SLIM分析服务基类"""
 import json
+import re
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Dict, Any
@@ -52,7 +53,7 @@ class BaseCanSlimService(ABC):
         })
         
         prompt = template.format(**params)
-        return self.append_final_output(prompt, use_score_output)
+        return self.append_final_output(prompt, use_score_output, params)
     
     async def execute(self, deep_thinking: bool = False) -> str:
         """执行分析流程"""
@@ -90,24 +91,29 @@ class BaseCanSlimService(ABC):
         """获取维度名称（子类必须实现）"""
         return self.__class__.__name__[0]  # 默认返回类名的第一个字符
     
-    def append_final_output(self, prompt: str, use_score_output: bool = False) -> str:
+    def append_final_output(self, prompt: str, use_score_output: bool = False, params: Dict[str, Any] = None) -> str:
         """在提示词末尾追加最终输出指令
         
         Args:
             prompt: 原始提示词
             use_score_output: True使用SCORE_OUTPUT（打分），False使用维度特定的COMPLETION_OUTPUT（完整分析）
+            params: 用于替换output模板中变量的参数字典
         """
         dim = self.get_dimension_name().upper()
         try:
             from common.constants import can_slim_final_outputs
             if use_score_output:
-                score_output = getattr(can_slim_final_outputs, f"{dim}_SCORE_OUTPUT", None)
-                if score_output:
-                    return f"{prompt}\n\n{score_output}"
+                output = getattr(can_slim_final_outputs, f"{dim}_SCORE_OUTPUT", None)
             else:
-                completion_output = getattr(can_slim_final_outputs, f"{dim}_COMPLETION_OUTPUT", None)
-                if completion_output:
-                    return f"{prompt}\n\n{completion_output}"
+                output = getattr(can_slim_final_outputs, f"{dim}_COMPLETION_OUTPUT", None)
+            if output:
+                if params:
+                    output = re.sub(
+                        r'\{(\w+)\}',
+                        lambda m: str(params[m.group(1)]) if m.group(1) in params else m.group(0),
+                        output
+                    )
+                return f"{prompt}\n\n{output}"
         except (ImportError, AttributeError) as e:
             print(e)
         return prompt

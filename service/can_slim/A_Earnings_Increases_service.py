@@ -99,6 +99,14 @@ class AEarningsIncreasesService(BaseCanSlimService):
     async def process_data(self) -> None:
         self.data_cache['reality_check'] = calculate_reality_check(self.data_cache['raw_reality_check'])
         self.data_cache['cagr_value'], self.data_cache['cagr_description'] = calculate_cagr(self.data_cache['eps_compare'])
+        roe_data = self.data_cache.get('roe') or []
+        latest_roe = next((r for r in roe_data if r.get('净资产收益率(扣非/加权)(%)') is not None), {})
+        self.data_cache['latest_roe_year'] = (latest_roe.get('报告日期', '') or '')[:4]
+        self.data_cache['latest_roe_value'] = latest_roe.get('净资产收益率(扣非/加权)(%)')
+        reality_check = self.data_cache.get('reality_check') or []
+        latest_cf = reality_check[0] if reality_check else {}
+        self.data_cache['latest_cashflow_year'] = (latest_cf.get('报告日期', '') or '')[:4]
+        self.data_cache['latest_cashflow_ratio'] = latest_cf.get('现金流/收益比')
     
     def get_prompt_template(self) -> str:
         return A_EARNINGS_INCREASES_PROMPT_TEMPLATE
@@ -111,7 +119,11 @@ class AEarningsIncreasesService(BaseCanSlimService):
             'profit_growth_data_json': self.to_json(self.data_cache['profit_growth']),
             'cagr_value': self.data_cache['cagr_value'],
             'cagr_description': self.data_cache['cagr_description'],
-            'reality_check_data_json': self.to_json(self.data_cache['reality_check'])
+            'reality_check_data_json': self.to_json(self.data_cache['reality_check']),
+            'latest_roe_year': self.data_cache['latest_roe_year'],
+            'latest_roe_value': self.data_cache['latest_roe_value'],
+            'latest_cashflow_year': self.data_cache['latest_cashflow_year'],
+            'latest_cashflow_ratio': self.data_cache['latest_cashflow_ratio']
         }
     
     def get_final_output_instruction(self) -> str:
