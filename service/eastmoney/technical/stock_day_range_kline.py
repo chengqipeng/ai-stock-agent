@@ -29,7 +29,10 @@ async def calculate_moving_averages(stock_info: StockInfo):
     
     # 10日EMA - 使用adjust=True
     df['close_10_ema'] = df['close_price'].rolling(window=10).mean().round(2)
-    
+
+    # 21日SMA
+    df['close_21_sma'] = df['close_price'].rolling(window=21).mean().round(2)
+
     # 50日SMA
     df['close_50_sma'] = df['close_price'].rolling(window=50).mean().round(2)
     
@@ -37,10 +40,10 @@ async def calculate_moving_averages(stock_info: StockInfo):
     df['close_200_sma'] = df['close_price'].rolling(window=200).mean().round(2)
     
     # 多头排列判断
-    df['is_bullish_alignment'] = (df['close_5_sma'] > df['close_10_ema']) & (df['close_10_ema'] > df['close_50_sma']) & (df['close_50_sma'] > df['close_200_sma'])
+    df['is_bullish_alignment'] = (df['close_5_sma'] > df['close_10_ema']) & (df['close_10_ema'] > df['close_21_sma']) & (df['close_21_sma'] > df['close_50_sma']) & (df['close_50_sma'] > df['close_200_sma'])
     
     config = INDICATOR_CONFIG.get('ma', {'tail_limit': 400})
-    return df[['date', 'close_5_sma', 'close_10_ema', 'close_50_sma', 'close_200_sma', 'is_bullish_alignment']].tail(config['tail_limit']).to_dict('records')[::-1]
+    return df[['date', 'close_5_sma', 'close_10_ema', 'close_21_sma', 'close_50_sma', 'close_200_sma', 'is_bullish_alignment']].tail(config['tail_limit']).to_dict('records')[::-1]
 
 
 async def generate_can_slim_50_200_summary(stock_info: StockInfo):
@@ -96,10 +99,10 @@ async def get_moving_averages_markdown(stock_info: StockInfo):
     ma_data = await calculate_moving_averages(stock_info)
 
     markdown = f"## <{stock_info.stock_name}（ {stock_info.stock_code_normalize}）> - 移动平均线数据\n\n"
-    markdown += "| 日期 | 5日SMA | 10日EMA | 50日SMA | 200日SMA | 多头排列 |\n"
-    markdown += "|------|--------|---------|---------|----------|--------|\n"
+    markdown += "| 日期 | 5日SMA | 10日EMA | 21日SMA | 50日SMA | 200日SMA | 多头排列 |\n"
+    markdown += "|------|--------|---------|---------|---------|----------|--------|\n"
     for item in ma_data[:config['markdown_limit']]:
-        markdown += f"| {item['date']} | {item.get('close_5_sma', 'N/A')} | {item.get('close_10_ema', 'N/A')} | {item.get('close_50_sma', 'N/A')} | {item.get('close_200_sma', 'N/A')} | {'是' if item.get('is_bullish_alignment') else '否'} |\n"
+        markdown += f"| {item['date']} | {item.get('close_5_sma', 'N/A')} | {item.get('close_10_ema', 'N/A')} | {item.get('close_21_sma', 'N/A')} | {item.get('close_50_sma', 'N/A')} | {item.get('close_200_sma', 'N/A')} | {'是' if item.get('is_bullish_alignment') else '否'} |\n"
     markdown += "\n"
     return markdown
 
@@ -109,7 +112,7 @@ async def get_moving_averages_json(stock_info: StockInfo, include_fields: list[s
     
     Args:
         stock_info: 股票信息
-        include_fields: 可选字段列表，可选值: ['close_5_sma', 'close_10_ema', 'close_50_sma', 'close_200_sma', 'is_bullish_alignment']
+        include_fields: 可选字段列表，可选值: ['close_5_sma', 'close_10_ema', 'close_21_sma', 'close_50_sma', 'close_200_sma', 'is_bullish_alignment']
                        如果为None，则返回所有字段
         limit: 返回数据条数限制，如果为None则使用配置中的默认值
     """
@@ -143,7 +146,7 @@ async def get_moving_averages_json_cn(stock_info: StockInfo, include_fields: lis
     
     Args:
         stock_info: 股票信息
-        include_fields: 可选字段列表，可选值: ['close_5_sma', 'close_10_ema', 'close_50_sma', 'close_200_sma', 'is_bullish_alignment']
+        include_fields: 可选字段列表，可选值: ['close_5_sma', 'close_10_ema', 'close_21_sma', 'close_50_sma', 'close_200_sma', 'is_bullish_alignment']
                        如果为None，则返回所有字段
         limit: 返回数据条数限制，如果为None则使用配置中的默认值
     """
@@ -154,6 +157,7 @@ async def get_moving_averages_json_cn(stock_info: StockInfo, include_fields: lis
         'date': '日期',
         'close_5_sma': '5日均线',
         'close_10_ema': '10日均线',
+        'close_21_sma': '21日均线',
         'close_50_sma': '50日均线',
         'close_200_sma': '200日均线',
         'is_bullish_alignment': '多头排列'
