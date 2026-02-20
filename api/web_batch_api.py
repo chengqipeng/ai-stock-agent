@@ -285,7 +285,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
                 finally:
                     completed_dims += 1
 
-            dim_semaphore = asyncio.Semaphore(7)
+            dim_semaphore = asyncio.Semaphore(8)
             async def analyze_dim_limited(dim):
                 async with dim_semaphore:
                     return await analyze_dim(dim)
