@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 from common.utils.stock_list_parser import parse_stock_list
 from common.utils.stock_info_utils import get_stock_info_by_name
-from service.can_slim.can_slim_service import execute_can_slim_score, execute_can_slim_completion
+from service.can_slim.can_slim_service import execute_can_slim_score
 from database.models import db_manager
 
 app = FastAPI(title="AI Stock Agent")
@@ -152,13 +152,15 @@ async def get_batch_stocks(batch_id: int):
             f'{dim}{suffix}'
             for dim in ['c', 'a', 'n', 's', 'l', 'i', 'm', 'kline']
             for suffix in ['_prompt', '_score_prompt', '_summary', '_deep_prompt', '_deep_score_prompt', '_deep_summary']
-        } | {'overall_analysis'}
+        } | {'overall_prompt'}
         for stock in stocks:
             scores = [stock.get(f'{dim}_score') for dim in ['c', 'a', 'n', 's', 'l', 'i', 'm'] if stock.get(f'{dim}_score')]
             stock['score'] = round(sum(scores) / len(scores)) if scores else None
             stock['technical_score'] = stock.get('kline_score')
+            stock['has_overall'] = bool(stock.get('overall_analysis'))
             for f in exclude_fields:
                 stock.pop(f, None)
+            stock.pop('overall_analysis', None)
         return {"success": True, "data": stocks}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -177,6 +179,8 @@ async def get_stock_prompt(stock_id: int, dim: str, type: str = "score"):
             'deep_prompt': f'{dim}_deep_prompt',
             'summary': f'{dim}_summary',
             'deep_summary': f'{dim}_deep_summary',
+            'overall_prompt': 'overall_prompt',
+            'overall_result': 'overall_analysis',
         }
         field = field_map.get(type, f'{dim}_score_prompt')
         return {"success": True, "data": stock.get(field)}
@@ -225,7 +229,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
             s = db_manager.get_stock_detail(sid)
             stock_names[sid] = s['stock_name'] if s else str(sid)
 
-        total_dims = len(stock_ids) * 7
+        total_dims = len(stock_ids) * 8
         completed_dims = 0
         dim_progress = {sid: {} for sid in stock_ids}  # {stock_id: {dim: 'pending'|'done'|'error'}}
 
@@ -259,11 +263,17 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
                 nonlocal completed_dims
                 dim_progress[stock_id][dim] = 'running'
                 try:
+                    from service.llm.deepseek_client import DeepSeekClient
                     service = CAN_SLIM_SERVICES[dim](stock_info)
                     service.data_cache = await service.collect_data()
                     await service.process_data()
                     score_prompt = service.build_prompt(use_score_output=False)
-                    result = await execute_can_slim_completion(dim, stock_info, deep_thinking)
+                    model = "deepseek-reasoner" if deep_thinking else "deepseek-chat"
+                    result = ""
+                    async for content in DeepSeekClient().chat_stream(
+                        messages=[{"role": "user", "content": score_prompt}], model=model
+                    ):
+                        result += content
                     score = extract_score_from_result(result)
                     summary = extract_summary_from_result(result)
                     db_manager.update_stock_dimension_deep_analysis(stock_id, dim.lower(), score, result, summary, score_prompt)
@@ -282,9 +292,14 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
 
             dim_progress[stock_id]['overall'] = 'running'
             results = await asyncio.gather(*[analyze_dim_limited(d) for d in dimensions], return_exceptions=True)
-            overall_text = "\n".join(r for r in results if isinstance(r, str))
-            db_manager.update_stock_overall_analysis(stock_id, overall_text)
+            all_analysis_result = "\n".join(r for r in results if isinstance(r, str))
+
+            from service.can_slim.can_slim_service import execute_overall_analysis
+            overall_prompt, overall_result = await execute_overall_analysis(stock_info, all_analysis_result, deep_thinking)
+
+            db_manager.update_stock_overall_analysis(stock_id, overall_result, overall_prompt)
             db_manager.update_stock_status(stock_id, 'completed', None, deep_thinking)
+            completed_dims += 1
             dim_progress[stock_id]['overall'] = 'done'
 
         queue = asyncio.Queue()

@@ -114,6 +114,9 @@ class DatabaseManager:
                     col_type = 'REAL' if col.endswith('_score') else 'TEXT'
                     cursor.execute(f"ALTER TABLE stock_analysis_detail ADD COLUMN {col} {col_type}")
             
+            if 'overall_prompt' not in existing_columns:
+                cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN overall_prompt TEXT")
+            
             conn.commit()
     
     def create_batch(self, stock_codes: List[str]) -> int:
@@ -249,17 +252,22 @@ class DatabaseManager:
             
             conn.commit()
     
-    def update_stock_overall_analysis(self, stock_id: int, analysis: str):
+    def update_stock_overall_analysis(self, stock_id: int, analysis: str, prompt: str = None):
         """更新整体分析"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            
-            cursor.execute("""
-                UPDATE stock_analysis_detail 
-                SET overall_analysis = ?
-                WHERE id = ?
-            """, (analysis, stock_id))
-            
+            if prompt is not None:
+                cursor.execute("""
+                    UPDATE stock_analysis_detail 
+                    SET overall_analysis = ?, overall_prompt = ?
+                    WHERE id = ?
+                """, (analysis, prompt, stock_id))
+            else:
+                cursor.execute("""
+                    UPDATE stock_analysis_detail 
+                    SET overall_analysis = ?
+                    WHERE id = ?
+                """, (analysis, stock_id))
             conn.commit()
     
     def update_stock_status(self, stock_id: int, status: str, 

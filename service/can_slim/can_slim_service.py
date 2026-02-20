@@ -106,6 +106,28 @@ async def execute_can_slim_score(
     return result
 
 
+async def execute_overall_analysis(
+    stock_info: StockInfo,
+    all_analysis_result: str,
+    deep_thinking: bool = False
+) -> tuple[str, str]:
+    """执行整体CAN SLIM综合分析，返回 (prompt, result)"""
+    from common.prompt.can_slim.ALL_CAN_SLIM_prompt import get_ALL_CAN_SLIM
+    from service.llm.deepseek_client import DeepSeekClient
+
+    prompt = await get_ALL_CAN_SLIM(stock_info, all_analysis_result)
+    print(prompt)
+    model = "deepseek-reasoner" if deep_thinking else "deepseek-chat"
+    client = DeepSeekClient()
+    result = ""
+    async for content in client.chat_stream(
+        messages=[{"role": "user", "content": prompt}],
+        model=model
+    ):
+        result += content
+    return prompt, result
+
+
 async def execute_can_slim_completion(
     dimension: str,
     stock_info: StockInfo,
