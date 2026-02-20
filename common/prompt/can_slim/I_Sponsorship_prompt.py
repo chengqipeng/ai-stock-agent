@@ -7,9 +7,7 @@ I_SPONSORSHIP_PROMPT_TEMPLATE = """
 {stock_name}（{stock_code}）
 
 1. 机构持仓数量趋势 (Number of Funds):
-  ** 最近 3-4 个季度的机构总数： 例如 Q1(50家) -> Q2(65家) -> Q3(90家) **
-  {org_holder_count_json}
-  
+
   ** 季报/年报等公告中的"机构持股家数"近10次变化数据 **
   {org_holder_json}
 

@@ -14,7 +14,7 @@ class ISponsorshipService(BaseCanSlimService):
     
     async def collect_data(self) -> Dict[str, Any]:
         return {
-            'org_holder_count': await get_org_holder_count(self.stock_info),
+            #'org_holder_count': await get_org_holder_count(self.stock_info),
             'org_holder_json': await get_org_holder_json(self.stock_info),
             'top_ten_name': await get_top_ten_shareholders_circulation_by_dates(self.stock_info, page_size=3, limit=3, fields=['rank', 'holder_name', 'report_date']),
             'top_ten_hold_change': await get_top_ten_shareholders_circulation_by_dates(self.stock_info, page_size=3, limit=3, fields=['rank', 'holder_name', 'hold_change', 'report_date']),
@@ -28,7 +28,7 @@ class ISponsorshipService(BaseCanSlimService):
     
     def get_prompt_params(self) -> Dict[str, Any]:
         return {
-            'org_holder_count_json': self.to_json(self.data_cache['org_holder_count']),
+            #'org_holder_count_json': self.to_json(self.data_cache['org_holder_count']),
             'org_holder_json': self.to_json(self.data_cache['org_holder_json']),
             'top_ten_name_shareholders_json': self.to_json(self.data_cache['top_ten_name']),
             'northbound_funds_json': self.to_json(self.data_cache['northbound_funds']),
