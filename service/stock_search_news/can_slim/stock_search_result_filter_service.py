@@ -3,7 +3,6 @@ from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.llm.deepseek_client import DeepSeekClient
-from service.llm.volcengine_client import VolcengineClient
 from service.stock_search_news.can_slim.stock_research_keywork_service import research_stock_news
 
 

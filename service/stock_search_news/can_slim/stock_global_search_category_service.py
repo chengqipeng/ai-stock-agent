@@ -3,7 +3,7 @@ import json
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from common.prompt.search.global_search_category_prompt import get_global_search_category_prompt
-from service.llm.volcengine_client import VolcengineClient
+from service.llm.deepseek_client import DeepSeekClient
 from service.stock_search_news.can_slim.stock_industry_service import get_industry_result
 
 
@@ -14,7 +14,7 @@ async def get_global_search_category_result(stock_info: StockInfo) -> tuple[list
 
     if industry_result['is_science'] == 1 or industry_result['is_science'] == "1":
         prompt = await get_global_search_category_prompt(stock_info, industry_result)
-        client = VolcengineClient()
+        client = DeepSeekClient()
         response = await client.chat(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7

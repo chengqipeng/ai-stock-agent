@@ -204,7 +204,7 @@ async def get_stock_detail(stock_id: int):
 async def get_stock_history(stock_name: str):
     """获取股票历史深度分析记录"""
     try:
-        records = db_manager.get_stock_deep_analysis_history(stock_name)
+        records = db_manager.get_stock_dim_analysis_history(stock_name)
         return {"success": True, "data": records}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -288,9 +288,22 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
                     summary = extract_summary_from_result(result)
                     db_manager.update_stock_dimension_deep_analysis(stock_id, dim.lower(), score, result, summary, score_prompt)
                     dim_results[dim.lower()] = {'score': score, 'result': result, 'summary': summary}
+                    db_manager.add_dim_analysis_history(
+                        batch_id=stock['batch_id'], stock_id=stock_id,
+                        stock_name=stock['stock_name'], stock_code=stock['stock_code'],
+                        dimension=dim, is_deep_thinking=deep_thinking,
+                        score=score, result=result, summary=summary, status='done'
+                    )
                     dim_progress[stock_id][dim] = 'done'
                     return f"{dim}维度: {score}分 - {summary}"
                 except Exception as e:
+                    logger.error(f"Deep analysis failed for {stock['stock_name']} dim {dim}: {e}", exc_info=True)
+                    db_manager.add_dim_analysis_history(
+                        batch_id=stock['batch_id'], stock_id=stock_id,
+                        stock_name=stock['stock_name'], stock_code=stock['stock_code'],
+                        dimension=dim, is_deep_thinking=deep_thinking,
+                        status='error', error_message=str(e)
+                    )
                     dim_progress[stock_id][dim] = 'error'
                     raise e
                 finally:
@@ -389,5 +402,6 @@ def extract_summary_from_result(result: str) -> str:
             data = json.loads(clean_result)
             return data.get('content', data.get('summary', data.get('analysis', '')))
         return result[:200] + '...' if len(result) > 200 else result
-    except:
+    except Exception as e:
+        print(f"Error extracting summary: {e}, result: {result[:100]}")
         return result[:200] + '...' if len(result) > 200 else result

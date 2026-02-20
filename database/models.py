@@ -139,6 +139,25 @@ class DatabaseManager:
                 )
             """)
 
+            # 维度级历史记录表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS stock_dim_analysis_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    batch_id INTEGER NOT NULL,
+                    stock_id INTEGER NOT NULL,
+                    stock_name TEXT NOT NULL,
+                    stock_code TEXT NOT NULL,
+                    dimension TEXT NOT NULL,
+                    is_deep_thinking INTEGER DEFAULT 0,
+                    score REAL,
+                    result TEXT,
+                    summary TEXT,
+                    status TEXT DEFAULT 'done',
+                    error_message TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             conn.commit()
     
     def create_batch(self, stock_codes: List[str]) -> int:
@@ -188,15 +207,19 @@ class DatabaseManager:
             return [dict(row) for row in cursor.fetchall()]
     
     def get_batch_stocks(self, batch_id: int) -> List[Dict[str, Any]]:
-        """获取批次中的股票列表"""
+        """获取批次中的股票列表，有深度分析的优先，按最新深度分析时间倒序"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
             cursor.execute("""
-                SELECT * FROM stock_analysis_detail 
-                WHERE batch_id = ?
-                ORDER BY id
+                SELECT s.*,
+                    MAX(h.created_at) as last_deep_at
+                FROM stock_analysis_detail s
+                LEFT JOIN stock_dim_analysis_history h ON h.stock_id = s.id
+                WHERE s.batch_id = ?
+                GROUP BY s.id
+                ORDER BY last_deep_at DESC NULLS LAST, s.id ASC
             """, (batch_id,))
             
             return [dict(row) for row in cursor.fetchall()]
@@ -356,6 +379,36 @@ class DatabaseManager:
             cursor.execute("DELETE FROM batch_info")
             
             conn.commit()
+
+    def add_dim_analysis_history(self, batch_id: int, stock_id: int, stock_name: str, stock_code: str,
+                                   dimension: str, is_deep_thinking: bool,
+                                   score: float = None, result: str = None, summary: str = None,
+                                   status: str = 'done', error_message: str = None):
+        """写入单个维度历史记录"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO stock_dim_analysis_history
+                (batch_id, stock_id, stock_name, stock_code, dimension, is_deep_thinking,
+                 score, result, summary, status, error_message)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            """, (batch_id, stock_id, stock_name, stock_code, dimension.upper(),
+                  1 if is_deep_thinking else 0, score, result, summary, status, error_message))
+            conn.commit()
+
+    def get_stock_dim_analysis_history(self, stock_name: str) -> List[Dict[str, Any]]:
+        """按股票名称查询维度历史记录，按时间倒序"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, batch_id, stock_id, stock_name, stock_code, dimension,
+                    is_deep_thinking, score, summary, status, error_message, created_at
+                FROM stock_dim_analysis_history
+                WHERE stock_name = ?
+                ORDER BY created_at DESC
+            """, (stock_name,))
+            return [dict(row) for row in cursor.fetchall()]
 
     def add_deep_analysis_history(self, batch_id: int, stock_id: int, stock_name: str, stock_code: str,
                                    is_deep_thinking: bool, dim_results: dict, overall_analysis: str, overall_prompt: str):

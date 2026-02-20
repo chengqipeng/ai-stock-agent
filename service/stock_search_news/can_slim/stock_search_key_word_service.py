@@ -4,7 +4,6 @@ from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.llm.deepseek_client import DeepSeekClient
-from service.llm.volcengine_client import VolcengineClient
 from service.stock_search_news.can_slim.stock_global_search_category_service import get_global_search_category_result
 from service.stock_search_news.can_slim.stock_industry_service import get_industry_result
 
@@ -152,7 +151,8 @@ async def get_search_key_result_single(stock_info: StockInfo, category_info):
             "search_keys": data.get('search_news', []),
             "search_key_time_range": data.get('search_key_time_range', 30)
         }
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        print(f"JSONDecodeError parsing search key result: {e}, content: {content[:100]}")
         return {
             "category": category_info['category'],
             "intent": category_info['intent'],
