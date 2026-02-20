@@ -56,14 +56,14 @@ async def process_stock(stock):
         kline_data = await get_stock_month_kline_list(stock_info)
         
         if kline_data:
-            highest_record = max(kline_data, key=lambda x: x["最高"])
-            lowest_record = min(kline_data, key=lambda x: x["最低"])
+            highest_record = max(kline_data, key=lambda x: x["收盘"])
+            lowest_record = min(kline_data, key=lambda x: x["收盘"])
             result = {
                 "code": stock["code"],
                 "name": stock_name,
-                "highest_price": highest_record["最高"],
+                "highest_price": highest_record["收盘"],
                 "highest_date": highest_record["日期"],
-                "lowest_price": lowest_record["最低"],
+                "lowest_price": lowest_record["收盘"],
                 "lowest_date": lowest_record["日期"],
                 "update_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }

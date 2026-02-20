@@ -57,6 +57,9 @@ N_PRODUCTS_MANAGEMENT_HIGHS_PROMPT_TEMPLATE = """
     ** 成交量数据（近一年数据）**
     {stock_history_volume_json}
     
+    ** 52 周最高点和最低点收盘价 **
+    {stock_52week_high_low_json}
+    
     
 分析逻辑（必须深刻理解）：
     无套牢盘（No Overhead Supply）：当一只股票创出历史新高（或 52 周新高）时，意味着所有持有这只股票的人都在赚钱。大家都很开心，没有人急着解套卖出。上方没有阻力，股价才能像断了线的风筝一样飞涨。

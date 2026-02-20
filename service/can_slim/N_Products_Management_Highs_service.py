@@ -4,6 +4,7 @@ from common.prompt.can_slim.N_Products_Management_Highs_prompt import N_PRODUCTS
 from common.constants.can_slim_final_outputs import N_FINAL_OUTPUT
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.indices.stock_market_data import get_stock_relative_strength_cn
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_52week_high_low
 from service.eastmoney.stock_info.stock_holder_data import get_shareholder_increase_json
 from service.eastmoney.stock_info.stock_revenue_analysis import get_revenue_analysis_three_years
 from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_json_cn, get_stock_history_volume_amount_yearly
@@ -15,14 +16,14 @@ class NProductsManagementHighsService(BaseCanSlimService):
     """N新产品/新管理层/新高点分析服务"""
     
     async def collect_data(self) -> Dict[str, Any]:
-        search_filter_result = await get_search_filter_result_dict(self.stock_info)
         return {
             'shareholder_increase': await get_shareholder_increase_json(self.stock_info),
             'revenue_analysis_three_years': await get_revenue_analysis_three_years(self.stock_info),
-            'search_filter_result': search_filter_result,
+            'search_filter_result': await get_search_filter_result_dict(self.stock_info),
             'moving_averages': await get_moving_averages_json_cn(self.stock_info),
             'stock_history_volume': await get_stock_history_volume_amount_yearly(self.stock_info),
-            'stock_relative_strength': await get_stock_relative_strength_cn(self.stock_info)
+            'stock_relative_strength': await get_stock_relative_strength_cn(self.stock_info),
+            'stock_52week_high_low': await get_stock_52week_high_low(self.stock_info)
         }
     
     def get_prompt_template(self) -> str:
@@ -38,7 +39,8 @@ class NProductsManagementHighsService(BaseCanSlimService):
             'shareholder_increase_json': self.to_json(self.data_cache['shareholder_increase']),
             'moving_averages_json': self.to_json(self.data_cache['moving_averages']),
             'stock_relative_strength_json': self.to_json(self.data_cache['stock_relative_strength']),
-            'stock_history_volume_json': self.to_json(self.data_cache['stock_history_volume'])
+            'stock_history_volume_json': self.to_json(self.data_cache['stock_history_volume']),
+            'stock_52week_high_low_json': self.to_json(self.data_cache['stock_52week_high_low'])
         }
     
     def get_final_output_instruction(self) -> str:
