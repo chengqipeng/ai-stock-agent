@@ -326,7 +326,7 @@
             <div class="panel">
                 <h2 style="font-size: 14px;">待分析股票列表</h2>
                 <div style="margin: 10px 0; position: relative;">
-                    <input type="text" id="stockSearch" placeholder="搜索股票名称或代码..." style="width: 100%; padding: 8px 28px 8px 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 13px; margin-bottom: 10px; box-sizing: border-box;" oninput="filterStocks()">
+                    <input type="text" id="stockSearch" placeholder="搜索股票名称或代码..." style="width: 100%; padding: 8px 28px 8px 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 13px; margin-bottom: 10px; box-sizing: border-box;" oninput="filterStocks()" onkeydown="handleStockSearchEnter(event)">
                     <span onclick="document.getElementById('stockSearch').value='';filterStocks()" style="position: absolute; right: 8px; top: 8px; cursor: pointer; color: #aaa; font-size: 14px; line-height: 1;">&times;</span>
                 </div>
                 <div style="margin: 10px 0; display: flex; align-items: center;">
@@ -479,6 +479,20 @@
         }
 
         function filterStocks() {
+            renderStockList();
+        }
+
+        function handleStockSearchEnter(event) {
+            if (event.key !== 'Enter') return;
+            const term = document.getElementById('stockSearch').value.trim().toLowerCase();
+            if (!term) return;
+            const match = stockList.find(s => s.name.toLowerCase() === term || s.code.toLowerCase() === term);
+            if (!match) return;
+            const stockKey = `${match.name} (${match.code})`;
+            selectedStockKeys.add(stockKey);
+            selectedStocks.add(stockKey);
+            document.getElementById('selectedCount').textContent = selectedStocks.size;
+            document.getElementById('stockSearch').value = '';
             renderStockList();
         }
 
