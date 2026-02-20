@@ -68,7 +68,7 @@ async def get_top_strongest_stocks(days: int = 120, top_n: int = 10) -> list:
         results = json.load(f)
 
     from datetime import datetime, timedelta
-    from service.eastmoney.technical.abs.stock_indicator_base import get_stock_history_kline_max_min
+    from service.eastmoney.stock_info.stock_day_kline_data import get_stock_history_kline_max_min
     
     start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 

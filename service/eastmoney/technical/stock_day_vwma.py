@@ -1,8 +1,8 @@
 import asyncio
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
-from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, \
-    INDICATOR_CONFIG, get_stock_day_range_kline
+from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, INDICATOR_CONFIG
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline
 
 """
 如果你只是做单点计算： 只需要 20 条。

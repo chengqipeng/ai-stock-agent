@@ -7,7 +7,7 @@ from common.constants.can_slim_final_outputs import L_FINAL_OUTPUT
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.indices.stock_market_data import get_stock_relative_strength_cn
 from service.eastmoney.stock_info.stock_industry_ranking import get_stock_industry_ranking_json
-from service.eastmoney.technical.abs.stock_indicator_base import get_stock_history_kline_max_min
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_history_kline_max_min
 from service.can_slim.base_can_slim_service import BaseCanSlimService
 
 

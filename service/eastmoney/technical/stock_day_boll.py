@@ -2,8 +2,8 @@ import asyncio
 import pandas as pd
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
-from service.eastmoney.technical.abs.stock_indicator_base import process_indicator_data, INDICATOR_CONFIG, \
-    get_stock_day_range_kline, parse_klines_to_df
+from service.eastmoney.technical.abs.stock_indicator_base import process_indicator_data, INDICATOR_CONFIG, parse_klines_to_df
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline
 
 """
 CAN SLIM 选股逻辑下的数据需求虽然 20 条数据就能算出指标，但在实际 A 股选股筛选中，为了配合 CAN SLIM 的核心逻辑，建议加载的数据量如下：

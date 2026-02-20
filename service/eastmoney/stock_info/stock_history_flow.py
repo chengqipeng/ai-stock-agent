@@ -2,7 +2,7 @@ from common.utils.amount_utils import convert_amount_unit
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.http.http_utils import fetch_eastmoney_api, EASTMONEY_PUSH2HIS_API_URL
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
-from service.eastmoney.technical.abs.stock_indicator_base import get_stock_history_kline_max_min
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_history_kline_max_min
 
 
 async def get_fund_flow_history(stock_info: StockInfo):

@@ -1,6 +1,6 @@
 import asyncio
 import json
-from service.eastmoney.technical.abs.stock_indicator_base import get_stock_history_kline_max_min
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_history_kline_max_min
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
 

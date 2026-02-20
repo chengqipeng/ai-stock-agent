@@ -6,7 +6,7 @@ from common.constants.can_slim_final_outputs import M_FINAL_OUTPUT
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.auto_job.stock_history_highest_lowest_price_data import get_new_high_low_count, get_top_strongest_stocks
 from service.eastmoney.technical.stock_day_range_kline import calculate_moving_averages
-from service.eastmoney.technical.abs.stock_indicator_base import get_stock_history_kline_max_min
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_history_kline_max_min
 from service.can_slim.base_can_slim_service import BaseCanSlimService
 
 async def distribution_Days_Count(stock_info: StockInfo, window_days: int = 25) -> dict:
