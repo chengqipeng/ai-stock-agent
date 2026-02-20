@@ -83,12 +83,41 @@ async def get_stock_relative_strength_cn(stock_info: StockInfo, days=250):
     
     return result
 
+async def get_stock_rs_stats(stock_info: StockInfo, days=250):
+    """
+    计算 RS 统计数据：近20日均值、近一年均值、近一年最高极值
+
+    Returns:
+        dict: {
+            "rs_avg_20d": <近20个交易日RS均值>,
+            "rs_avg_1y": <近一年RS均值>,
+            "rs_max_1y": <近一年RS最高极值>
+        }
+    """
+    rs_data = await get_stock_relative_strength(stock_info, days)
+    if not rs_data:
+        return {"rs_avg_20d": None, "rs_avg_1y": None, "rs_max_1y": None}
+
+    all_rs = [float(item["rs"]) for item in rs_data]
+    recent_20 = all_rs[:20]
+
+    return {
+        "rs_avg_20d": round(sum(recent_20) / len(recent_20), 4),
+        "rs_avg_1y": round(sum(all_rs) / len(all_rs), 4),
+        "rs_max_1y": round(max(all_rs), 4)
+    }
+
+
 async def main():
     # 测试相对强度
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
     result = await get_stock_relative_strength_cn(stock_info)
-    print("相对强度数据:")
+    print("250相对强度数据:")
     print(json.dumps(result, ensure_ascii=False, indent=2))
+
+    result_1 = await get_stock_rs_stats(stock_info)
+    print("20相对强度数据:")
+    print(json.dumps(result_1, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

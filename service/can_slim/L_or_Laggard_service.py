@@ -5,7 +5,7 @@ import pandas as pd
 from common.prompt.can_slim.L_or_Laggard_prompt import L_OR_LAGGARD_PROMPT_TEMPLATE
 from common.constants.can_slim_final_outputs import L_FINAL_OUTPUT
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
-from service.eastmoney.indices.stock_market_data import get_stock_relative_strength_cn
+from service.eastmoney.indices.stock_market_data import get_stock_relative_strength_cn, get_stock_rs_stats
 from service.eastmoney.stock_info.stock_industry_ranking import get_stock_industry_ranking_json
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_history_kline_max_min
 from service.can_slim.base_can_slim_service import BaseCanSlimService
@@ -115,10 +115,14 @@ class LOrLaggardService(BaseCanSlimService):
     """L领军股或落后股分析服务"""
     
     async def collect_data(self) -> Dict[str, Any]:
+        stock_rs_stats = await get_stock_rs_stats(self.stock_info)
         return {
             'stock_relative_strength': await get_stock_relative_strength_cn(self.stock_info),
             'stock_industry_ranking': await get_stock_industry_ranking_json(self.stock_info),
-            'resilience_data': await calculate_resilience(self.stock_info, days=250, num_corrections=3)
+            'resilience_data': await calculate_resilience(self.stock_info, days=250, num_corrections=3),
+            'rs_avg_20d': stock_rs_stats.get('rs_avg_20d'),
+            'rs_avg_1y': stock_rs_stats.get('rs_avg_1y'),
+            'rs_max_1y': stock_rs_stats.get('rs_max_1y')
         }
     
     async def process_data(self) -> None:
@@ -131,7 +135,10 @@ class LOrLaggardService(BaseCanSlimService):
         return {
             'stock_relative_strength_json': self.to_json(self.data_cache['stock_relative_strength']),
             'stock_industry_ranking_json': self.to_json(self.data_cache['stock_industry_ranking']),
-            'resilience_data_json': self.to_json(self.data_cache['resilience_data_cn'])
+            'resilience_data_json': self.to_json(self.data_cache['resilience_data_cn']),
+            'rs_avg_20d': self.to_json(self.data_cache['rs_avg_20d']),
+            'rs_avg_1y': self.to_json(self.data_cache['rs_avg_1y']),
+            'rs_max_1y': self.to_json(self.data_cache['rs_max_1y'])
         }
     
     def get_final_output_instruction(self) -> str:

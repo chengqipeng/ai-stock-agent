@@ -122,10 +122,10 @@ L_SCORE_STANDARD = """# 评分标准参考（L维度）：
 
 维度一：RS 趋势与动能得分 (满分 40 分)
 ● 评估逻辑：摒弃首尾单点计算，改用近期均值与全局均值的对比，以及新高突破能力来判断真实的相对强度。
-● 计算过程：
-  a. 计算数据源中【最近 20 个交易日】的 RS 平均值。
-  b. 计算【近一年（所有提供的数据）】的 RS 平均值。
-  c. 寻找【近一年】数据中的 RS 最高极值。
+  a.最近 20 个交易日的 RS 平均值: {rs_avg_20d}。
+  b.近一年（所有提供的数据）的 RS 平均值: {rs_avg_1y}。
+  c.近一年数据中的 RS 最高极值: {rs_max_1y}。
+  
 ● 计分标准：
   ○ 近期动能（20分）：
     ■ 若 近期20日RS均值 > 近一年RS均值 15%（含）以上，得 20 分。
@@ -265,7 +265,11 @@ _SCORE_OUTPUT_TEMPLATE = """
 A_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=A_SCORE_STANDARD, content_instruction=A_FINAL_OUTPUT)
 C_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=C_SCORE_STANDARD, content_instruction=C_FINAL_OUTPUT)
 I_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=I_SCORE_STANDARD, content_instruction=I_FINAL_OUTPUT)
-L_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=L_SCORE_STANDARD, content_instruction=L_FINAL_OUTPUT)
+def get_l_score_output(rs_avg_20d, rs_avg_1y, rs_max_1y):
+    return _SCORE_OUTPUT_TEMPLATE.format(
+        dimension_score_standard=L_SCORE_STANDARD.format(rs_avg_20d=rs_avg_20d, rs_avg_1y=rs_avg_1y, rs_max_1y=rs_max_1y),
+        content_instruction=L_FINAL_OUTPUT
+    )
 M_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=M_SCORE_STANDARD, content_instruction=M_FINAL_OUTPUT)
 N_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=N_SCORE_STANDARD, content_instruction=N_FINAL_OUTPUT)
 S_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=S_SCORE_STANDARD, content_instruction=S_FINAL_OUTPUT)
@@ -287,7 +291,11 @@ _COMPLETION_OUTPUT_TEMPLATE = """
 A_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=A_SCORE_STANDARD, content_instruction=A_FINAL_OUTPUT)
 C_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=C_SCORE_STANDARD, content_instruction=C_FINAL_OUTPUT)
 I_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=I_SCORE_STANDARD, content_instruction=I_FINAL_OUTPUT)
-L_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=L_SCORE_STANDARD, content_instruction=L_FINAL_OUTPUT)
+def get_l_completion_output(rs_avg_20d, rs_avg_1y, rs_max_1y):
+    return _COMPLETION_OUTPUT_TEMPLATE.format(
+        dimension_score_standard=L_SCORE_STANDARD.format(rs_avg_20d=rs_avg_20d, rs_avg_1y=rs_avg_1y, rs_max_1y=rs_max_1y),
+        content_instruction=L_FINAL_OUTPUT
+    )
 M_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=M_SCORE_STANDARD, content_instruction=M_FINAL_OUTPUT)
 N_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=N_SCORE_STANDARD, content_instruction=N_FINAL_OUTPUT)
 S_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=S_SCORE_STANDARD, content_instruction=S_FINAL_OUTPUT)
