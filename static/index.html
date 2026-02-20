@@ -1258,8 +1258,15 @@
             }
         }
 
+        async function clearHistory_dim(stockName) {
+            if (!confirm(`确定要清空「${stockName}」的所有历史执行记录？`)) return;
+            await fetch(`/api/stock/history/${encodeURIComponent(stockName)}`, { method: 'DELETE' });
+            showHistory(stockName);
+        }
+
         async function showHistory(stockName) {
             document.getElementById('historyModalTitle').textContent = stockName + ' - 深度分析历史记录';
+            document.getElementById('historyModalTitle').innerHTML = `${stockName} - 深度分析历史记录 <button onclick="clearHistory_dim('${stockName}')" style="margin-left:12px;padding:3px 10px;background:#f44;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;">清空记录</button>`;
             document.getElementById('historyModalContent').innerHTML = '加载中...';
             document.getElementById('historyModal').classList.add('show');
             try {
@@ -1269,32 +1276,39 @@
                     document.getElementById('historyModalContent').innerHTML = '<p style="color:#999;text-align:center;">暂无历史记录</p>';
                     return;
                 }
-                // 按 batch_id 分组
+                // 按 execution_id 分组
                 const groups = {};
+                const groupOrder = [];
                 data.data.forEach(r => {
-                    const key = r.batch_id;
-                    if (!groups[key]) groups[key] = { batch_id: r.batch_id, is_deep_thinking: r.is_deep_thinking, dims: [] };
+                    const key = r.execution_id || `${r.batch_id}_${r.created_at}`;
+                    if (!groups[key]) {
+                        groups[key] = { execution_id: key, batch_id: r.batch_id, is_deep_thinking: r.is_deep_thinking, created_at: r.created_at, dims: [] };
+                        groupOrder.push(key);
+                    }
                     groups[key].dims.push(r);
                 });
                 const dimColor = { done: '#4caf50', error: '#f44336' };
-                document.getElementById('historyModalContent').innerHTML = Object.values(groups).map(g => {
+                document.getElementById('historyModalContent').innerHTML = groupOrder.map(key => {
+                    const g = groups[key];
                     const dimsHtml = g.dims.map(r => {
                         const color = dimColor[r.status] || '#999';
                         const scoreText = r.score != null ? ` ${r.score}分` : '';
-                        return `<div style="border:1px solid #e8e8e8;border-radius:4px;padding:8px;margin-bottom:6px;">
-                            <div style="display:flex;justify-content:space-between;align-items:center;">
-                                <span style="font-weight:600;color:${color};font-size:12px;">${r.dimension}维度${scoreText} ${r.status==='error'?'❌':'✅'}</span>
-                                <span style="font-size:10px;color:#999;">${(r.created_at||'').slice(0,16).replace('T',' ')}</span>
-                            </div>
-                            ${r.summary ? `<div style="font-size:11px;color:#555;margin-top:4px;">${r.summary}</div>` : ''}
-                            ${r.error_message ? `<div style="font-size:11px;color:#f44336;margin-top:4px;">${r.error_message}</div>` : ''}
+                        return `<div style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;margin:2px;border-radius:3px;background:${r.status==='error'?'#fff0f0':'#f0fff0'};border:1px solid ${color};font-size:11px;">
+                            <span style="font-weight:600;color:${color};">${r.dimension}${scoreText}</span>
+                            <span>${r.status==='error'?'❌':'✅'}</span>
+                            ${r.error_message ? `<span style="color:#f44336;" title="${r.error_message}">⚠️</span>` : ''}
                         </div>`;
                     }).join('');
-                    return `<div style="border:1px solid #667eea;border-radius:6px;padding:12px;margin-bottom:12px;">
+                    const summaries = g.dims.filter(r => r.summary).map(r =>
+                        `<div style="font-size:11px;color:#555;padding:2px 0;"><b>${r.dimension}:</b> ${r.summary}</div>`
+                    ).join('');
+                    return `<div style="border:1px solid #667eea;border-radius:6px;padding:12px;margin-bottom:10px;">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                            <span style="font-weight:600;font-size:13px;">批次 #${g.batch_id} ${g.is_deep_thinking?'🧠 深度思考':''}</span>
+                            <span style="font-weight:600;font-size:12px;">批次 #${g.batch_id} ${g.is_deep_thinking?'🧠 深度思考':''}</span>
+                            <span style="font-size:10px;color:#999;">${(g.created_at||'').slice(0,16).replace('T',' ')}</span>
                         </div>
-                        ${dimsHtml}
+                        <div style="margin-bottom:6px;">${dimsHtml}</div>
+                        ${summaries ? `<details><summary style="cursor:pointer;font-size:11px;color:#667eea;">查看摘要</summary><div style="margin-top:6px;">${summaries}</div></details>` : ''}
                     </div>`;
                 }).join('');
             } catch(e) {

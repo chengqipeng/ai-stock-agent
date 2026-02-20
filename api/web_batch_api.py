@@ -6,6 +6,7 @@ import json
 import asyncio
 import re
 import logging
+import uuid
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -209,6 +210,15 @@ async def get_stock_history(stock_name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/api/stock/history/{stock_name}")
+async def clear_stock_history(stock_name: str):
+    """清空股票历史执行记录"""
+    try:
+        db_manager.clear_stock_dim_analysis_history(stock_name)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.delete("/api/batch/{batch_id}")
 async def delete_batch(batch_id: int):
     """删除批次"""
@@ -268,6 +278,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
             stock_info = get_stock_info_by_name(stock['stock_name'])
             dimensions = ['C', 'A', 'N', 'S', 'L', 'I', 'M']
             dim_results = {}
+            execution_id = str(uuid.uuid4())
 
             async def analyze_dim(dim: str):
                 nonlocal completed_dims
@@ -291,7 +302,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
                     db_manager.add_dim_analysis_history(
                         batch_id=stock['batch_id'], stock_id=stock_id,
                         stock_name=stock['stock_name'], stock_code=stock['stock_code'],
-                        dimension=dim, is_deep_thinking=deep_thinking,
+                        dimension=dim, is_deep_thinking=deep_thinking, execution_id=execution_id,
                         score=score, result=result, summary=summary, status='done'
                     )
                     dim_progress[stock_id][dim] = 'done'
@@ -301,7 +312,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
                     db_manager.add_dim_analysis_history(
                         batch_id=stock['batch_id'], stock_id=stock_id,
                         stock_name=stock['stock_name'], stock_code=stock['stock_code'],
-                        dimension=dim, is_deep_thinking=deep_thinking,
+                        dimension=dim, is_deep_thinking=deep_thinking, execution_id=execution_id,
                         status='error', error_message=str(e)
                     )
                     dim_progress[stock_id][dim] = 'error'
