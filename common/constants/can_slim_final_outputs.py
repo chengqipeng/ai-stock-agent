@@ -265,11 +265,7 @@ _SCORE_OUTPUT_TEMPLATE = """
 A_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=A_SCORE_STANDARD, content_instruction=A_FINAL_OUTPUT)
 C_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=C_SCORE_STANDARD, content_instruction=C_FINAL_OUTPUT)
 I_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=I_SCORE_STANDARD, content_instruction=I_FINAL_OUTPUT)
-def get_l_score_output(rs_avg_20d, rs_avg_1y, rs_max_1y):
-    return _SCORE_OUTPUT_TEMPLATE.format(
-        dimension_score_standard=L_SCORE_STANDARD.format(rs_avg_20d=rs_avg_20d, rs_avg_1y=rs_avg_1y, rs_max_1y=rs_max_1y),
-        content_instruction=L_FINAL_OUTPUT
-    )
+L_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=L_SCORE_STANDARD, content_instruction=L_FINAL_OUTPUT)
 M_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=M_SCORE_STANDARD, content_instruction=M_FINAL_OUTPUT)
 N_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=N_SCORE_STANDARD, content_instruction=N_FINAL_OUTPUT)
 S_SCORE_OUTPUT = _SCORE_OUTPUT_TEMPLATE.format(dimension_score_standard=S_SCORE_STANDARD, content_instruction=S_FINAL_OUTPUT)
@@ -291,11 +287,7 @@ _COMPLETION_OUTPUT_TEMPLATE = """
 A_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=A_SCORE_STANDARD, content_instruction=A_FINAL_OUTPUT)
 C_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=C_SCORE_STANDARD, content_instruction=C_FINAL_OUTPUT)
 I_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=I_SCORE_STANDARD, content_instruction=I_FINAL_OUTPUT)
-def get_l_completion_output(rs_avg_20d, rs_avg_1y, rs_max_1y):
-    return _COMPLETION_OUTPUT_TEMPLATE.format(
-        dimension_score_standard=L_SCORE_STANDARD.format(rs_avg_20d=rs_avg_20d, rs_avg_1y=rs_avg_1y, rs_max_1y=rs_max_1y),
-        content_instruction=L_FINAL_OUTPUT
-    )
+L_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=L_SCORE_STANDARD, content_instruction=L_FINAL_OUTPUT)
 M_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=M_SCORE_STANDARD, content_instruction=M_FINAL_OUTPUT)
 N_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=N_SCORE_STANDARD, content_instruction=N_FINAL_OUTPUT)
 S_COMPLETION_OUTPUT = _COMPLETION_OUTPUT_TEMPLATE.format(dimension_score_standard=S_SCORE_STANDARD, content_instruction=S_FINAL_OUTPUT)

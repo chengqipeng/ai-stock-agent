@@ -17,6 +17,10 @@ from database.models import db_manager
 
 app = FastAPI(title="AI Stock Agent")
 
+@app.get("/.well-known/appspecific/com.chrome.devtools.json")
+async def chrome_devtools():
+    return {}
+
 class BatchRequest(BaseModel):
     stock_codes: List[str]
 
@@ -280,7 +284,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
             if not stock:
                 return
             stock_info = get_stock_info_by_name(stock['stock_name'])
-            dimensions = ['C', 'A', 'N', 'S', 'L', 'I', 'M']
+            dimensions = ['L']
             dim_results = {}
             execution_id = str(uuid.uuid4())
 

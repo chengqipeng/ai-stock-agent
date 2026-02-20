@@ -1,5 +1,8 @@
 """CAN SLIM分析服务统一出口"""
+import logging
 from typing import Dict, Callable
+
+logger = logging.getLogger(__name__)
 from common.utils.stock_info_utils import StockInfo
 from service.can_slim.A_Earnings_Increases_service import AEarningsIncreasesService
 from service.can_slim.C_Quarterly_Earnings_service import CQuarterlyEarningsService
@@ -41,17 +44,21 @@ async def execute_can_slim_analysis(
     Raises:
         ValueError: 当维度参数无效时
     """
-    dimension = dimension.upper()
-    
-    if dimension not in CAN_SLIM_SERVICES:
-        raise ValueError(
-            f"无效的CAN SLIM维度: {dimension}. "
-            f"有效维度: {', '.join(CAN_SLIM_SERVICES.keys())}"
-        )
-    
-    service_class = CAN_SLIM_SERVICES[dimension]
-    service = service_class(stock_info)
-    return await service.execute(deep_thinking)
+    try:
+        dimension = dimension.upper()
+
+        if dimension not in CAN_SLIM_SERVICES:
+            raise ValueError(
+                f"无效的CAN SLIM维度: {dimension}. "
+                f"有效维度: {', '.join(CAN_SLIM_SERVICES.keys())}"
+            )
+
+        service_class = CAN_SLIM_SERVICES[dimension]
+        service = service_class(stock_info)
+        return await service.execute(deep_thinking)
+    except Exception:
+        logger.exception("execute_can_slim_analysis 执行失败: dimension=%s, stock=%s", dimension, stock_info.stock_name)
+        raise
 
 
 async def execute_can_slim_score(
