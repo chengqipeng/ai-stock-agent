@@ -57,7 +57,7 @@ N_PRODUCTS_MANAGEMENT_HIGHS_PROMPT_TEMPLATE = """
     ** 成交量数据（近一年数据）**
     {stock_history_volume_json}
     
-    ** 52 周最高点和最低点收盘价 **
+    ** 52周最高点和最低点收盘价 **
     {stock_52week_high_low_json}
     
     

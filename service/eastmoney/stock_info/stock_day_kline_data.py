@@ -82,7 +82,8 @@ async def get_stock_52week_high_low(stock_info: StockInfo):
         "highest_price": high_price,
         "highest_date": high_date,
         "lowest_price": low_price,
-        "lowest_date": low_date
+        "lowest_date": low_date,
+        "latest_date": _parse_kline_fields(klines[-1])['date'] if klines else None
     }
 
 if __name__ == "__main__":
@@ -93,6 +94,6 @@ if __name__ == "__main__":
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         result = await get_stock_52week_high_low(stock_info)
-        print(f"{result}")
+        print(f"{result['latest_date']}")
 
     asyncio.run(main())

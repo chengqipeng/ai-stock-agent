@@ -40,7 +40,8 @@ class NProductsManagementHighsService(BaseCanSlimService):
             'moving_averages_json': self.to_json(self.data_cache['moving_averages']),
             'stock_relative_strength_json': self.to_json(self.data_cache['stock_relative_strength']),
             'stock_history_volume_json': self.to_json(self.data_cache['stock_history_volume']),
-            'stock_52week_high_low_json': self.to_json(self.data_cache['stock_52week_high_low'])
+            'stock_52week_high_low_json': self.to_json(self.data_cache['stock_52week_high_low']),
+            'latest_date': self.data_cache['stock_52week_high_low'].get('latest_date', '')
         }
     
     def get_final_output_instruction(self) -> str:
