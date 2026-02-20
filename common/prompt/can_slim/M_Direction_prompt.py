@@ -13,7 +13,7 @@ M_DIRECTION_PROMPT_TEMPLATE = """
 ** 指数（{indices_stock_name}）的"价格与均线"位置 **
     {indices_moving_averages_json}
     
-"出货日"计数 (Distribution Days Count):
+** 出货日"计数 (Distribution Days Count) **
     {distribution_days_json}
 
 ** 市场广度与领军股表现 (Breadth & Leaders) **
