@@ -72,7 +72,7 @@ A_EARNINGS_INCREASES_PROMPT_TEMPLATE = """
 步骤 1：计算复合增速 (CAGR，使用最近三年数据)
    合格：CAGR > 25%。
    优秀：CAGR > 50%。
-   CAGR = {cagr_value}
+   CAGR = {cagr_value}%
    CAGR数据逻辑：{cagr_description}
 
 步骤 2：检查 ROE 质量
