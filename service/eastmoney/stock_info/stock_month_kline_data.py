@@ -1,6 +1,15 @@
+from datetime import datetime, timedelta
 from common.http.http_utils import fetch_eastmoney_api
 from common.utils.stock_info_utils import StockInfo
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
+
+
+def _get_cache_date() -> str:
+    today = datetime.now()
+    offset = today.weekday() - 4  # 4 = Friday
+    if offset > 0:
+        today -= timedelta(days=offset)
+    return today.strftime("%Y%m%d")
 
 
 async def get_stock_month_kline(stock_info: StockInfo, beg: str = "0", end: str = "20500101", limit: int = 1000000):
@@ -15,7 +24,7 @@ async def get_stock_month_kline(stock_info: StockInfo, beg: str = "0", end: str 
     Returns:
         dict: 包含K线数据的字典
     """
-    cache_path = get_cache_path("month_kline_" + beg + "_" + end, stock_info.stock_code)
+    cache_path = get_cache_path("month_kline_" + beg + "_" + end + "_" + _get_cache_date(), stock_info.stock_code)
     
     # 检查缓存
     cached_data = load_cache(cache_path)

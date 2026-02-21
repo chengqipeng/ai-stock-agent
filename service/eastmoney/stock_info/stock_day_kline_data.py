@@ -1,13 +1,21 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from common.http.http_utils import EASTMONEY_PUSH2HIS_API_URL, fetch_eastmoney_api
 from common.utils.amount_utils import convert_amount_unit
 from common.utils.stock_info_utils import StockInfo
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 
 
+def _get_cache_date() -> str:
+    today = datetime.now()
+    offset = today.weekday() - 4
+    if offset > 0:
+        today -= timedelta(days=offset)
+    return today.strftime("%Y%m%d")
+
+
 async def get_stock_day_range_kline(stock_info: StockInfo, limit=400):
     """获取股票日K线数据"""
-    cache_path = get_cache_path("kline", stock_info.stock_code)
+    cache_path = get_cache_path(f"kline_{_get_cache_date()}_{limit}", stock_info.stock_code)
 
     cached_data = load_cache(cache_path)
     if cached_data:
@@ -70,7 +78,7 @@ async def get_stock_history_kline_max_min(stock_info: StockInfo, limit=400):
 
 async def get_stock_52week_high_low(stock_info: StockInfo):
     """获取52周内历史最高价和最低价及对应日期"""
-    klines = await get_stock_day_range_kline(stock_info, limit=252)
+    klines = await get_stock_day_range_kline(stock_info, limit=250)
     high_price, high_date, low_price, low_date = None, None, None, None
     for kline in klines:
         data = _parse_kline_fields(kline)
