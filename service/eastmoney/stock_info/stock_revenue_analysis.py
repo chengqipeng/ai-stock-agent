@@ -1,7 +1,7 @@
 import json
 
 from common.http.http_utils import fetch_eastmoney_api
-from common.utils.amount_utils import convert_amount_unit
+from common.utils.amount_utils import convert_amount_unit, convert_amount_org_holder_2
 from datetime import datetime, timedelta
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
@@ -69,13 +69,13 @@ async def get_revenue_analysis_three_years(stock_info: StockInfo, page_size=200)
             "报告日期": item.get("REPORT_DATE"),
             "类型": "按产品" if item.get('MAINOP_TYPE') == '1' else "按地区" if item.get('MAINOP_TYPE') == '2' else "其他",
             "项目名称": item.get("ITEM_NAME"),
-            "主营收入": item.get("MAIN_BUSINESS_INCOME"),
-            "收入比例": item.get("MBI_RATIO"),
-            "主营成本": item.get("MAIN_BUSINESS_COST"),
-            "成本比例": item.get("MBC_RATIO"),
-            "主营利润": item.get("MAIN_BUSINESS_RPOFIT"),
-            "利润比例": item.get("MBR_RATIO"),
-            "毛利率": item.get("GROSS_RPOFIT_RATIO")
+            "主营收入（亿元）": convert_amount_org_holder_2(item.get("MAIN_BUSINESS_INCOME")),
+            "收入比例": (str(item["MBI_RATIO"] * 100) + "%") if item.get("MBI_RATIO") is not None else None,
+            "主营成本（亿元）": convert_amount_org_holder_2(item.get("MAIN_BUSINESS_COST")),
+            "成本比例": (str(item["MBC_RATIO"] * 100) + "%") if item.get("MBC_RATIO") is not None else None,
+            "主营利润（亿元）": convert_amount_org_holder_2(item.get("MAIN_BUSINESS_RPOFIT")),
+            "利润比例": (str(item["MBR_RATIO"] * 100) + "%") if item.get("MBR_RATIO") is not None else None,
+            "毛利率": (str(item["GROSS_RPOFIT_RATIO"] * 100) + "%") if item.get("GROSS_RPOFIT_RATIO") is not None else None
         }
         chinese_data.append(chinese_item)
     
