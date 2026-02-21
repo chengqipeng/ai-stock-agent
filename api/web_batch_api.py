@@ -223,6 +223,26 @@ async def clear_stock_history(stock_name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.patch("/api/batch/{batch_id}/rename")
+async def rename_batch(batch_id: int, body: dict):
+    """重命名批次"""
+    new_name = (body.get("name") or "").strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="名称不能为空")
+    ok = db_manager.rename_batch(batch_id, new_name)
+    if not ok:
+        raise HTTPException(status_code=409, detail="批次名称已存在")
+    return {"success": True}
+
+@app.patch("/api/batch/{batch_id}/pin")
+async def pin_batch(batch_id: int):
+    """切换批次置顶状态"""
+    try:
+        is_pinned = db_manager.toggle_pin_batch(batch_id)
+        return {"success": True, "is_pinned": is_pinned}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.delete("/api/batch/{batch_id}")
 async def delete_batch(batch_id: int):
     """删除批次"""

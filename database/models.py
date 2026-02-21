@@ -95,6 +95,12 @@ class DatabaseManager:
                 )
             """)
             
+            # 检查并添加 is_pinned 字段到 batch_info
+            cursor.execute("PRAGMA table_info(batch_info)")
+            batch_cols = {row[1] for row in cursor.fetchall()}
+            if 'is_pinned' not in batch_cols:
+                cursor.execute("ALTER TABLE batch_info ADD COLUMN is_pinned INTEGER DEFAULT 0")
+
             # 检查并添加深度分析字段
             cursor.execute("PRAGMA table_info(stock_analysis_detail)")
             existing_columns = {row[1] for row in cursor.fetchall()}
@@ -204,17 +210,39 @@ class DatabaseManager:
             return batch_id
     
     def get_batches(self) -> List[Dict[str, Any]]:
-        """获取所有批次"""
+        """获取所有批次，置顶优先，再按创建时间倒序"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            
             cursor.execute("""
                 SELECT * FROM batch_info 
-                ORDER BY created_at DESC
+                ORDER BY is_pinned DESC, created_at DESC
             """)
-            
             return [dict(row) for row in cursor.fetchall()]
+
+    def rename_batch(self, batch_id: int, new_name: str) -> bool:
+        """重命名批次，名称不能重复"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM batch_info WHERE batch_name = ? AND id != ?", (new_name, batch_id))
+            if cursor.fetchone():
+                return False
+            cursor.execute("UPDATE batch_info SET batch_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_name, batch_id))
+            conn.commit()
+            return True
+
+    def toggle_pin_batch(self, batch_id: int) -> bool:
+        """切换批次置顶状态，返回新的置顶状态"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT is_pinned FROM batch_info WHERE id = ?", (batch_id,))
+            row = cursor.fetchone()
+            if not row:
+                return False
+            new_val = 0 if row[0] else 1
+            cursor.execute("UPDATE batch_info SET is_pinned = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_val, batch_id))
+            conn.commit()
+            return bool(new_val)
     
     def get_batch_stocks(self, batch_id: int) -> List[Dict[str, Any]]:
         """获取批次中的股票列表，有深度分析的优先，按最新深度分析时间倒序"""

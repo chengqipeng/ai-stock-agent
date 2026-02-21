@@ -621,12 +621,15 @@
                 container.innerHTML = '<p style="text-align: center; color: #999;">暂无批次记录</p>';
                 return;
             }
-            
             container.innerHTML = batches.map(batch => `
                 <div class="batch-item ${batch.id === currentBatchId ? 'active' : ''}" onclick="loadBatchStocks(${batch.id})">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="font-weight: 600; font-size: 12px;">${batch.batch_name}</div>
-                        <button onclick="event.stopPropagation(); deleteBatch(${batch.id})" style="padding: 2px 6px; background: #f44; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">删除</button>
+                        <div style="font-weight: 600; font-size: 12px;">${batch.is_pinned ? '📌 ' : ''}${batch.batch_name}</div>
+                        <div style="display:flex;gap:4px;flex-shrink:0;">
+                            <button onclick="event.stopPropagation(); pinBatch(${batch.id})" title="${batch.is_pinned ? '取消置顶' : '置顶'}" style="padding: 2px 6px; background: ${batch.is_pinned ? '#ff9800' : '#aaa'}; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">${batch.is_pinned ? '取消置顶' : '置顶'}</button>
+                            <button onclick="event.stopPropagation(); renameBatch(${batch.id}, '${batch.batch_name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">重命名</button>
+                            <button onclick="event.stopPropagation(); deleteBatch(${batch.id})" style="padding: 2px 6px; background: #f44; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">删除</button>
+                        </div>
                     </div>
                     <div style="font-size: 11px; color: #666; margin-top: 2px;">
                         总数: ${batch.total_count} | 成功: ${batch.success_count} | 失败: ${batch.completed_count - batch.success_count} | 
@@ -636,6 +639,30 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        async function renameBatch(batchId, currentName) {
+            const newName = prompt('请输入新的批次名称（批次编号不可修改）：', currentName);
+            if (!newName || newName.trim() === currentName) return;
+            try {
+                const resp = await fetch(`/api/batch/${batchId}/rename`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newName.trim() })
+                });
+                const data = await resp.json();
+                if (resp.status === 409) { alert('批次名称已存在，请使用其他名称'); return; }
+                if (!data.success) { alert('重命名失败'); return; }
+                loadBatchList();
+            } catch (e) { alert('重命名失败: ' + e.message); }
+        }
+
+        async function pinBatch(batchId) {
+            try {
+                const resp = await fetch(`/api/batch/${batchId}/pin`, { method: 'PATCH' });
+                const data = await resp.json();
+                if (data.success) loadBatchList();
+            } catch (e) { alert('操作失败: ' + e.message); }
         }
 
         async function loadBatchStocks(batchId) {
