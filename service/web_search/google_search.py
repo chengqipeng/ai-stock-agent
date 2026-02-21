@@ -2,11 +2,14 @@ import aiohttp
 import asyncio
 import base64
 import json
+import logging
 from typing import List, Dict
 from datetime import datetime
 from pathlib import Path
 
 from service.web_search.baidu_search import baidu_search
+
+logger = logging.getLogger(__name__)
 
 SERPAPI_KEY_1 = "NjFhYzVlNzA0ZDA5YjYxZDQ1MTc0YzBkN2VkODgxZmEwNjU4YWFhZGM4MDNmOTE5MTJhODk0OTYzNGExMzJjMw=="
 SERPAPI_KEY_2 = "NGU5MGJiOWJkNjE5M2ZjNmY0MmZlNmI4Y2Q5YmQ0MzZmNzgzZTM5NWM2Y2ZlNjg1MzgyODc4OGUzYTcwZjk5ZA=="
@@ -72,22 +75,21 @@ async def google_search(
     url = "https://serpapi.com/search.json"
     keys = [_decode_key(SERPAPI_KEY_1), _decode_key(SERPAPI_KEY_2), _decode_key(SERPAPI_KEY_3), _decode_key(SERPAPI_KEY_4), _decode_key(SERPAPI_KEY_5), _decode_key(SERPAPI_KEY_6), _decode_key(SERPAPI_KEY_7), _decode_key(SERPAPI_KEY_8), _decode_key(SERPAPI_KEY_9), _decode_key(SERPAPI_KEY_10), _decode_key(SERPAPI_KEY_11), _decode_key(SERPAPI_KEY_12), _decode_key(SERPAPI_KEY_13), _decode_key(SERPAPI_KEY_14), _decode_key(SERPAPI_KEY_15), _decode_key(SERPAPI_KEY_16), _decode_key(SERPAPI_KEY_17), _decode_key(SERPAPI_KEY_18), _decode_key(SERPAPI_KEY_19), _decode_key(SERPAPI_KEY_20), _decode_key(SERPAPI_KEY_21)]
     
-    failed_indices = _get_current_month_failed_keys()
-    new_failed_indices = list(failed_indices)
+    failed_keys = _get_current_month_failed_keys()
     
-    for i, api_key in enumerate(keys):
-        if i in failed_indices:
+    for i, key in enumerate(keys):
+        if i in failed_keys:
             continue
             
         params = {
             "engine": "google",
             "q": query,
-            "location": "Austin, Texas, United States, Shanghai",  # 地理位置（影响本地化搜索结果）
-            "api_key": api_key,
+            "location": "United States",
+            "api_key": key,
             "num": num_results,
-            "tbm": "nws",
             "hl": "en",
             "gl": "us",
+            "tbm": "nws",
             "tbs": f"qdr:d{days}"
         }
 
@@ -96,27 +98,30 @@ async def google_search(
                 async with session.get(url, params=params) as response:
                     response.raise_for_status()
                     result = await response.json()
-                    
-                    news_results = result.get('news_results', [])
+
+                    items = result.get('news_results') or result.get('organic_results', [])
                     return [{
                         'id': item.get('position'),
                         'title': item.get('title'),
                         'url': item.get('link'),
                         'content': item.get('snippet')
-                    } for item in news_results]
+                    } for item in items]
         except Exception as e:
-            print(f"SerpAPI key {i} failed: {e}")
-            if i not in new_failed_indices:
-                new_failed_indices.append(i)
-                _save_failed_keys(new_failed_indices)
-            continue
+            if "Too Many Requests" in str(e):
+                failed_keys.append(i)
+                _save_failed_keys(failed_keys)
+                logger.warning(f"SerpAPI key {i} exhausted, trying next key: {e}")
+                continue
+            else:
+                logger.error(f"SerpAPI error: {e}")
+                break
 
     return await baidu_search(query, days)
 
 if __name__ == "__main__":
     async def main():
         result = await google_search(
-            query="北方华创 同行业2026年销售预测"
+            query="北方华创"
         )
         for item in result:
             print(f"ID: {item['id']}")
