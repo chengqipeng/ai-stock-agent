@@ -1346,9 +1346,12 @@
                     if (!groups[key]) {
                         groups[key] = { execution_id: key, batch_id: r.batch_id, is_deep_thinking: r.is_deep_thinking, created_at: r.created_at, dims: [] };
                         groupOrder.push(key);
+                    } else if (r.created_at && r.created_at < groups[key].created_at) {
+                        groups[key].created_at = r.created_at;
                     }
                     groups[key].dims.push(r);
                 });
+                groupOrder.sort((a, b) => (groups[b].created_at || '').localeCompare(groups[a].created_at || ''));
                 const dimColor = { done: '#4caf50', error: '#f44336' };
                 const DIM_ORDER = ['C','A','N','S','L','I','M'];
                 document.getElementById('historyModalContent').innerHTML = groupOrder.map(key => {
