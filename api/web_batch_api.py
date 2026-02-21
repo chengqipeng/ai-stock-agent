@@ -284,7 +284,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
             if not stock:
                 return
             stock_info = get_stock_info_by_name(stock['stock_name'])
-            dimensions = ['L']
+            dimensions = ['C', 'A', 'N', 'S', 'L', 'I', 'M']
             dim_results = {}
             execution_id = str(uuid.uuid4())
 
