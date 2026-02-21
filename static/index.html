@@ -804,7 +804,7 @@
                         ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline_score_prompt', 'K线')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
                     </td>
                     <td style="padding: 6px; min-width: 100px; max-width: 150px; vertical-align: top;">
-                        <div style="min-height: 20px;"></div>
+                        <div style="min-height: 20px;">${stock.overall_grade ? `<span style="font-weight: 600; font-size: 11px; color: ${{'强烈买入':'#e53935','列入核心观察名单':'#fb8c00','保持观望':'#1e88e5','坚决规避':'#757575'}[stock.overall_grade] || '#333'}">${stock.overall_grade}</span>` : ''}</div>
                         <div style="min-height: 20px;"></div>
                         ${stock.has_overall ? `
                             <div style="white-space: nowrap; min-height: 20px;">

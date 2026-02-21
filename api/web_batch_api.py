@@ -162,6 +162,7 @@ async def get_batch_stocks(batch_id: int):
             stock['score'] = round(sum(scores) / len(scores)) if scores else None
             stock['technical_score'] = stock.get('kline_score')
             stock['has_overall'] = bool(stock.get('overall_analysis'))
+            stock['overall_grade'] = stock.get('overall_grade')
             for f in exclude_fields:
                 stock.pop(f, None)
             stock.pop('overall_analysis', None)
@@ -341,7 +342,8 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
                 from service.can_slim.can_slim_service import execute_overall_analysis
                 overall_prompt, overall_result = await execute_overall_analysis(stock_info, all_analysis_result, deep_thinking)
 
-                db_manager.update_stock_overall_analysis(stock_id, overall_result, overall_prompt)
+                overall_grade = extract_grade_from_overall(overall_result)
+                db_manager.update_stock_overall_analysis(stock_id, overall_result, overall_prompt, overall_grade)
                 db_manager.update_stock_status(stock_id, 'completed', None, deep_thinking)
                 db_manager.add_deep_analysis_history(
                     batch_id=stock['batch_id'], stock_id=stock_id,
@@ -380,6 +382,20 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
         yield progress_event({'stage': 'done'})
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+def extract_grade_from_overall(result: str) -> str:
+    """从整体分析JSON结果中提取grade字段"""
+    try:
+        clean = result.strip()
+        if clean.startswith('```'):
+            clean = re.sub(r'^```(?:json)?\s*\n', '', clean)
+            clean = re.sub(r'\n```\s*$', '', clean)
+        clean = clean.strip()
+        if clean.startswith('{'):
+            return json.loads(clean).get('grade', '')
+    except Exception:
+        pass
+    return ''
 
 def extract_score_from_result(result: str) -> float:
     """从分析结果中提取分数"""

@@ -117,6 +117,9 @@ class DatabaseManager:
             if 'overall_prompt' not in existing_columns:
                 cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN overall_prompt TEXT")
             
+            if 'overall_grade' not in existing_columns:
+                cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN overall_grade TEXT")
+            
             # 深度分析历史记录表
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS stock_deep_analysis_history (
@@ -304,22 +307,22 @@ class DatabaseManager:
             
             conn.commit()
     
-    def update_stock_overall_analysis(self, stock_id: int, analysis: str, prompt: str = None):
+    def update_stock_overall_analysis(self, stock_id: int, analysis: str, prompt: str = None, grade: str = None):
         """更新整体分析"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             if prompt is not None:
                 cursor.execute("""
                     UPDATE stock_analysis_detail 
-                    SET overall_analysis = ?, overall_prompt = ?
+                    SET overall_analysis = ?, overall_prompt = ?, overall_grade = ?
                     WHERE id = ?
-                """, (analysis, prompt, stock_id))
+                """, (analysis, prompt, grade, stock_id))
             else:
                 cursor.execute("""
                     UPDATE stock_analysis_detail 
-                    SET overall_analysis = ?
+                    SET overall_analysis = ?, overall_grade = ?
                     WHERE id = ?
-                """, (analysis, stock_id))
+                """, (analysis, grade, stock_id))
             conn.commit()
     
     def update_stock_status(self, stock_id: int, status: str, 
