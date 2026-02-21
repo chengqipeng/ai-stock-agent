@@ -1154,7 +1154,7 @@
                 try {
                     const jsonData = JSON.parse(jsonStr);
                     const formattedJson = JSON.stringify(jsonData, null, 2);
-                    content = `<pre style="background: #f5f5f5; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 12px; line-height: 1.6;">${formattedJson}</pre>`;
+                    content = `<pre style="background: #f5f5f5; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;">${formattedJson}</pre>`;
                 } catch (e) {
                     content = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-size: 12px; line-height: 1.6;">${prompt}</pre>`;
                 }
