@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>批量分析 - AI Stock Agent</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -419,6 +420,7 @@
     </div>
 
     <script>
+        marked.use({ breaks: true });
         let stockList = [];
         let selectedStocks = new Set();
         let selectedStockKeys = new Set(); // 存储选中的股票key
@@ -1180,14 +1182,21 @@
                 
                 try {
                     const jsonData = JSON.parse(jsonStr);
-                    const formattedJson = JSON.stringify(jsonData, null, 2);
-                    content = `<pre style="background: #f5f5f5; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;">${formattedJson}</pre>`;
+                    const mdContent = jsonData.content || jsonData.summary || jsonData.analysis || '';
+                    if (mdContent) {
+                        const formattedJson = JSON.stringify({...jsonData, content: undefined, summary: undefined, analysis: undefined}, null, 2).replace(/,?\s*"(content|summary|analysis)":\s*null/g, '');
+                        content = `<pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; margin-bottom:12px;">${formattedJson}</pre>`
+                                + `<div class="markdown-body">${marked.parse(mdContent)}</div>`;
+                    } else {
+                        const formattedJson = JSON.stringify(jsonData, null, 2);
+                        content = `<pre style="background: #f5f5f5; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;">${formattedJson}</pre>`;
+                    }
                 } catch (e) {
                     content = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-size: 12px; line-height: 1.6;">${prompt}</pre>`;
                 }
             } else {
                 // 文本格式显示
-                content = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-size: 12px; line-height: 1.6;">${prompt}</pre>`;
+                content = `<div class="markdown-body">${marked.parse(cleanPrompt)}</div>`;
             }
             
             document.getElementById('modalContent').innerHTML = content;
