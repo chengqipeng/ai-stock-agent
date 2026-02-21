@@ -9,51 +9,52 @@ from service.web_search.baidu_search import baidu_search
 from service.web_search.google_search import google_search
 
 
+_semaphore = asyncio.Semaphore(20)
+
 async def research_stock_news(stock_info: StockInfo):
     """获取搜索关键词并执行搜索"""
     search_key_result = await get_search_key_result(stock_info)
-    
-    semaphore = asyncio.Semaphore(6)
-    
+
     async def search_for_category(category_data):
-        async with semaphore:
-            all_results = []
-            for keyword in category_data['search_keys']:
+        async def search_one(keyword):
+            async with _semaphore:
                 if category_data['type'] == 'domestic':
-                    news = await baidu_search(keyword, days=category_data['search_key_time_range'])
+                    return await baidu_search(keyword, days=category_data['search_key_time_range'])
                 else:
-                    news = await google_search(keyword, category_data['search_key_time_range'])
-                all_results.extend(news)
-            
-            # URL去重
-            seen_urls = set()
-            deduped = []
-            for result in all_results:
-                url = result.get("url")
-                if url and url not in seen_urls:
-                    seen_urls.add(url)
-                    deduped.append(result)
-            
-            # 过滤时间范围内的消息
-            current_date = datetime.now()
-            filtered = []
-            for result in deduped:
-                try:
-                    date_str = result.get("date", "")
-                    result_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                    if (current_date - result_date).days <= category_data['search_key_time_range']:
-                        filtered.append(result)
-                except (ValueError, TypeError) as e:
-                    logging.error(e)
-                    continue
-            
-            return {
-                'category': category_data['category'],
-                'intent': category_data['intent'],
-                'type': category_data['type'],
-                'search_results': filtered,
-                'search_key_time_range': category_data['search_key_time_range']
-            }
+                    return await google_search(keyword, category_data['search_key_time_range'])
+
+        nested = await asyncio.gather(*[search_one(kw) for kw in category_data['search_keys']])
+        all_results = [item for sublist in nested for item in sublist]
+
+        # URL去重
+        seen_urls = set()
+        deduped = []
+        for result in all_results:
+            url = result.get("url")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                deduped.append(result)
+
+        # 过滤时间范围内的消息
+        current_date = datetime.now()
+        filtered = []
+        for result in deduped:
+            try:
+                date_str = result.get("date", "")
+                result_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                if (current_date - result_date).days <= category_data['search_key_time_range']:
+                    filtered.append(result)
+            except (ValueError, TypeError) as e:
+                logging.error(e)
+                continue
+
+        return {
+            'category': category_data['category'],
+            'intent': category_data['intent'],
+            'type': category_data['type'],
+            'search_results': filtered,
+            'search_key_time_range': category_data['search_key_time_range']
+        }
     
     tasks = [search_for_category(item) for item in search_key_result]
     results = await asyncio.gather(*tasks)

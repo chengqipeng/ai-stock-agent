@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 
 ACCESS_TOKEN = "YmNlLXYzL0FMVEFLLVdvR08wUlllWEFGWXRnU09jc1JRbS8wOGMxYTcyNzUzYWY1NWIzZTg3MTljOGJmMjA5YTc5MDdmOGIzZTNi"
 
+_semaphore = asyncio.Semaphore(18)
+
 def _decode_token(encoded: str) -> str:
     return base64.b64decode(encoded).decode('utf-8')
 
@@ -39,24 +41,25 @@ async def baidu_search(
         }
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload, headers=headers) as response:
-            response.raise_for_status()
-            result = await response.json()
-            references = result.get('references', [])
-            return [{
-                'id': ref.get('id'),
-                'url': ref.get('url'),
-                'title': ref.get('title'),
-                'date': ref.get('date'),
-                'content': ref.get('content')
-            } for ref in references]
+    async with _semaphore:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers=headers) as response:
+                response.raise_for_status()
+                result = await response.json()
+                references = result.get('references', [])
+                return [{
+                    'id': ref.get('id'),
+                    'url': ref.get('url'),
+                    'title': ref.get('title'),
+                    'date': ref.get('date'),
+                    'content': ref.get('content')
+                } for ref in references]
 
 
 if __name__ == "__main__":
     async def main():
         result = await baidu_search(
-            query="三花智控 实际控制人 董事 减持计划 股权激励 2026-02"
+            query="三花智控"
         )
         print(result)
     

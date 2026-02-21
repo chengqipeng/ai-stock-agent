@@ -5,6 +5,7 @@ from typing import List
 import json
 import asyncio
 import re
+import ast
 import logging
 import uuid
 
@@ -428,7 +429,10 @@ def extract_score_from_result(result: str) -> float:
         clean_result = clean_result.strip()
         
         if clean_result.startswith('{'):
-            data = json.loads(clean_result)
+            try:
+                data = json.loads(clean_result)
+            except json.JSONDecodeError:
+                data = ast.literal_eval(clean_result)
             score = data.get('score', 0)
             if score:
                 return round(float(score), 2)
@@ -459,7 +463,10 @@ def extract_summary_from_result(result: str) -> str:
         clean_result = clean_result.strip()
         
         if clean_result.startswith('{'):
-            data = json.loads(clean_result)
+            try:
+                data = json.loads(clean_result)
+            except json.JSONDecodeError:
+                data = ast.literal_eval(clean_result)
             return data.get('content', data.get('summary', data.get('analysis', '')))
         return result[:200] + '...' if len(result) > 200 else result
     except Exception as e:

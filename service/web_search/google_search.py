@@ -34,7 +34,7 @@ def _decode_key(encoded_key: str) -> str:
     return base64.b64decode(encoded_key).decode('utf-8')
 
 def _get_cache_file() -> Path:
-    cache_dir = Path.home() / '.cache' / 'ai-stock-agent'
+    cache_dir = Path(__file__).parent.parent.parent / '.cache'
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir / 'serpapi_failed_keys.json'
 
@@ -104,15 +104,14 @@ async def google_search(
                         'url': item.get('link'),
                         'content': item.get('snippet')
                     } for item in news_results]
-        except Exception:
+        except Exception as e:
+            print(f"SerpAPI key {i} failed: {e}")
             if i not in new_failed_indices:
                 new_failed_indices.append(i)
                 _save_failed_keys(new_failed_indices)
             continue
-    
-    # 所有key都失败，切换到百度搜索
-    return await baidu_search(query, days)
 
+    return await baidu_search(query, days)
 
 if __name__ == "__main__":
     async def main():
