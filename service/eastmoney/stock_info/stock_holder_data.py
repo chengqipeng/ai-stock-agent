@@ -377,7 +377,11 @@ async def get_org_holder_count(stock_info: StockInfo, page_size=8):
 
 async def get_holder_number(stock_info: StockInfo, page_size=12, page_number=1):
     """获取股东人数数据"""
-    cache_path = get_cache_path("holder_number_" + str(page_number), stock_info.stock_code)
+    from datetime import datetime
+    import os
+    from common.utils.cache_utils import get_project_root
+    week_key = datetime.now().strftime("%Y-W%W")
+    cache_path = os.path.join(get_project_root(), "tmp_data", f"holder_number_{page_number}-{week_key}-{stock_info.stock_code}.json")
     
     # 检查缓存
     cached_data = load_cache(cache_path)
