@@ -185,14 +185,14 @@ async def get_stock_history_volume_amount_yearly(stock_info: StockInfo):
     for date, data in sorted(kline_data.items(), reverse=True)[:250]:
         result.append({
             "成交日期": date,
-            "成交量": data["trading_volume"],
+            "成交量（万）": data["trading_volume"],
             "成交额": data["trading_amount"]
         })
     return result
 
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
-    klines = await get_moving_averages_json_cn(stock_info, ['close_5_sma'], 50)
+    klines = await get_stock_history_volume_amount_yearly(stock_info)
     print(klines)
 
 if __name__ == "__main__":
