@@ -39,13 +39,15 @@ async def research_stock_news(stock_info: StockInfo):
         current_date = datetime.now()
         filtered = []
         for result in deduped:
+            date_str = result.get("date", "")
+            if not date_str:
+                continue
             try:
-                date_str = result.get("date", "")
                 result_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
                 if (current_date - result_date).days <= category_data['search_key_time_range']:
                     filtered.append(result)
             except (ValueError, TypeError) as e:
-                logging.error(e)
+                logging.error("Failed to parse date '%s': %s", date_str, e)
                 continue
 
         return {

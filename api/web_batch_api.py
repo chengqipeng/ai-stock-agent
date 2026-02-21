@@ -414,8 +414,8 @@ def extract_grade_from_overall(result: str) -> str:
         clean = clean.strip()
         if clean.startswith('{'):
             return json.loads(clean).get('grade', '')
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("Error extracting grade: %s, result: %s", e, result[:200], exc_info=True)
     return ''
 
 def extract_score_from_result(result: str) -> float:
@@ -431,12 +431,15 @@ def extract_score_from_result(result: str) -> float:
         if clean_result.startswith('{'):
             try:
                 data = json.loads(clean_result)
+                score = data.get('score', 0)
+                if score:
+                    return round(float(score), 2)
+                return 0.0
             except json.JSONDecodeError:
-                data = ast.literal_eval(clean_result)
-            score = data.get('score', 0)
-            if score:
-                return round(float(score), 2)
-            return 0.0
+                m = re.search(r'"score"\s*:\s*(\d+\.?\d*)', clean_result)
+                if m:
+                    return round(float(m.group(1)), 2)
+                return 0.0
         
         score_match = re.search(r'分数[：:](\d+\.?\d*)', result)
         if score_match:
@@ -448,7 +451,7 @@ def extract_score_from_result(result: str) -> float:
         
         return 0.0
     except Exception as e:
-        print(f"Error extracting score: {e}, result: {result[:100]}")
+        print(f"Error extracting score: {e}, result: {result}")
         return 0.0
 
 def extract_summary_from_result(result: str) -> str:
@@ -465,9 +468,13 @@ def extract_summary_from_result(result: str) -> str:
         if clean_result.startswith('{'):
             try:
                 data = json.loads(clean_result)
+                return data.get('content', data.get('summary', data.get('analysis', '')))
             except json.JSONDecodeError:
-                data = ast.literal_eval(clean_result)
-            return data.get('content', data.get('summary', data.get('analysis', '')))
+                for key in ('content', 'summary', 'analysis'):
+                    m = re.search(rf'"{key}"\s*:\s*"(.*?)"(?=\s*[,}}])', clean_result, re.DOTALL)
+                    if m:
+                        return m.group(1)
+                return ''
         return result[:200] + '...' if len(result) > 200 else result
     except Exception as e:
         print(f"Error extracting summary: {e}, result: {result[:100]}")

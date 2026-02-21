@@ -1341,8 +1341,14 @@
                     groups[key].dims.push(r);
                 });
                 const dimColor = { done: '#4caf50', error: '#f44336' };
+                const DIM_ORDER = ['C','A','N','S','L','I','M'];
                 document.getElementById('historyModalContent').innerHTML = groupOrder.map(key => {
                     const g = groups[key];
+                    g.dims.sort((a, b) => {
+                        const ai = DIM_ORDER.indexOf(a.dimension?.charAt(0).toUpperCase());
+                        const bi = DIM_ORDER.indexOf(b.dimension?.charAt(0).toUpperCase());
+                        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+                    });
                     const dimsHtml = g.dims.map(r => {
                         const color = dimColor[r.status] || '#999';
                         const scoreText = r.score != null ? ` ${r.score}分` : '';

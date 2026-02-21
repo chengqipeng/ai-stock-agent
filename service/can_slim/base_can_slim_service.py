@@ -1,9 +1,12 @@
 """CAN SLIM分析服务基类"""
 import json
+import logging
 import re
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Dict, Any
+
+logger = logging.getLogger(__name__)
 
 from common.utils.stock_info_utils import StockInfo
 from service.llm.deepseek_client import DeepSeekClient
@@ -115,5 +118,5 @@ class BaseCanSlimService(ABC):
                     )
                 return f"{prompt}\n\n{output}"
         except (ImportError, AttributeError) as e:
-            print(e)
+            logger.error("Failed to append final output for dim %s: %s", dim, e)
         return prompt
