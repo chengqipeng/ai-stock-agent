@@ -74,10 +74,10 @@ async def get_stock_52week_high_low(stock_info: StockInfo):
     high_price, high_date, low_price, low_date = None, None, None, None
     for kline in klines:
         data = _parse_kline_fields(kline)
-        if high_price is None or data['close_price'] > high_price:
-            high_price, high_date = data['close_price'], data['date']
-        if low_price is None or data['close_price'] < low_price:
-            low_price, low_date = data['close_price'], data['date']
+        if high_price is None or data['high_price'] > high_price:
+            high_price, high_date = data['high_price'], data['date']
+        if low_price is None or data['low_price'] < low_price:
+            low_price, low_date = data['low_price'], data['date']
     return {
         "highest_price": high_price,
         "highest_date": high_date,
