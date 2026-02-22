@@ -26,6 +26,15 @@ N_PRODUCTS_MANAGEMENT_HIGHS_PROMPT_TEMPLATE = """
   ** 营收结构分析（新业务占总营收的比例是否在快速提升？）分析数据**
   {revenue_analysis_json}
   
+  ** 海外同类型公司未来产能预测 **
+  {global_competitors_json}
+  
+  ** 海外同类型公司前10大客户未来采购和开支预测 **
+  {global_customers_json}
+  
+  ** 海外地缘政治因素 **
+  {geopolitics_json}
+  
   分析逻辑：
     颠覆性：这个新产品是改良型的（如 iPhone 14 到 15），还是颠覆性的（如燃油车到电动车，或 ChatGPT 的出现）？我们要找的是颠覆性。
     业绩兑现：这个新产品必须能实质性地推动 C（季度营收） 的增长。如果是"只闻楼梯响，不见人下来"的概念炒作，那不是 CAN SLIM 的标的。

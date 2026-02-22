@@ -35,7 +35,7 @@ async def get_search_result_filter_prompt(stock_info: StockInfo, category=None, 
 - 需要保证消息的时效性（一个月以内）
 - 相关性和时效性最高的排序在最前面
 - 相关性较低的可以直接忽略
-- 选择分数最高的最多5条数据
+- 选择分数最高的最多5条数据，最少1条数据
 
 # 网络搜索结果：
 {json.dumps(search_results, ensure_ascii=False)}

@@ -72,13 +72,12 @@ async def get_global_search_key_prompt(stock_info: StockInfo, search_intent=None
 
 2. 搜索关键词的构建原则：
    - 关键词应具备高度的针对性和专业性
-   - 避免使用过于宽泛或模糊的词汇
-   - 每个关键词都应能直接关联到公司的核心竞争力或行业地位
+   - 搜索关键词必须有主体或者关联主体
    - 每个关键词不要直接带时间
    - search_key_time_range不能超过30，需要根据关键词对应的特性判断对股票影响的时效性
 
 ## Output Format
-请严格按照以下 JSON 结构输出，提供精准的行业属性和公司属性的搜索关键词，最多返回5个最优的关键词：
+请严格按照以下 JSON 结构输出，提供精准的行业属性和公司属性的搜索关键词，最多返回3个最优的关键词：
 
 {{
   "search_news": ["英文搜索词1", "英文搜索词2"],
@@ -198,7 +197,7 @@ async def get_merged_search_categories(stock_info: StockInfo):
                 "category": "geopolitics",
                 "intent": "地缘政治",
                 "type": "global",
-                "search_content" : "聚焦出口管制、BIS禁令、美联储宏观政策及全球竞争对手（如 AMAT, Lam Research）的对比"
+                "search_content" : "聚焦出口管制、关税、BIS禁令、美联储宏观政策及全球竞争对手（如 AMAT, Lam Research）的对比"
             }
         ])
     
@@ -209,7 +208,7 @@ async def get_merged_search_categories(stock_info: StockInfo):
 
 if __name__ == "__main__":
     async def main():
-        stock_info = get_stock_info_by_name("北方华创")
+        stock_info = get_stock_info_by_name("中际旭创")
         result = await get_search_key_result(stock_info)
         print(result)
     

@@ -1,7 +1,10 @@
 import asyncio
 import json
+import logging
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+
+logger = logging.getLogger(__name__)
 from common.utils.llm_utils import parse_llm_json
 from common.prompt.search.global_search_category_prompt import get_global_search_category_prompt
 from service.llm.deepseek_client import DeepSeekClient
@@ -23,7 +26,8 @@ async def get_global_search_category_result(stock_info: StockInfo) -> tuple[list
         content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
         try:
             data = parse_llm_json(content)
-        except (ValueError, json.JSONDecodeError):
+        except (ValueError, json.JSONDecodeError) as e:
+            logger.error(f"Failed to parse global search category result: {e}, content: {content[:100]}")
             return [], []
         sorted_comparisons = sorted(data["comparisons"], key=lambda x: float(x["similarity_score"]), reverse=True)
 

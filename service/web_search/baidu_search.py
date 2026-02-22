@@ -61,7 +61,7 @@ async def baidu_search(
                 async def fetch_content(item):
                     async with semaphore:
                         try:
-                            text = await asyncio.to_thread(extract_main_content, item['url'])
+                            text = await extract_main_content(item['url'])
                             if text and len(text[:800]) > len(item.get('content') or ''):
                                 item['content'] = text[:800]
                         except Exception:

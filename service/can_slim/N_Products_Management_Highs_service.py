@@ -33,9 +33,12 @@ class NProductsManagementHighsService(BaseCanSlimService):
         return {
             'announcements_json': self.to_json(self.data_cache['search_filter_result']['announcements']),
             'finance_and_expectations_json': self.to_json(self.data_cache['search_filter_result']['finance_and_expectations']),
-            'revenue_analysis_json': self.to_json(self.data_cache['revenue_analysis_three_years']),
             'corporate_governance_json': self.to_json(self.data_cache['search_filter_result']['corporate_governance']),
             'stock_incentive_plan_json': self.to_json(self.data_cache['search_filter_result']['stock_incentive_plan']),
+            'global_competitors_json': self.to_json(self.data_cache['search_filter_result']['global_competitors']),
+            'global_customers_json': self.to_json(self.data_cache['search_filter_result']['global_customers']),
+            'geopolitics_json': self.to_json(self.data_cache['search_filter_result']['geopolitics']),
+            'revenue_analysis_json': self.to_json(self.data_cache['revenue_analysis_three_years']),
             'shareholder_increase_json': self.to_json(self.data_cache['shareholder_increase']),
             'moving_averages_json': self.to_json(self.data_cache['moving_averages']),
             'stock_relative_strength_json': self.to_json(self.data_cache['stock_relative_strength']),

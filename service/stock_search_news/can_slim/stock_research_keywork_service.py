@@ -15,13 +15,19 @@ async def research_stock_news(stock_info: StockInfo):
     """获取搜索关键词并执行搜索"""
     search_key_result = await get_search_key_result(stock_info)
 
+    keyword_cache = {}
+
     async def search_for_category(category_data):
         async def search_one(keyword):
+            if keyword in keyword_cache:
+                return keyword_cache[keyword]
             async with _semaphore:
                 if category_data['type'] == 'domestic':
-                    return await baidu_search(keyword, days=category_data['search_key_time_range'])
+                    result = await baidu_search(keyword, days=category_data['search_key_time_range'])
                 else:
-                    return await google_search(keyword, category_data['search_key_time_range'])
+                    result = await google_search(keyword, category_data['search_key_time_range'])
+                keyword_cache[keyword] = result
+                return result
 
         nested = await asyncio.gather(*[search_one(kw) for kw in category_data['search_keys']])
         all_results = [item for sublist in nested for item in sublist]

@@ -56,8 +56,8 @@ async def execute_can_slim_analysis(
         service_class = CAN_SLIM_SERVICES[dimension]
         service = service_class(stock_info)
         return await service.execute(deep_thinking)
-    except Exception:
-        logger.exception("execute_can_slim_analysis 执行失败: dimension=%s, stock=%s", dimension, stock_info.stock_name)
+    except Exception as e:
+        logger.exception("execute_can_slim_analysis 执行失败: dimension=%s, stock=%s, error=%s", dimension, stock_info.stock_name, e)
         raise
 
 

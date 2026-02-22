@@ -119,7 +119,7 @@ async def google_search(
                     async def fetch_content(item):
                         async with semaphore:
                             try:
-                                text = await asyncio.to_thread(extract_main_content, item['url'])
+                                text = await extract_main_content(item['url'])
                                 if text and len(text[:800]) > len(item.get('content') or ''):
                                     item['content'] = text[:800]
                             except Exception:
@@ -143,7 +143,7 @@ async def google_search(
 if __name__ == "__main__":
     async def main():
         result = await google_search(
-            query="北方华创"
+            query="TSMC capital expenditure forecast"
         )
         for item in result:
             print(f"ID: {item['id']}")
