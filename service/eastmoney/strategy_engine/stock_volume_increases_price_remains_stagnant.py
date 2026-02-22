@@ -77,10 +77,11 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, re
   条件B（极其放量）：成交量 > {vol_ma_window}日均量×{vol_ratio}倍
   条件C（价格滞涨）：涨跌幅绝对值<1.5%""")
     print("\n【原始K线数据】")
-    cn_rename = {'date': '日期', 'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量', 'pct_change': '涨跌幅', 'ma50_volume': '50日均量', 'low_60d': '60日最低价'}
+    cn_rename = {'date': '日期', 'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量', 'pct_change': '涨跌幅', 'ma50_volume': '50日均量', 'low_60d': '60日最低价', 'boll_up': 'BOLL上轨'}
     display_df = raw_df.tail(250).copy()
     display_df['ma50_volume'] = calc_df['ma50_volume'].reindex(display_df.index)
     display_df['low_60d'] = calc_df['low_60d'].reindex(display_df.index)
+    display_df['boll_up'] = calc_df['boll_up'].reindex(display_df.index)
     display_df = display_df.reset_index().rename(columns=cn_rename)
     display_df['日期'] = display_df['日期'].dt.strftime('%Y-%m-%d')
     print(display_df.to_json(orient='records', force_ascii=False, indent=2))
