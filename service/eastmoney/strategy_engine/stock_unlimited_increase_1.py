@@ -149,7 +149,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('中航成飞')
+        stock_info: StockInfo = get_stock_info_by_name('北方华创')
         import json
         result = await get_unlimited_increase_cn(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))

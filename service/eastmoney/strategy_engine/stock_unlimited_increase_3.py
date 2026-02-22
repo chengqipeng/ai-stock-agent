@@ -33,15 +33,15 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
     条件 D（阶梯缩量）：连续3日价涨量减（量依次递减）
     条件 E（结构背离）：创20日新高（收盘价 > 前19日最高收盘价），但当日量 < 上一个20日新高日的成交量
                        与原版区别：原版取同一rolling窗口内峰值量；此版跨窗口追踪历史新高日，背离判断更严格
-    最终信号：(A & B) & (C | D | E)，A+B为前提，C/D/E任一成立即触发警示
+    最终信号：A AND ( (B AND C) OR D OR E )，A为前提，内层任一成立即触发警示
     """
-    # 条件 A+B：高位上涨（前提条件）
-    cond_ab = (
-        (df['close'] > df['boll_mb'] * high_pos_ratio) &
-        (df['pct_change'] > 0)
-    )
+    # 条件 A（高位判定）
+    cond_a = df['close'] > df['boll_mb'] * high_pos_ratio
 
-    # 条件 C：无量萎缩
+    # 条件 B（价格上涨）
+    cond_b = df['pct_change'] > 0
+
+    # 条件 C（无量萎缩）
     cond_c = df['volume'] < df['ma50_volume'] * vol_shrink_ratio
 
     # 条件 D：阶梯缩量（连续3日价涨量减）
@@ -53,8 +53,6 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
     )
 
     # 条件 E：结构背离
-    # 用前19日最高收盘价（shift(1)起滚动）判断当日是否创20日新高，避免将当日自身纳入比较
-    # 逐行遍历记录上一个新高日的成交量，当前新高日量若更小则触发背离
     max_prev19 = df['close'].shift(1).rolling(window=19, min_periods=1).max()
     is_new_high = df['close'] > max_prev19
     cond_e = pd.Series(False, index=df.index)
@@ -65,11 +63,10 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
                 cond_e[idx] = True
             prev_high_volume = df.loc[idx, 'volume']
 
-    df['cond_ab'] = cond_ab
-    df['cond_c'] = cond_c
+    df['cond_ab_c'] = cond_a & cond_b & cond_c
     df['cond_d'] = cond_d
     df['cond_e'] = cond_e
-    df['signal'] = cond_ab & (cond_c | cond_d | cond_e)
+    df['signal'] = cond_a & ((cond_b & cond_c) | cond_d | cond_e)
     return df
 
 
@@ -85,11 +82,11 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vo
     print(f"""【策略逻辑说明】
 股票：{stock_name}
 策略：识别「无量上涨必须跑」诱多/背离形态，满足以下任一条件即触发警示，输出最新成交日是否满足和历史满足的前三个交易日：
-  前提A+B：收盘价 > BOLL中轨×{high_pos_ratio} 且 涨跌幅>0
-  条件C（无量萎缩）：成交量 < {vol_ma_window}日均量×{vol_shrink_ratio}
+  条件A（高位判定，必须满足）：收盘价 > BOLL中轨×{high_pos_ratio}
+  条件B+C（高位无量上涨）：涨跌幅>0 且 成交量 < {vol_ma_window}日均量×{vol_shrink_ratio}
   条件D（阶梯缩量）：连续3日价涨，且成交量依次递减
   条件E（结构背离）：创20日新高，但成交量 < 上一个20日新高日的成交量
-  最终信号：(A & B) & (C | D | E)""")
+  最终信号：A AND ( (B AND C) OR D OR E )""")
     print("\n【原始K线数据（最近250日）】")
     display_df = raw_df.tail(250).copy()
     display_df['ma50_volume'] = calc_df['ma50_volume'].reindex(display_df.index)
@@ -126,7 +123,7 @@ async def get_unlimited_increase_cn(stock_info: StockInfo, limit=400, vol_ma_win
 
     def to_row(date, row):
         triggers = []
-        if row.get('cond_c'):    triggers.append('无量萎缩(C)')
+        if row.get('cond_ab_c'): triggers.append('高位无量上涨(A+B+C)')
         if row.get('cond_d'):    triggers.append('阶梯缩量(D)')
         if row.get('cond_e'):    triggers.append('结构背离(E)')
         return {
