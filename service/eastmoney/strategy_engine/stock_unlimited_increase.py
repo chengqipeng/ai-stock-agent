@@ -31,7 +31,7 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
     条件 B（价格上涨）：收盘价 > 前日收盘价
     条件 C（无量萎缩）：成交量 < ma_volume * vol_shrink_ratio
     条件 D（阶梯缩量）：连续3日价涨量减（量依次递减）
-    条件 E（结构背离）：创20日新高，但当日量 < 过去20日最大量的80%
+    条件 E（结构背离）：创20日新高，但当日量 < 过去20日收盘价最高点当天的成交量
     最终信号：(A & B & C) | D | E，任一成立即触发警示
     """
     prev_close = df['close'].shift(1)
@@ -52,11 +52,20 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
         (df['volume'].shift(1) < df['volume'].shift(2))
     )
 
-    # 条件 E：结构性背离（创20日新高但量能萎缩）
+    # 条件 E：结构性背离（创20日新高，但当日量 < 阶段高点当天的成交量）
     rolling_max_close_20 = df['close'].rolling(window=20).max()
-    rolling_max_vol_20 = df['volume'].rolling(window=20).max()
     is_new_high_20 = df['close'] >= rolling_max_close_20
-    cond_e = is_new_high_20 & (df['volume'] < rolling_max_vol_20 * vol_shrink_ratio)
+    # 找到过去20日窗口内收盘价最高点的日期，取对应的成交量
+    peak_vol_20 = pd.Series(
+        [
+            df['volume'].iloc[max(0, i - 19): i + 1].loc[
+                df['close'].iloc[max(0, i - 19): i + 1].idxmax()
+            ]
+            for i in range(len(df))
+        ],
+        index=df.index,
+    )
+    cond_e = is_new_high_20 & (df['volume'] < peak_vol_20)
 
     df['cond_ab_c'] = cond_a & price_up & cond_c
     df['cond_d'] = cond_d
@@ -79,7 +88,7 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vo
 策略：识别「无量上涨必须跑」诱多/背离形态，满足以下任一条件即触发警示，输出最新成交日是否满足和历史满足的前三个交易日：
   条件A+B+C（高位无量上涨）：收盘价 > BOLL中轨×{high_pos_ratio} 且 价格上涨 且 成交量 < {vol_ma_window}日均量×{vol_shrink_ratio}
   条件D（阶梯缩量）：连续3日价涨，且成交量依次递减
-  条件E（结构背离）：创20日新高，但成交量 < 近20日最大量×80%""")
+  条件E（结构背离）：创20日新高，但成交量 < 阶段高点当天的成交量""")
     print("\n【原始K线数据（最近250日）】")
     cn_rename = {'date': '日期', 'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量', 'pct_change': '涨跌幅', 'ma50_volume': f'{vol_ma_window}日均量', 'boll_mb': 'BOLL中轨', 'high_20': '20日最高价'}
     display_df = raw_df.tail(250).copy()
