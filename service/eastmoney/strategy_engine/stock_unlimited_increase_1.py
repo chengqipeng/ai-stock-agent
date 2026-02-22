@@ -25,6 +25,16 @@ def _build_dataframe(klines: list) -> pd.DataFrame:
 
 
 def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_ratio=1.15, vol_shrink_ratio=0.8) -> pd.DataFrame:
+    """
+    无量上涨必须跑（诱多/背离）识别策略
+    条件 A（高位判定）：收盘价 > BOLL中轨（MA20）* 1.15，偏离15%以上视为高位
+    条件 B（价格上涨）：涨跌幅 > 0
+    条件 C（无量萎缩）：成交量 < vol_ma_window日均量 * vol_shrink_ratio
+    条件 D（阶梯缩量）：连续3日价涨量减（量依次递减）
+    条件 E（结构背离）：创20日新高（收盘价 > 前19日最高收盘价），但当日量 < 上一个20日新高日的成交量
+                       与原版区别：原版取同一rolling窗口内峰值量；此版跨窗口追踪历史新高日，背离判断更严格
+    最终信号：(A & B & C) | D | E，任一成立即触发警示
+    """
     # 条件 A+B+C：高位无量上涨
     cond_abc = (
         (df['close'] > df['boll_mb'] * high_pos_ratio) &
@@ -40,7 +50,9 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
         (df['volume'].shift(1) < df['volume'].shift(2))
     )
 
-    # 条件 E：结构背离（创20日新高，但量 < 上一个20日新高日的成交量）
+    # 条件 E：结构背离
+    # 用前19日最高收盘价（shift(1)起滚动）判断当日是否创20日新高，避免将当日自身纳入比较
+    # 逐行遍历记录上一个新高日的成交量，当前新高日量若更小则触发背离
     max_prev19 = df['close'].shift(1).rolling(window=19, min_periods=1).max()
     is_new_high = df['close'] > max_prev19
     cond_e = pd.Series(False, index=df.index)
@@ -114,7 +126,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('中国卫通')
+        stock_info: StockInfo = get_stock_info_by_name('中航成飞')
         import json
         result = await get_unlimited_increase_cn(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
