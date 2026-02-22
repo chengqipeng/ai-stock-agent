@@ -90,7 +90,7 @@ async def get_volume_reduction_pullback_cn(stock_info: StockInfo, limit=400, vol
     return {
         '最新交易日': latest_date,
         f'缩量回调（{latest_date}）': bool(latest['signal']),
-        '历史信号列表（最近两次）': [to_row(date, row) for date, row in df[df['signal']].sort_index(ascending=False).head(2).iterrows()],
+        '历史信号列表（最近3次）': [to_row(date, row) for date, row in df[df['signal']].sort_index(ascending=False).head(3).iterrows()],
     }
 
 
