@@ -27,13 +27,20 @@ def identify_new_high_signal(df: pd.DataFrame, lookback_window=60, vol_ratio=2.0
     量价协同突破策略：新量新价出新高
     条件 A：收盘价突破过去 lookback_window 日最高价
     条件 B：成交量 > 日均量 * vol_ratio（ma_volume 由外部传入）
-    条件 C：实体阳线且涨幅 > 3%
+    条件 C：中阳/大阳线（涨幅 > 3%，上影线 < 实体的 20%，排除长上影十字星）
     """
     df['rolling_max_high'] = df['high'].shift(1).rolling(window=lookback_window).max()
 
     condition_a = df['close'] > df['rolling_max_high']
     condition_b = df['volume'] > df['ma_volume'] * vol_ratio
-    condition_c = (df['close'] > df['open']) & (df['close'] >= df['high'] * 0.98)
+    # body = df['close'] - df['open']
+    # upper_shadow = df['high'] - df['close']
+    prev_close = df['close'].shift(1)
+    condition_c = (
+        (df['close'] > df['open']) &
+        ((df['close'] - prev_close) / prev_close > 0.03)
+        # & (upper_shadow < body * 0.2)
+    )
 
     df['signal'] = condition_a & condition_b & condition_c
     return df
