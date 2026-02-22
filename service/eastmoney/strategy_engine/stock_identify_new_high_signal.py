@@ -31,11 +31,9 @@ def identify_new_high_signal(df: pd.DataFrame, lookback_window=60, vol_ratio=2.0
     """
     df['rolling_max_high'] = df['high'].shift(1).rolling(window=lookback_window).max()
 
-    price_change = df['close'].pct_change()
-
     condition_a = df['close'] > df['rolling_max_high']
     condition_b = df['volume'] > df['ma_volume'] * vol_ratio
-    condition_c = (df['close'] > df['open']) & (price_change > 0.03)
+    condition_c = (df['close'] > df['open']) & (df['close'] >= df['high'] * 0.98)
 
     df['signal'] = condition_a & condition_b & condition_c
     return df
