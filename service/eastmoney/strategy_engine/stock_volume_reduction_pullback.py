@@ -42,6 +42,7 @@ def identify_volume_reduction_pullback(df: pd.DataFrame, vol_ma_window=50, vol_r
 
     df['prev_high_vol'] = df['volume'].where(is_high_vol_pillar).ffill()
     df['defense_line'] = df['low'].where(is_high_vol_pillar).ffill()
+    df['high_vol_date'] = df.index.to_series().where(is_high_vol_pillar).ffill()
 
     cond_a = (df['volume'] < df['prev_high_vol'] * 0.5) & (df['volume'] < df['ma_volume'])
     cond_b = (df['close'] > df['defense_line']) & df['defense_line'].notna()
@@ -83,7 +84,8 @@ async def get_volume_reduction_pullback_cn(stock_info: StockInfo, limit=400, vol
     def to_row(date, row):
         return {
             '日期': date.strftime('%Y-%m-%d'),
-            **{cn[c]: round(row[c] / 10000, 2) if c in ('volume', 'prev_high_vol') else round(row[c], 2) for c in cols}
+            **{cn[c]: round(row[c] / 10000, 2) if c in ('volume', 'prev_high_vol') else round(row[c], 2) for c in cols},
+            '高量柱日期': pd.Timestamp(row['high_vol_date']).strftime('%Y-%m-%d') if pd.notna(row['high_vol_date']) else None,
         }
 
     latest = df.sort_index(ascending=False).iloc[0]
