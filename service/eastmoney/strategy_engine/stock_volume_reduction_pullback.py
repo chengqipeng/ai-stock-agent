@@ -101,7 +101,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('北方华创')
+        stock_info: StockInfo = get_stock_info_by_name('中国卫通')
         import json
         result = await get_volume_reduction_pullback_cn(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))

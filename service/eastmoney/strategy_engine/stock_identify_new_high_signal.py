@@ -16,6 +16,7 @@ def _build_dataframe(klines: list) -> pd.DataFrame:
             'high':   float(fields[3]),
             'low':    float(fields[4]),
             'volume': float(fields[5]),
+            'pct_change': float(fields[8]),
         })
     df = pd.DataFrame(rows)
     df['date'] = pd.to_datetime(df['date'])
@@ -33,20 +34,16 @@ def identify_new_high_signal(df: pd.DataFrame, lookback_window=60, vol_ratio=2.0
 
     condition_a = df['close'] > df['rolling_max_high']
     condition_b = df['volume'] > df['ma_volume'] * vol_ratio
-    # body = df['close'] - df['open']
-    # upper_shadow = df['high'] - df['close']
-    prev_close = df['close'].shift(1)
     condition_c = (
         (df['close'] > df['open']) &
-        ((df['close'] - prev_close) / prev_close > 0.03)
-        # & (upper_shadow < body * 0.2)
+        (df['pct_change'] > 3)
     )
 
     df['signal'] = condition_a & condition_b & condition_c
     return df
 
 
-_CN_COLUMNS = {'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量（万）', 'rolling_max_high': '历史最高价', 'ma_volume': '日均量'}
+_CN_COLUMNS = {'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量（万）', 'pct_change': '涨跌幅（%）', 'rolling_max_high': '历史最高价', 'ma_volume': '日均量'}
 
 
 async def get_new_high_signals(stock_info: StockInfo, limit=400, lookback_window=60, vol_ma_window=50, vol_ratio=2.0) -> pd.DataFrame:
@@ -62,13 +59,13 @@ async def get_new_high_signals(stock_info: StockInfo, limit=400, lookback_window
     )
     df['ma_volume'] = vol_avg.reindex(df.index)
     df = identify_new_high_signal(df, lookback_window, vol_ratio)
-    return df[['open', 'close', 'high', 'low', 'volume', 'rolling_max_high', 'ma_volume', 'signal']]
+    return df[['open', 'close', 'high', 'low', 'volume', 'pct_change', 'rolling_max_high', 'ma_volume', 'signal']]
 
 
 async def get_new_high_signals_cn(stock_info: StockInfo, limit=400, lookback_window=60, vol_ma_window=50, vol_ratio=2.0) -> dict:
     """获取股票日K线信号，返回中文 key 的 JSON 结构"""
     df = await get_new_high_signals(stock_info, limit, lookback_window, vol_ma_window, vol_ratio)
-    cols = ['open', 'close', 'high', 'low', 'volume', 'rolling_max_high', 'ma_volume']
+    cols = ['open', 'close', 'high', 'low', 'volume', 'pct_change', 'rolling_max_high', 'ma_volume']
     cn = {**_CN_COLUMNS, 'ma_volume': f'{vol_ma_window}日均量（万）'}
 
     def to_row(date, row):
