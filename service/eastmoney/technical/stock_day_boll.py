@@ -27,8 +27,12 @@ async def calculate_bollinger_bands(stock_info: StockInfo, window=20, num_std=2)
     df = parse_klines_to_df(klines)
     
     boll = df['close_price'].rolling(window=window).mean()
-    rolling_std = df['close_price'].rolling(window=window).std()
-    
+    # 标准布林线
+    # rolling_std = df['close_price'].rolling(window=window).std()
+
+    # （如东方财富）使用总体标准差（ddof=0）
+    rolling_std = df['close_price'].rolling(window=window).std(ddof=0)
+
     df['boll'] = boll.round(4)
     df['boll_ub'] = (boll + rolling_std * num_std).round(4)
     df['boll_lb'] = (boll - rolling_std * num_std).round(4)
