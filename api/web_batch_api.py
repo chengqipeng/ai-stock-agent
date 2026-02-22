@@ -435,7 +435,8 @@ def extract_score_from_result(result: str) -> float:
                 if score:
                     return round(float(score), 2)
                 return 0.0
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                logger.error("Error parsing score JSON: %s, result: %s", e, clean_result[:200], exc_info=True)
                 m = re.search(r'"score"\s*:\s*(\d+\.?\d*)', clean_result)
                 if m:
                     return round(float(m.group(1)), 2)
