@@ -27,7 +27,7 @@ def _build_dataframe(klines: list) -> pd.DataFrame:
 def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_ratio=1.15, vol_shrink_ratio=0.8) -> pd.DataFrame:
     """
     无量上涨必须跑（诱多/背离）识别策略
-    条件 A（高位判定）：收盘价 > BOLL中轨（MA20）* 1.15，偏离15%以上视为高位
+    条件 A（高位判定）：收盘价 > min(BOLL中轨（MA20）* 1.15, 布林上轨 * 0.95)，偏离15%以上或接近上轨视为高位
     条件 B（价格上涨）：涨跌幅 > 0
     条件 C（无量萎缩）：成交量 < vol_ma_window日均量 * vol_shrink_ratio
     条件 D（阶梯缩量）：连续3日价涨量减（量依次递减）
@@ -36,7 +36,9 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
     最终信号：A AND ( (B AND C) OR D OR E )，A为前提，内层任一成立即触发警示
     """
     # 条件 A（高位判定）
-    cond_a = df['close'] > df['boll_mb'] * high_pos_ratio
+    high_threshold = df['boll_mb'] * high_pos_ratio
+    high_threshold = high_threshold.where(high_threshold < df['boll_ub'] * 0.95, df['boll_ub'] * 0.95)
+    cond_a = df['close'] > high_threshold
 
     # 条件 B（价格上涨）
     cond_b = df['pct_change'] > 0
@@ -114,6 +116,9 @@ async def get_unlimited_increase(stock_info: StockInfo, limit=400, vol_ma_window
     df['boll_mb'] = pd.Series(
         {pd.Timestamp(r['date']): r['boll'] for r in boll_records},
     ).reindex(df.index)
+    df['boll_ub'] = pd.Series(
+        {pd.Timestamp(r['date']): r['boll_ub'] for r in boll_records},
+    ).reindex(df.index)
     df = identify_unlimited_increase(df, vol_ma_window, high_pos_ratio, vol_shrink_ratio)
     return raw_df, df
 
@@ -151,7 +156,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('北方华创')
+        stock_info: StockInfo = get_stock_info_by_name('中国卫通')
         import json
         result = await get_unlimited_increase_cn(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
