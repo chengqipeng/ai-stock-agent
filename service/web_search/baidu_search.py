@@ -1,8 +1,9 @@
 import aiohttp
 import asyncio
 import base64
-from typing import Optional
 from datetime import datetime, timedelta
+
+from service.web_search.web_scraper import extract_main_content
 
 ACCESS_TOKEN = "YmNlLXYzL0FMVEFLLVdvR08wUlllWEFGWXRnU09jc1JRbS8wOGMxYTcyNzUzYWY1NWIzZTg3MTljOGJmMjA5YTc5MDdmOGIzZTNi"
 
@@ -47,13 +48,27 @@ async def baidu_search(
                 response.raise_for_status()
                 result = await response.json()
                 references = result.get('references', [])
-                return [{
+                results = [{
                     'id': ref.get('id'),
                     'url': ref.get('url'),
                     'title': ref.get('title'),
                     'date': ref.get('date'),
                     'content': ref.get('content')
                 } for ref in references]
+
+                semaphore = asyncio.Semaphore(len(results))
+
+                async def fetch_content(item):
+                    async with semaphore:
+                        try:
+                            text = await asyncio.to_thread(extract_main_content, item['url'])
+                            if text and len(text[:800]) > len(item.get('content') or ''):
+                                item['content'] = text[:800]
+                        except Exception:
+                            pass
+                    return item
+
+                return list(await asyncio.gather(*[fetch_content(r) for r in results]))
 
 
 if __name__ == "__main__":

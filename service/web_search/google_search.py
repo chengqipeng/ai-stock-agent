@@ -120,7 +120,7 @@ async def google_search(
                         async with semaphore:
                             try:
                                 text = await asyncio.to_thread(extract_main_content, item['url'])
-                                if text:
+                                if text and len(text[:800]) > len(item.get('content') or ''):
                                     item['content'] = text[:800]
                             except Exception:
                                 pass
