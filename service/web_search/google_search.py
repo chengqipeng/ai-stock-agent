@@ -66,6 +66,11 @@ def _get_current_month_failed_keys() -> List[int]:
     current_month = datetime.now().strftime('%Y-%m')
     return data.get(current_month, [])
 
+def _is_mobile_url(url: str) -> bool:
+    from urllib.parse import urlparse
+    host = urlparse(url).hostname or ''
+    return host.startswith('wap.') or host.startswith('m.')
+
 async def google_search(
     query: str,
     num_results: int = 20,
@@ -84,6 +89,7 @@ async def google_search(
         params = {
             "engine": "google",
             "q": query,
+            "device": "desktop",
             "location": "United States",
             "api_key": key,
             "num": num_results,
@@ -100,12 +106,14 @@ async def google_search(
                     result = await response.json()
 
                     items = result.get('news_results') or result.get('organic_results', [])
-                    return [{
+                    results =  [{
                         'id': item.get('position'),
                         'title': item.get('title'),
                         'url': item.get('link'),
                         'content': item.get('snippet')
-                    } for item in items]
+                    } for item in items if not _is_mobile_url(item.get('link', ''))]
+
+                    return results
         except Exception as e:
             if "Too Many Requests" in str(e):
                 failed_keys.append(i)
