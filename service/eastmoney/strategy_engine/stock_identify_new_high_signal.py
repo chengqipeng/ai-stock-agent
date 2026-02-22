@@ -85,7 +85,7 @@ if __name__ == '__main__':
 
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('北方华创')
+        stock_info: StockInfo = get_stock_info_by_name('中国卫通')
         import json
         signals = await get_new_high_signals_cn(stock_info)
         print(json.dumps(signals, ensure_ascii=False, indent=2))
