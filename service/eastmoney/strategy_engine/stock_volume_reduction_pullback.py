@@ -38,9 +38,9 @@ async def identify_volume_reduction_pullback(stock_info: StockInfo, df: pd.DataF
     )
     vol_avg = pd.Series(
         {pd.Timestamp(r['date']): r['volume_avg'] * 10000 for r in vol_avg_records},
-        name='ma_volume',
+        name='ma50_volume',
     )
-    df['ma_volume'] = vol_avg.reindex(df.index)
+    df['ma50_volume'] = vol_avg.reindex(df.index)
     boll_mb = pd.Series(
         {pd.Timestamp(r['date']): r['boll'] for r in boll_records},
         name='boll_mb',
@@ -49,7 +49,7 @@ async def identify_volume_reduction_pullback(stock_info: StockInfo, df: pd.DataF
     prev_close = df['close'].shift(1)
 
     is_high_vol_pillar = (
-        (df['volume'] > df['ma_volume'] * vol_ratio) &
+        (df['volume'] > df['ma50_volume'] * vol_ratio) &
         (df['close'] > df['open']) &
         (df['pct_change'] > 3)
         # (df['close'] / prev_close > 1.03)
@@ -59,7 +59,7 @@ async def identify_volume_reduction_pullback(stock_info: StockInfo, df: pd.DataF
     df['defense_line'] = df['low'].where(is_high_vol_pillar).ffill()
     df['high_vol_date'] = df.index.to_series().where(is_high_vol_pillar).ffill()
 
-    cond_a = (df['volume'] < df['prev_high_vol'] * 0.5) & (df['volume'] < df['ma_volume'])
+    cond_a = (df['volume'] < df['prev_high_vol'] * 0.5) & (df['volume'] < df['ma50_volume'])
     cond_b = (df['close'] > df['defense_line']) & df['defense_line'].notna()
     cond_c = df['close'] >= df['boll_mb']
     cond_d = (df['high'] - df['low']) / prev_close < 0.04
