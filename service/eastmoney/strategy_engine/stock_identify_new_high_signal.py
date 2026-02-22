@@ -46,25 +46,44 @@ def identify_new_high_signal(df: pd.DataFrame, lookback_window=60, vol_ratio=2.0
 _CN_COLUMNS = {'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量（万）', 'pct_change': '涨跌幅（%）', 'rolling_max_high': '历史最高价', 'ma_volume': '日均量'}
 
 
+def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, result: dict, vol_ratio: float, vol_ma_window: int, lookback_window: int) -> None:
+    print("\n========== 新量新价出新高信号日志 ==========")
+    print(f"""【策略逻辑说明】
+股票：{stock_name}
+策略：量价协同突破，需同时满足以下3个条件，输出最新成交日是否满足和历史满足的前三个交易日：
+  条件A（价格突破）：收盘价突破过去{lookback_window}日最高价
+  条件B（放量配合）：成交量 > {vol_ma_window}日均量×{vol_ratio}倍
+  条件C（阳线确认）：阳线且涨幅 > 3%""")
+    print("\n【原始K线数据】")
+    cn_rename = {'date': '日期', 'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量', 'pct_change': '涨跌幅', 'ma_volume': f'{vol_ma_window}日均量'}
+    display_df = raw_df.tail(250).copy()
+    display_df['ma_volume'] = calc_df['ma_volume'].reindex(display_df.index)
+    display_df = display_df.reset_index().rename(columns=cn_rename)
+    display_df['日期'] = display_df['日期'].dt.strftime('%Y-%m-%d')
+    print(display_df.to_json(orient='records', force_ascii=False, indent=2))
+    print("========================================\n")
+
+
 async def get_new_high_signals(stock_info: StockInfo, limit=400, lookback_window=60, vol_ma_window=50, vol_ratio=2.0) -> pd.DataFrame:
     """获取股票日K线并返回含信号列的 DataFrame，只保留有信号的行"""
     klines, vol_avg_records = await asyncio.gather(
         get_stock_day_range_kline(stock_info, limit=limit),
         get_volume_avg(stock_info, days=vol_ma_window, page_size=limit),
     )
-    df = _build_dataframe(klines)
+    raw_df = _build_dataframe(klines)
+    df = raw_df.copy()
     vol_avg = pd.Series(
         {pd.Timestamp(r['date']): r['volume_avg'] * 10000 for r in vol_avg_records},
         name='ma_volume',
     )
     df['ma_volume'] = vol_avg.reindex(df.index)
     df = identify_new_high_signal(df, lookback_window, vol_ratio)
-    return df[['open', 'close', 'high', 'low', 'volume', 'pct_change', 'rolling_max_high', 'ma_volume', 'signal']]
+    return raw_df, df[['open', 'close', 'high', 'low', 'volume', 'pct_change', 'rolling_max_high', 'ma_volume', 'signal']]
 
 
 async def get_new_high_signals_cn(stock_info: StockInfo, limit=400, lookback_window=60, vol_ma_window=50, vol_ratio=2.0) -> dict:
     """获取股票日K线信号，返回中文 key 的 JSON 结构"""
-    df = await get_new_high_signals(stock_info, limit, lookback_window, vol_ma_window, vol_ratio)
+    raw_df, df = await get_new_high_signals(stock_info, limit, lookback_window, vol_ma_window, vol_ratio)
     cols = ['open', 'close', 'high', 'low', 'volume', 'pct_change', 'rolling_max_high', 'ma_volume']
     cn = {**_CN_COLUMNS, 'ma_volume': f'{vol_ma_window}日均量（万）'}
 
@@ -73,11 +92,13 @@ async def get_new_high_signals_cn(stock_info: StockInfo, limit=400, lookback_win
 
     latest = df.sort_index(ascending=False).iloc[0]
     latest_date = latest.name.strftime('%Y-%m-%d')
-    return {
+    result = {
         '最新交易日': latest_date,
         f'新量新价出新高（{latest_date}）': bool(latest['signal']),
         '历史信号列表（最近3次）': [to_row(date, row) for date, row in df[df['signal']].sort_index(ascending=False).head(3).iterrows()],
     }
+    _log_result(stock_info.stock_name, raw_df, df, result, vol_ratio, vol_ma_window, lookback_window)
+    return result
 
 
 if __name__ == '__main__':
