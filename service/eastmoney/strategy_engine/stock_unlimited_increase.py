@@ -78,6 +78,7 @@ _CN_COLUMNS = {
     'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价',
     'volume': '成交量（万）', 'pct_change': '涨跌幅（%）',
     'boll_mb': 'BOLL中轨', 'ma50_volume': '日均量（万）',
+    'high_20': '20日最高价', 'peak_date_20': '20日最高收盘价日期', 'peak_vol_20': '20日最高收盘价当日量（万）',
 }
 
 
@@ -90,11 +91,13 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vo
   条件D（阶梯缩量）：连续3日价涨，且成交量依次递减
   条件E（结构背离）：创20日新高，但成交量 < 阶段高点当天的成交量""")
     print("\n【原始K线数据（最近250日）】")
-    cn_rename = {'date': '日期', 'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量', 'pct_change': '涨跌幅', 'ma50_volume': f'{vol_ma_window}日均量', 'boll_mb': 'BOLL中轨', 'high_20': '20日最高价'}
+    cn_rename = {**{'date': '日期', 'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量', 'pct_change': '涨跌幅', 'ma50_volume': f'{vol_ma_window}日均量', 'boll_mb': 'BOLL中轨'}, **{k: v for k, v in _CN_COLUMNS.items() if k in ('high_20', 'peak_date_20', 'peak_vol_20')}}
     display_df = raw_df.tail(250).copy()
     display_df['ma50_volume'] = calc_df['ma50_volume'].reindex(display_df.index)
     display_df['boll_mb'] = calc_df['boll_mb'].reindex(display_df.index)
-    display_df['high_20'] = raw_df['high'].rolling(window=20).max().reindex(display_df.index)
+    display_df['high_20'] = calc_df['high_20'].reindex(display_df.index)
+    display_df['peak_date_20'] = calc_df['peak_date_20'].reindex(display_df.index)
+    display_df['peak_vol_20'] = calc_df['peak_vol_20'].reindex(display_df.index)
     display_df = display_df.reset_index().rename(columns=cn_rename)
     display_df['日期'] = display_df['日期'].dt.strftime('%Y-%m-%d')
     print(display_df.to_json(orient='records', force_ascii=False, indent=2))
@@ -119,13 +122,18 @@ async def get_unlimited_increase(stock_info: StockInfo, limit=400, vol_ma_window
         name='boll_mb',
     ).reindex(df.index)
     df = identify_unlimited_increase(df, vol_ma_window, high_pos_ratio, vol_shrink_ratio)
+    df['high_20'] = raw_df['high'].rolling(window=20).max()
+    peak_idx = [raw_df['close'].iloc[max(0, i - 19): i + 1].idxmax() for i in range(len(raw_df))]
+    df['peak_date_20'] = [idx.strftime('%Y-%m-%d') for idx in peak_idx]
+    df['peak_vol_20'] = [raw_df['volume'].loc[idx] for idx in peak_idx]
     return raw_df, df
 
 
 async def get_unlimited_increase_cn(stock_info: StockInfo, limit=400, vol_ma_window=50, high_pos_ratio=1.15, vol_shrink_ratio=0.8) -> dict:
     """获取无量上涨诱多/背离信号，返回中文 key 的 JSON 结构"""
     raw_df, df = await get_unlimited_increase(stock_info, limit, vol_ma_window, high_pos_ratio, vol_shrink_ratio)
-    cols = ['open', 'close', 'high', 'low', 'volume', 'pct_change', 'boll_mb', 'ma50_volume']
+    cols = ['open', 'close', 'high', 'low', 'volume', 'pct_change', 'boll_mb', 'ma50_volume', 'high_20', 'peak_date_20', 'peak_vol_20']
+    vol_cols = {'volume', 'ma50_volume', 'peak_vol_20'}
 
     def to_row(date, row):
         triggers = []
@@ -134,7 +142,7 @@ async def get_unlimited_increase_cn(stock_info: StockInfo, limit=400, vol_ma_win
         if row.get('cond_e'):    triggers.append('结构背离(E)')
         return {
             '日期': date.strftime('%Y-%m-%d'),
-            **{_CN_COLUMNS[c]: round(row[c] / 10000, 2) if c in ('volume', 'ma50_volume') else round(row[c], 2) for c in cols},
+            **{_CN_COLUMNS[c]: (row[c] if c == 'peak_date_20' else round(row[c] / 10000, 2) if c in vol_cols else round(row[c], 2)) for c in cols},
             '触发条件': '、'.join(triggers),
         }
 
@@ -153,7 +161,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('北方华创')
+        stock_info: StockInfo = get_stock_info_by_name('中国卫通')
         import json
         result = await get_unlimited_increase_cn(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
