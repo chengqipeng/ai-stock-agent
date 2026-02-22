@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from service.web_search.baidu_search import baidu_search
+from service.web_search.web_scraper import extract_main_content
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,19 @@ async def google_search(
                         'content': item.get('snippet')
                     } for item in items if not _is_mobile_url(item.get('link', ''))]
 
+                    semaphore = asyncio.Semaphore(len(results))
+
+                    async def fetch_content(item):
+                        async with semaphore:
+                            try:
+                                text = await asyncio.to_thread(extract_main_content, item['url'])
+                                if text:
+                                    item['content'] = text[:800]
+                            except Exception:
+                                pass
+                        return item
+
+                    results = await asyncio.gather(*[fetch_content(r) for r in results])
                     return results
         except Exception as e:
             if "Too Many Requests" in str(e):
