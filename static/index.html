@@ -427,6 +427,19 @@
         let currentBatchId = null;
         let batchSelectedStockIds = new Set(); // 批量深度分析选中的股票ID
 
+        function formatLocalTime(utcStr) {
+            if (!utcStr) return '-';
+            // SQLite CURRENT_TIMESTAMP 格式: "2024-01-01 12:00:00" (UTC)
+            const s = utcStr.trim().replace(' ', 'T');
+            const d = new Date(s.includes('+') || s.endsWith('Z') ? s : s + 'Z');
+            if (isNaN(d)) return utcStr.slice(0, 16).replace('T', ' ');
+            return d.getFullYear() + '-' +
+                String(d.getMonth()+1).padStart(2,'0') + '-' +
+                String(d.getDate()).padStart(2,'0') + ' ' +
+                String(d.getHours()).padStart(2,'0') + ':' +
+                String(d.getMinutes()).padStart(2,'0');
+        }
+
         async function loadStockList() {
             try {
                 const response = await fetch('/api/stock_list');
@@ -636,7 +649,7 @@
                     <div style="font-size: 11px; color: #666; margin-top: 2px;">
                         总数: ${batch.total_count} | 成功: ${batch.success_count} | 失败: ${batch.completed_count - batch.success_count} | 
                         状态: ${batch.status === 'completed' ? '✅ 已完成' : '⏳ 进行中'} | 
-                        ${batch.created_at}
+                        ${formatLocalTime(batch.created_at)}
                         ${batch.status !== 'completed' && batch.completed_count < batch.total_count ? '<button onclick="event.stopPropagation(); continueBatch(' + batch.id + ')" style="margin-left: 10px; padding: 2px 8px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">继续分析</button>' : ''}
                     </div>
                 </div>
@@ -719,7 +732,7 @@
                     <td style="padding: 6px; position: sticky; left: 40px; background: white; z-index: 5;">
                         <div style="font-weight: 600;">${stock.stock_name}</div>
                         <div style="font-size: 10px; color: #999;">${stock.stock_code}</div>
-                        <div style="font-size: 10px; color: #bbb; margin-top: 2px; white-space: nowrap;">${stock.completed_at ? stock.completed_at.slice(0, 16).replace('T', ' ') : '-'}</div>
+                        <div style="font-size: 10px; color: #bbb; margin-top: 2px; white-space: nowrap;">${formatLocalTime(stock.completed_at)}</div>
                         <button onclick="showHistory('${stock.stock_name}')" style="margin-top:3px;padding: 2px 6px; background: #607d8b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">历史记录</button>
                     </td>
                     <td style="padding: 6px; text-align: center; vertical-align: top; display: table-cell;">
@@ -1376,7 +1389,7 @@
                     return `<div style="border:1px solid #667eea;border-radius:6px;padding:12px;margin-bottom:10px;">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                             <span style="font-weight:600;font-size:12px;">批次 #${g.batch_id} ${g.is_deep_thinking?'🧠 深度思考':''}</span>
-                            <span style="font-size:10px;color:#999;">${(g.created_at||'').slice(0,16).replace('T',' ')}</span>
+                            <span style="font-size:10px;color:#999;">${formatLocalTime(g.created_at)}</span>
                         </div>
                         <div style="margin-bottom:6px;">${dimsHtml}</div>
                         ${summaries ? `<details><summary style="cursor:pointer;font-size:11px;color:#667eea;">查看摘要</summary><div style="margin-top:6px;">${summaries}</div></details>` : ''}
