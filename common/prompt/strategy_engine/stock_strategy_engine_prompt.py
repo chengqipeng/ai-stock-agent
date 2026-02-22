@@ -1,4 +1,11 @@
-async def get_technical_prompt():
+import json
+
+from common.utils.stock_info_utils import StockInfo
+from service.eastmoney.strategy_engine.stock_identify_new_high_signal import get_new_high_signals_cn
+
+
+async def get_strategy_engine_prompt(stock_info: StockInfo):
+    new_high_signals = await get_new_high_signals_cn(stock_info)
     return f"""
 # Role
 你是一个基于“量价时空”体系的资深量化交易策略引擎。你的核心任务是解析输入的结构化股票行情数据（包含均线、MACD、KDJ、BOLL及关键量价特征），严格基于内置的《技术与量价分析法则》进行客观推理，并输出清晰、无歧义的盘面诊断和交易决策信号。
@@ -51,4 +58,11 @@ async def get_technical_prompt():
    - 趋势与动能 (MACD/BOLL/KDJ)：(简述指标共振情况)
 3. **战法触发判定 (Strategy Trigger)**：明确指出是否触发了战法 A/B/C。如果没有触发，说明还差什么条件。
 4. **交易执行建议 (Action Plan)**：明确给出操作指令（如：买入、持股观望、减仓、清仓止损），并给出具体的防守价位逻辑。
+
+# 以下是股票行情数据：
+
+** 新量新价出新高（看涨） **
+{json.dumps(new_high_signals, ensure_ascii=False, indent=2)}
+
+
 """
