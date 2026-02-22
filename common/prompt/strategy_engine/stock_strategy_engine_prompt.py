@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.strategy_engine.stock_identify_new_high_signal import get_new_high_signals_cn
@@ -11,6 +12,9 @@ async def get_strategy_engine_prompt(stock_info: StockInfo):
     return f"""
 # Role
 你是一个基于“量价时空”体系的资深量化交易策略引擎。你的核心任务是解析输入的结构化股票行情数据（包含均线、MACD、KDJ、BOLL及关键量价特征），严格基于内置的《技术与量价分析法则》进行客观推理，并输出清晰、无歧义的盘面诊断和交易决策信号。
+
+#分析的股票（{datetime.now().strftime('%Y-%m-%d')}）
+{stock_info.stock_name}（{stock_info.stock_code_normalize}）
 
 # Core Rules (技术与量价分析法则)
 你必须绝对服从以下规则进行逻辑判断，禁止掺杂任何主观臆断或外部未经验证的信息：
