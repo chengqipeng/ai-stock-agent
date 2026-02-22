@@ -41,6 +41,28 @@ async def get_stock_industry_ranking(stock_info: StockInfo, page: int = 1):
         raise Exception(f"未获取到股票 {stock_info.secid} 的行业排名数据")
 
 
+def _quartile_label(rank, total, higher_is_better=True) -> str:
+    """根据排名计算四分位标签
+    
+    排名从1开始，数值越小越靠前。
+    higher_is_better=True：排名靠前表示指标值高（如利润率、ROE）
+    higher_is_better=False：排名靠前表示指标值低（如市盈率、市净率，估值越低越好）
+    """
+    if not rank or not total or total == 0:
+        return '-'
+    ratio = rank / total
+    if higher_is_better:
+        if ratio <= 0.25: return '高'
+        elif ratio <= 0.5: return '较高'
+        elif ratio <= 0.75: return '较低'
+        else: return '低'
+    else:
+        if ratio <= 0.25: return '低'
+        elif ratio <= 0.5: return '较低'
+        elif ratio <= 0.75: return '较高'
+        else: return '高'
+
+
 async def get_stock_industry_ranking_json(stock_info: StockInfo, page: int = 1):
     """获取股票所属行业排名数据（格式化表格）
     
@@ -62,6 +84,13 @@ async def get_stock_industry_ranking_json(stock_info: StockInfo, page: int = 1):
     industry_data = items[1]
     total_count = industry_data.get('f134', 0)
     
+    def _metric(rank_key, higher_is_better=True):
+        rank = stock_data.get(rank_key)
+        return {
+            "行业排名": f"{rank or '-'}|{total_count}",
+            "四分位": _quartile_label(rank, total_count, higher_is_better)
+        }
+
     result = {
         "股票名称": stock_data.get('f14', '-'),
         "行业名称": industry_data.get('f14', '-'),
@@ -69,42 +98,42 @@ async def get_stock_industry_ranking_json(stock_info: StockInfo, page: int = 1):
             "总市值": {
                 "股票值": convert_amount_unit(stock_data.get('f20')),
                 "行业平均": convert_amount_unit(industry_data.get('f2020')),
-                "行业排名": f"{stock_data.get('f1020', '-')}|{total_count}"
+                **_metric('f1020')
             },
             "净资产": {
                 "股票值": convert_amount_unit(stock_data.get('f58')),
                 "行业平均": convert_amount_unit(industry_data.get('f2135')),
-                "行业排名": f"{stock_data.get('f1113', '-')}|{total_count}"
+                **_metric('f1113')
             },
             "净利润": {
                 "股票值": convert_amount_unit(stock_data.get('f45')),
                 "行业平均": convert_amount_unit(industry_data.get('f2045')),
-                "行业排名": f"{stock_data.get('f1045', '-')}|{total_count}"
+                **_metric('f1045')
             },
             "市盈率(动)": {
                 "股票值": round(stock_data.get('f9', 0) / 100, 2) if stock_data.get('f9') else '-',
                 "行业平均": round(industry_data.get('f2009', 0), 2) if industry_data.get('f2009') else '-',
-                "行业排名": f"{stock_data.get('f1009', '-')}|{total_count}"
+                **_metric('f1009', higher_is_better=False)
             },
             "市净率": {
                 "股票值": round(stock_data.get('f23', 0) / 100, 2) if stock_data.get('f23') else '-',
                 "行业平均": round(industry_data.get('f2023', 0), 2) if industry_data.get('f2023') else '-',
-                "行业排名": f"{stock_data.get('f1023', '-')}|{total_count}"
+                **_metric('f1023', higher_is_better=False)
             },
             "毛利率": {
                 "股票值": f"{round(stock_data.get('f49', 0), 2)}%" if stock_data.get('f49') else '-',
                 "行业平均": f"{round(industry_data.get('f2049', 0), 2)}%" if industry_data.get('f2049') else '-',
-                "行业排名": f"{stock_data.get('f1049', '-')}|{total_count}"
+                **_metric('f1049')
             },
             "净利率": {
                 "股票值": f"{round(stock_data.get('f129', 0), 2)}%" if stock_data.get('f129') else '-',
                 "行业平均": f"{round(industry_data.get('f2129', 0), 2)}%" if industry_data.get('f2129') else '-',
-                "行业排名": f"{stock_data.get('f1129', '-')}|{total_count}"
+                **_metric('f1129')
             },
             "ROE": {
                 "股票值": f"{round(stock_data.get('f37', 0), 2)}%" if stock_data.get('f37') else '-',
                 "行业平均": f"{round(industry_data.get('f2037', 0), 2)}%" if industry_data.get('f2037') else '-',
-                "行业排名": f"{stock_data.get('f1037', '-')}|{total_count}"
+                **_metric('f1037')
             }
         }
     }
