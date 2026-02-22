@@ -281,7 +281,7 @@ _COMPLETION_OUTPUT_TEMPLATE = """
   'stock_code': '<股票代码>',
   'stock_name': '<股票名称>',
   'score': '<根据分析结果进行评分，打分范围0-100分，分数不能固定档次，需要极其精确细化>',
-  'content': '在此撰写基于最终分数的专家点评：{content_instruction}'
+  'content': '输出每一项打分逻辑，撰写基于最终分数的专家点评：{content_instruction}'
 }}
 """
 
