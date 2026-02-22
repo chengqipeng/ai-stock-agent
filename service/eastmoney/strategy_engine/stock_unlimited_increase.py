@@ -56,7 +56,7 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
     rolling_max_close_20 = df['close'].rolling(window=20).max()
     rolling_max_vol_20 = df['volume'].rolling(window=20).max()
     is_new_high_20 = df['close'] >= rolling_max_close_20
-    cond_e = is_new_high_20 & (df['volume'] < rolling_max_vol_20 * 0.8)
+    cond_e = is_new_high_20 & (df['volume'] < rolling_max_vol_20 * vol_shrink_ratio)
 
     df['cond_ab_c'] = cond_a & price_up & cond_c
     df['cond_d'] = cond_d
@@ -81,10 +81,11 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vo
   条件D（阶梯缩量）：连续3日价涨，且成交量依次递减
   条件E（结构背离）：创20日新高，但成交量 < 近20日最大量×80%""")
     print("\n【原始K线数据（最近250日）】")
-    cn_rename = {'date': '日期', 'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量', 'pct_change': '涨跌幅', 'ma50_volume': f'{vol_ma_window}日均量', 'boll_mb': 'BOLL中轨'}
+    cn_rename = {'date': '日期', 'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量', 'pct_change': '涨跌幅', 'ma50_volume': f'{vol_ma_window}日均量', 'boll_mb': 'BOLL中轨', 'high_20': '20日最高价'}
     display_df = raw_df.tail(250).copy()
     display_df['ma50_volume'] = calc_df['ma50_volume'].reindex(display_df.index)
     display_df['boll_mb'] = calc_df['boll_mb'].reindex(display_df.index)
+    display_df['high_20'] = raw_df['high'].rolling(window=20).max().reindex(display_df.index)
     display_df = display_df.reset_index().rename(columns=cn_rename)
     display_df['日期'] = display_df['日期'].dt.strftime('%Y-%m-%d')
     print(display_df.to_json(orient='records', force_ascii=False, indent=2))
