@@ -89,7 +89,7 @@ async def get_volume_reduction_pullback(stock_info: StockInfo, limit=400, vol_ma
     return await identify_volume_reduction_pullback(stock_info, df, vol_ma_window, vol_ratio, limit)
 
 
-def _log_result(stock_name: str, raw_df: pd.DataFrame, result: dict, vol_ratio: float, vol_ma_window: int) -> None:
+def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, result: dict, vol_ratio: float, vol_ma_window: int) -> None:
     import json
     print("\n========== 缩量回调信号日志 ==========")
     print(f"""【策略逻辑说明】
@@ -101,8 +101,10 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, result: dict, vol_ratio: 
   条件D（K线可控）：当日振幅（最高-最低）/ 前日收盘 < 4%
 高量柱定义：成交量 > {vol_ma_window}日均量×{vol_ratio}倍，阳线，涨幅>3%，且为近10日最大量""")
     print("\n【原始K线数据】")
-    cn_rename = {'date': '日期', 'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量', 'pct_change': '涨跌幅'}
-    display_df = raw_df.tail(250).reset_index().rename(columns=cn_rename)
+    cn_rename = {'date': '日期', 'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量', 'pct_change': '涨跌幅', 'ma50_volume': '50日均量'}
+    display_df = raw_df.tail(250).copy()
+    display_df['ma50_volume'] = calc_df['ma50_volume'].reindex(display_df.index)
+    display_df = display_df.reset_index().rename(columns=cn_rename)
     display_df['日期'] = display_df['日期'].dt.strftime('%Y-%m-%d')
     print(display_df.to_json(orient='records', force_ascii=False, indent=2))
     print("========================================\n")
@@ -131,7 +133,7 @@ async def get_volume_reduction_pullback_cn(stock_info: StockInfo, limit=400, vol
         f'缩量回调（{latest_date}）': bool(latest['signal']),
         '历史信号列表（最近3次）': [to_row(date, row) for date, row in df[df['signal']].sort_index(ascending=False).head(20).iterrows()],
     }
-    _log_result(stock_info.stock_name, raw_df, result, vol_ratio, vol_ma_window)
+    _log_result(stock_info.stock_name, raw_df, df, result, vol_ratio, vol_ma_window)
     return result
 
 
@@ -139,7 +141,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('中国卫通')
+        stock_info: StockInfo = get_stock_info_by_name('北方华创')
         import json
         result = await get_volume_reduction_pullback_cn(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
