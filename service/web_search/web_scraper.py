@@ -5,53 +5,51 @@
 
 import asyncio
 import re
-from typing import List, Optional
+from typing import List
 
-import aiohttp
 from bs4 import BeautifulSoup
+from curl_cffi.requests import AsyncSession
 
 
 # 常量定义
-DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-DEFAULT_TIMEOUT = 15
+DEFAULT_TIMEOUT = 30
+BUSINESS_TIMEOUT = 60
 CLASHX_PROXY = "http://127.0.0.1:7890"
-MAX_HEADER_SIZE = 32768
+IMPERSONATE = "chrome120"
+BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+}
 
-async def extract_main_content(url: str, use_proxy: bool = True) -> Optional[str]:
+
+async def extract_main_content(url: str, use_proxy: bool = False, timeout: int = DEFAULT_TIMEOUT) -> str:
     """提取网页正文内容。
 
     Args:
         url: 目标网页URL
         use_proxy: 是否使用ClashX代理
+        timeout: 请求超时时间（秒）
 
     Returns:
-        Optional[str]: 网页正文内容，失败时返回None
+        str: 网页正文内容
     """
-    try:
-        return await _extract_main_content(url, use_proxy)
-    except Exception as e:
-        print(f"extract_main_content error for {url}: {e}")
-        return None
+    proxy = CLASHX_PROXY if use_proxy else None
 
-
-async def _extract_main_content(url: str, use_proxy: bool = True) -> str:
-    headers = {"User-Agent": DEFAULT_USER_AGENT}
-    connector = aiohttp.TCPConnector(limit_per_host=100)
-
-    async with aiohttp.ClientSession(
-        connector=connector,
-        headers=headers,
-        timeout=aiohttp.ClientTimeout(total=DEFAULT_TIMEOUT),
-        max_line_size=MAX_HEADER_SIZE,
-        max_field_size=MAX_HEADER_SIZE
-    ) as session:
-        kwargs = {}
-        if use_proxy:
-            kwargs["proxy"] = CLASHX_PROXY
-
-        async with session.get(url, **kwargs) as response:
-            response.raise_for_status()
-            text = await response.text()
+    async with AsyncSession(impersonate=IMPERSONATE) as session:
+        response = await session.get(url, proxy=proxy, timeout=timeout, headers=BROWSER_HEADERS)
+        if response.status_code == 403:
+            return ""
+        response.raise_for_status()
+        text = response.text
 
     soup = BeautifulSoup(text, "html.parser")
 
@@ -84,7 +82,6 @@ async def _extract_main_content(url: str, use_proxy: bool = True) -> str:
         line = line.strip()
         if not line or line in seen_lines:
             continue
-        # 过滤媒体信息、时间戳、关注按钮等
         if re.match(r'^[《》""\w\s]+官方账号$', line):
             continue
         if re.match(r'^\d{2}\.\d{2}$', line):
@@ -101,6 +98,7 @@ async def _extract_main_content(url: str, use_proxy: bool = True) -> str:
 
     return "\n".join(filtered_lines)
 
+
 async def extract_titles(url: str, tag: str = "h2", use_proxy: bool = True) -> List[str]:
     """提取网页中指定标签的文本内容。
 
@@ -111,27 +109,13 @@ async def extract_titles(url: str, tag: str = "h2", use_proxy: bool = True) -> L
 
     Returns:
         List[str]: 提取的文本内容列表
-
-    Raises:
-        aiohttp.ClientError: 网络请求异常
     """
-    headers = {"User-Agent": DEFAULT_USER_AGENT}
-    connector = aiohttp.TCPConnector(limit_per_host=100)
+    proxy = CLASHX_PROXY if use_proxy else None
 
-    async with aiohttp.ClientSession(
-        connector=connector,
-        headers=headers,
-        timeout=aiohttp.ClientTimeout(total=DEFAULT_TIMEOUT),
-        max_line_size=MAX_HEADER_SIZE,
-        max_field_size=MAX_HEADER_SIZE
-    ) as session:
-        kwargs = {}
-        if use_proxy:
-            kwargs["proxy"] = CLASHX_PROXY
-
-        async with session.get(url, **kwargs) as response:
-            response.raise_for_status()
-            text = await response.text()
+    async with AsyncSession(impersonate=IMPERSONATE) as session:
+        response = await session.get(url, proxy=proxy, timeout=DEFAULT_TIMEOUT, headers=BROWSER_HEADERS)
+        response.raise_for_status()
+        text = response.text
 
     soup = BeautifulSoup(text, "html.parser")
     elements = soup.find_all(tag)
@@ -142,8 +126,11 @@ async def extract_titles(url: str, tag: str = "h2", use_proxy: bool = True) -> L
 # 使用示例
 if __name__ == "__main__":
     async def main():
-        url = "https://finance.yahoo.com/news/tsmc-lifts-2026-capex-outlook-154053660.html"
-        content = await extract_main_content(url)
+        url_1 = "https://finance.yahoo.com/news/tsmc-lifts-2026-capex-outlook-154053660.html"
+        url_2 = "https://www.bitget.com/news/detail/12560605204670"
+        url_3 = "https://electronics360.globalspec.com/article/23198/semi-chip-manufacturing-equipment-to-hit-record-high-in-2025"
+        url = "https://www.bitget.com/news/detail/12560605204670"
+        content = await extract_main_content(url_3)
         print(content)
 
     asyncio.run(main())

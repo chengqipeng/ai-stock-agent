@@ -77,7 +77,7 @@ async def get_global_search_key_prompt(stock_info: StockInfo, search_intent=None
    - search_key_time_range不能超过30，需要根据关键词对应的特性判断对股票影响的时效性
 
 ## Output Format
-请严格按照以下 JSON 结构输出，提供精准的行业属性和公司属性的搜索关键词，最多返回3个最优的关键词：
+请严格按照以下 JSON 结构输出，提供精准的行业属性和公司属性的搜索关键词，最多返回2个最优的关键词：
 
 {{
   "search_news": ["英文搜索词1", "英文搜索词2"],

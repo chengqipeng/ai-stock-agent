@@ -32,12 +32,12 @@ class NProductsManagementHighsService(BaseCanSlimService):
     def get_prompt_params(self) -> Dict[str, Any]:
         return {
             'announcements_json': self.to_json(self.data_cache['search_filter_result']['announcements']),
-            'finance_and_expectations_json': self.to_json(self.data_cache['search_filter_result']['finance_and_expectations']),
-            'corporate_governance_json': self.to_json(self.data_cache['search_filter_result']['corporate_governance']),
-            'stock_incentive_plan_json': self.to_json(self.data_cache['search_filter_result']['stock_incentive_plan']),
-            'global_competitors_json': self.to_json(self.data_cache['search_filter_result']['global_competitors']),
-            'global_customers_json': self.to_json(self.data_cache['search_filter_result']['global_customers']),
-            'geopolitics_json': self.to_json(self.data_cache['search_filter_result']['geopolitics']),
+            'finance_and_expectations_json': self.to_json(self.data_cache['search_filter_result'].get('finance_and_expectations', [])),
+            'corporate_governance_json': self.to_json(self.data_cache['search_filter_result'].get('corporate_governance', [])),
+            'stock_incentive_plan_json': self.to_json(self.data_cache['search_filter_result'].get('stock_incentive_plan', [])),
+            'global_competitors_json': self.to_json(self.data_cache['search_filter_result'].get('global_competitors', [])),
+            'global_customers_json': self.to_json(self.data_cache['search_filter_result'].get('global_customers', [])),
+            'geopolitics_json': self.to_json(self.data_cache['search_filter_result'].get('geopolitics', [])),
             'revenue_analysis_json': self.to_json(self.data_cache['revenue_analysis_three_years']),
             'shareholder_increase_json': self.to_json(self.data_cache['shareholder_increase']),
             'moving_averages_json': self.to_json(self.data_cache['moving_averages']),

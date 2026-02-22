@@ -1,9 +1,13 @@
+import logging
+
 import aiohttp
 import asyncio
 import base64
 from datetime import datetime, timedelta
 
-from service.web_search.web_scraper import extract_main_content
+from service.web_search.web_scraper import extract_main_content, BUSINESS_TIMEOUT
+
+logger = logging.getLogger(__name__)
 
 ACCESS_TOKEN = "YmNlLXYzL0FMVEFLLVdvR08wUlllWEFGWXRnU09jc1JRbS8wOGMxYTcyNzUzYWY1NWIzZTg3MTljOGJmMjA5YTc5MDdmOGIzZTNi"
 
@@ -61,11 +65,11 @@ async def baidu_search(
                 async def fetch_content(item):
                     async with semaphore:
                         try:
-                            text = await extract_main_content(item['url'])
+                            text = await extract_main_content(item['url'], timeout=BUSINESS_TIMEOUT)
                             if text and len(text[:800]) > len(item.get('content') or ''):
                                 item['content'] = text[:800]
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logging.warning(f"fetch_content error for {item['url']}: {e}")
                     return item
 
                 return list(await asyncio.gather(*[fetch_content(r) for r in results]))

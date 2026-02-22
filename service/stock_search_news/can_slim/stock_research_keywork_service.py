@@ -6,8 +6,8 @@ from datetime import datetime
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.stock_search_news.can_slim.stock_search_key_word_service import get_search_key_result
 from service.web_search.baidu_search import baidu_search
-from service.web_search.google_search import google_search
 
+logger = logging.getLogger(__name__)
 
 _semaphore = asyncio.Semaphore(20)
 
@@ -25,12 +25,13 @@ async def research_stock_news(stock_info: StockInfo):
                 if category_data['type'] == 'domestic':
                     result = await baidu_search(keyword, days=category_data['search_key_time_range'])
                 else:
-                    result = await google_search(keyword, category_data['search_key_time_range'])
+                    result = await baidu_search(keyword, days=category_data['search_key_time_range'])
                 keyword_cache[keyword] = result
                 return result
 
-        nested = await asyncio.gather(*[search_one(kw) for kw in category_data['search_keys']])
-        all_results = [item for sublist in nested for item in sublist]
+        nested = await asyncio.gather(*[search_one(kw) for kw in category_data['search_keys']], return_exceptions=True)
+        nested = [r if not isinstance(r, Exception) else (logger.error("search_one error: %s", r) or []) for r in nested]
+        all_results = [item for sublist in nested if sublist for item in sublist]
 
         # URL去重
         seen_urls = set()
@@ -65,7 +66,8 @@ async def research_stock_news(stock_info: StockInfo):
         }
     
     tasks = [search_for_category(item) for item in search_key_result]
-    results = await asyncio.gather(*tasks)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    results = [r if not isinstance(r, Exception) else (logger.error("search_for_category error: %s", r) or {'category': '', 'intent': '', 'type': '', 'search_results': [], 'search_key_time_range': 0}) for r in results]
     
     # 重新分配ID
     id_counter = 1

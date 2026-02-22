@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from service.web_search.baidu_search import baidu_search
-from service.web_search.web_scraper import extract_main_content
+from service.web_search.web_scraper import extract_main_content, BUSINESS_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -86,23 +86,23 @@ async def google_search(
     for i, key in enumerate(keys):
         if i in failed_keys:
             continue
-            
-        params = {
-            "engine": "google",
-            "q": query,
-            "device": "desktop",
-            "location": "United States",
-            "api_key": key,
-            "num": num_results,
-            "hl": "en",
-            "gl": "us",
-            "tbm": "nws",
-            "tbs": f"qdr:d{days}"
-        }
 
         try:
+            params = {
+                "engine": "google",
+                "q": query,
+                "device": "desktop",
+                "location": "United States",
+                "api_key": key,
+                "num": num_results,
+                "hl": "en",
+                "gl": "us",
+                "tbm": "nws",
+                "tbs": f"qdr:d{days}"
+            }
+
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params) as response:
+                async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=30)) as response:
                     response.raise_for_status()
                     result = await response.json()
 
@@ -114,19 +114,19 @@ async def google_search(
                         'content': item.get('snippet')
                     } for item in items if not _is_mobile_url(item.get('link', ''))]
 
-                    semaphore = asyncio.Semaphore(len(results))
-
-                    async def fetch_content(item):
-                        async with semaphore:
-                            try:
-                                text = await extract_main_content(item['url'])
-                                if text and len(text[:800]) > len(item.get('content') or ''):
-                                    item['content'] = text[:800]
-                            except Exception:
-                                pass
-                        return item
-
-                    results = await asyncio.gather(*[fetch_content(r) for r in results])
+                    # semaphore = asyncio.Semaphore(len(results))
+                    #
+                    # async def fetch_content(item):
+                    #     async with semaphore:
+                    #         try:
+                    #             text = await extract_main_content(item['url'], timeout=BUSINESS_TIMEOUT)
+                    #             if text and len(text[:800]) > len(item.get('content') or ''):
+                    #                 item['content'] = text[:800]
+                    #         except Exception as e:
+                    #             logger.warning(f"fetch_content error for {item['url']}: {e}")
+                    #     return item
+                    #
+                    # results = await asyncio.gather(*[fetch_content(r) for r in results])
                     return results
         except Exception as e:
             if "Too Many Requests" in str(e):

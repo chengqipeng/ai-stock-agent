@@ -2,7 +2,7 @@ from typing import Dict, Any
 
 from common.prompt.can_slim.A_Earnings_Increases_prompt import A_EARNINGS_INCREASES_PROMPT_TEMPLATE
 from common.constants.can_slim_final_outputs import A_FINAL_OUTPUT
-from common.utils.stock_info_utils import StockInfo
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json
 from service.can_slim.base_can_slim_service import BaseCanSlimService
 
@@ -134,3 +134,16 @@ async def execute_A_Earnings_Increases(stock_info: StockInfo, deep_thinking: boo
     """执行A年度盈利增长分析"""
     service = AEarningsIncreasesService(stock_info)
     return await service.execute(deep_thinking)
+
+
+if __name__ == '__main__':
+    import asyncio
+
+    async def main():
+        stock_info = get_stock_info_by_name("中国卫通")
+        eps_compare_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'EPSJB'])
+        cagr_value, description = calculate_cagr(eps_compare_data)
+        print(f"CAGR值: {cagr_value}")
+        print(f"描述: {description}")
+
+    asyncio.run(main())
