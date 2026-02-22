@@ -4,7 +4,8 @@ from common.prompt.can_slim.S_Demand_prompt import S_DEMAND_PROMPT_TEMPLATE
 from common.constants.can_slim_final_outputs import S_FINAL_OUTPUT
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_financial_main_with_total_share import get_equity_data_to_json
-from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_json, get_fund_flow_history_json_cn, get_20day_volume_avg_cn, get_5day_volume_avg
+from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history_json, get_fund_flow_history_json_cn
+from service.eastmoney.technical.stock_day_volume_avg import get_20day_volume_avg_cn, get_5day_volume_avg
 from service.eastmoney.stock_info.stock_holder_data import get_org_holder_json
 from service.eastmoney.stock_info.stock_lock_up_period import get_stock_lock_up_period_year_range
 from service.eastmoney.stock_info.stock_realtime import get_stock_realtime_json
@@ -12,7 +13,7 @@ from service.eastmoney.stock_info.stock_repurchase import get_stock_repurchase_j
 from service.eastmoney.stock_info.stock_top_ten_shareholders_circulation import get_top_ten_shareholders_circulation_by_dates
 from service.can_slim.base_can_slim_service import BaseCanSlimService
 
-async def get_5_day_volume_ratio(stock_info: StockInfo):
+async def day_5_volume_ratio_cn(stock_info: StockInfo):
     """计算5日量比"""
     day_5_volume_avg_result = await get_5day_volume_avg(stock_info, 200)
     fund_flow_history_json = await get_fund_flow_history_json(stock_info, ['date', 'close_price', 'trading_volume', 'change_pct'])
@@ -52,8 +53,8 @@ class SDemandService(BaseCanSlimService):
             'fund_flow_history': await get_fund_flow_history_json_cn(self.stock_info, ['date', 'change_hand', 'trading_volume', 'trading_amount']),
             'stock_lock_up_period': await get_stock_lock_up_period_year_range(self.stock_info),
             'stock_repurchase': await get_stock_repurchase_json(self.stock_info),
-            'five_day_volume_ratio': await get_5_day_volume_ratio(self.stock_info),
-            'day_20_volume_avg': await get_20day_volume_avg_cn(self.stock_info, 200)
+            'day_5_volume_ratio_cn': await day_5_volume_ratio_cn(self.stock_info),
+            'day_20_volume_avg_cn': await get_20day_volume_avg_cn(self.stock_info, 200)
         }
     
     def get_prompt_template(self) -> str:
@@ -65,9 +66,9 @@ class SDemandService(BaseCanSlimService):
             'unlimited_shares_json': self.to_json(self.data_cache['equity_unlimited_shares']),
             'top_ten_holders_json': self.to_json(self.data_cache['top_ten_shareholders'][:10]),
             'org_holder_json': self.to_json(self.data_cache['org_holder'][:2]),
-            'day_20_volume_avg_cn': self.to_json(self.data_cache['day_20_volume_avg'][:20]),
+            'day_20_volume_avg_cn': self.to_json(self.data_cache['day_20_volume_avg_cn'][:20]),
+            'day_5_volume_ratio_cn': self.to_json(self.data_cache['day_5_volume_ratio_cn']),
             'stock_realtime_json': self.to_json(self.data_cache['stock_realtime']),
-            'five_day_volume_ratio_json': self.to_json(self.data_cache['five_day_volume_ratio']),
             'fund_flow_history_json_cn': self.to_json(self.data_cache['fund_flow_history']),
             'stock_lock_up_period_json': self.to_json(self.data_cache['stock_lock_up_period']),
             'stock_repurchase_json': self.to_json(self.data_cache['stock_repurchase'])

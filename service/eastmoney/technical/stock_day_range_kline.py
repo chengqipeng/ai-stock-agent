@@ -92,21 +92,6 @@ async def generate_can_slim_50_200_summary(stock_info: StockInfo):
     """
     return summary
 
-
-async def get_moving_averages_markdown(stock_info: StockInfo):
-    """将移动平均线数据转换为markdown格式"""
-    config = INDICATOR_CONFIG['ma']
-    ma_data = await calculate_moving_averages(stock_info)
-
-    markdown = f"## <{stock_info.stock_name}（ {stock_info.stock_code_normalize}）> - 移动平均线数据\n\n"
-    markdown += "| 日期 | 5日SMA | 10日EMA | 21日SMA | 50日SMA | 200日SMA | 多头排列 |\n"
-    markdown += "|------|--------|---------|---------|---------|----------|--------|\n"
-    for item in ma_data[:config['markdown_limit']]:
-        markdown += f"| {item['date']} | {item.get('close_5_sma', 'N/A')} | {item.get('close_10_ema', 'N/A')} | {item.get('close_21_sma', 'N/A')} | {item.get('close_50_sma', 'N/A')} | {item.get('close_200_sma', 'N/A')} | {'是' if item.get('is_bullish_alignment') else '否'} |\n"
-    markdown += "\n"
-    return markdown
-
-
 async def get_moving_averages_json(stock_info: StockInfo, include_fields: list[str] = None, limit: int = None):
     """返回移动平均线数据的JSON格式
     

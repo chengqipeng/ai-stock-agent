@@ -28,7 +28,7 @@ S_DEMAND_PROMPT_TEMPLATE = """
    {stock_realtime_json}
    
    ** 最新量比 (Volume Ratio) 今日成交量 / 5日均量（50日数据） **
-   {five_day_volume_ratio_json}
+   {day_5_volume_ratio_cn}
 
 3. A股特色指标：
    ** 换手率 (Turnover Rate) 近半年**
