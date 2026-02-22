@@ -168,11 +168,13 @@ class DatabaseManager:
                 )
             """)
 
-            # 检查并补充 execution_id 字段
+            # 检查并补充字段
             cursor.execute("PRAGMA table_info(stock_dim_analysis_history)")
             dim_hist_cols = {row[1] for row in cursor.fetchall()}
             if 'execution_id' not in dim_hist_cols:
                 cursor.execute("ALTER TABLE stock_dim_analysis_history ADD COLUMN execution_id TEXT")
+            if 'overall_grade' not in dim_hist_cols:
+                cursor.execute("ALTER TABLE stock_dim_analysis_history ADD COLUMN overall_grade TEXT")
 
             conn.commit()
     
@@ -434,6 +436,16 @@ class DatabaseManager:
                   1 if is_deep_thinking else 0, score, result, summary, status, error_message))
             conn.commit()
 
+    def update_dim_history_overall_grade(self, execution_id: str, overall_grade: str):
+        """按 execution_id 更新整体评级"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE stock_dim_analysis_history SET overall_grade = ? WHERE execution_id = ?",
+                (overall_grade, execution_id)
+            )
+            conn.commit()
+
     def get_stock_dim_analysis_history(self, stock_name: str) -> List[Dict[str, Any]]:
         """按股票名称查询维度历史记录，按execution_id分组，按时间倒序"""
         with sqlite3.connect(self.db_path) as conn:
@@ -441,7 +453,7 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT id, execution_id, batch_id, stock_id, stock_name, stock_code, dimension,
-                    is_deep_thinking, score, summary, status, error_message, created_at
+                    is_deep_thinking, score, summary, status, error_message, overall_grade, created_at
                 FROM stock_dim_analysis_history
                 WHERE stock_name = ?
                 ORDER BY created_at DESC

@@ -1357,11 +1357,12 @@
                 data.data.forEach(r => {
                     const key = r.execution_id || `${r.batch_id}_${r.created_at}`;
                     if (!groups[key]) {
-                        groups[key] = { execution_id: key, batch_id: r.batch_id, is_deep_thinking: r.is_deep_thinking, created_at: r.created_at, dims: [] };
+                        groups[key] = { execution_id: key, batch_id: r.batch_id, is_deep_thinking: r.is_deep_thinking, created_at: r.created_at, overall_grade: r.overall_grade, dims: [] };
                         groupOrder.push(key);
                     } else if (r.created_at && r.created_at < groups[key].created_at) {
                         groups[key].created_at = r.created_at;
                     }
+                    if (r.overall_grade && !groups[key].overall_grade) groups[key].overall_grade = r.overall_grade;
                     groups[key].dims.push(r);
                 });
                 groupOrder.sort((a, b) => (groups[b].created_at || '').localeCompare(groups[a].created_at || ''));
@@ -1386,9 +1387,11 @@
                     const summaries = g.dims.filter(r => r.summary).map(r =>
                         `<div style="font-size:11px;color:#555;padding:2px 0;"><b>${r.dimension}:</b> ${r.summary}</div>`
                     ).join('');
+                    const gradeColors = {'强烈买入':'#e53935','列入核心观察名单':'#fb8c00','保持观望':'#1e88e5','坚决规避':'#757575'};
+                    const gradeHtml = g.overall_grade ? `<span style="font-size:11px;font-weight:600;color:${gradeColors[g.overall_grade]||'#333'};margin-left:6px;">${g.overall_grade}</span>` : '';
                     return `<div style="border:1px solid #667eea;border-radius:6px;padding:12px;margin-bottom:10px;">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                            <span style="font-weight:600;font-size:12px;">批次 #${g.batch_id} ${g.is_deep_thinking?'🧠 深度思考':''}</span>
+                            <span style="font-weight:600;font-size:12px;">批次 #${g.batch_id} ${g.is_deep_thinking?'🧠 深度思考':''}${gradeHtml}</span>
                             <span style="font-size:10px;color:#999;">${formatLocalTime(g.created_at)}</span>
                         </div>
                         <div style="margin-bottom:6px;">${dimsHtml}</div>

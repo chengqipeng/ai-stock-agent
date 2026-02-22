@@ -372,6 +372,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
                     is_deep_thinking=deep_thinking, dim_results=dim_results,
                     overall_analysis=overall_result, overall_prompt=overall_prompt
                 )
+                db_manager.update_dim_history_overall_grade(execution_id, overall_grade)
                 dim_progress[stock_id]['overall'] = 'done'
             except Exception as e:
                 logger.error(f"Overall analysis failed for {stock['stock_name']}: {e}", exc_info=True)
