@@ -3,12 +3,14 @@ from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.strategy_engine.stock_identify_new_high_signal import get_new_high_signals_cn
+from service.eastmoney.strategy_engine.stock_volume_increases_price_remains_stagnant import get_distribution_signal_cn
 from service.eastmoney.strategy_engine.stock_volume_reduction_pullback import get_volume_reduction_pullback_cn
 
 
 async def get_strategy_engine_prompt(stock_info: StockInfo):
     new_high_signals = await get_new_high_signals_cn(stock_info)
     volume_reduction_pullback = await get_volume_reduction_pullback_cn(stock_info)
+    distribution_signal = await get_distribution_signal_cn(stock_info)
     return f"""
 # Role
 你是一个基于“量价时空”体系的资深量化交易策略引擎。你的核心任务是解析输入的结构化股票行情数据（包含均线、MACD、KDJ、BOLL及关键量价特征），严格基于内置的《技术与量价分析法则》进行客观推理，并输出清晰、无歧义的盘面诊断和交易决策信号。
@@ -72,5 +74,8 @@ async def get_strategy_engine_prompt(stock_info: StockInfo):
 
 ** 缩量回调不用慌（洗盘） **
 {json.dumps(volume_reduction_pullback, ensure_ascii=False, indent=2)}
+
+** 放量滞涨要当心（派发） **
+{json.dumps(distribution_signal, ensure_ascii=False, indent=2)}
 
 """
