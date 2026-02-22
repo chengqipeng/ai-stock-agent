@@ -31,6 +31,7 @@ def identify_volume_reduction_pullback(df: pd.DataFrame, vol_ma_window=50, vol_r
     条件 D：K线可控（振幅 < 4% 且跌幅 < 2%）
     """
     df['ma20'] = df['close'].rolling(window=20).mean()
+    df['boll_mb'] = df['close'].rolling(window=20).mean()  # 布林线中轨 = MA20
     prev_close = df['close'].shift(1)
 
     is_high_vol_pillar = (
@@ -44,8 +45,8 @@ def identify_volume_reduction_pullback(df: pd.DataFrame, vol_ma_window=50, vol_r
 
     cond_a = (df['volume'] < df['prev_high_vol'] * 0.5) & (df['volume'] < df['ma_volume'])
     cond_b = (df['close'] > df['defense_line']) & df['defense_line'].notna()
-    cond_c = df['close'] >= df['ma20']
-    cond_d = ((df['high'] - df['low']) / prev_close < 0.04) & (df['close'] / df['open'] > 0.98)
+    cond_c = (df['close'] >= df['ma20']) | (df['close'] >= df['boll_mb'])
+    cond_d = (df['high'] - df['low']) / prev_close < 0.04
 
     df['signal'] = cond_a & cond_b & cond_c & cond_d
     return df
