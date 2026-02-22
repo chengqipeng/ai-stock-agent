@@ -27,9 +27,9 @@ def _build_dataframe(klines: list) -> pd.DataFrame:
 def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_ratio=1.15, vol_shrink_ratio=0.8) -> pd.DataFrame:
     """
     无量上涨必须跑（诱多/背离）识别策略
-    条件 A（高位判定）：收盘价 > BOLL中轨（MA20）* high_pos_ratio，偏离15%以上视为高位
+    条件 A（高位判定）：收盘价 > BOLL中轨（MA20）* 1.15，偏离15%以上视为高位
     条件 B（价格上涨）：收盘价 > 前日收盘价
-    条件 C（无量萎缩）：成交量 < ma_volume * vol_shrink_ratio
+    条件 C（无量萎缩）：成交量 < ma_volume * 0.8
     条件 D（阶梯缩量）：连续3日价涨量减（量依次递减）
     条件 E（结构背离）：创20日新高，但当日量 < 过去20日收盘价最高点当天的成交量
     最终信号：(A & B & C) | D | E，任一成立即触发警示
@@ -161,7 +161,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('中国卫通')
+        stock_info: StockInfo = get_stock_info_by_name('北方华创')
         import json
         result = await get_unlimited_increase_cn(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
