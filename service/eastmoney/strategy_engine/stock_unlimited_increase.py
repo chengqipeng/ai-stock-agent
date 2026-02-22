@@ -67,10 +67,10 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
     )
     cond_e = is_new_high_20 & (df['volume'] < peak_vol_20)
 
-    df['cond_ab_c'] = cond_a & price_up & cond_c
+    df['cond_ab_c'] = cond_a & price_up & cond_c & cond_e
     df['cond_d'] = cond_d
     df['cond_e'] = cond_e
-    df['signal'] = df['cond_ab_c'] | cond_d | cond_e
+    df['signal'] = df['cond_ab_c'] | cond_d
     return df
 
 
