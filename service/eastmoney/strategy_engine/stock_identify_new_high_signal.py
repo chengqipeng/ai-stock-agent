@@ -74,7 +74,7 @@ async def get_new_high_signals_cn(stock_info: StockInfo, limit=400, lookback_win
     return {
         '最新交易日': latest_date,
         f'新量新价出新高（{latest_date}）': bool(latest['signal']),
-        '历史信号列表（最近两次）': [to_row(date, row) for date, row in df[df['signal']].sort_index(ascending=False).head(2).iterrows()],
+        '历史信号列表（最近两次）': [to_row(date, row) for date, row in df[df['signal']].sort_index(ascending=False).head(20).iterrows()],
     }
 
 
