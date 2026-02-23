@@ -43,8 +43,8 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
     # 分支1：股价高于 min(BOLL中轨×1.15, BOLL上轨×0.95)，处于高位
     high_threshold = df['boll_mb'].combine(df['boll_ub'] * 0.95, lambda t, u: min(t * high_pos_ratio, u))
     cond_a_high = df['close'] > high_threshold
-    # 分支2：下跌趋势中的反弹（今收 < MA20 且 MA20 < MA60，即 BOLL中轨下行）
-    cond_a_downtrend = (df['close'] < df['boll_mb']) & (df['boll_mb'] < df['boll_mb'].shift(1))
+    # 分支2：下跌趋势中的反弹（今收 < MA20 且 MA20 < MA60）
+    cond_a_downtrend = (df['close'] < df['boll_mb']) & (df['boll_mb'] < df['close'].rolling(60).mean())
     cond_a = cond_a_high | cond_a_downtrend
 
     cond_ab = cond_a & cond_b
