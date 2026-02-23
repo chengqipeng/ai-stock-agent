@@ -3,7 +3,7 @@ from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.strategy_engine.stock_identify_new_high_signal import get_new_high_signals_cn
-from service.eastmoney.strategy_engine.stock_unlimited_increase import get_unlimited_increase_cn
+from service.eastmoney.strategy_engine.stock_unlimited_increase_bak.stock_unlimited_increase import get_unlimited_increase_cn
 from service.eastmoney.strategy_engine.stock_volume_increases_price_remains_stagnant import get_distribution_signal_cn
 from service.eastmoney.strategy_engine.stock_volume_reduction_pullback import get_volume_reduction_pullback_cn
 
