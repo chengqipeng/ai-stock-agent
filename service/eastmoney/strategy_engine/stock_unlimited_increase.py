@@ -30,7 +30,7 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
     条件 A（高位判定）：分支1: 收盘价 > min(BOLL中轨×1.15, BOLL上轨×0.95)（高位）
                        分支2: 收盘价 < BOLL中轨 且 BOLL中轨下行（下跌趋势中的反弹）
     条件 B（价格上涨）：0 < 涨跌幅 < 5%（排除涨停等强势突破）
-    条件 C（无量萎缩）：成交量 < vol_ma_window日均量 * vol_shrink_ratio
+    条件 C（无量萎缩）：成交量 < vol_ma_window日均量 * vol_shrink_ratio 或 成交量 < 昨日成交量 * 0.7
     条件 D（阶梯缩量）：连续3日价涨量减（量依次递减）
     条件 E（结构背离）：创20日新高（收盘价 > 前19日最高收盘价），但当日量 < 上一个20日新高日的成交量
                        与原版区别：原版取同一rolling窗口内峰值量；此版跨窗口追踪历史新高日，背离判断更严格
@@ -45,12 +45,16 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
     cond_a_high = df['close'] > high_threshold
     # 分支2：下跌趋势中的反弹（今收 < MA20 且 MA20 < MA60）
     cond_a_downtrend = (df['close'] < df['boll_mb']) & (df['boll_mb'] < df['close'].rolling(60).mean())
+    df['ma60'] = df['close'].rolling(60).mean()
     cond_a = cond_a_high | cond_a_downtrend
 
     cond_ab = cond_a & cond_b
 
-    # 条件 C：无量萎缩
-    cond_c = df['volume'] < df['ma50_volume'] * vol_shrink_ratio
+    # 条件 C：无量萎缩（低于50日均量80% 或 较昨日萎缩30%以上）
+    cond_c = (
+        (df['volume'] < df['ma50_volume'] * vol_shrink_ratio) |
+        (df['volume'] < df['volume'].shift(1) * 0.7)
+    )
 
     # 条件 D：阶梯缩量（连续3日价涨量减）
     price_up = df['pct_change'] > 0
@@ -66,14 +70,19 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
     max_prev19 = df['close'].shift(1).rolling(window=19, min_periods=1).max()
     is_new_high = df['close'] > max_prev19
     cond_e = pd.Series(False, index=df.index)
+    prev_new_high_volume = pd.Series(float('nan'), index=df.index)
     prev_high_volume = None
     for idx in df.index:
         if is_new_high[idx]:
             if prev_high_volume is not None and df.loc[idx, 'volume'] < prev_high_volume:
                 cond_e[idx] = True
+            prev_new_high_volume[idx] = prev_high_volume if prev_high_volume is not None else float('nan')
             prev_high_volume = df.loc[idx, 'volume']
+    df['max_prev19_close'] = max_prev19
+    df['prev_new_high_volume'] = prev_new_high_volume.ffill()
 
     df['cond_ab'] = cond_ab
+    df['is_new_high'] = is_new_high
     df['cond_c'] = cond_c
     df['cond_d'] = cond_d
     df['cond_e'] = cond_e
@@ -94,7 +103,7 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vo
 股票：{stock_name}
 策略：识别「无量上涨必须跑」诱多/背离形态，满足以下任一条件即触发警示，输出最新成交日是否满足和历史满足的前三个交易日：
   前提A+B：(收盘价 > min(BOLL中轨×{high_pos_ratio}, BOLL上轨×0.95) 或 下跌趋势反弹) 且 0<涨跌幅<5%
-  条件C（无量萎缩）：成交量 < {vol_ma_window}日均量×{vol_shrink_ratio}
+  条件C（无量萎缩）：成交量 < {vol_ma_window}日均量×{vol_shrink_ratio} 或 成交量 < 昨日成交量×0.7
   条件D（阶梯缩量）：连续3日价涨，且成交量依次递减
   条件E（结构背离）：创20日新高，但成交量 < 上一个20日新高日的成交量
   最终信号：(A & B) & (C | D | E)""")
@@ -102,6 +111,10 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vo
     display_df = raw_df.tail(250).copy()
     display_df['ma50_volume'] = calc_df['ma50_volume'].reindex(display_df.index)
     display_df['boll_mb'] = calc_df['boll_mb'].reindex(display_df.index)
+    display_df['boll_ub'] = calc_df['boll_ub'].reindex(display_df.index)
+    display_df['ma60'] = calc_df['ma60'].reindex(display_df.index)
+    display_df['20日新高基准（昨日起前19日最高收）'] = calc_df['max_prev19_close'].reindex(display_df.index)
+    display_df['上一个20日新高日成交量'] = calc_df['prev_new_high_volume'].reindex(display_df.index)
     display_df = display_df.reset_index().rename(columns={
         'date': '日期', 'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价',
         'volume': '成交量', 'pct_change': '涨跌幅', f'ma50_volume': f'{vol_ma_window}日均量', 'boll_mb': 'BOLL中轨',
@@ -144,6 +157,10 @@ async def get_unlimited_increase_cn(stock_info: StockInfo, limit=400, vol_ma_win
             '日期': date.strftime('%Y-%m-%d'),
             **{_CN_COLUMNS[c]: round(row[c] / 10000, 2) if c in ('volume', 'ma50_volume') else round(row[c], 2)
                for c in ('open', 'close', 'high', 'low', 'volume', 'pct_change', 'boll_mb', 'ma50_volume')},
+            'BOLL上轨': round(row['boll_ub'], 2) if pd.notna(row['boll_ub']) else None,
+            'MA60': round(row['ma60'], 2) if pd.notna(row['ma60']) else None,
+            '20日新高基准（昨日起前19日最高收）': round(row['max_prev19_close'], 2) if pd.notna(row['max_prev19_close']) else None,
+            '上一个20日新高日成交量（万）': round(row['prev_new_high_volume'] / 10000, 2) if pd.notna(row['prev_new_high_volume']) else None,
             '触发条件': '、'.join(triggers),
         }
 
