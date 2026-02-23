@@ -22,7 +22,7 @@ def _build_dataframe(klines: list) -> pd.DataFrame:
     return df.set_index('date')
 
 
-def _detect_wyckoff_accumulation(df: pd.DataFrame, lookback_top=250, lookback_bot=60, window=5) -> tuple[bool, dict]:
+def _detect_wyckoff_accumulation(df: pd.DataFrame, lookback_top=250, lookback_bot=60, window=11) -> tuple[bool, dict]:
     """
     检测【底量远超顶量】威科夫吸筹信号。
     条件 A：空间跌幅达标（底部均价 < 顶部均价 × 70%）
@@ -58,7 +58,12 @@ def _detect_wyckoff_accumulation(df: pd.DataFrame, lookback_top=250, lookback_bo
     cond_a = avg_price_bot < avg_price_top * 0.70
     cond_b = max_vol_bot > max_vol_top * 1.30
     # Bug3修复：确保底量已发生在过去（bot_idx < cur），当前价格才有企稳意义
-    cond_c = (bot_idx < cur) and (current_close >= current_ma20) and (current_close > bot_zone['low'].min())
+    bot_low = bot_zone['low'].min()
+    is_above_ma20 = (current_close >= current_ma20) and (current_close > bot_low)
+    # 横盘收紧：近10日收盘价标准差 / 均价 < 3%
+    recent = df['close'].iloc[max(0, cur - 9): cur + 1]
+    is_consolidating = (recent.std() / recent.mean()) < 0.03 and (current_close > bot_low)
+    cond_c = (bot_idx < cur) and (is_above_ma20 or is_consolidating)
 
     details = {
         'top_zone_date':  df.index[top_idx],
@@ -93,7 +98,7 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, result: dict, lookback_to
     print("==========================================\n")
 
 
-async def get_bottom_far_top_volume_indicates_cn(stock_info: StockInfo, limit=500, lookback_top=250, lookback_bot=60, window=5) -> dict:
+async def get_bottom_far_top_volume_indicates_cn(stock_info: StockInfo, limit=500, lookback_top=250, lookback_bot=60, window=11) -> dict:
     """获取底量远超顶量信号，返回中文 key 的 JSON 结构"""
     klines = await get_stock_day_range_kline(stock_info, limit=limit)
     raw_df = _build_dataframe(klines)
