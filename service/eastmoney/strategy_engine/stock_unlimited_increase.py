@@ -71,15 +71,20 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
     is_new_high = df['close'] > max_prev19
     cond_e = pd.Series(False, index=df.index)
     prev_new_high_volume = pd.Series(float('nan'), index=df.index)
+    prev_new_high_date = pd.Series(pd.NaT, index=df.index)
     prev_high_volume = None
+    prev_high_date = None
     for idx in df.index:
         if is_new_high[idx]:
             if prev_high_volume is not None and df.loc[idx, 'volume'] < prev_high_volume:
                 cond_e[idx] = True
             prev_new_high_volume[idx] = prev_high_volume if prev_high_volume is not None else float('nan')
+            prev_new_high_date[idx] = prev_high_date
             prev_high_volume = df.loc[idx, 'volume']
+            prev_high_date = idx
     df['max_prev19_close'] = max_prev19
     df['prev_new_high_volume'] = prev_new_high_volume.ffill()
+    df['prev_new_high_date'] = prev_new_high_date.ffill()
 
     df['cond_ab'] = cond_ab
     df['is_new_high'] = is_new_high
@@ -115,6 +120,7 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vo
     display_df['ma60'] = calc_df['ma60'].reindex(display_df.index)
     display_df['20日新高基准（昨日起前19日最高收）'] = calc_df['max_prev19_close'].reindex(display_df.index)
     display_df['上一个20日新高日成交量'] = calc_df['prev_new_high_volume'].reindex(display_df.index)
+    display_df['上一个20日新高日期'] = calc_df['prev_new_high_date'].reindex(display_df.index)
     display_df = display_df.reset_index().rename(columns={
         'date': '日期', 'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价',
         'volume': '成交量', 'pct_change': '涨跌幅', f'ma50_volume': f'{vol_ma_window}日均量', 'boll_mb': 'BOLL中轨',
@@ -161,6 +167,7 @@ async def get_unlimited_increase_cn(stock_info: StockInfo, limit=400, vol_ma_win
             'MA60': round(row['ma60'], 2) if pd.notna(row['ma60']) else None,
             '20日新高基准（昨日起前19日最高收）': round(row['max_prev19_close'], 2) if pd.notna(row['max_prev19_close']) else None,
             '上一个20日新高日成交量（万）': round(row['prev_new_high_volume'] / 10000, 2) if pd.notna(row['prev_new_high_volume']) else None,
+            '上一个20日新高日期': row['prev_new_high_date'].strftime('%Y-%m-%d') if pd.notna(row['prev_new_high_date']) else None,
             '触发条件': '、'.join(triggers),
         }
 
@@ -182,7 +189,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('北方华创')
+        stock_info: StockInfo = get_stock_info_by_name('中国卫通')
         import json
         result = await get_unlimited_increase_cn(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
