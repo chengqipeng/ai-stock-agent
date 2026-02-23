@@ -121,6 +121,25 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vo
     display_df['20日新高基准（昨日起前19日最高收）'] = calc_df['max_prev19_close'].reindex(display_df.index)
     display_df['上一个20日新高日成交量'] = calc_df['prev_new_high_volume'].reindex(display_df.index)
     display_df['上一个20日新高日期'] = calc_df['prev_new_high_date'].reindex(display_df.index)
+
+    # 未触发原因
+    def _no_trigger_reason(row):
+        if calc_df.loc[row.name, 'signal']:
+            return ''
+        reasons = []
+        if not calc_df.loc[row.name, 'cond_ab']:
+            reasons.append('未满足高位/下跌趋势条件(A)或涨跌幅不在(0,5%)范围(B)')
+        else:
+            missing = [label for flag, label in [
+                (calc_df.loc[row.name, 'cond_c'], 'C'),
+                (calc_df.loc[row.name, 'cond_d'], 'D'),
+                (calc_df.loc[row.name, 'cond_e'], 'E'),
+            ] if not flag]
+            if missing:
+                reasons.append(f'C/D/E均不满足（{"、".join(missing)}均未触发）')
+        return '；'.join(reasons)
+
+    display_df['未触发原因'] = display_df.apply(_no_trigger_reason, axis=1)
     display_df = display_df.reset_index().rename(columns={
         'date': '日期', 'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价',
         'volume': '成交量', 'pct_change': '涨跌幅', f'ma50_volume': f'{vol_ma_window}日均量', 'boll_mb': 'BOLL中轨',
