@@ -39,11 +39,13 @@ def _detect_wyckoff_accumulation(df: pd.DataFrame, lookback_top=250, lookback_bo
     top_start = max(0, cur - lookback_top + 1)
     bot_start = max(0, cur - lookback_bot + 1)
 
-    top_idx = top_start + df['high'].iloc[top_start:cur + 1].values.argmax()
+    # Bug1修复：先确定底区，顶区只在底区之前查找，确保时序正确（顶必须早于底）
     bot_idx = bot_start + df['low'].iloc[bot_start:cur + 1].values.argmin()
+    top_idx = top_start + df['high'].iloc[top_start:bot_idx].values.argmax()
 
-    top_zone = df.iloc[max(0, top_idx - window): top_idx + window + 1]
-    bot_zone = df.iloc[max(0, bot_idx - window): bot_idx + window + 1]
+    top_zone = df.iloc[max(0, top_idx - window): min(top_idx + window + 1, bot_idx)]
+    # Bug2修复：bot_zone右边界不超过cur，避免引入未来数据
+    bot_zone = df.iloc[max(0, bot_idx - window): min(bot_idx + window + 1, cur + 1)]
 
     avg_price_top = top_zone['close'].mean()
     avg_price_bot = bot_zone['close'].mean()
@@ -55,7 +57,8 @@ def _detect_wyckoff_accumulation(df: pd.DataFrame, lookback_top=250, lookback_bo
 
     cond_a = avg_price_bot < avg_price_top * 0.70
     cond_b = max_vol_bot > max_vol_top * 1.30
-    cond_c = (current_close >= current_ma20) and (current_close > bot_zone['low'].min())
+    # Bug3修复：确保底量已发生在过去（bot_idx < cur），当前价格才有企稳意义
+    cond_c = (bot_idx < cur) and (current_close >= current_ma20) and (current_close > bot_zone['low'].min())
 
     details = {
         'top_zone_date':  df.index[top_idx],
@@ -73,10 +76,28 @@ def _detect_wyckoff_accumulation(df: pd.DataFrame, lookback_top=250, lookback_bo
     return cond_a and cond_b and cond_c, details
 
 
+def _log_result(stock_name: str, raw_df: pd.DataFrame, result: dict, lookback_top: int, lookback_bot: int, window: int) -> None:
+    print("\n========== 底量远超顶量信号日志 ==========")
+    print(f"""【策略逻辑说明】
+股票：{stock_name}
+策略：识别「底量远超顶量预示主力长期建仓」威科夫吸筹信号，需同时满足以下3个条件：
+  条件A（空间跌幅）：底部均价 < 顶部均价 × 70%（跌幅超30%）
+  条件B（量能对比）：底部最大量 > 顶部最大量 × 1.3 倍
+  条件C（右侧企稳）：当前收盘价 >= MA20，且 > 底区最低价
+顶部回溯：{lookback_top} 天，底部回溯：{lookback_bot} 天，区间延伸：前后各 {window} 天""")
+    print("\n【原始K线数据】")
+    cn_rename = {'date': '日期', 'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量'}
+    display_df = raw_df.tail(250).reset_index().rename(columns=cn_rename)
+    display_df['日期'] = display_df['日期'].dt.strftime('%Y-%m-%d')
+    print(display_df[list(cn_rename.values())].to_json(orient='records', force_ascii=False, indent=2))
+    print("==========================================\n")
+
+
 async def get_bottom_far_top_volume_indicates_cn(stock_info: StockInfo, limit=500, lookback_top=250, lookback_bot=60, window=5) -> dict:
     """获取底量远超顶量信号，返回中文 key 的 JSON 结构"""
     klines = await get_stock_day_range_kline(stock_info, limit=limit)
-    df = _build_dataframe(klines)
+    raw_df = _build_dataframe(klines)
+    df = raw_df.copy()
 
     boll_records = await calculate_bollinger_bands(stock_info)
     boll_mb = pd.Series(
@@ -89,19 +110,7 @@ async def get_bottom_far_top_volume_indicates_cn(stock_info: StockInfo, limit=50
 
     latest_date = df.index[-1].strftime('%Y-%m-%d')
 
-    print("\n========== 底量远超顶量信号日志 ==========")
-    print(f"""【策略逻辑说明】
-股票：{stock_info.stock_name}
-策略：识别「底量远超顶量预示主力长期建仓」威科夫吸筹信号，需同时满足以下3个条件：
-  条件A（空间跌幅）：底部均价 < 顶部均价 × 70%（跌幅超30%）
-  条件B（量能对比）：底部最大量 > 顶部最大量 × 1.3 倍
-  条件C（右侧企稳）：当前收盘价 >= MA20，且 > 底区最低价
-顶部回溯：{lookback_top} 天，底部回溯：{lookback_bot} 天，区间延伸：前后各 {window} 天""")
-    print(f"信号结果：{'✅ 触发' if signal else '❌ 未触发'}")
-    print(f"明细：{details}")
-    print("==========================================\n")
-
-    return {
+    result = {
         '最新交易日': latest_date,
         f'底量远超顶量（{latest_date}）': bool(signal),
         '顶部区间日期': details.get('top_zone_date', '').strftime('%Y-%m-%d') if not isinstance(details.get('top_zone_date'), str) else details.get('top_zone_date'),
@@ -116,6 +125,8 @@ async def get_bottom_far_top_volume_indicates_cn(stock_info: StockInfo, limit=50
         '条件B_量能对比': bool(details.get('cond_b_passed')),
         '条件C_右侧企稳': bool(details.get('cond_c_passed')),
     }
+    _log_result(stock_info.stock_name, raw_df, result, lookback_top, lookback_bot, window)
+    return result
 
 
 if __name__ == '__main__':
