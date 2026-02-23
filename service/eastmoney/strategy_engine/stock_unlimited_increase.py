@@ -27,20 +27,27 @@ def _build_dataframe(klines: list) -> pd.DataFrame:
 def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_ratio=1.15, vol_shrink_ratio=0.8) -> pd.DataFrame:
     """
     无量上涨必须跑（诱多/背离）识别策略
-    条件 A（高位判定）：收盘价 > min(BOLL中轨（MA20）* 1.15, 布林上轨 * 0.95)，偏离15%以上或接近上轨视为高位
-    条件 B（价格上涨）：涨跌幅 > 0
+    条件 A（高位判定）：分支1: 收盘价 > min(BOLL中轨×1.15, BOLL上轨×0.95)（高位）
+                       分支2: 收盘价 < BOLL中轨 且 BOLL中轨下行（下跌趋势中的反弹）
+    条件 B（价格上涨）：0 < 涨跌幅 < 5%（排除涨停等强势突破）
     条件 C（无量萎缩）：成交量 < vol_ma_window日均量 * vol_shrink_ratio
     条件 D（阶梯缩量）：连续3日价涨量减（量依次递减）
     条件 E（结构背离）：创20日新高（收盘价 > 前19日最高收盘价），但当日量 < 上一个20日新高日的成交量
                        与原版区别：原版取同一rolling窗口内峰值量；此版跨窗口追踪历史新高日，背离判断更严格
     最终信号：(A & B) & (C | D | E)，A+B为前提，C/D/E任一成立即触发警示
     """
-    # 条件 A+B：高位上涨（前提条件）
-    high_threshold = df[['boll_mb']].assign(t=df['boll_mb'] * high_pos_ratio, u=df['boll_ub'] * 0.95).apply(lambda r: min(r['t'], r['u']), axis=1)
-    cond_ab = (
-        (df['close'] > high_threshold) &
-        (df['pct_change'] > 0)
-    )
+    # 条件 B：价格上涨且涨幅 < 5%（排除涨停等强势突破）
+    cond_b = (df['pct_change'] > 0) & (df['pct_change'] < 5)
+
+    # 条件 A：高位判定（两个分支任一满足）
+    # 分支1：股价高于 min(BOLL中轨×1.15, BOLL上轨×0.95)，处于高位
+    high_threshold = df['boll_mb'].combine(df['boll_ub'] * 0.95, lambda t, u: min(t * high_pos_ratio, u))
+    cond_a_high = df['close'] > high_threshold
+    # 分支2：下跌趋势中的反弹（今收 < MA20 且 MA20 < MA60，即 BOLL中轨下行）
+    cond_a_downtrend = (df['close'] < df['boll_mb']) & (df['boll_mb'] < df['boll_mb'].shift(1))
+    cond_a = cond_a_high | cond_a_downtrend
+
+    cond_ab = cond_a & cond_b
 
     # 条件 C：无量萎缩
     cond_c = df['volume'] < df['ma50_volume'] * vol_shrink_ratio
@@ -86,7 +93,7 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vo
     print(f"""【策略逻辑说明】
 股票：{stock_name}
 策略：识别「无量上涨必须跑」诱多/背离形态，满足以下任一条件即触发警示，输出最新成交日是否满足和历史满足的前三个交易日：
-  前提A+B：收盘价 > BOLL中轨×{high_pos_ratio} 且 涨跌幅>0
+  前提A+B：(收盘价 > min(BOLL中轨×{high_pos_ratio}, BOLL上轨×0.95) 或 下跌趋势反弹) 且 0<涨跌幅<5%
   条件C（无量萎缩）：成交量 < {vol_ma_window}日均量×{vol_shrink_ratio}
   条件D（阶梯缩量）：连续3日价涨，且成交量依次递减
   条件E（结构背离）：创20日新高，但成交量 < 上一个20日新高日的成交量
