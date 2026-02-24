@@ -29,7 +29,7 @@ def calculate_macd_signals(df: pd.DataFrame) -> pd.DataFrame:
 
     Rule a（多空市场界定）：
       DIF>0 且 DEA>0 → Bull_Strong（强多头）
-      DIF>0 且 DEA≤0 → Bull_Weak（弱多头）
+      DIF>0 且 DEA≤0 → Bull_Weak（弱多头）Å
       DIF<0          → Bear（空头）
 
     Rule b（交叉信号）：
@@ -173,6 +173,7 @@ def _log_result(stock_name: str, df: pd.DataFrame) -> None:
   Rule b（交叉信号）：金叉/死叉；零轴上金叉（抓主升）；零轴下死叉（防暴跌）
   Rule c（背离预警）：底背离（股价新低但DIF未新低）；顶背离（股价新高但DIF未新高）""")
 
+    # 最新状态
     latest = df.iloc[-1]
     print(f"\n【最新交易日】{df.index[-1].strftime('%Y-%m-%d')}")
     print(f"  DIF={latest['DIF']:.4f}  DEA={latest['DEA']:.4f}  MACD_Hist={latest['MACD_Hist']:.4f}")
@@ -180,14 +181,63 @@ def _log_result(stock_name: str, df: pd.DataFrame) -> None:
     print(f"  金叉={latest['Golden_Cross']}  死叉={latest['Death_Cross']}")
     print(f"  零轴上金叉={latest['Zero_Above_GC']}  零轴下死叉={latest['Zero_Below_DC']}")
 
-    bottom_div = df[df['Bottom_Divergence']].tail(3)
-    top_div    = df[df['Top_Divergence']].tail(3)
-    print(f"\n【近期底背离（最近3次）】")
-    for date, row in bottom_div.iterrows():
-        print(f"  {date.strftime('%Y-%m-%d')}  DIF={row['DIF']:.4f}  close={row['close']:.2f}")
-    print(f"\n【近期顶背离（最近3次）】")
-    for date, row in top_div.iterrows():
-        print(f"  {date.strftime('%Y-%m-%d')}  DIF={row['DIF']:.4f}  close={row['close']:.2f}")
+    # 打印最近20天明细
+    print(f"\n【最近20天明细数据】")
+    print(f"{'日期':<12} {'收盘':<8} {'DIF':<10} {'DEA':<10} {'MACD柱':<10} {'状态':<12} {'信号'}")
+    print("-" * 90)
+    for date, row in df.tail(20).iterrows():
+        signals = []
+        if row['Golden_Cross']: signals.append('金叉')
+        if row['Death_Cross']: signals.append('死叉')
+        if row['Zero_Above_GC']: signals.append('零轴上金叉')
+        if row['Zero_Below_DC']: signals.append('零轴下死叉')
+        if row['Bottom_Divergence']: signals.append('底背离')
+        if row['Top_Divergence']: signals.append('顶背离')
+        signal_str = ','.join(signals) if signals else '-'
+        print(f"{date.strftime('%Y-%m-%d'):<12} {row['close']:<8.2f} {row['DIF']:<10.4f} {row['DEA']:<10.4f} {row['MACD_Hist']:<10.4f} {row['Market_State']:<12} {signal_str}")
+
+    # 金叉明细
+    golden_crosses = df[df['Golden_Cross']]
+    print(f"\n【金叉明细（共{len(golden_crosses)}次）】")
+    if len(golden_crosses) > 0:
+        print(f"{'日期':<12} {'收盘':<8} {'DIF':<10} {'DEA':<10} {'类型'}")
+        print("-" * 60)
+        for date, row in golden_crosses.tail(10).iterrows():
+            cross_type = '零轴上金叉' if row['Zero_Above_GC'] else '普通金叉'
+            print(f"{date.strftime('%Y-%m-%d'):<12} {row['close']:<8.2f} {row['DIF']:<10.4f} {row['DEA']:<10.4f} {cross_type}")
+
+    # 死叉明细
+    death_crosses = df[df['Death_Cross']]
+    print(f"\n【死叉明细（共{len(death_crosses)}次）】")
+    if len(death_crosses) > 0:
+        print(f"{'日期':<12} {'收盘':<8} {'DIF':<10} {'DEA':<10} {'类型'}")
+        print("-" * 60)
+        for date, row in death_crosses.tail(10).iterrows():
+            cross_type = '零轴下死叉' if row['Zero_Below_DC'] else '普通死叉'
+            print(f"{date.strftime('%Y-%m-%d'):<12} {row['close']:<8.2f} {row['DIF']:<10.4f} {row['DEA']:<10.4f} {cross_type}")
+
+    # 底背离明细
+    bottom_div = df[df['Bottom_Divergence']]
+    print(f"\n【底背离明细（共{len(bottom_div)}次）】")
+    if len(bottom_div) > 0:
+        print(f"{'日期':<12} {'最低价':<8} {'收盘价':<8} {'DIF':<10} {'DEA':<10}")
+        print("-" * 60)
+        for date, row in bottom_div.iterrows():
+            print(f"{date.strftime('%Y-%m-%d'):<12} {row['low']:<8.2f} {row['close']:<8.2f} {row['DIF']:<10.4f} {row['DEA']:<10.4f}")
+    else:
+        print("  无底背离信号")
+
+    # 顶背离明细
+    top_div = df[df['Top_Divergence']]
+    print(f"\n【顶背离明细（共{len(top_div)}次）】")
+    if len(top_div) > 0:
+        print(f"{'日期':<12} {'最高价':<8} {'收盘价':<8} {'DIF':<10} {'DEA':<10}")
+        print("-" * 60)
+        for date, row in top_div.iterrows():
+            print(f"{date.strftime('%Y-%m-%d'):<12} {row['high']:<8.2f} {row['close']:<8.2f} {row['DIF']:<10.4f} {row['DEA']:<10.4f}")
+    else:
+        print("  无顶背离信号")
+
     print("====================================\n")
 
 
