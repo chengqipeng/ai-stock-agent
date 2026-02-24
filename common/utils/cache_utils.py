@@ -6,6 +6,21 @@ def get_project_root():
     """获取项目根目录"""
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+def get_market_cache_key() -> str:
+    """根据当前时间生成缓存 key 后缀：交易时段内返回精确到5分钟的时间戳，否则返回日期。
+    交易时段：周一至周五 09:30–15:00
+    """
+    now = datetime.now()
+    weekday = now.weekday()  # 0=Monday, 6=Sunday
+    if weekday < 5:  # 工作日
+        t = now.time()
+        from datetime import time
+        if time(9, 30) <= t <= time(15, 0):
+            # 精确到5分钟
+            minute_block = (now.minute // 5) * 5
+            return now.strftime(f"%Y%m%d_%H{minute_block:02d}")
+    return now.strftime("%Y%m%d")
+
 def get_cache_path(business_type, stock_code):
     """获取缓存文件路径
     

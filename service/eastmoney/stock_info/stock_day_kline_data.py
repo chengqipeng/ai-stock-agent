@@ -1,21 +1,13 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from common.http.http_utils import EASTMONEY_PUSH2HIS_API_URL, fetch_eastmoney_api
 from common.utils.amount_utils import convert_amount_unit
 from common.utils.stock_info_utils import StockInfo
-from common.utils.cache_utils import get_cache_path, load_cache, save_cache
-
-
-def _get_cache_date() -> str:
-    today = datetime.now()
-    offset = today.weekday() - 4
-    if offset > 0:
-        today -= timedelta(days=offset)
-    return today.strftime("%Y%m%d")
+from common.utils.cache_utils import get_cache_path, load_cache, save_cache, get_market_cache_key
 
 
 async def get_stock_day_range_kline(stock_info: StockInfo, limit=400):
     """获取股票日K线数据"""
-    cache_path = get_cache_path(f"kline_{_get_cache_date()}_{limit}", stock_info.stock_code)
+    cache_path = get_cache_path(f"kline_{get_market_cache_key()}_{limit}", stock_info.stock_code)
 
     cached_data = load_cache(cache_path)
     if cached_data:
