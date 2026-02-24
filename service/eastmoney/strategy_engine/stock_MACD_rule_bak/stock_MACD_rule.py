@@ -286,32 +286,42 @@ def _log_result(stock_name: str, df: pd.DataFrame) -> None:
     else:
         print("  无多头波段数据")
 
-    # 金叉明细
-    print(f"\n【金叉明细（共{len(golden_crosses)}次）】")
-    if len(golden_crosses) > 0:
-        print(f"{'日期':<12} {'收盘':<8} {'DIF':<10} {'DEA':<10} {'类型':<12} {'当前空头波段最低价':<18} {'最低价DIF':<12} {'上一空头波段最低价':<18} {'最低价DIF':<12}")
-        print("-" * 150)
-        for date, row in golden_crosses.tail(10).iterrows():
+    # 金叉明细（2024年至今）
+    golden_crosses_2024 = golden_crosses[golden_crosses.index >= '2024-01-01']
+    print(f"\n【金叉明细（2024年至今，共{len(golden_crosses_2024)}次）】")
+    if len(golden_crosses_2024) > 0:
+        print(f"{'日期':<12} {'收盘':<8} {'DIF':<10} {'DEA':<10} {'类型':<12} {'当前空头波段最低价':<18} {'日期':<12} {'最低价DIF':<12} {'上一空头波段最低价':<18} {'日期':<12} {'最低价DIF':<12}")
+        print("-" * 170)
+        for date, row in golden_crosses_2024.iterrows():
             cross_type = '零轴上金叉' if row['Zero_Above_GC'] else '普通金叉'
             curr_price = f"{row['Curr_Bear_Min_Price']:.2f}" if pd.notna(row['Curr_Bear_Min_Price']) else '-'
+            curr_date = row['Curr_Bear_Min_Date'].strftime('%Y-%m-%d') if pd.notna(row['Curr_Bear_Min_Date']) else '-'
             curr_dif = f"{row['Curr_Bear_Min_DIF']:.4f}" if pd.notna(row['Curr_Bear_Min_DIF']) else '-'
             prev_price = f"{row['Prev_Bear_Min_Price']:.2f}" if pd.notna(row['Prev_Bear_Min_Price']) else '-'
+            prev_date = row['Prev_Bear_Min_Date'].strftime('%Y-%m-%d') if pd.notna(row['Prev_Bear_Min_Date']) else '-'
             prev_dif = f"{row['Prev_Bear_Min_DIF']:.4f}" if pd.notna(row['Prev_Bear_Min_DIF']) else '-'
-            print(f"{date.strftime('%Y-%m-%d'):<12} {row['close']:<8.2f} {row['DIF']:<10.4f} {row['DEA']:<10.4f} {cross_type:<12} {curr_price:<18} {curr_dif:<12} {prev_price:<18} {prev_dif:<12}")
+            print(f"{date.strftime('%Y-%m-%d'):<12} {row['close']:<8.2f} {row['DIF']:<10.4f} {row['DEA']:<10.4f} {cross_type:<12} {curr_price:<18} {curr_date:<12} {curr_dif:<12} {prev_price:<18} {prev_date:<12} {prev_dif:<12}")
+    else:
+        print("  2024年至今无金叉数据")
 
-    # 死叉明细
+    # 死叉明细（2024年至今）
     death_crosses = df[df['Death_Cross']]
-    print(f"\n【死叉明细（共{len(death_crosses)}次）】")
-    if len(death_crosses) > 0:
-        print(f"{'日期':<12} {'收盘':<8} {'DIF':<10} {'DEA':<10} {'类型':<12} {'当前多头波段最高价':<18} {'最高价DIF':<12} {'上一多头波段最高价':<18} {'最高价DIF':<12}")
-        print("-" * 150)
-        for date, row in death_crosses.tail(10).iterrows():
+    death_crosses_2024 = death_crosses[death_crosses.index >= '2024-01-01']
+    print(f"\n【死叉明细（2024年至今，共{len(death_crosses_2024)}次）】")
+    if len(death_crosses_2024) > 0:
+        print(f"{'日期':<12} {'收盘':<8} {'DIF':<10} {'DEA':<10} {'类型':<12} {'当前多头波段最高价':<18} {'日期':<12} {'最高价DIF':<12} {'上一多头波段最高价':<18} {'日期':<12} {'最高价DIF':<12}")
+        print("-" * 170)
+        for date, row in death_crosses_2024.iterrows():
             cross_type = '零轴下死叉' if row['Zero_Below_DC'] else '普通死叉'
             curr_price = f"{row['Curr_Bull_Max_Price']:.2f}" if pd.notna(row['Curr_Bull_Max_Price']) else '-'
+            curr_date = row['Curr_Bull_Max_Date'].strftime('%Y-%m-%d') if pd.notna(row['Curr_Bull_Max_Date']) else '-'
             curr_dif = f"{row['Curr_Bull_Max_DIF']:.4f}" if pd.notna(row['Curr_Bull_Max_DIF']) else '-'
             prev_price = f"{row['Prev_Bull_Max_Price']:.2f}" if pd.notna(row['Prev_Bull_Max_Price']) else '-'
+            prev_date = row['Prev_Bull_Max_Date'].strftime('%Y-%m-%d') if pd.notna(row['Prev_Bull_Max_Date']) else '-'
             prev_dif = f"{row['Prev_Bull_Max_DIF']:.4f}" if pd.notna(row['Prev_Bull_Max_DIF']) else '-'
-            print(f"{date.strftime('%Y-%m-%d'):<12} {row['close']:<8.2f} {row['DIF']:<10.4f} {row['DEA']:<10.4f} {cross_type:<12} {curr_price:<18} {curr_dif:<12} {prev_price:<18} {prev_dif:<12}")
+            print(f"{date.strftime('%Y-%m-%d'):<12} {row['close']:<8.2f} {row['DIF']:<10.4f} {row['DEA']:<10.4f} {cross_type:<12} {curr_price:<18} {curr_date:<12} {curr_dif:<12} {prev_price:<18} {prev_date:<12} {prev_dif:<12}")
+    else:
+        print("  2024年至今无死叉数据")
 
     # 底背离明细
     bottom_div = df[df['Bottom_Divergence']]
