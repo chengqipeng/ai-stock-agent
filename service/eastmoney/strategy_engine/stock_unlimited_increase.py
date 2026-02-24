@@ -262,6 +262,7 @@ async def get_unlimited_increase_cn(stock_info: StockInfo, limit=400, vol_ma_win
 
 
 if __name__ == '__main__':
+
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
