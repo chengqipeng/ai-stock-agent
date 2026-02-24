@@ -67,6 +67,7 @@ async def test_single_stock(stock_data: dict, index: int, total: int) -> dict:
             '市场状态': latest['Market_State'],
             'MACD强弱': macd_strength,
             '交叉类型': cross_type,
+            '背离': '底背离' if latest['Bottom_Divergence'] else ('顶背离' if latest['Top_Divergence'] else '无'),
             f'金叉（{latest_date}）': latest['Golden_Cross'] or latest['Zero_Above_GC'],
             f'死叉（{latest_date}）': latest['Death_Cross'] or latest['Zero_Below_DC'],
             'market_state': latest['Market_State'],
@@ -80,7 +81,7 @@ async def test_single_stock(stock_data: dict, index: int, total: int) -> dict:
             'top_div': latest['Top_Divergence']
         }
         
-        div_signal = '底背离' if result['bottom_div'] else ('顶背离' if result['top_div'] else '-')
+        div_signal = result['背离']
         print(f"[{index}/{total}] {result['name']:<10} {result['code']:<12} {result['date']} "
               f"收盘:{result['close']:<8.2f} DIF:{result['dif']:<8.4f} DEA:{result['dea']:<8.4f} "
               f"{result['market_state']:<12} {result['macd_strength']:<6} {result['cross_type']:<12} {div_signal}")
