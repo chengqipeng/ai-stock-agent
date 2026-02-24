@@ -184,13 +184,26 @@ async def get_bottom_far_top_volume_indicates_cn(stock_info: StockInfo, limit=50
     return matches
 
 
-if __name__ == '__main__':
+async def scan_stocks_bottom_far_top_volume(limit_stocks=50) -> list[dict]:
+    """扫描 STOCKS 前 limit_stocks 只股票，返回满足底量远超顶量信号的结果列表"""
+    from common.constants.stocks_data import STOCKS
     from common.utils.stock_info_utils import get_stock_info_by_name
 
+    results = []
+    for stock in STOCKS[:limit_stocks]:
+        stock_info = get_stock_info_by_name(stock['name'])
+        if stock_info is None:
+            continue
+        matches = await get_bottom_far_top_volume_indicates_cn(stock_info)
+        if matches:
+            results.extend(matches)
+    return results if results else [{'message': '未找到满足条件的股票'}]
+
+
+if __name__ == '__main__':
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('三花智控')
         import json
-        result = await get_bottom_far_top_volume_indicates_cn(stock_info)
+        result = await scan_stocks_bottom_far_top_volume()
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
     asyncio.run(main())
