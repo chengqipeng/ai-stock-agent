@@ -24,44 +24,54 @@ def _build_dataframe(klines: list) -> pd.DataFrame:
     return df.set_index('date')
 
 
-def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_ratio=1.15, vol_shrink_ratio=0.8) -> pd.DataFrame:
+def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, atr_window=14, vol_shrink_ratio=0.8) -> pd.DataFrame:
     """
-    无量上涨必须跑（诱多/背离）识别策略
-    条件 A（高位判定）：分支1: 收盘价 > min(BOLL中轨×1.15, BOLL上轨×0.95)（高位）
-                       分支2: 收盘价 < BOLL中轨 且 BOLL中轨下行（下跌趋势中的反弹）
-    条件 B（价格上涨）：0 < 涨跌幅 < 5%（排除涨停等强势突破）
-    条件 C（无量萎缩）：成交量 < vol_ma_window日均量 * vol_shrink_ratio 或 成交量 < 昨日成交量 * 0.7
-    条件 D（阶梯缩量）：连续3日价涨量减（量依次递减）
-    条件 E（结构背离）：创20日新高（收盘价 > 前19日最高收盘价），但当日量 < 上一个20日新高日的成交量
-                       与原版区别：原版取同一rolling窗口内峰值量；此版跨窗口追踪历史新高日，背离判断更严格
-    最终信号：(A & B) & (C | D | E)，A+B为前提，C/D/E任一成立即触发警示
+    无量上涨必须跑（诱多/背离）识别策略 V2.0
+    条件 A（高危环境）：分支1: 收盘价 > min(BOLL中轨 + 2×ATR, BOLL上轨×0.95)（高位滞涨区）
+                       分支2: 收盘价 < BOLL中轨 且 BOLL中轨斜率 < 0（下跌中继反弹）
+    条件 B（价格形态）：0 < 涨跌幅 < 5%；可选强化：收盘价 < 开盘价（假阴真阳，诱多嫌疑加倍）
+    条件 C（单日截面骤缩）：成交量 < vol_ma_window日均量×vol_shrink_ratio 或 成交量 < 昨日成交量×0.7
+    条件 D（短期动能衰减）：近3日累计涨跌幅 > 0 且 T日量 < T-2日量 且 T日收 > T-2日收
+    条件 E（波段结构顶背离）：收盘价 > 昨日起前19日最高收盘价（创20日新高），但当日量 < 上一个20日新高日的成交量（峰对峰威科夫顶背离）
+    最终信号：(A & B) & (C | D | E)
     """
-    # 条件 B：价格上涨且涨幅 < 5%（排除涨停等强势突破）
-    cond_b = (df['pct_change'] > 0) & (df['pct_change'] < 5)
+    # ATR（真实波动幅度均值）
+    tr = pd.concat([
+        df['high'] - df['low'],
+        (df['high'] - df['close'].shift(1)).abs(),
+        (df['low'] - df['close'].shift(1)).abs(),
+    ], axis=1).max(axis=1)
+    atr = tr.rolling(window=atr_window, min_periods=1).mean()
+    df['atr'] = atr
 
-    # 条件 A：高位判定（两个分支任一满足）
-    # 分支1：股价高于 min(BOLL中轨×1.15, BOLL上轨×0.95)，处于高位
-    high_threshold = df['boll_mb'].combine(df['boll_ub'] * 0.95, lambda t, u: min(t * high_pos_ratio, u))
+    # 条件 B：0 < 涨跌幅 < 5%；可选强化：阴线（收 < 开）
+    cond_b = (df['pct_change'] > 0) & (df['pct_change'] < 5)
+    df['cond_b_bearish_candle'] = cond_b & (df['close'] < df['open'])
+
+    # 条件 A：高危环境（两个分支任一满足）
+    # 分支1：高位滞涨区 — 收盘价 > min(BOLL中轨 + 2×ATR, BOLL上轨×0.95)
+    high_threshold = (df['boll_mb'] + 2 * atr).combine(df['boll_ub'] * 0.95, min)
+    df['high_threshold'] = high_threshold
     cond_a_high = df['close'] > high_threshold
-    # 分支2：下跌趋势中的反弹（今收 < MA20 且 MA20 < MA60）
-    cond_a_downtrend = (df['close'] < df['boll_mb']) & (df['boll_mb'] < df['close'].rolling(60).mean())
-    df['ma60'] = df['close'].rolling(60).mean()
+    # 分支2：下跌中继反弹 — 收盘价 < BOLL中轨 且 BOLL中轨斜率 < 0
+    cond_a_downtrend = (df['close'] < df['boll_mb']) & (df['boll_mb'] < df['boll_mb'].shift(1))
     cond_a = cond_a_high | cond_a_downtrend
 
     cond_ab = cond_a & cond_b
 
-    # 条件 C：无量萎缩（低于50日均量80% 或 较昨日萎缩30%以上）
+    # 条件 C：单日截面骤缩
     cond_c = (
         (df['volume'] < df['ma50_volume'] * vol_shrink_ratio) |
         (df['volume'] < df['volume'].shift(1) * 0.7)
     )
 
-    # 条件 D：阶梯缩量（连续3日价涨量减）
-    price_up = df['pct_change'] > 0
+    # 条件 D：短期动能衰减（放宽原版连续3日严格量减）
+    # 近3日累计涨跌幅 > 0（重心整体上移）且 T日量 < T-2日量 且 T日收 > T-2日收
+    cum_pct_3d = df['pct_change'] + df['pct_change'].shift(1) + df['pct_change'].shift(2)
     cond_d = (
-        price_up & price_up.shift(1) & price_up.shift(2) &
-        (df['volume'] < df['volume'].shift(1)) &
-        (df['volume'].shift(1) < df['volume'].shift(2))
+        (cum_pct_3d > 0) &
+        (df['volume'] < df['volume'].shift(2)) &
+        (df['close'] > df['close'].shift(2))
     )
 
     # 条件 E：结构背离
@@ -92,6 +102,7 @@ def identify_unlimited_increase(df: pd.DataFrame, vol_ma_window=50, high_pos_rat
     df['cond_d'] = cond_d
     df['cond_e'] = cond_e
     df['signal'] = cond_ab & (cond_c | cond_d | cond_e)
+    df['signal_enhanced'] = cond_a & df['cond_b_bearish_candle'] & (cond_c | cond_d | cond_e)
     return df
 
 
@@ -102,22 +113,24 @@ _CN_COLUMNS = {
 }
 
 
-def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vol_shrink_ratio: float, vol_ma_window: int, high_pos_ratio: float) -> None:
-    print("\n========== 无量上涨诱多/背离信号日志 ==========")
+def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vol_shrink_ratio: float, vol_ma_window: int, atr_window: int) -> None:
+    print("\n========== 无量上涨诱多/背离信号日志 V2.0 ==========")
     print(f"""【策略逻辑说明】
 股票：{stock_name}
-策略：识别「无量上涨必须跑」诱多/背离形态，满足以下任一条件即触发警示，输出最新成交日是否满足和历史满足的前三个交易日：
-  前提A+B：(收盘价 > min(BOLL中轨×{high_pos_ratio}, BOLL上轨×0.95) 或 下跌趋势反弹) 且 0<涨跌幅<5%
-  条件C（无量萎缩）：成交量 < {vol_ma_window}日均量×{vol_shrink_ratio} 或 成交量 < 昨日成交量×0.7
-  条件D（阶梯缩量）：连续3日价涨，且成交量依次递减
-  条件E（结构背离）：创20日新高，但成交量 < 上一个20日新高日的成交量
+策略：识别「无量上涨必须跑」诱多/背离形态 V2.0，满足以下任一条件即触发警示，输出最新成交日是否满足和历史满足的前三个交易日：
+  前提A（高危环境）：收盘价 > min(BOLL中轨 + 2×ATR{atr_window}, BOLL上轨×0.95) 或 (收盘价 < BOLL中轨 且 BOLL中轨斜率<0)
+  前提B（价格形态）：0<涨跌幅<5%；可选强化：收盘价 < 开盘价（假阴真阳）
+  条件C（单日截面骤缩）：成交量 < {vol_ma_window}日均量×{vol_shrink_ratio} 或 成交量 < 昨日成交量×0.7
+  条件D（动能衰减）：近3日累计涨跌幅>0 且 T日量<T-2日量 且 T日收>T-2日收
+  条件E（波段顶背离）：创20日新高，但成交量 < 上一个20日新高日的成交量
   最终信号：(A & B) & (C | D | E)""")
     print("\n【原始K线数据（最近250日）】")
     display_df = raw_df.tail(250).copy()
     display_df['ma50_volume'] = calc_df['ma50_volume'].reindex(display_df.index)
     display_df['boll_mb'] = calc_df['boll_mb'].reindex(display_df.index)
     display_df['boll_ub'] = calc_df['boll_ub'].reindex(display_df.index)
-    display_df['ma60'] = calc_df['ma60'].reindex(display_df.index)
+    display_df['atr'] = calc_df['atr'].reindex(display_df.index)
+    display_df['高位阈值（中轨+2ATR vs 上轨×0.95取小）'] = calc_df['high_threshold'].reindex(display_df.index)
     display_df['20日新高基准（昨日起前19日最高收）'] = calc_df['max_prev19_close'].reindex(display_df.index)
     display_df['上一个20日新高日成交量'] = calc_df['prev_new_high_volume'].reindex(display_df.index)
     display_df['上一个20日新高日期'] = calc_df['prev_new_high_date'].reindex(display_df.index)
@@ -149,7 +162,7 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vo
     print("==========================================\n")
 
 
-async def get_unlimited_increase(stock_info: StockInfo, limit=400, vol_ma_window=50, high_pos_ratio=1.15, vol_shrink_ratio=0.8) -> tuple:
+async def get_unlimited_increase(stock_info: StockInfo, limit=400, vol_ma_window=50, atr_window=14, vol_shrink_ratio=0.8) -> tuple:
     klines, vol_avg_records, boll_records = await asyncio.gather(
         get_stock_day_range_kline(stock_info, limit=limit),
         get_volume_avg(stock_info, days=vol_ma_window, page_size=limit),
@@ -166,12 +179,12 @@ async def get_unlimited_increase(stock_info: StockInfo, limit=400, vol_ma_window
     df['boll_ub'] = pd.Series(
         {pd.Timestamp(r['date']): r['boll_ub'] for r in boll_records},
     ).reindex(df.index)
-    df = identify_unlimited_increase(df, vol_ma_window, high_pos_ratio, vol_shrink_ratio)
+    df = identify_unlimited_increase(df, vol_ma_window, atr_window, vol_shrink_ratio)
     return raw_df, df
 
 
-async def get_unlimited_increase_cn(stock_info: StockInfo, limit=400, vol_ma_window=50, high_pos_ratio=1.15, vol_shrink_ratio=0.8) -> dict:
-    raw_df, df = await get_unlimited_increase(stock_info, limit, vol_ma_window, high_pos_ratio, vol_shrink_ratio)
+async def get_unlimited_increase_cn(stock_info: StockInfo, limit=400, vol_ma_window=50, atr_window=14, vol_shrink_ratio=0.8) -> dict:
+    raw_df, df = await get_unlimited_increase(stock_info, limit, vol_ma_window, atr_window, vol_shrink_ratio)
 
     def to_row(date, row):
         triggers = []
@@ -183,10 +196,12 @@ async def get_unlimited_increase_cn(stock_info: StockInfo, limit=400, vol_ma_win
             **{_CN_COLUMNS[c]: round(row[c] / 10000, 2) if c in ('volume', 'ma50_volume') else round(row[c], 2)
                for c in ('open', 'close', 'high', 'low', 'volume', 'pct_change', 'boll_mb', 'ma50_volume')},
             'BOLL上轨': round(row['boll_ub'], 2) if pd.notna(row['boll_ub']) else None,
-            'MA60': round(row['ma60'], 2) if pd.notna(row['ma60']) else None,
+            'ATR': round(row['atr'], 4) if pd.notna(row['atr']) else None,
+            '高位阈值（中轨+2ATR vs 上轨×0.95取小）': round(row['high_threshold'], 2) if pd.notna(row['high_threshold']) else None,
             '20日新高基准（昨日起前19日最高收）': round(row['max_prev19_close'], 2) if pd.notna(row['max_prev19_close']) else None,
             '上一个20日新高日成交量（万）': round(row['prev_new_high_volume'] / 10000, 2) if pd.notna(row['prev_new_high_volume']) else None,
             '上一个20日新高日期': row['prev_new_high_date'].strftime('%Y-%m-%d') if pd.notna(row['prev_new_high_date']) else None,
+            '假阴真阳强化': bool(row.get('cond_b_bearish_candle', False)),
             '触发条件': '、'.join(triggers),
         }
 
@@ -195,12 +210,13 @@ async def get_unlimited_increase_cn(stock_info: StockInfo, limit=400, vol_ma_win
     result = {
         '最新交易日': latest_date,
         f'无量上涨诱多背离（{latest_date}）': bool(latest['signal']),
+        f'假阴真阳强化信号（{latest_date}）': bool(latest.get('signal_enhanced', False)),
         '历史信号列表（最近3次）': [
             to_row(date, row)
-            for date, row in df[df['signal']].sort_index(ascending=False).head(3).iterrows()
+            for date, row in df[df['signal']].sort_index(ascending=False).head(10).iterrows()
         ],
     }
-    _log_result(stock_info.stock_name, raw_df, df, vol_shrink_ratio, vol_ma_window, high_pos_ratio)
+    _log_result(stock_info.stock_name, raw_df, df, vol_shrink_ratio, vol_ma_window, atr_window)
     return result
 
 
@@ -208,7 +224,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('中国卫通')
+        stock_info: StockInfo = get_stock_info_by_name('三花智控')
         import json
         result = await get_unlimited_increase_cn(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
