@@ -83,12 +83,22 @@ def calculate_macd_signals(df: pd.DataFrame) -> pd.DataFrame:
     data['Top_Divergence']    = False
     data['Curr_Bear_Min_Price'] = np.nan
     data['Curr_Bear_Min_Date'] = None
+    data['Curr_Bear_Min_DIF'] = np.nan
     data['Prev_Bear_Min_Price'] = np.nan
     data['Prev_Bear_Min_Date'] = None
+    data['Prev_Bear_Min_DIF'] = np.nan
     data['Curr_Bull_Max_Price'] = np.nan
     data['Curr_Bull_Max_Date'] = None
+    data['Curr_Bull_Max_DIF'] = np.nan
     data['Prev_Bull_Max_Price'] = np.nan
     data['Prev_Bull_Max_Date'] = None
+    data['Prev_Bull_Max_DIF'] = np.nan
+    data['Bear_Start_Date'] = None
+    data['Bear_Start_Price'] = np.nan
+    data['Bear_Start_DIF'] = np.nan
+    data['Bull_Start_Date'] = None
+    data['Bull_Start_Price'] = np.nan
+    data['Bull_Start_DIF'] = np.nan
 
     # 上一个空头波段的价格最低点、DIF最低值及其索引（Prev_Price_Trough / Prev_DIF_Trough）
     prev_bear_min_price, prev_bear_min_dif, prev_bear_min_idx = float('inf'),  float('inf'),  -1
@@ -98,6 +108,10 @@ def calculate_macd_signals(df: pd.DataFrame) -> pd.DataFrame:
     curr_min_price, curr_min_dif, curr_min_idx = float('inf'),  float('inf'),  -1
     # 当前多头波段内的价格最高点、DIF最高值及其索引（Current_High / Current_DIF for peak）
     curr_max_price, curr_max_dif, curr_max_idx = float('-inf'), float('-inf'), -1
+    # 当前空头波段开始的死叉索引
+    bear_start_idx = -1
+    # 当前多头波段开始的金叉索引
+    bull_start_idx = -1
     # 回溯窗口：两个相邻波谷/波峰之间的交易日数须在 20~60 日内，过近或过远均不构成有效背离
     LOOKBACK_MIN, LOOKBACK_MAX = 20, 60
     state = 0
@@ -136,13 +150,21 @@ def calculate_macd_signals(df: pd.DataFrame) -> pd.DataFrame:
                 if curr_min_idx != -1:
                     data.iloc[i, data.columns.get_loc('Curr_Bear_Min_Price')] = curr_min_price
                     data.iloc[i, data.columns.get_loc('Curr_Bear_Min_Date')] = data.index[curr_min_idx]
+                    data.iloc[i, data.columns.get_loc('Curr_Bear_Min_DIF')] = curr_min_dif
                 if prev_bear_min_idx != -1:
                     data.iloc[i, data.columns.get_loc('Prev_Bear_Min_Price')] = prev_bear_min_price
                     data.iloc[i, data.columns.get_loc('Prev_Bear_Min_Date')] = data.index[prev_bear_min_idx]
+                    data.iloc[i, data.columns.get_loc('Prev_Bear_Min_DIF')] = prev_bear_min_dif
+                # 记录空头波段开始的死叉信息
+                if bear_start_idx != -1:
+                    data.iloc[i, data.columns.get_loc('Bear_Start_Date')] = data.index[bear_start_idx]
+                    data.iloc[i, data.columns.get_loc('Bear_Start_Price')] = data['close'].iloc[bear_start_idx]
+                    data.iloc[i, data.columns.get_loc('Bear_Start_DIF')] = data['DIF'].iloc[bear_start_idx]
                 # 当前波谷成为下一次比较的「上一波谷」
                 prev_bear_min_price, prev_bear_min_dif, prev_bear_min_idx = curr_min_price, curr_min_dif, curr_min_idx
             # 切换为多头波段，重置当前波峰追踪
             state = 1
+            bull_start_idx = i  # 记录多头波段开始的金叉索引
             curr_max_price, curr_max_dif, curr_max_idx = price_high, dif, i
 
         elif data['Death_Cross'].iloc[i]:
@@ -159,13 +181,21 @@ def calculate_macd_signals(df: pd.DataFrame) -> pd.DataFrame:
                 if curr_max_idx != -1:
                     data.iloc[i, data.columns.get_loc('Curr_Bull_Max_Price')] = curr_max_price
                     data.iloc[i, data.columns.get_loc('Curr_Bull_Max_Date')] = data.index[curr_max_idx]
+                    data.iloc[i, data.columns.get_loc('Curr_Bull_Max_DIF')] = curr_max_dif
                 if prev_bull_max_idx != -1:
                     data.iloc[i, data.columns.get_loc('Prev_Bull_Max_Price')] = prev_bull_max_price
                     data.iloc[i, data.columns.get_loc('Prev_Bull_Max_Date')] = data.index[prev_bull_max_idx]
+                    data.iloc[i, data.columns.get_loc('Prev_Bull_Max_DIF')] = prev_bull_max_dif
+                # 记录多头波段开始的金叉信息
+                if bull_start_idx != -1:
+                    data.iloc[i, data.columns.get_loc('Bull_Start_Date')] = data.index[bull_start_idx]
+                    data.iloc[i, data.columns.get_loc('Bull_Start_Price')] = data['close'].iloc[bull_start_idx]
+                    data.iloc[i, data.columns.get_loc('Bull_Start_DIF')] = data['DIF'].iloc[bull_start_idx]
                 # 当前波峰成为下一次比较的「上一波峰」
                 prev_bull_max_price, prev_bull_max_dif, prev_bull_max_idx = curr_max_price, curr_max_dif, curr_max_idx
             # 切换为空头波段，重置当前波谷追踪
             state = -1
+            bear_start_idx = i  # 记录空头波段开始的死叉索引
             curr_min_price, curr_min_dif, curr_min_idx = price_low, dif, i
 
         elif state == 0:
@@ -223,14 +253,17 @@ def _log_result(stock_name: str, df: pd.DataFrame) -> None:
     bear_segments = golden_crosses[pd.notna(golden_crosses['Curr_Bear_Min_Price'])]
     print(f"\n【空头波段明细（共{len(bear_segments)}个）】")
     if len(bear_segments) > 0:
-        print(f"{'波段序号':<8} {'金叉日期':<12} {'最低价':<10} {'最低价日期':<12} {'金叉收盘价':<12} {'跌幅%':<10}")
-        print("-" * 80)
+        print(f"{'波段序号':<8} {'死叉日期':<12} {'死叉收盘价':<12} {'死叉DIF':<10} {'最低价':<10} {'最低价日期':<12} {'金叉日期':<12} {'金叉收盘价':<12} {'跌幅%':<10}")
+        print("-" * 130)
         for idx, (date, row) in enumerate(bear_segments.iterrows(), 1):
             min_price = row['Curr_Bear_Min_Price']
             min_date = row['Curr_Bear_Min_Date'].strftime('%Y-%m-%d') if pd.notna(row['Curr_Bear_Min_Date']) else '-'
-            # 计算从最低价到金叉的涨幅
-            pct_change = ((row['close'] - min_price) / min_price * 100) if pd.notna(min_price) and min_price > 0 else 0
-            print(f"{idx:<8} {date.strftime('%Y-%m-%d'):<12} {min_price:<10.2f} {min_date:<12} {row['close']:<12.2f} {pct_change:>9.2f}")
+            bear_start_date = row['Bear_Start_Date'].strftime('%Y-%m-%d') if pd.notna(row['Bear_Start_Date']) else '-'
+            bear_start_price = f"{row['Bear_Start_Price']:.2f}" if pd.notna(row['Bear_Start_Price']) else '-'
+            bear_start_dif = f"{row['Bear_Start_DIF']:.4f}" if pd.notna(row['Bear_Start_DIF']) else '-'
+            # 计算从死叉到最低价的跌幅
+            pct_change = ((min_price - row['Bear_Start_Price']) / row['Bear_Start_Price'] * 100) if pd.notna(row['Bear_Start_Price']) and pd.notna(min_price) and row['Bear_Start_Price'] > 0 else 0
+            print(f"{idx:<8} {bear_start_date:<12} {bear_start_price:<12} {bear_start_dif:<10} {min_price:<10.2f} {min_date:<12} {date.strftime('%Y-%m-%d'):<12} {row['close']:<12.2f} {pct_change:>9.2f}")
     else:
         print("  无空头波段数据")
 
@@ -239,43 +272,46 @@ def _log_result(stock_name: str, df: pd.DataFrame) -> None:
     bull_segments = death_crosses[pd.notna(death_crosses['Curr_Bull_Max_Price'])]
     print(f"\n【多头波段明细（共{len(bull_segments)}个）】")
     if len(bull_segments) > 0:
-        print(f"{'波段序号':<8} {'死叉日期':<12} {'最高价':<10} {'最高价日期':<12} {'死叉收盘价':<12} {'涨幅%':<10}")
-        print("-" * 80)
+        print(f"{'波段序号':<8} {'金叉日期':<12} {'金叉收盘价':<12} {'金叉DIF':<10} {'最高价':<10} {'最高价日期':<12} {'死叉日期':<12} {'死叉收盘价':<12} {'涨幅%':<10}")
+        print("-" * 130)
         for idx, (date, row) in enumerate(bull_segments.iterrows(), 1):
             max_price = row['Curr_Bull_Max_Price']
             max_date = row['Curr_Bull_Max_Date'].strftime('%Y-%m-%d') if pd.notna(row['Curr_Bull_Max_Date']) else '-'
-            # 计算从金叉到最高价的涨幅（需要找到对应的金叉点）
-            pct_change = ((max_price - row['close']) / row['close'] * 100) if pd.notna(max_price) and row['close'] > 0 else 0
-            print(f"{idx:<8} {date.strftime('%Y-%m-%d'):<12} {max_price:<10.2f} {max_date:<12} {row['close']:<12.2f} {pct_change:>9.2f}")
+            bull_start_date = row['Bull_Start_Date'].strftime('%Y-%m-%d') if pd.notna(row['Bull_Start_Date']) else '-'
+            bull_start_price = f"{row['Bull_Start_Price']:.2f}" if pd.notna(row['Bull_Start_Price']) else '-'
+            bull_start_dif = f"{row['Bull_Start_DIF']:.4f}" if pd.notna(row['Bull_Start_DIF']) else '-'
+            # 计算从金叉到最高价的涨幅
+            pct_change = ((max_price - row['Bull_Start_Price']) / row['Bull_Start_Price'] * 100) if pd.notna(row['Bull_Start_Price']) and pd.notna(max_price) and row['Bull_Start_Price'] > 0 else 0
+            print(f"{idx:<8} {bull_start_date:<12} {bull_start_price:<12} {bull_start_dif:<10} {max_price:<10.2f} {max_date:<12} {date.strftime('%Y-%m-%d'):<12} {row['close']:<12.2f} {pct_change:>9.2f}")
     else:
         print("  无多头波段数据")
 
     # 金叉明细
     print(f"\n【金叉明细（共{len(golden_crosses)}次）】")
     if len(golden_crosses) > 0:
-        print(f"{'日期':<12} {'收盘':<8} {'DIF':<10} {'DEA':<10} {'类型':<12} {'当前空头波段最低价':<18} {'发生日期':<12} {'上一空头波段最低价':<18} {'发生日期':<12}")
-        print("-" * 140)
+        print(f"{'日期':<12} {'收盘':<8} {'DIF':<10} {'DEA':<10} {'类型':<12} {'当前空头波段最低价':<18} {'最低价DIF':<12} {'上一空头波段最低价':<18} {'最低价DIF':<12}")
+        print("-" * 150)
         for date, row in golden_crosses.tail(10).iterrows():
             cross_type = '零轴上金叉' if row['Zero_Above_GC'] else '普通金叉'
             curr_price = f"{row['Curr_Bear_Min_Price']:.2f}" if pd.notna(row['Curr_Bear_Min_Price']) else '-'
-            curr_date = row['Curr_Bear_Min_Date'].strftime('%Y-%m-%d') if pd.notna(row['Curr_Bear_Min_Date']) else '-'
+            curr_dif = f"{row['Curr_Bear_Min_DIF']:.4f}" if pd.notna(row['Curr_Bear_Min_DIF']) else '-'
             prev_price = f"{row['Prev_Bear_Min_Price']:.2f}" if pd.notna(row['Prev_Bear_Min_Price']) else '-'
-            prev_date = row['Prev_Bear_Min_Date'].strftime('%Y-%m-%d') if pd.notna(row['Prev_Bear_Min_Date']) else '-'
-            print(f"{date.strftime('%Y-%m-%d'):<12} {row['close']:<8.2f} {row['DIF']:<10.4f} {row['DEA']:<10.4f} {cross_type:<12} {curr_price:<18} {curr_date:<12} {prev_price:<18} {prev_date:<12}")
+            prev_dif = f"{row['Prev_Bear_Min_DIF']:.4f}" if pd.notna(row['Prev_Bear_Min_DIF']) else '-'
+            print(f"{date.strftime('%Y-%m-%d'):<12} {row['close']:<8.2f} {row['DIF']:<10.4f} {row['DEA']:<10.4f} {cross_type:<12} {curr_price:<18} {curr_dif:<12} {prev_price:<18} {prev_dif:<12}")
 
     # 死叉明细
     death_crosses = df[df['Death_Cross']]
     print(f"\n【死叉明细（共{len(death_crosses)}次）】")
     if len(death_crosses) > 0:
-        print(f"{'日期':<12} {'收盘':<8} {'DIF':<10} {'DEA':<10} {'类型':<12} {'当前多头波段最高价':<18} {'发生日期':<12} {'上一多头波段最高价':<18} {'发生日期':<12}")
-        print("-" * 140)
+        print(f"{'日期':<12} {'收盘':<8} {'DIF':<10} {'DEA':<10} {'类型':<12} {'当前多头波段最高价':<18} {'最高价DIF':<12} {'上一多头波段最高价':<18} {'最高价DIF':<12}")
+        print("-" * 150)
         for date, row in death_crosses.tail(10).iterrows():
             cross_type = '零轴下死叉' if row['Zero_Below_DC'] else '普通死叉'
             curr_price = f"{row['Curr_Bull_Max_Price']:.2f}" if pd.notna(row['Curr_Bull_Max_Price']) else '-'
-            curr_date = row['Curr_Bull_Max_Date'].strftime('%Y-%m-%d') if pd.notna(row['Curr_Bull_Max_Date']) else '-'
+            curr_dif = f"{row['Curr_Bull_Max_DIF']:.4f}" if pd.notna(row['Curr_Bull_Max_DIF']) else '-'
             prev_price = f"{row['Prev_Bull_Max_Price']:.2f}" if pd.notna(row['Prev_Bull_Max_Price']) else '-'
-            prev_date = row['Prev_Bull_Max_Date'].strftime('%Y-%m-%d') if pd.notna(row['Prev_Bull_Max_Date']) else '-'
-            print(f"{date.strftime('%Y-%m-%d'):<12} {row['close']:<8.2f} {row['DIF']:<10.4f} {row['DEA']:<10.4f} {cross_type:<12} {curr_price:<18} {curr_date:<12} {prev_price:<18} {prev_date:<12}")
+            prev_dif = f"{row['Prev_Bull_Max_DIF']:.4f}" if pd.notna(row['Prev_Bull_Max_DIF']) else '-'
+            print(f"{date.strftime('%Y-%m-%d'):<12} {row['close']:<8.2f} {row['DIF']:<10.4f} {row['DEA']:<10.4f} {cross_type:<12} {curr_price:<18} {curr_dif:<12} {prev_price:<18} {prev_dif:<12}")
 
     # 底背离明细
     bottom_div = df[df['Bottom_Divergence']]
