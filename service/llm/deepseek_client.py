@@ -67,27 +67,30 @@ class DeepSeekClient:
             payload["max_tokens"] = max_tokens
         
         timeout = aiohttp.ClientTimeout(total=300, connect=30)
-        connector = aiohttp.TCPConnector(limit=100, limit_per_host=30, keepalive_timeout=30)
         
         for attempt in range(3):
+            session = None
             try:
-                async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-                    async with session.post(url, headers=headers, json=payload) as response:
-                        async for line in response.content:
-                            line = line.decode('utf-8').strip()
-                            if line.startswith('data: '):
-                                data = line[6:]
-                                if data == '[DONE]':
-                                    break
-                                try:
-                                    chunk = json.loads(data)
-                                    content = chunk.get('choices', [{}])[0].get('delta', {}).get('content', '')
-                                    if content:
-                                        yield content
-                                except json.JSONDecodeError:
-                                    continue
+                session = aiohttp.ClientSession(timeout=timeout)
+                async with session.post(url, headers=headers, json=payload) as response:
+                    async for line in response.content:
+                        line = line.decode('utf-8').strip()
+                        if line.startswith('data: '):
+                            data = line[6:]
+                            if data == '[DONE]':
+                                break
+                            try:
+                                chunk = json.loads(data)
+                                content = chunk.get('choices', [{}])[0].get('delta', {}).get('content', '')
+                                if content:
+                                    yield content
+                            except json.JSONDecodeError:
+                                continue
                 break
             except (aiohttp.ClientPayloadError, aiohttp.ClientError, ConnectionResetError) as e:
                 if attempt == 2:
                     raise e
                 await asyncio.sleep(2 ** attempt)
+            finally:
+                if session:
+                    await session.close()
