@@ -40,15 +40,13 @@ def calculate_macd_signals(df: pd.DataFrame) -> pd.DataFrame:
 
     Rule c（背离预警，状态机，无未来函数）：
       底背离（Bottom_Divergence，看涨）触发条件：
-        条件A：当前空头波段最低价 < 上一空头波段最低价（股价创新低）
+        条件A：当前空头波段最低价（不一定形成了金叉，形成过程中也需要计算） < 上一空头波段最低价（股价创新低）
         条件B：当前空头波段 DIF 最低值 > 上一空头波段 DIF 最低值（DIF 未创新低）
         窗口 ：两波谷索引间距在 20~60 个交易日内
-        触发 ：金叉时判定，信号标记在当前波谷所在 K 线
       顶背离（Top_Divergence，看跌）触发条件：
-        条件A：当前多头波段最高价 > 上一多头波段最高价（股价创新高）
+        条件A：当前多头波段最高价（不一定形成了死叉，形成过程中也需要计算） > 上一多头波段最高价（股价创新高）
         条件B：当前多头波段 DIF 最高值 < 上一多头波段 DIF 最高值（DIF 未创新高）
         窗口 ：两波峰索引间距在 20~60 个交易日内
-        触发 ：死叉时判定，信号标记在当前波峰所在 K 线
     """
     data = df.copy()
 
@@ -78,7 +76,7 @@ def calculate_macd_signals(df: pd.DataFrame) -> pd.DataFrame:
     # Rule c: 背离预警（状态机，无未来函数）
     # 状态定义：1=多头波段（DIF>DEA），-1=空头波段（DIF<DEA），0=初始未定
     # 每个波段内持续追踪当前波峰/波谷及对应DIF极值
-    # 背离判定在金叉/死叉时触发，确保波段完整后再比较，避免未来函数
+    # 背离判定在波段形成过程中实时计算，不等待金叉/死叉
     data['Bottom_Divergence'] = False
     data['Top_Divergence']    = False
     data['Curr_Bear_Min_Price'] = np.nan
@@ -123,29 +121,32 @@ def calculate_macd_signals(df: pd.DataFrame) -> pd.DataFrame:
         price_low  = data['low'].iloc[i]
         dif        = data['DIF'].iloc[i]
 
-        # 多头波段：持续更新当前波峰（取最高价及对应DIF最大值）
+        # 多头波段：持续更新当前波峰（取最高价及对应DIF最大值），并实时检测顶背离
         if state == 1:
             if price_high > curr_max_price:
                 curr_max_price, curr_max_dif, curr_max_idx = price_high, dif, i
             elif price_high == curr_max_price:
                 curr_max_dif = max(curr_max_dif, dif)
-        # 空头波段：持续更新当前波谷（取最低价及对应DIF最小值）
+            # 实时检测顶背离（在多头波段形成过程中）
+            in_window = (prev_bull_max_idx != -1 and
+                         LOOKBACK_MIN <= (curr_max_idx - prev_bull_max_idx) <= LOOKBACK_MAX)
+            if in_window and (curr_max_price > prev_bull_max_price) and (curr_max_dif < prev_bull_max_dif):
+                data.iloc[curr_max_idx, top_col] = True
+        # 空头波段：持续更新当前波谷（取最低价及对应DIF最小值），并实时检测底背离
         elif state == -1:
             if price_low < curr_min_price:
                 curr_min_price, curr_min_dif, curr_min_idx = price_low, dif, i
             elif price_low == curr_min_price:
                 curr_min_dif = min(curr_min_dif, dif)
+            # 实时检测底背离（在空头波段形成过程中）
+            in_window = (prev_bear_min_idx != -1 and
+                         LOOKBACK_MIN <= (curr_min_idx - prev_bear_min_idx) <= LOOKBACK_MAX)
+            if in_window and (curr_min_price < prev_bear_min_price) and (curr_min_dif > prev_bear_min_dif):
+                data.iloc[curr_min_idx, bot_col] = True
 
         if data['Golden_Cross'].iloc[i]:
-            # 金叉：空头波段结束，检测底背离
-            # 条件A：当前波谷价格 < 上一波谷价格（股价创新低）
-            # 条件B：当前波谷DIF > 上一波谷DIF（DIF未创新低，指标走强）
-            # 窗口：两波谷间距须在 20~60 个交易日内
+            # 金叉：空头波段结束
             if state == -1:
-                in_window = (prev_bear_min_idx != -1 and
-                             LOOKBACK_MIN <= (curr_min_idx - prev_bear_min_idx) <= LOOKBACK_MAX)
-                if in_window and (curr_min_price < prev_bear_min_price) and (curr_min_dif > prev_bear_min_dif):
-                    data.iloc[curr_min_idx, bot_col] = True  # 标记在波谷所在K线
                 # 记录当前和上一空头波段的最低价及日期（所有金叉都记录）
                 if curr_min_idx != -1:
                     data.iloc[i, data.columns.get_loc('Curr_Bear_Min_Price')] = curr_min_price
@@ -168,15 +169,8 @@ def calculate_macd_signals(df: pd.DataFrame) -> pd.DataFrame:
             curr_max_price, curr_max_dif, curr_max_idx = price_high, dif, i
 
         elif data['Death_Cross'].iloc[i]:
-            # 死叉：多头波段结束，检测顶背离
-            # 条件A：当前波峰价格 > 上一波峰价格（股价创新高）
-            # 条件B：当前波峰DIF < 上一波峰DIF（DIF未创新高，指标走弱）
-            # 窗口：两波峰间距须在 20~60 个交易日内
+            # 死叉：多头波段结束
             if state == 1:
-                in_window = (prev_bull_max_idx != -1 and
-                             LOOKBACK_MIN <= (curr_max_idx - prev_bull_max_idx) <= LOOKBACK_MAX)
-                if in_window and (curr_max_price > prev_bull_max_price) and (curr_max_dif < prev_bull_max_dif):
-                    data.iloc[curr_max_idx, top_col] = True  # 标记在波峰所在K线
                 # 记录当前和上一多头波段的最高价及日期（所有死叉都记录）
                 if curr_max_idx != -1:
                     data.iloc[i, data.columns.get_loc('Curr_Bull_Max_Price')] = curr_max_price
@@ -367,9 +361,28 @@ async def get_macd_signals_cn(stock_info: StockInfo, limit: int = 400) -> dict:
 
     latest      = df.iloc[-1]
     latest_date = df.index[-1].strftime('%Y-%m-%d')
+    
+    # 判断MACD强弱势
+    macd_strength = '强势' if latest['Market_State'] == 'Bull_Strong' else ('弱势' if latest['Market_State'] in ['Bull_Weak', 'Bear'] else '中性')
+    
+    # 判断交叉类型
+    cross_type = ''
+    if latest['Zero_Above_GC']:
+        cross_type = '零轴上金叉'
+    elif latest['Golden_Cross']:
+        cross_type = '零轴下金叉'
+    elif latest['Zero_Below_DC']:
+        cross_type = '零轴下死叉'
+    elif latest['Death_Cross']:
+        cross_type = '零轴上死叉'
+    else:
+        cross_type = '无交叉'
+    
     result = {
         '最新交易日': latest_date,
         '市场状态': latest['Market_State'],
+        'MACD强弱': macd_strength,
+        '交叉类型': cross_type,
         f'金叉（{latest_date}）':      bool(latest['Golden_Cross']),
         f'死叉（{latest_date}）':      bool(latest['Death_Cross']),
         f'零轴上金叉（{latest_date}）': bool(latest['Zero_Above_GC']),
