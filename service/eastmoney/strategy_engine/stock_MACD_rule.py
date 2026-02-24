@@ -25,8 +25,30 @@ def _build_dataframe(klines: list) -> pd.DataFrame:
 
 def calculate_macd_signals(df: pd.DataFrame) -> pd.DataFrame:
     """
-    基于 MACD 法则计算多空状态、交叉信号以及背离信号。
-    输入 DataFrame 必须包含 'close', 'high', 'low' 列，且按时间升序排列。
+    MACD 多空状态、交叉信号与背离信号计算 V1.0
+
+    Rule a（多空市场界定）：
+      DIF>0 且 DEA>0 → Bull_Strong（强多头）
+      DIF>0 且 DEA≤0 → Bull_Weak（弱多头）
+      DIF<0          → Bear（空头）
+
+    Rule b（交叉信号）：
+      Golden_Cross  ：DIF 由下穿上 DEA（金叉，看涨）
+      Death_Cross   ：DIF 由上穿下 DEA（死叉，看跌）
+      Zero_Above_GC ：金叉且 DIF>0 & DEA>0（零轴上金叉，抓主升段）
+      Zero_Below_DC ：死叉且 DIF<0（零轴下死叉，防暴跌）
+
+    Rule c（背离预警，状态机，无未来函数）：
+      底背离（Bottom_Divergence，看涨）触发条件：
+        条件A：当前空头波段最低价 < 上一空头波段最低价（股价创新低）
+        条件B：当前空头波段 DIF 最低值 > 上一空头波段 DIF 最低值（DIF 未创新低）
+        窗口 ：两波谷索引间距在 20~60 个交易日内
+        触发 ：金叉时判定，信号标记在当前波谷所在 K 线
+      顶背离（Top_Divergence，看跌）触发条件：
+        条件A：当前多头波段最高价 > 上一多头波段最高价（股价创新高）
+        条件B：当前多头波段 DIF 最高值 < 上一多头波段 DIF 最高值（DIF 未创新高）
+        窗口 ：两波峰索引间距在 20~60 个交易日内
+        触发 ：死叉时判定，信号标记在当前波峰所在 K 线
     """
     data = df.copy()
 
@@ -54,13 +76,22 @@ def calculate_macd_signals(df: pd.DataFrame) -> pd.DataFrame:
     data['Zero_Below_DC']  = data['Death_Cross']  & (data['DIF'] < 0)
 
     # Rule c: 背离预警（状态机，无未来函数）
+    # 状态定义：1=多头波段（DIF>DEA），-1=空头波段（DIF<DEA），0=初始未定
+    # 每个波段内持续追踪当前波峰/波谷及对应DIF极值
+    # 背离判定在金叉/死叉时触发，确保波段完整后再比较，避免未来函数
     data['Bottom_Divergence'] = False
     data['Top_Divergence']    = False
 
-    prev_bear_min_price, prev_bear_min_dif, prev_bear_min_macd = float('inf'),  float('inf'),  float('inf')
-    prev_bull_max_price, prev_bull_max_dif, prev_bull_max_macd = float('-inf'), float('-inf'), float('-inf')
-    curr_min_price, curr_min_dif, curr_min_macd, curr_min_idx = float('inf'),  float('inf'),  float('inf'),  -1
-    curr_max_price, curr_max_dif, curr_max_macd, curr_max_idx = float('-inf'), float('-inf'), float('-inf'), -1
+    # 上一个空头波段的价格最低点、DIF最低值及其索引（Prev_Price_Trough / Prev_DIF_Trough）
+    prev_bear_min_price, prev_bear_min_dif, prev_bear_min_idx = float('inf'),  float('inf'),  -1
+    # 上一个多头波段的价格最高点、DIF最高值及其索引（Prev_Price_Peak / Prev_DIF_Peak）
+    prev_bull_max_price, prev_bull_max_dif, prev_bull_max_idx = float('-inf'), float('-inf'), -1
+    # 当前空头波段内的价格最低点、DIF最低值及其索引（Current_Low / Current_DIF for trough）
+    curr_min_price, curr_min_dif, curr_min_idx = float('inf'),  float('inf'),  -1
+    # 当前多头波段内的价格最高点、DIF最高值及其索引（Current_High / Current_DIF for peak）
+    curr_max_price, curr_max_dif, curr_max_idx = float('-inf'), float('-inf'), -1
+    # 回溯窗口：两个相邻波谷/波峰之间的交易日数须在 20~60 日内，过近或过远均不构成有效背离
+    LOOKBACK_MIN, LOOKBACK_MAX = 20, 60
     state = 0
     bot_col = data.columns.get_loc('Bottom_Divergence')
     top_col = data.columns.get_loc('Top_Divergence')
@@ -69,48 +100,60 @@ def calculate_macd_signals(df: pd.DataFrame) -> pd.DataFrame:
         price_high = data['high'].iloc[i]
         price_low  = data['low'].iloc[i]
         dif        = data['DIF'].iloc[i]
-        macd_hist  = data['MACD_Hist'].iloc[i]
 
+        # 多头波段：持续更新当前波峰（取最高价及对应DIF最大值）
         if state == 1:
             if price_high > curr_max_price:
-                curr_max_price, curr_max_dif, curr_max_macd, curr_max_idx = price_high, dif, macd_hist, i
+                curr_max_price, curr_max_dif, curr_max_idx = price_high, dif, i
             elif price_high == curr_max_price:
                 curr_max_dif = max(curr_max_dif, dif)
+        # 空头波段：持续更新当前波谷（取最低价及对应DIF最小值）
         elif state == -1:
             if price_low < curr_min_price:
-                curr_min_price, curr_min_dif, curr_min_macd, curr_min_idx = price_low, dif, macd_hist, i
+                curr_min_price, curr_min_dif, curr_min_idx = price_low, dif, i
             elif price_low == curr_min_price:
                 curr_min_dif = min(curr_min_dif, dif)
 
         if data['Golden_Cross'].iloc[i]:
+            # 金叉：空头波段结束，检测底背离
+            # 条件A：当前波谷价格 < 上一波谷价格（股价创新低）
+            # 条件B：当前波谷DIF > 上一波谷DIF（DIF未创新低，指标走强）
+            # 窗口：两波谷间距须在 20~60 个交易日内
             if state == -1:
-                dif_no_new_low    = curr_min_dif > prev_bear_min_dif
-                green_bar_shorter = abs(curr_min_macd) < abs(prev_bear_min_macd)
-                if (curr_min_price < prev_bear_min_price) and (dif_no_new_low or green_bar_shorter):
-                    if prev_bear_min_price != float('inf') and curr_min_idx != -1:
-                        data.iloc[curr_min_idx, bot_col] = True
-                prev_bear_min_price, prev_bear_min_dif, prev_bear_min_macd = curr_min_price, curr_min_dif, curr_min_macd
+                in_window = (prev_bear_min_idx != -1 and
+                             LOOKBACK_MIN <= (curr_min_idx - prev_bear_min_idx) <= LOOKBACK_MAX)
+                if in_window and (curr_min_price < prev_bear_min_price) and (curr_min_dif > prev_bear_min_dif):
+                    data.iloc[curr_min_idx, bot_col] = True  # 标记在波谷所在K线
+                # 当前波谷成为下一次比较的「上一波谷」
+                prev_bear_min_price, prev_bear_min_dif, prev_bear_min_idx = curr_min_price, curr_min_dif, curr_min_idx
+            # 切换为多头波段，重置当前波峰追踪
             state = 1
-            curr_max_price, curr_max_dif, curr_max_macd, curr_max_idx = price_high, dif, macd_hist, i
+            curr_max_price, curr_max_dif, curr_max_idx = price_high, dif, i
 
         elif data['Death_Cross'].iloc[i]:
+            # 死叉：多头波段结束，检测顶背离
+            # 条件A：当前波峰价格 > 上一波峰价格（股价创新高）
+            # 条件B：当前波峰DIF < 上一波峰DIF（DIF未创新高，指标走弱）
+            # 窗口：两波峰间距须在 20~60 个交易日内
             if state == 1:
-                dif_no_new_high = curr_max_dif < prev_bull_max_dif
-                red_bar_shorter = curr_max_macd < prev_bull_max_macd
-                if (curr_max_price > prev_bull_max_price) and (dif_no_new_high or red_bar_shorter):
-                    if prev_bull_max_price != float('-inf') and curr_max_idx != -1:
-                        data.iloc[curr_max_idx, top_col] = True
-                prev_bull_max_price, prev_bull_max_dif, prev_bull_max_macd = curr_max_price, curr_max_dif, curr_max_macd
+                in_window = (prev_bull_max_idx != -1 and
+                             LOOKBACK_MIN <= (curr_max_idx - prev_bull_max_idx) <= LOOKBACK_MAX)
+                if in_window and (curr_max_price > prev_bull_max_price) and (curr_max_dif < prev_bull_max_dif):
+                    data.iloc[curr_max_idx, top_col] = True  # 标记在波峰所在K线
+                # 当前波峰成为下一次比较的「上一波峰」
+                prev_bull_max_price, prev_bull_max_dif, prev_bull_max_idx = curr_max_price, curr_max_dif, curr_max_idx
+            # 切换为空头波段，重置当前波谷追踪
             state = -1
-            curr_min_price, curr_min_dif, curr_min_macd, curr_min_idx = price_low, dif, macd_hist, i
+            curr_min_price, curr_min_dif, curr_min_idx = price_low, dif, i
 
         elif state == 0:
+            # 初始状态：根据DIF与DEA的相对位置确定初始波段方向
             if data['DIF'].iloc[i] > data['DEA'].iloc[i]:
                 state = 1
-                curr_max_price, curr_max_dif, curr_max_macd, curr_max_idx = price_high, dif, macd_hist, i
+                curr_max_price, curr_max_dif, curr_max_idx = price_high, dif, i
             elif data['DIF'].iloc[i] < data['DEA'].iloc[i]:
                 state = -1
-                curr_min_price, curr_min_dif, curr_min_macd, curr_min_idx = price_low, dif, macd_hist, i
+                curr_min_price, curr_min_dif, curr_min_idx = price_low, dif, i
 
     return data
 
@@ -184,7 +227,7 @@ if __name__ == '__main__':
     import json
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('北方华创')
+        stock_info: StockInfo = get_stock_info_by_name('中国卫通')
         result = await get_macd_signals_cn(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
