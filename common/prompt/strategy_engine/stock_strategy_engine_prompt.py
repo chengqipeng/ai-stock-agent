@@ -2,7 +2,13 @@ import json
 from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo
+from service.eastmoney.strategy_engine.stock_BOLL_rule import get_boll_rule_cn
+from service.eastmoney.strategy_engine.stock_KDJ_rule import get_kdj_rule_cn
+from service.eastmoney.strategy_engine.stock_MACD_rule import get_macd_signals_cn
+from service.eastmoney.strategy_engine.stock_bottom_far_top_volume_indicates import \
+    get_bottom_far_top_volume_indicates_cn
 from service.eastmoney.strategy_engine.stock_identify_new_high_signal import get_new_high_signals_cn
+from service.eastmoney.strategy_engine.stock_is_high_vol_pillar import get_high_vol_pillars
 from service.eastmoney.strategy_engine.stock_unlimited_increase_bak.stock_unlimited_increase import get_unlimited_increase_cn
 from service.eastmoney.strategy_engine.stock_volume_increases_price_remains_stagnant import get_distribution_signal_cn
 from service.eastmoney.strategy_engine.stock_volume_reduction_pullback import get_volume_reduction_pullback_cn
@@ -13,11 +19,17 @@ async def get_strategy_engine_prompt(stock_info: StockInfo):
     volume_reduction_pullback = await get_volume_reduction_pullback_cn(stock_info)
     distribution_signal = await get_distribution_signal_cn(stock_info)
     unlimited_increase = await get_unlimited_increase_cn(stock_info)
+    macd_signals = await get_macd_signals_cn(stock_info)
+    kdj_rule = await get_kdj_rule_cn(stock_info)
+    bottom_far_top_volume_indicates = await get_bottom_far_top_volume_indicates_cn(stock_info)
+    boll_rule = await get_boll_rule_cn(stock_info)
+    high_vol_pillars = await get_high_vol_pillars(stock_info)
+
     return f"""
 # Role
 你是一个基于“量价时空”体系的资深量化交易策略引擎。你的核心任务是解析输入的结构化股票行情数据（包含均线、MACD、KDJ、BOLL及关键量价特征），严格基于内置的《技术与量价分析法则》进行客观推理，并输出清晰、无歧义的盘面诊断和交易决策信号。
 
-#分析的股票（{datetime.now().strftime('%Y-%m-%d')}）
+#分析的股票（当前时间：{datetime.now().strftime('%Y-%m-%d')}）
 {stock_info.stock_name}（{stock_info.stock_code_normalize}）
 
 # Core Rules (技术与量价分析法则)
@@ -82,6 +94,23 @@ async def get_strategy_engine_prompt(stock_info: StockInfo):
 
 ** 无量上涨必须跑（诱多/背离） **
 {json.dumps(unlimited_increase, ensure_ascii=False, indent=2)}
+
+** 【底量远超顶量】威科夫吸筹信号 **
+{json.dumps(bottom_far_top_volume_indicates, ensure_ascii=False, indent=2)}
+
+** 高量柱防守线 **
+{json.dumps(high_vol_pillars, ensure_ascii=False, indent=2)}
+
+** MACD 多空状态、交叉信号与背离信号计算 **
+{json.dumps(macd_signals, ensure_ascii=False, indent=2)}
+
+** KDJ 法则（微观动能） **
+{json.dumps(kdj_rule, ensure_ascii=False, indent=2)}
+
+** 布林线法则 (运行空间) 核心逻辑 **
+{json.dumps(boll_rule, ensure_ascii=False, indent=2)}
+
+
 
 
 """

@@ -2,8 +2,11 @@ import asyncio
 import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from chinese_calendar import is_workday
 from common.constants.stocks_data import STOCKS
+
+_CST = ZoneInfo("Asia/Shanghai")
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline
 from common.utils.stock_info_utils import get_stock_info_by_code
 
@@ -22,8 +25,9 @@ def get_missing_trading_days(db_path, stock_code, n=20):
     返回值按日期降序排列（最新日期在前）。
     """
     from datetime import datetime, time as dtime
-    today = date.today()
-    now = datetime.now().time()
+    now_cst = datetime.now(_CST)
+    today = now_cst.date()
+    now = now_cst.time()
     in_trading = dtime(9, 30) <= now <= dtime(15, 0)
     after_close = now > dtime(15, 0)
 
@@ -48,10 +52,24 @@ def get_missing_trading_days(db_path, stock_code, n=20):
         existing = set()
 
     missing = trading_days - existing
-    # 盘中今天强制包含（即使已在库，也要更新实时数据）
-    if in_trading and today in trading_days:
-        missing.add(today)
-    # 盘前或非交易日，不拉取今天
+    # 盘中或收盘后，今天强制包含（盘中更新实时数据；收盘后若数据是盘中写入则更新最终数据）
+    if today in trading_days and (in_trading or after_close):
+        if in_trading:
+            missing.add(today)
+        elif after_close and today not in missing:
+            # 收盘后：若今天数据是盘中（15:00前）写入的，需要更新为最终收盘数据
+            table_name = f"kline_{stock_code.replace('.', '_')}"
+            try:
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute(f"SELECT updated_at FROM {table_name} WHERE date=?", (today.isoformat(),))
+                row = cursor.fetchone()
+                conn.close()
+                if row and row[0] < f"{today.isoformat()} 15:00:00":
+                    missing.add(today)
+            except sqlite3.OperationalError:
+                pass
+    # 盘前不拉取今天
     if not in_trading and not after_close:
         missing.discard(today)
 
@@ -117,11 +135,13 @@ def parse_kline_data(kline_str):
 
 def insert_or_update_kline_data(cursor, table_name, kline_data):
     """插入或更新K线数据"""
+    from datetime import datetime
+    now_cst = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
     cursor.execute(f'''
         INSERT OR REPLACE INTO {table_name} 
         (date, open_price, close_price, high_price, low_price, trading_volume, 
          trading_amount, amplitude, change_percent, change_amount, change_hand, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         kline_data['date'],
         kline_data['open_price'],
@@ -133,9 +153,9 @@ def insert_or_update_kline_data(cursor, table_name, kline_data):
         kline_data['amplitude'],
         kline_data['change_percent'],
         kline_data['change_amount'],
-        kline_data['change_hand']
+        kline_data['change_hand'],
+        now_cst
     ))
-
 
 
 async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
@@ -156,7 +176,9 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
     latest_db_date = get_latest_db_date(db_path, stock_code)
     # fetch_limit 基于最早缺失日期到今天的自然日数，+5作为缓冲确保覆盖所有缺失交易日
     earliest_missing = missing_days[-1]  # missing_days 降序，最后一个是最早的
-    fetch_limit = (date.today() - earliest_missing).days + 5 if latest_db_date else limit
+    from datetime import datetime
+    today_cst = datetime.now(_CST).date()
+    fetch_limit = (today_cst - earliest_missing).days + 5 if latest_db_date else limit
 
     klines = None
     for attempt in range(1, 11):

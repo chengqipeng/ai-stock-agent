@@ -46,12 +46,24 @@ def is_high_vol_pillar(df: pd.DataFrame, vol_ratio: float = 2.0) -> pd.Series:
     )
 
 
-async def get_high_vol_pillars(stock_info: StockInfo, limit=400, vol_ma_window=50, vol_ratio=2.0) -> pd.DataFrame:
+async def get_high_vol_pillars(stock_info: StockInfo, limit=400, vol_ma_window=50, vol_ratio=2.0) -> list:
     klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=limit)
     df = build_dataframe(klines)
     await inject_vol_avg(df, stock_info, vol_ma_window, limit)
     mask = is_high_vol_pillar(df, vol_ratio)
-    return df[mask][['open', 'close', 'high', 'low', 'volume', 'pct_change', 'ma50_volume']]
+    return [
+        {
+            '日期': date.strftime('%Y-%m-%d'),
+            '开盘价': row['open'],
+            '收盘价': row['close'],
+            '最高价': row['high'],
+            '最低价': row['low'],
+            '成交量（万）': round(row['volume'] / 10000, 2),
+            '涨跌幅（%）': row['pct_change'],
+            f'{vol_ma_window}日均量（万）': round(row['ma50_volume'] / 10000, 2),
+        }
+        for date, row in df[mask].iterrows()
+    ]
 
 
 if __name__ == '__main__':
@@ -59,8 +71,8 @@ if __name__ == '__main__':
 
     async def main():
         stock_info: StockInfo = get_stock_info_by_name('中国卫通')
+        import json
         result = await get_high_vol_pillars(stock_info)
-        for date, row in result.iterrows():
-            print(f"[高量柱] {date.strftime('%Y-%m-%d')} 成交量={round(row['volume']/10000,2)}万 涨幅={row['pct_change']}%")
+        print(json.dumps(result, ensure_ascii=False, indent=2))
 
     asyncio.run(main())

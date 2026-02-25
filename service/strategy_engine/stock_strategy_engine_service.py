@@ -227,9 +227,9 @@ async def get_strategy_engine_analysis(stock_info: StockInfo) -> str:
 
 if __name__ == '__main__':
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('北方华创')
-        result = await analyze_and_save_strategy(stock_info)
-        print(f"买入结论：{result['buy_conclusion']}")
-        print(f"卖出结论：{result['sell_conclusion']}")
+        stock_info: StockInfo = get_stock_info_by_name('易天股份')
+        result = await get_strategy_engine_analysis(stock_info)
+        print(result)
+        #print(json.dumps(result, ensure_ascii=False, indent=2))
 
     asyncio.run(main())

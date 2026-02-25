@@ -32,7 +32,7 @@ def get_db_cache_kline_data(stock_code: str, start_date: str = None, end_date: s
         sql += " AND date <= ?"
         params.append(end_date)
 
-    sql += " ORDER BY date ASC"
+    sql += " ORDER BY date DESC"
 
     if limit:
         sql += " LIMIT ?"
@@ -41,6 +41,7 @@ def get_db_cache_kline_data(stock_code: str, start_date: str = None, end_date: s
     try:
         cursor.execute(sql, params)
         rows = [dict(row) for row in cursor.fetchall()]
+        rows.reverse()
     except sqlite3.OperationalError:
         rows = []
     finally:
