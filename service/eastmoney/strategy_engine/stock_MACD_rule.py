@@ -1,7 +1,7 @@
 import asyncio
 import numpy as np
 import pandas as pd
-from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache as get_stock_day_range_kline
 from common.utils.stock_info_utils import StockInfo
 
 

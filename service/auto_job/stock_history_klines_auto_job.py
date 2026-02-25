@@ -202,13 +202,13 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
 
     counter['success'] += 1
     print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 完成，本次查询{len(klines)}条")
-    await asyncio.sleep(3)
+    await asyncio.sleep(4)
 
 
 async def run_stock_klines_job(limit=800, max_concurrent=1):
     """运行股票K线数据采集任务"""
     # 创建数据库目录
-    db_dir = Path("data_results/sql_lite")
+    db_dir = Path(__file__).parent.parent.parent / "data_results/sql_lite"
     db_dir.mkdir(parents=True, exist_ok=True)
     db_path = db_dir / "stock_klines.db"
     

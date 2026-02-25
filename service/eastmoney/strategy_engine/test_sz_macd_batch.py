@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(__file__))
 
-from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache as get_stock_day_range_kline
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.strategy_engine.stock_MACD_rule import calculate_macd_signals, _build_dataframe
 from common.constants.stocks_data import STOCKS
