@@ -63,27 +63,31 @@ async def identify_boll_rule(stock_info: StockInfo, df: pd.DataFrame, vol_ma_win
     df['is_weak_zone']     = df['close'] < df['MB']
 
     # 带宽挤压 & 喇叭口扩张
-    df['min_bw'] = df['BW'].rolling(window=bw_window).min()
+    df['min_bw'] = df['BW'].shift(1).rolling(window=bw_window).min()  # 不含当日，避免自比较恒成立
     df['is_squeeze']    = df['BW'] <= (df['min_bw'] * 1.1)
     df['is_expanding']  = (
         (df['UP'] > df['prev_UP']) &
         (df['DN'] < df['prev_DN']) &
         (df['BW'] > df['prev_BW'] * 1.1)
     )
-    df['is_accelerating_up']   = df['is_expanding'] & df['is_operable_zone']
-    df['is_accelerating_down'] = df['is_expanding'] & df['is_weak_zone']
+    df['is_accelerating_up']   = df['is_expanding'] & df['is_operable_zone']  # is_operable_zone 已含 MB > prev_MB
+    df['is_accelerating_down'] = df['is_expanding'] & df['is_weak_zone'] & (df['MB'] < df['prev_MB'])
 
-    # 强势开启：放量突破中轨
-    df['strong_start_signal'] = (
+    # 放量突破中轨基础条件
+    _breakout = (
         (df['prev_close'] <= df['prev_MB']) &
         (df['close']      >  df['MB']) &
         (df['volume']     >  df['ma50_volume'] * 1.5)
     )
+    # 超强势开启：放量突破中轨 + 中轨向上（开口向上）
+    df['super_strong_start_signal'] = _breakout & (df['MB'] > df['prev_MB'])
+    # 强势开启：放量突破中轨（无中轨方向要求）
+    df['strong_start_signal'] = _breakout
 
-    # 波段结束：跌破中轨
+    # 波段结束：跌破中轨（昨收严格在中轨之上）
     df['wave_end_signal'] = (
-        (df['prev_close'] >= df['prev_MB']) &
-        (df['close']      <  df['MB'])
+        (df['prev_close'] > df['prev_MB']) &
+        (df['close']      < df['MB'])
     )
 
     return df
@@ -100,8 +104,9 @@ def _log_result(stock_name: str, df: pd.DataFrame, vol_ma_window: int) -> None:
     print(f"""【策略逻辑说明】
 股票：{stock_name}
 策略：布林线法则（运行空间），识别以下信号：
-  强势开启：昨收 <= 昨中轨 且 今收 > 今中轨 且 成交量 > {vol_ma_window}日均量×1.5倍
-  波段结束：昨收 >= 昨中轨 且 今收 < 今中轨
+  超强势开启：昨收 <= 昨中轨 且 今收 > 今中轨 且 量 > {vol_ma_window}日均量×1.5倍 且 中轨向上
+  强势开启：昨收 <= 昨中轨 且 今收 > 今中轨 且 量 > {vol_ma_window}日均量×1.5倍
+  波段结束：昨收 > 昨中轨 且 今收 < 今中轨
   可操作区：收盘 > 中轨 且 中轨向上倾斜
   喇叭口加速上行：上下轨反向张开 且 带宽单日放大>10% 且 处于可操作区""")
     print("========================================\n")
@@ -130,15 +135,18 @@ async def get_boll_rule_cn(stock_info: StockInfo, limit=400, vol_ma_window=50) -
     latest = df.sort_index(ascending=False).iloc[0]
     latest_date = latest.name.strftime('%Y-%m-%d')
 
-    strong_start_rows = df[df['strong_start_signal']].sort_index(ascending=False).head(3)
+    super_strong_start_rows = df[df['super_strong_start_signal']].sort_index(ascending=False).head(3)
+    strong_start_rows = df[df['strong_start_signal'] & ~df['super_strong_start_signal']].sort_index(ascending=False).head(3)
     wave_end_rows     = df[df['wave_end_signal']].sort_index(ascending=False).head(3)
 
     result = {
         '最新交易日': latest_date,
+        f'超强势开启信号（{latest_date}）': bool(latest['super_strong_start_signal']),
         f'强势开启信号（{latest_date}）': bool(latest['strong_start_signal']),
         f'波段结束信号（{latest_date}）': bool(latest['wave_end_signal']),
         f'可操作区（{latest_date}）':    bool(latest['is_operable_zone']),
         f'喇叭口加速上行（{latest_date}）': bool(latest['is_accelerating_up']),
+        '历史超强势开启信号（最近3次）': [to_row(date, row) for date, row in super_strong_start_rows.iterrows()],
         '历史强势开启信号（最近3次）': [to_row(date, row) for date, row in strong_start_rows.iterrows()],
         '历史波段结束信号（最近3次）': [to_row(date, row) for date, row in wave_end_rows.iterrows()],
     }
