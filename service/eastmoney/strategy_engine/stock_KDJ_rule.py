@@ -24,9 +24,9 @@ def _build_dataframe(klines: list) -> pd.DataFrame:
 def identify_kdj_signals(df: pd.DataFrame, n=9, s1=3, s2=3, blunt_n=3, defense_line=None) -> pd.DataFrame:
     """
     KDJ 法则（微观动能）
-    买入：超卖区（K<20, D<20, J<0）金叉
-    卖出（钝化）：K>80 连续 blunt_n 天，收盘跌破 MA5/MA20/defense_line → Sell (Blunted Exit)
-    卖出（普通）：超买区（K>80, D>80, J>100）死叉 → Sell (Standard)
+    买入：过去5天内曾进入超卖区（K<20, D<20, J<0），且发生金叉（昨日K<=昨日D，今日K>今日D），且今日J>昨日J → Buy
+    卖出（钝化）：K>80 连续 blunt_n 天（is_high_blunted），收盘跌破 MA5/MA20 或 defense_line → Sell (Blunted Exit)；防守线未破则持股死捂，死叉信号被屏蔽
+    卖出（普通）：非钝化状态下，过去5天内曾进入超买区（K>80, D>80, J>100），且发生死叉（昨日K>=昨日D，今日K<今日D）→ Sell (Standard)
     """
     low_n  = df['low'].rolling(n).min()
     high_n = df['high'].rolling(n).max()
@@ -41,13 +41,19 @@ def identify_kdj_signals(df: pd.DataFrame, n=9, s1=3, s2=3, blunt_n=3, defense_l
     df['is_oversold']  = (df['K'] < 20) & (df['D'] < 20) & (df['J'] < 0)
     df['is_overbought'] = (df['K'] > 80) & (df['D'] > 80) & (df['J'] > 100)
     df['is_high_blunted'] = (df['K'] > 80).rolling(window=blunt_n).sum() == blunt_n
+    # 过去5天内曾进入超卖/超买区，宽松捕捉金叉/死叉前的极端背景
+    df['recently_oversold']   = df['is_oversold'].rolling(window=5).max().astype(bool)
+    df['recently_overbought'] = df['is_overbought'].rolling(window=5).max().astype(bool)
 
     df['signal'] = 'Hold'
     for i in range(1, len(df)):
         cond_gold_cross = (df.iloc[i-1]['K'] <= df.iloc[i-1]['D']) and (df.iloc[i]['K'] > df.iloc[i]['D'])
         cond_dead_cross = (df.iloc[i-1]['K'] >= df.iloc[i-1]['D']) and (df.iloc[i]['K'] < df.iloc[i]['D'])
+        cond_j_up = df.iloc[i]['J'] > df.iloc[i-1]['J']
+        in_oversold_zone = df.iloc[i]['recently_oversold']
+        in_overbought_zone = df.iloc[i]['recently_overbought']
 
-        if df.iloc[i]['is_oversold'] and cond_gold_cross:
+        if in_oversold_zone and cond_gold_cross and cond_j_up:
             df.iloc[i, df.columns.get_loc('signal')] = 'Buy'
         elif df.iloc[i]['is_high_blunted']:
             close = df.iloc[i]['close']
@@ -55,20 +61,20 @@ def identify_kdj_signals(df: pd.DataFrame, n=9, s1=3, s2=3, blunt_n=3, defense_l
             defense_broken = (defense_line is not None) and (close < defense_line)
             if ma_broken or defense_broken:
                 df.iloc[i, df.columns.get_loc('signal')] = 'Sell (Blunted Exit)'
-        elif cond_dead_cross and df.iloc[i]['is_overbought']:
+        elif cond_dead_cross and in_overbought_zone and not df.iloc[i]['is_high_blunted']:
             df.iloc[i, df.columns.get_loc('signal')] = 'Sell (Standard)'
 
     return df
 
 
-async def get_kdj_rule(stock_info: StockInfo, limit=400, n=9, s1=3, s2=3, blunt_n=3, defense_line=None) -> pd.DataFrame:
+async def get_kdj_rule(stock_info: StockInfo, limit=800, n=9, s1=3, s2=3, blunt_n=3, defense_line=None) -> pd.DataFrame:
     """获取股票日K线并返回含 KDJ 信号列的 DataFrame"""
     klines = await get_stock_day_range_kline(stock_info, limit=limit)
     df = _build_dataframe(klines)
     return identify_kdj_signals(df, n, s1, s2, blunt_n, defense_line)
 
 
-async def get_kdj_rule_cn(stock_info: StockInfo, limit=400, n=9, s1=3, s2=3, blunt_n=3, defense_line=None) -> dict:
+async def get_kdj_rule_cn(stock_info: StockInfo, limit=800, n=9, s1=3, s2=3, blunt_n=3, defense_line=None) -> dict:
     """获取 KDJ 信号，返回中文 key 的 JSON 结构"""
     klines = await get_stock_day_range_kline(stock_info, limit=limit)
     df = _build_dataframe(klines)
@@ -126,7 +132,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('北方华创')
+        stock_info: StockInfo = get_stock_info_by_name('中国卫通')
         import json
         result = await get_kdj_rule_cn(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
