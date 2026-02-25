@@ -1,6 +1,6 @@
 import asyncio
 import pandas as pd
-from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache as get_stock_day_range_kline
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
 from service.eastmoney.technical.stock_day_volume_avg import get_volume_avg
 from common.utils.stock_info_utils import StockInfo
 
@@ -67,7 +67,7 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, re
 async def get_new_high_signals(stock_info: StockInfo, limit=400, lookback_window=60, vol_ma_window=50, vol_ratio=2.0) -> pd.DataFrame:
     """获取股票日K线并返回含信号列的 DataFrame，只保留有信号的行"""
     klines, vol_avg_records = await asyncio.gather(
-        get_stock_day_range_kline(stock_info, limit=limit),
+        get_stock_day_range_kline_by_db_cache(stock_info, limit=limit),
         get_volume_avg(stock_info, days=vol_ma_window, page_size=limit),
     )
     raw_df = _build_dataframe(klines)

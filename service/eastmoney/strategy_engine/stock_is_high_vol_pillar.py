@@ -1,6 +1,6 @@
 import asyncio
 import pandas as pd
-from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache as get_stock_day_range_kline
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
 from service.eastmoney.technical.stock_day_volume_avg import get_volume_avg
 from common.utils.stock_info_utils import StockInfo
 
@@ -47,7 +47,7 @@ def is_high_vol_pillar(df: pd.DataFrame, vol_ratio: float = 2.0) -> pd.Series:
 
 
 async def get_high_vol_pillars(stock_info: StockInfo, limit=400, vol_ma_window=50, vol_ratio=2.0) -> pd.DataFrame:
-    klines = await get_stock_day_range_kline(stock_info, limit=limit)
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=limit)
     df = build_dataframe(klines)
     await inject_vol_avg(df, stock_info, vol_ma_window, limit)
     mask = is_high_vol_pillar(df, vol_ratio)

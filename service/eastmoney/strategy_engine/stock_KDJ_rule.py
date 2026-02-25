@@ -1,6 +1,6 @@
 import asyncio
 import pandas as pd
-from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache as get_stock_day_range_kline
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
 from common.utils.stock_info_utils import StockInfo
 
 
@@ -69,14 +69,14 @@ def identify_kdj_signals(df: pd.DataFrame, n=9, s1=3, s2=3, blunt_n=3, defense_l
 
 async def get_kdj_rule(stock_info: StockInfo, limit=800, n=9, s1=3, s2=3, blunt_n=3, defense_line=None) -> pd.DataFrame:
     """获取股票日K线并返回含 KDJ 信号列的 DataFrame"""
-    klines = await get_stock_day_range_kline(stock_info, limit=limit)
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=limit)
     df = _build_dataframe(klines)
     return identify_kdj_signals(df, n, s1, s2, blunt_n, defense_line)
 
 
 async def get_kdj_rule_cn(stock_info: StockInfo, limit=800, n=9, s1=3, s2=3, blunt_n=3, defense_line=None) -> dict:
     """获取 KDJ 信号，返回中文 key 的 JSON 结构"""
-    klines = await get_stock_day_range_kline(stock_info, limit=limit)
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=limit)
     df = _build_dataframe(klines)
     df = identify_kdj_signals(df, n, s1, s2, blunt_n, defense_line)
 

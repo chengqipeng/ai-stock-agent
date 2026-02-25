@@ -1,6 +1,6 @@
 import asyncio
 import pandas as pd
-from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache as get_stock_day_range_kline
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
 from service.eastmoney.technical.stock_day_volume_avg import get_volume_avg
 from service.eastmoney.technical.stock_day_boll import calculate_bollinger_bands
 from common.utils.stock_info_utils import StockInfo
@@ -94,7 +94,7 @@ async def identify_boll_rule(stock_info: StockInfo, df: pd.DataFrame, vol_ma_win
 
 
 async def get_boll_rule(stock_info: StockInfo, limit=400, vol_ma_window=50) -> pd.DataFrame:
-    klines = await get_stock_day_range_kline(stock_info, limit=limit)
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=limit)
     df = _build_dataframe(klines)
     return await identify_boll_rule(stock_info, df, vol_ma_window, limit)
 
@@ -114,7 +114,7 @@ def _log_result(stock_name: str, df: pd.DataFrame, vol_ma_window: int) -> None:
 
 async def get_boll_rule_cn(stock_info: StockInfo, limit=400, vol_ma_window=50) -> dict:
     """获取布林线法则信号，返回中文 key 的 JSON 结构"""
-    klines = await get_stock_day_range_kline(stock_info, limit=limit)
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=limit)
     df = _build_dataframe(klines)
     df = await identify_boll_rule(stock_info, df, vol_ma_window, limit)
 

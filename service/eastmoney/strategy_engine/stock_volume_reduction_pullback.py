@@ -1,6 +1,6 @@
 import asyncio
 import pandas as pd
-from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache as get_stock_day_range_kline
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
 from service.eastmoney.technical.stock_day_boll import calculate_bollinger_bands
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.strategy_engine.stock_is_high_vol_pillar import is_high_vol_pillar, build_dataframe, inject_vol_avg
@@ -56,7 +56,7 @@ _CN_COLUMNS = {
 
 async def get_volume_reduction_pullback(stock_info: StockInfo, limit=400, vol_ma_window=50, vol_ratio=2.0) -> pd.DataFrame:
     """获取股票日K线并返回含信号列的 DataFrame"""
-    klines = await get_stock_day_range_kline(stock_info, limit=limit)
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=limit)
     df = build_dataframe(klines)
     return await identify_volume_reduction_pullback(stock_info, df, vol_ma_window, vol_ratio, limit)
 
@@ -84,7 +84,7 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, re
 
 async def get_volume_reduction_pullback_cn(stock_info: StockInfo, limit=400, vol_ma_window=50, vol_ratio=2.0) -> dict:
     """获取缩量回调信号，返回中文 key 的 JSON 结构"""
-    klines = await get_stock_day_range_kline(stock_info, limit=limit)
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=limit)
     raw_df = build_dataframe(klines)
     df = raw_df.copy()
     df = await identify_volume_reduction_pullback(stock_info, df, vol_ma_window, vol_ratio, limit)

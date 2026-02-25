@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(__file__))
 
-from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache as get_stock_day_range_kline
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.strategy_engine.stock_MACD_rule import calculate_macd_signals, _build_dataframe
 from common.constants.stocks_data import STOCKS
@@ -28,7 +28,7 @@ async def test_single_stock(stock_data: dict, index: int, total: int) -> dict:
             stock_name=stock_data['name']
         )
         
-        klines = await get_stock_day_range_kline(stock_info, limit=100)
+        klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=100)
         if not klines:
             result = {'index': index, 'name': stock_data['name'], 'code': stock_data['code'], 'status': 'NO_DATA'}
             print(f"[{index}/{total}] {stock_data['name']} ({stock_data['code']}) - 无数据")

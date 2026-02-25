@@ -1,7 +1,7 @@
 import asyncio
 import numpy as np
 import pandas as pd
-from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache as get_stock_day_range_kline
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
 from common.utils.stock_info_utils import StockInfo
 
 
@@ -206,7 +206,7 @@ def calculate_macd_signals(df: pd.DataFrame) -> pd.DataFrame:
 
 async def get_macd_signals(stock_info: StockInfo, limit: int = 400) -> pd.DataFrame:
     """获取股票日K线并返回含 MACD 信号列的 DataFrame"""
-    klines = await get_stock_day_range_kline(stock_info, limit=limit)
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=limit)
     df = _build_dataframe(klines)
     return calculate_macd_signals(df)
 
@@ -346,7 +346,7 @@ def _log_result(stock_name: str, df: pd.DataFrame) -> None:
 
 async def get_macd_signals_cn(stock_info: StockInfo, limit: int = 400) -> dict:
     """获取 MACD 信号，返回中文 key 的 JSON 结构"""
-    klines = await get_stock_day_range_kline(stock_info, limit=limit)
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=limit)
     df = _build_dataframe(klines)
     df = calculate_macd_signals(df)
 

@@ -1,6 +1,6 @@
 import asyncio
 import pandas as pd
-from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache as get_stock_day_range_kline
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
 from service.eastmoney.technical.stock_day_boll import calculate_bollinger_bands
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
@@ -159,7 +159,7 @@ def _build_result(df: pd.DataFrame, signal: bool, details: dict) -> dict:
 
 async def get_bottom_far_top_volume_indicates_cn(stock_info: StockInfo, limit=500, lookback_top=250, lookback_bot=60, window=11, top_n=10) -> list[dict]:
     """获取底量远超顶量信号，返回最近 top_n 个匹配的中文 key JSON 列表"""
-    klines = await get_stock_day_range_kline(stock_info, limit=limit)
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=limit)
     raw_df = _build_dataframe(klines)
     df = raw_df.copy()
 

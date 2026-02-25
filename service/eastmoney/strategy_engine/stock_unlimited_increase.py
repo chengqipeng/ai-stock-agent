@@ -1,6 +1,6 @@
 import asyncio
 import pandas as pd
-from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache as get_stock_day_range_kline
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
 from service.eastmoney.technical.stock_day_volume_avg import get_volume_avg
 from service.eastmoney.technical.stock_day_boll import calculate_bollinger_bands
 from common.utils.stock_info_utils import StockInfo
@@ -198,7 +198,7 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vo
 
 async def get_unlimited_increase(stock_info: StockInfo, limit=400, vol_ma_window=50, atr_window=14, vol_shrink_ratio=0.8, rsi_window=14, rsi_overbought=70, watch_days=5) -> tuple:
     klines, vol_avg_records, boll_records = await asyncio.gather(
-        get_stock_day_range_kline(stock_info, limit=limit),
+        get_stock_day_range_kline_by_db_cache(stock_info, limit=limit),
         get_volume_avg(stock_info, days=vol_ma_window, page_size=limit),
         calculate_bollinger_bands(stock_info),
     )
