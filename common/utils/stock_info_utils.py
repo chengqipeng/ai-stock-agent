@@ -51,6 +51,45 @@ def get_stock_info_by_name(stock_name):
         return None
 
 
+def get_stock_info_by_code(stock_code_normalize):
+    """
+    通过股票代码获取股票信息
+    
+    Args:
+        stock_code_normalize: 标准化股票代码，格式如 "000001.SZ" 或 "600000.SH"
+        
+    Returns:
+        StockInfo: 包含以下字段的对象:
+            - secid: 格式如 "0.000001" 或 "1.600000"
+            - stock_code: 格式如 "000001"
+            - stock_code_normalize: 格式如 "000001.SZ" 或 "600000.SH"
+            - stock_name: 股票名称
+            - indices_stock_code: 指数代码（如果有多个取最后一个）
+            - indices_stock_name: 指数名称（如果有多个取最后一个）
+        如果未找到则返回 None
+    """
+    try:
+        stock_code, market_suffix = stock_code_normalize.split('.')
+        market_prefix = "0" if market_suffix == "SZ" else "1"
+        secid = f"{market_prefix}.{stock_code}"
+        
+        # 从 STOCK_INDICES_DICT 中查找对应的股票信息
+        stock_data = STOCK_INDICES_DICT.get(stock_code_normalize)
+        if not stock_data:
+            return None
+            
+        stock_name = stock_data.get('name', '')
+        indices_codes = stock_data.get('indices_stock_codes', [])
+        indices_names = stock_data.get('indices_stock_names', [])
+        
+        indices_stock_code = indices_codes[-1] if indices_codes else None
+        indices_stock_name = indices_names[-1] if indices_names else None
+        
+        return StockInfo(secid, stock_code, stock_code_normalize, stock_name, indices_stock_code, indices_stock_name)
+    except (ValueError, AttributeError):
+        return None
+
+
 if __name__ == '__main__':
     # 测试有多个指数的股票
     stock_info = get_stock_info_by_name("聚和材料")
