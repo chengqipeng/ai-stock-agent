@@ -187,7 +187,7 @@ if __name__ == "__main__":
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         # 测试 JSON 格式
-        result = await get_fund_flow_history_json(stock_info)
+        result = await get_fund_flow_history(stock_info)
         print("资金流向历史数据 (JSON格式):")
         print(json.dumps(result, ensure_ascii=False, indent=2))
 

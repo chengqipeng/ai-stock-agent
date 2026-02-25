@@ -51,7 +51,7 @@ def get_dynamic_headers():
     
     # 随机添加可选头
     if random.choice([True, False]):
-        headers["Accept-Encoding"] = "gzip, deflate, br"
+        headers["Accept-Encoding"] = "gzip, deflate"
     if random.choice([True, False]):
         headers["DNT"] = "1"
     

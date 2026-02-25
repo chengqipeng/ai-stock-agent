@@ -8,7 +8,8 @@ from common.utils.stock_info_utils import StockInfo
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache, get_market_cache_key
 from service.auto_job.stock_history_klines_data import get_db_cache_kline_data
 
-_session_sn = random.randint(30, 50)
+_session_sn = [random.randint(30, 50)]
+_session_sn_db = [random.randint(30, 50)]
 
 # 已验证可用的真实设备指纹（固定不变，服务端已记录）
 _DEVICE_COOKIE_BASE = (
@@ -25,7 +26,7 @@ _DEVICE_COOKIE_BASE = (
 )
 
 
-async def get_stock_day_range_kline(stock_info: StockInfo, limit=400):
+async def get_stock_day_range_kline(stock_info: StockInfo, limit=400, headers=None):
     """获取股票日K线数据"""
     cache_path = get_cache_path(f"kline_{get_market_cache_key()}_{limit}", stock_info.stock_code)
 
@@ -48,34 +49,8 @@ async def get_stock_day_range_kline(stock_info: StockInfo, limit=400):
         "-": int(time.time() * 1000)
     }
 
-    global _session_sn
-    _session_sn += 1
-    chrome_minor = random.randint(0, 5)
-    user_agent = f"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.{chrome_minor}.0 Safari/537.36"
-    psi_base = f"{time.strftime('%Y%m%d%H%M%S', time.localtime())}{int(time.time()*1000)%1000:03d}-113200301201-{random.randint(10**9, 10**10 - 1)}"
-    page_tags = ["hqzx.hsjAghqdy.dtt.lcKx", "hqzx.hsjBghqdy.dtt.lcKx", "datacenter.eastmoney"]
-    st_asi = f"{psi_base}-{random.choice(page_tags)}-{random.randint(1, 5)}"
-    cookie = (
-        f"{_DEVICE_COOKIE_BASE};"
-        f" st_si={random.randint(10**13, 10**14 - 1)};"
-        f" st_sn={_session_sn};"
-        f" st_psi={psi_base};"
-        f" st_asi={st_asi}"
-    )
-    headers = {
-        "User-Agent": user_agent,
-        "Accept": "*/*",
-        "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
-        "Connection": "keep-alive",
-        "Referer": "https://quote.eastmoney.com/",
-        "Sec-Fetch-Dest": "script",
-        "Sec-Fetch-Mode": "no-cors",
-        "Sec-Fetch-Site": "same-site",
-        "sec-ch-ua": '"Not:A-Brand";v="99", "Google Chrome";v="145", "Chromium";v="145"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"macOS"',
-        "Cookie": cookie
-    }
+    if headers is None:
+        headers = _build_kline_headers()
     result = await fetch_eastmoney_api(url, params, headers)
     klines = result.get('data', {}).get('klines', [])
 
@@ -105,12 +80,73 @@ def _row_to_kline_str(row: dict) -> str:
     ))
 
 
+_DEVICE_COOKIE_BASE_DB = (
+    "qgqp_b_id=90ff9cece2b5376eed839c7647c1a384;"
+    " fullscreengg=1; fullscreengg2=1;"
+    " wsc_checkuser_ok=1;"
+    " st_nvi=n6EL37ab4Ot2XiHkr9ortd0ba;"
+    " nid18=0606199829d1b27a64dac4fe5cfe93f0;"
+    " nid18_create_time=1769727950836;"
+    " gviem=qZReeXKqixA2fVKlptEyAaac2;"
+    " gviem_create_time=1769727950836;"
+    " st_pvi=69810781945391;"
+    " st_sp=2026-02-21%2001%3A10%3A05"
+)
+
+
+def _build_headers(cookie_base: str, sn_ref: list, chrome_ver: int, extra_cookie: str = "", referer: str = "https://quote.eastmoney.com/", extra_headers: dict = None) -> dict:
+    sn_ref[0] += 1
+    chrome_minor = random.randint(0, 5)
+    user_agent = f"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver}.0.{chrome_minor}.0 Safari/537.36"
+    psi_base = f"{time.strftime('%Y%m%d%H%M%S', time.localtime())}{int(time.time()*1000)%1000:03d}-113200301201-{random.randint(10**9, 10**10 - 1)}"
+    page_tags = ["hqzx.hsjAghqdy.dtt.lcKx", "hqzx.hsjBghqdy.dtt.lcKx", "datacenter.eastmoney"]
+    st_asi = f"{psi_base}-{random.choice(page_tags)}-{random.randint(1, 5)}"
+    cookie = (
+        f"{cookie_base};"
+        f"{extra_cookie}"
+        f" st_si={random.randint(10**13, 10**14 - 1)};"
+        f" st_sn={sn_ref[0]};"
+        f" st_psi={psi_base};"
+        f" st_asi={st_asi}"
+    )
+    headers = {
+        "User-Agent": user_agent,
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+        "Connection": "keep-alive",
+        "Referer": referer,
+        "Sec-Fetch-Dest": "script",
+        "Sec-Fetch-Mode": "no-cors",
+        "Sec-Fetch-Site": "same-site",
+        "sec-ch-ua": f'"Not:A-Brand";v="99", "Google Chrome";v="{chrome_ver}", "Chromium";v="{chrome_ver}"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"macOS"',
+        "Cookie": cookie
+    }
+    if extra_headers:
+        headers.update(extra_headers)
+    return headers
+
+
+def _build_kline_headers() -> dict:
+    return _build_headers(_DEVICE_COOKIE_BASE, _session_sn, 145)
+
+
+def _build_db_cache_headers() -> dict:
+    return _build_headers(
+        _DEVICE_COOKIE_BASE_DB, _session_sn_db, 144,
+        extra_cookie=f" websitepoptg_api_time={int(time.time() * 1000)};",
+        referer="https://quote.eastmoney.com/sz002371.html",
+        extra_headers={"Cache-Control": "no-cache", "Pragma": "no-cache"}
+    )
+
+
 async def get_stock_day_range_kline_by_db_cache(stock_info: StockInfo, limit=400) -> list[str]:
     """优先从DB缓存获取K线数据，无数据则回退到网络请求"""
     rows = get_db_cache_kline_data(stock_info.stock_code_normalize, limit=limit)
     if rows:
         return [_row_to_kline_str(r) for r in rows]
-    return await get_stock_day_range_kline(stock_info, limit)
+    return await get_stock_day_range_kline(stock_info, limit, _build_db_cache_headers())
 
 
 async def get_stock_history_kline_max_min(stock_info: StockInfo, limit=400):
