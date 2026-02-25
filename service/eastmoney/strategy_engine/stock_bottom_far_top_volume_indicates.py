@@ -2,7 +2,7 @@ import asyncio
 import pandas as pd
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline
 from service.eastmoney.technical.stock_day_boll import calculate_bollinger_bands
-from common.utils.stock_info_utils import StockInfo
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
 
 def _build_dataframe(klines: list) -> pd.DataFrame:
@@ -203,7 +203,8 @@ async def scan_stocks_bottom_far_top_volume(limit_stocks=50) -> list[dict]:
 if __name__ == '__main__':
     async def main():
         import json
-        result = await scan_stocks_bottom_far_top_volume()
+        stock_info: StockInfo = get_stock_info_by_name('中国卫通')
+        result = await get_bottom_far_top_volume_indicates_cn(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
     asyncio.run(main())
