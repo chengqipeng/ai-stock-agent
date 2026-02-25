@@ -1,5 +1,8 @@
 import json
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 from common.utils.stock_info_utils import get_stock_info_by_name
 from service.auto_job.stock_history_highest_lowest_price_auto_job import output_file
@@ -123,7 +126,8 @@ async def get_top_strongest_stocks(days: int = 120, top_n: int = 10) -> list:
             
             stock['current_price'] = current_price
             stock['gain_pct'] = gain_pct
-        except:
+        except Exception as e:
+            logger.warning("Failed to get kline/realtime data for %s: %s", stock.get('name'), e)
             stock['current_price'] = None
             stock['gain_pct'] = None
     

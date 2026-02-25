@@ -51,7 +51,8 @@ def _load_failed_keys() -> Dict[str, List[int]]:
             data = json.load(f)
             current_month = datetime.now().strftime('%Y-%m')
             return {k: v for k, v in data.items() if k == current_month}
-    except:
+    except Exception as e:
+        logger.warning("Failed to load serpapi failed keys cache: %s", e)
         return {}
 
 def _save_failed_keys(failed_keys: List[int]):

@@ -1,6 +1,9 @@
 import json
+import logging
 
 from common.http.http_utils import fetch_eastmoney_api
+
+logger = logging.getLogger(__name__)
 from common.utils.amount_utils import convert_amount_unit, convert_amount_org_holder_2
 from datetime import datetime, timedelta
 
@@ -59,7 +62,8 @@ async def get_revenue_analysis_three_years(stock_info: StockInfo, page_size=200)
             try:
                 data = await get_revenue_analysis(stock_info, date, page_size)
                 all_data.extend(data)
-            except:
+            except Exception as e:
+                logger.warning("Failed to fetch revenue analysis for %s %s: %s", stock_info.stock_code_normalize, date, e)
                 pass
     
     # 转换为中文key
