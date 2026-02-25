@@ -1,3 +1,4 @@
+import json
 import time
 import random
 from datetime import datetime
@@ -96,13 +97,20 @@ def _parse_kline_fields(kline):
     }
 
 
-async def get_stock_day_range_kline_by_db_cache(stock_info: StockInfo, limit=400) -> list[dict]:
+def _row_to_kline_str(row: dict) -> str:
+    return ','.join(str(row[f]) for f in (
+        'date', 'open_price', 'close_price', 'high_price', 'low_price',
+        'trading_volume', 'trading_amount', 'amplitude', 'change_percent',
+        'change_amount', 'change_hand'
+    ))
+
+
+async def get_stock_day_range_kline_by_db_cache(stock_info: StockInfo, limit=400) -> list[str]:
     """优先从DB缓存获取K线数据，无数据则回退到网络请求"""
-    rows = get_db_cache_kline_data(stock_info.stock_code, limit=limit)
+    rows = get_db_cache_kline_data(stock_info.stock_code_normalize, limit=limit)
     if rows:
-        return rows
-    klines = await get_stock_day_range_kline(stock_info, limit)
-    return [_parse_kline_fields(k) for k in klines]
+        return [_row_to_kline_str(r) for r in rows]
+    return await get_stock_day_range_kline(stock_info, limit)
 
 
 async def get_stock_history_kline_max_min(stock_info: StockInfo, limit=400):
@@ -146,7 +154,7 @@ if __name__ == "__main__":
     async def main():
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
-        result = await get_stock_52week_high_low(stock_info)
-        print(f"{result['latest_date']}")
+        result = await get_stock_day_range_kline(stock_info)
+        print(json.dumps(result[:2], ensure_ascii=False))
 
     asyncio.run(main())
