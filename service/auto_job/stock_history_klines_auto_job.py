@@ -154,7 +154,9 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
         return
 
     latest_db_date = get_latest_db_date(db_path, stock_code)
-    fetch_limit = max((date.today() - latest_db_date).days + 1, 1) if latest_db_date else limit
+    # fetch_limit 基于最早缺失日期到今天的自然日数，+5作为缓冲确保覆盖所有缺失交易日
+    earliest_missing = missing_days[-1]  # missing_days 降序，最后一个是最早的
+    fetch_limit = (date.today() - earliest_missing).days + 5 if latest_db_date else limit
 
     klines = None
     for attempt in range(1, 11):
@@ -178,17 +180,29 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
     cursor = conn.cursor()
     table_name = f"kline_{stock_code.replace('.', '_')}"
     create_kline_table(cursor, table_name)
+    saved_dates = set()
     for kline_str in klines:
         try:
-            insert_or_update_kline_data(cursor, table_name, parse_kline_data(kline_str))
+            kline_data = parse_kline_data(kline_str)
+            insert_or_update_kline_data(cursor, table_name, kline_data)
+            saved_dates.add(date.fromisoformat(kline_data['date']))
         except Exception as e:
             print(f"解析K线数据失败 {stock_code}: {e}")
+    # 停牌日处理：缺失日期在API返回数据中也不存在，说明是停牌日，插入占位记录避免重复拉取
+    for d in missing_days:
+        if d not in saved_dates:
+            cursor.execute(f'''
+                INSERT OR IGNORE INTO {table_name}
+                (date, open_price, close_price, high_price, low_price, trading_volume,
+                 trading_amount, amplitude, change_percent, change_amount, change_hand)
+                VALUES (?, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+            ''', (d.isoformat(),))
     conn.commit()
     conn.close()
 
     counter['success'] += 1
     print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 完成，本次查询{len(klines)}条")
-    await asyncio.sleep(2)
+    await asyncio.sleep(3)
 
 
 async def run_stock_klines_job(limit=800, max_concurrent=1):
