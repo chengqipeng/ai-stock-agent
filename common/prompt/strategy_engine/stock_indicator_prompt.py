@@ -80,6 +80,14 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 * **2. KDJ数据**：{json.dumps(kdj_rule_kdj, ensure_ascii=False, indent=2)}
 * **3. BOLL数据**：{json.dumps(boll_rule_boll, ensure_ascii=False, indent=2)}
 * **4. 近{data_num}日交易数据**：{json.dumps(stock_day_kline, ensure_ascii=False, indent=2)}
+
+[最终输出] 只能输出json格式数据：
+{{
+  'stock_code': '<股票代码>',
+  'stock_name': '<股票名称>',
+  'grade': '积极买入 / 逢低建仓 / 持股待涨 / 逢高减仓 / 清仓离场 / 保持观望',
+  'content': '<结构化综合分析报告要求，80字以内>'
+}}
 """
 
 
@@ -88,7 +96,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('中国卫通')
+        stock_info: StockInfo = get_stock_info_by_name('生益科技')
         print(await get_stock_indicator_prompt(stock_info))
 
     asyncio.run(main())
