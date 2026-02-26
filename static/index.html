@@ -379,7 +379,7 @@
                             <th style="padding: 6px; text-align: center; min-width: 120px;">L维</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">I维</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">M维</th>
-                            <th style="padding: 6px; text-align: left; min-width: 100px; max-width: 150px;">整体分析</th>
+                            <!-- <th style="padding: 6px; text-align: left; min-width: 100px; max-width: 150px;">整体分析</th> -->
                         </tr>
                     </thead>
                     <tbody id="stockResultList"></tbody>
@@ -845,7 +845,7 @@
                             ${stock.m_deep_score ? `<button onclick="showPrompt('${stockKey}', 'm_deep_score_prompt', 'M')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
                     </td>
-                    <td style="padding: 6px; min-width: 100px; max-width: 150px; vertical-align: top;">
+                    <!-- <td style="padding: 6px; min-width: 100px; max-width: 150px; vertical-align: top;">
                         <div style="min-height: 20px;">${stock.overall_grade ? `<span style="font-weight: 600; font-size: 11px; color: ${{'强烈买入':'#e53935','列入核心观察名单':'#fb8c00','保持观望':'#1e88e5','坚决规避':'#757575'}[stock.overall_grade] || '#333'}">${stock.overall_grade}</span>` : ''}</div>
                         <div style="min-height: 20px;"></div>
                         ${stock.has_overall ? `
@@ -854,7 +854,7 @@
                                 <button onclick="showPrompt('${stockKey}', 'overall', '整体分析', 'overall_prompt')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">整体提示词</button>
                             </div>
                         ` : '-'}
-                    </td>
+                    </td> -->
 
                 </tr>
                 `;
