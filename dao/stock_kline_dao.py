@@ -46,6 +46,7 @@ def create_kline_table(cursor, table_name):
             UNIQUE(date)
         )
     ''')
+    cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_{table_name}_date ON {table_name}(date)')
 
 
 def parse_kline_data(kline_str):
@@ -88,6 +89,21 @@ def insert_or_update_kline_data(cursor, table_name, kline_data):
     ))
 
 
+def batch_insert_or_update_kline_data(cursor, table_name, kline_data_list):
+    now_cst = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
+    cursor.executemany(f'''
+        INSERT OR REPLACE INTO {table_name}
+        (date, open_price, close_price, high_price, low_price, trading_volume,
+         trading_amount, amplitude, change_percent, change_amount, change_hand, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', [
+        (d['date'], d['open_price'], d['close_price'], d['high_price'], d['low_price'],
+         d['trading_volume'], d['trading_amount'], d['amplitude'], d['change_percent'],
+         d['change_amount'], d['change_hand'], now_cst)
+        for d in kline_data_list
+    ])
+
+
 def insert_suspension_day(cursor, table_name, d: date):
     """插入停牌日占位记录"""
     cursor.execute(f'''
@@ -98,11 +114,18 @@ def insert_suspension_day(cursor, table_name, d: date):
     ''', (d.isoformat(),))
 
 
+def _open_conn(db_path):
+    conn = sqlite3.connect(db_path)
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA synchronous=NORMAL')
+    return conn
+
+
 def get_latest_db_date(db_path, stock_code):
     """获取数据库中该股票最新K线日期"""
     table_name = f"kline_{stock_code.replace('.', '_')}"
     try:
-        conn = sqlite3.connect(db_path)
+        conn = _open_conn(db_path)
         cursor = conn.cursor()
         cursor.execute(f"SELECT MAX(date) FROM {table_name}")
         row = cursor.fetchone()
@@ -144,30 +167,28 @@ def get_missing_trading_days(db_path, stock_code, n=20):
 
     table_name = f"kline_{stock_code.replace('.', '_')}"
     start = min(trading_days).isoformat()
+    today_iso = today.isoformat()
     try:
-        conn = sqlite3.connect(db_path)
+        conn = _open_conn(db_path)
         cursor = conn.cursor()
-        cursor.execute(f"SELECT date FROM {table_name} WHERE date >= ?", (start,))
-        existing = {date.fromisoformat(row[0]) for row in cursor.fetchall()}
+        cursor.execute(
+            f"SELECT date, updated_at FROM {table_name} WHERE date >= ?", (start,)
+        )
+        rows = cursor.fetchall()
         conn.close()
+        existing = {date.fromisoformat(r[0]) for r in rows}
+        today_updated_at = next((r[1] for r in rows if r[0] == today_iso), None)
     except sqlite3.OperationalError:
         existing = set()
+        today_updated_at = None
 
     missing = trading_days - existing
     if today in trading_days and (in_trading or after_close):
         if in_trading:
             missing.add(today)
         elif after_close and today not in missing:
-            try:
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
-                cursor.execute(f"SELECT updated_at FROM {table_name} WHERE date=?", (today.isoformat(),))
-                row = cursor.fetchone()
-                conn.close()
-                if row and row[0] < f"{today.isoformat()} 15:00:00":
-                    missing.add(today)
-            except sqlite3.OperationalError:
-                pass
+            if today_updated_at and today_updated_at < f"{today_iso} 15:00:00":
+                missing.add(today)
     if not in_trading and not after_close:
         missing.discard(today)
 
@@ -189,7 +210,7 @@ def get_kline_data(stock_code: str, start_date: str = None, end_date: str = None
     """
     table_name = f"kline_{stock_code.replace('.', '_')}"
     db_path = get_db_path_for_stock(stock_code)
-    conn = sqlite3.connect(db_path)
+    conn = _open_conn(db_path)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 

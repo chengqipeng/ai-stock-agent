@@ -7,9 +7,9 @@ from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_rang
 from common.utils.stock_info_utils import get_stock_info_by_code
 from dao.stock_kline_dao import (
     get_db_path_for_stock, get_missing_trading_days, get_latest_db_date,
-    create_kline_table, parse_kline_data, insert_or_update_kline_data, insert_suspension_day
+    create_kline_table, parse_kline_data, batch_insert_or_update_kline_data, insert_suspension_day,
+    _open_conn
 )
-import sqlite3
 
 _CST = ZoneInfo("Asia/Shanghai")
 
@@ -21,14 +21,15 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
         counter['failed'] += 1
         return
 
+    t_start = asyncio.get_event_loop().time()
     missing_days = get_missing_trading_days(db_path, stock_code)
+    latest_db_date = get_latest_db_date(db_path, stock_code)
+    t_dao = asyncio.get_event_loop().time()
     if not missing_days:
-        latest_db_date = get_latest_db_date(db_path, stock_code)
-        print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 最新数据日期是{latest_db_date}，无需拉取数据")
+        print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 最新数据日期是{latest_db_date}，无需拉取数据 dao耗时{t_dao-t_start:.2f}s")
         counter['success'] += 1
         return
 
-    latest_db_date = get_latest_db_date(db_path, stock_code)
     earliest_missing = missing_days[-1]
     today_cst = datetime.now(_CST).date()
     fetch_limit = (today_cst - earliest_missing).days + 5 if latest_db_date else limit
@@ -53,26 +54,30 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
         counter['failed'] += 1
         return
 
-    conn = sqlite3.connect(db_path)
+    conn = _open_conn(db_path)
     cursor = conn.cursor()
+    t_db_start = asyncio.get_event_loop().time()
     table_name = f"kline_{stock_code.replace('.', '_')}"
     create_kline_table(cursor, table_name)
     saved_dates = set()
+    parsed_list = []
     for kline_str in klines:
         try:
             kline_data = parse_kline_data(kline_str)
-            insert_or_update_kline_data(cursor, table_name, kline_data)
+            parsed_list.append(kline_data)
             saved_dates.add(date.fromisoformat(kline_data['date']))
         except Exception as e:
             print(f"解析K线数据失败 {stock_code}: {e}")
+    batch_insert_or_update_kline_data(cursor, table_name, parsed_list)
     for d in missing_days:
         if d not in saved_dates:
             insert_suspension_day(cursor, table_name, d)
     conn.commit()
     conn.close()
+    t_db_end = asyncio.get_event_loop().time()
 
     counter['success'] += 1
-    print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 完成，本次查询{len(klines)}条，耗时{elapsed:.2f}s")
+    print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 完成，本次查询{len(klines)}条，网络{elapsed:.2f}s dao{t_dao-t_start:.2f}s 写db{t_db_end-t_db_start:.2f}s")
     # await asyncio.sleep(1)
 
 
