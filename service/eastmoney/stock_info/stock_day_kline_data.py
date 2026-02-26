@@ -10,6 +10,7 @@ from service.auto_job.stock_history_klines_data import get_db_cache_kline_data
 
 _session_sn = [random.randint(30, 50)]
 _session_sn_db = [random.randint(30, 50)]
+_kline_headers_index = [0]
 
 # 已验证可用的真实设备指纹（固定不变，服务端已记录）
 _DEVICE_COOKIE_BASE = (
@@ -49,10 +50,25 @@ async def get_stock_day_range_kline(stock_info: StockInfo, limit=400, headers=No
         "-": int(time.time() * 1000)
     }
 
-    if headers is None:
-        headers = _build_kline_headers()
-    result = await fetch_eastmoney_api(url, params, headers)
-    klines = result.get('data', {}).get('klines', [])
+    builders = [_build_kline_headers, _build_db_cache_headers, _build_db_cache_headers_safari]
+    if headers is not None:
+        result = await fetch_eastmoney_api(url, params, headers)
+        klines = result.get('data', {}).get('klines', [])
+    else:
+        start = _kline_headers_index[0] % len(builders)
+        _kline_headers_index[0] += 1
+        last_exc = None
+        klines = []
+        for i in range(len(builders)):
+            try:
+                result = await fetch_eastmoney_api(url, params, builders[(start + i) % len(builders)]())
+                klines = result.get('data', {}).get('klines', [])
+                last_exc = None
+                break
+            except Exception as e:
+                last_exc = e
+        if last_exc:
+            raise last_exc
 
     save_cache(cache_path, klines)
     return klines
