@@ -80,8 +80,8 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
   'stock_name': '<股票名称>',
   'not_hold_grade': '<未持有建议，积极买入 / 逢低建仓 / 持股待涨 / 逢高减仓 / 清仓离场 / 保持观望>',
   'hold_grade': '<持有建议，积极买入 / 逢低建仓 / 持股待涨 / 逢高减仓 / 清仓离场 / 保持观望>',
-  'not_hold_content': '<深度分析未持有应该怎么操作，若为积极买入 / 逢低建仓 / 保持观望时需要提供合理买入点建议，必须输出选择not_hold_grade的原因，200字以内>'
-  'hold_content': '<深度分析持有应该怎么操作，若为持股待涨 / 逢高减仓 / 清仓离场时需要提供合理卖出点建议，必须输出选择hold_grade的原因，200字以内>'
+  'not_hold_content': '<深度分析未持有应该怎么操作，结合MACD、KDJ、BOLL、近日交易数据指标，若为积极买入 / 逢低建仓 / 保持观望时需要提供合理买入点建议，必须输出选择not_hold_grade的原因，200字以内>'
+  'hold_content': '<深度分析持有应该怎么操作，结合MACD、KDJ、BOLL、近日交易数据指标，若为持股待涨 / 逢高减仓 / 清仓离场时需要提供合理卖出点建议，必须输出选择hold_grade的原因，200字以内>'
 }}
 """
 
