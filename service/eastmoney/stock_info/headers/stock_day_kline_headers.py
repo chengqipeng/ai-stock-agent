@@ -9,16 +9,15 @@ kline_headers_index = [0]
 
 # 已验证可用的真实设备指纹（固定不变，服务端已记录）
 _DEVICE_COOKIE_BASE = (
-    "qgqp_b_id=f4748f77325434072983eb6c8d3b1787;"
-    " websitepoptg_api_time=1771929823568;"
-    " st_nvi=mGKfIoG14uDZGoXVC5f25e1e4;"
-    " nid18=0f512d6ee90e691d53d979bde12a1561;"
-    " nid18_create_time=1771929823775;"
-    " gviem=HLIMP8z85-dn3-VQzTHLLcfbb;"
-    " gviem_create_time=1771929823775;"
+    "qgqp_b_id=b1e3f7a2c4d6e8f0a1b2c3d4e5f60718;"
     " fullscreengg=1; fullscreengg2=1;"
-    " st_pvi=37471974443836;"
-    " st_sp=2026-02-24%2018%3A43%3A43"
+    " st_nvi=Kc3TmNpQrSuVwXyZaB4dE5fG6;"
+    " nid18=7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b;"
+    " nid18_create_time=1771200000000;"
+    " gviem=Lh7JkMnOpQrStUvWxYzAb8Cd9;"
+    " gviem_create_time=1771200000000;"
+    " st_pvi=83726451908273;"
+    " st_sp=2026-03-10%2014%3A30%3A00"
 )
 
 _DEVICE_COOKIE_SAFARI = (
@@ -94,7 +93,10 @@ def _build_headers(cookie_base: str, sn_ref: list, chrome_ver: int, extra_cookie
 
 
 def build_kline_headers() -> dict:
-    return _build_headers(_DEVICE_COOKIE_BASE, _session_sn, 145)
+    return _build_headers(
+        _DEVICE_COOKIE_BASE, _session_sn, 137,
+        referer="https://quote.eastmoney.com/sz300750.html"
+    )
 
 
 def build_db_cache_headers() -> dict:
