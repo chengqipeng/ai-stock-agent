@@ -428,7 +428,11 @@ def extract_grade_and_content(result: str):
             clean = re.sub(r'\n```\s*$', '', clean)
         clean = clean.strip()
         if clean.startswith('{'):
-            data = json.loads(clean)
+            try:
+                data = json.loads(clean)
+            except json.JSONDecodeError:
+                import ast
+                data = ast.literal_eval(clean)
             return data.get('grade', ''), data.get('content', '')
     except Exception as e:
         logger.error("Error extracting grade/content: %s", e)
