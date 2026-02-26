@@ -1,5 +1,6 @@
 import re
 import json
+import asyncio
 import logging
 import aiohttp
 from datetime import date, timedelta
@@ -32,8 +33,12 @@ def _build_dates(start: str, sort_year: list, dates_str: str) -> list[str]:
 def _decode_prices(price_str: str, price_factor: int) -> list[tuple]:
     """
     解码同花顺价格数据，每4个数字一组：
-      [open*pf, (close-open)*pf, (high-close)*pf, (close-low)*pf]
-    返回 (open, close, high, low) 列表，单位：元
+      chunk = [prev_close*pf, (open-prev_close)*pf, (high-prev_close)*pf, (open-low)*pf]
+    对齐东方财富价格体系：
+      open  = (chunk[0]+chunk[1]) / pf
+      close = 由last.js覆盖，占位用(chunk[0]+chunk[1]-chunk[3])/pf
+      high  = (chunk[0]+chunk[2]) / pf
+      low   =  chunk[0] / pf
     """
     nums = list(map(int, price_str.split(",")))
     records = []
@@ -41,17 +46,45 @@ def _decode_prices(price_str: str, price_factor: int) -> list[tuple]:
         chunk = nums[i:i + 4]
         if len(chunk) < 4:
             break
-        open_i  = chunk[0]
-        close_i = open_i  + chunk[1]
-        high_i  = close_i + chunk[2]
-        low_i   = close_i - chunk[3]
+        prev    = chunk[0]
+        open_i  = prev + chunk[1]
+        high_i  = prev + chunk[2]
+        close_i = open_i - chunk[3]  # 占位，会被last.js覆盖
         records.append((
             round(open_i  / price_factor, 2),
             round(close_i / price_factor, 2),
             round(high_i  / price_factor, 2),
-            round(low_i   / price_factor, 2),
+            round(prev    / price_factor, 2),
         ))
     return records
+
+
+async def _fetch_raw(url: str, cache_key: str, code: str) -> dict:
+    cache_path = get_cache_path(cache_key, code)
+    data = load_cache(cache_path)
+    if not data:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=_HEADERS) as resp:
+                text = await resp.text()
+        json_text = re.sub(r"^\w+\(", "", text)
+        json_text = re.sub(r"\);?\s*$", "", json_text)
+        data = json.loads(json_text)
+        save_cache(cache_path, data)
+    return data
+
+
+def _build_nofq_map(last_data: dict) -> dict[str, dict]:
+    """从last.js不复权数据构建 {YYYYMMDD: {close, amount, turnover}} 映射"""
+    result = {}
+    for row in last_data.get("data", "").strip().split(";"):
+        parts = row.split(",")
+        if len(parts) >= 8 and parts[4]:
+            result[parts[0]] = {
+                "close":    float(parts[4]),
+                "amount":   float(parts[6]),
+                "turnover": float(parts[7]) if parts[7] else None,
+            }
+    return result
 
 
 def _latest_trading_day() -> date:
@@ -79,6 +112,7 @@ async def _get_today_kline(stock_code: str) -> dict | None:
             "high_price":     float(item.get("8", close_p)),
             "low_price":      float(item.get("9", close_p)),
             "trading_volume": volume,
+            "trading_amount": float(item["19"]) if item.get("19") else None,
             "change_hand":    float(item["1968584"]) if item.get("1968584") else None,
         }
     except Exception as e:
@@ -89,33 +123,23 @@ async def _get_today_kline(stock_code: str) -> dict | None:
 async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) -> list[dict]:
     """
     从同花顺获取日K线数据，返回最近 limit 条记录（由旧到新排列）。
-
-    每条记录包含：date, open_price, close_price, high_price, low_price, trading_volume（手）, change_hand（换手率）
+    每条记录包含：date, open_price, close_price, high_price, low_price,
+                 trading_volume（手）, trading_amount, change_hand（换手率%）
     """
     market = "hs"
     code = stock_info.stock_code
-    url = f"https://d.10jqka.com.cn/v6/line/{market}_{code}/01/all.js"
 
-    cache_path = get_cache_path("day_kline_10jqka", code)
-    data = load_cache(cache_path)
-    if not data:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=_HEADERS) as resp:
-                text = await resp.text()
-        json_text = re.sub(r"^\w+\(", "", text)
-        json_text = re.sub(r"\);?\s*$", "", json_text)
-        data = json.loads(json_text)
-        save_cache(cache_path, data)
+    data, last_data = await asyncio.gather(
+        _fetch_raw(f"https://d.10jqka.com.cn/v6/line/{market}_{code}/01/all.js", "day_kline_10jqka", code),
+        _fetch_raw(f"https://d.10jqka.com.cn/v6/line/{market}_{code}/01/last.js", "day_nofq_10jqka", code),
+    )
+    nofq_map = _build_nofq_map(last_data)
 
     price_factor = data.get("priceFactor", 100)
     sort_year = data.get("sortYear", [])
-    dates_str = data.get("dates", "")
-    price_str = data.get("price", "")
-    volume_str = data.get("volumn", "")
-
-    dates = _build_dates(data.get("start", ""), sort_year, dates_str)
-    prices = _decode_prices(price_str, price_factor)
-    volumes = [int(v) // 100 for v in volume_str.split(",") if v]  # 股 -> 手
+    dates = _build_dates(data.get("start", ""), sort_year, data.get("dates", ""))
+    prices = _decode_prices(data.get("price", ""), price_factor)
+    volumes = [int(v) // 100 for v in data.get("volumn", "").split(",") if v]
 
     n = min(len(dates), len(prices), len(volumes))
     start = max(0, n - limit)
@@ -123,14 +147,16 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     result = []
     for i in range(start, n):
         open_p, close_p, high_p, low_p = prices[i]
+        nofq = nofq_map.get(dates[i], {})
         result.append({
             "date":           dates[i],
             "open_price":     open_p,
-            "close_price":    close_p,
+            "close_price":    nofq.get("close", close_p),
             "high_price":     high_p,
             "low_price":      low_p,
             "trading_volume": volumes[i],
-            "change_hand":    None,
+            "trading_amount": nofq.get("amount"),
+            "change_hand":    nofq.get("turnover"),
         })
 
     last_date = result[-1]["date"] if result else ""
@@ -144,13 +170,41 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     return result
 
 
+async def get_stock_day_kline_cn_10jqka(stock_info: StockInfo, limit: int = 400) -> list[dict]:
+    """获取日K线数据，返回中文key，与 get_stock_day_kline_cn 格式一致"""
+    klines = await get_stock_day_kline_10jqka(stock_info, limit)
+    result = []
+    for i, k in enumerate(klines):
+        prev_close = klines[i - 1]["close_price"] if i > 0 else None
+        if prev_close:
+            amplitude  = round((k["high_price"] - k["low_price"]) / prev_close * 100, 2)
+            change_pct = round((k["close_price"] - prev_close) / prev_close * 100, 2)
+            change_amt = round(k["close_price"] - prev_close, 2)
+        else:
+            amplitude = change_pct = change_amt = None
+        d = k["date"]
+        result.append({
+            "日期":       f"{d[:4]}-{d[4:6]}-{d[6:]}",
+            "开盘价":     k["open_price"],
+            "收盘价":     k["close_price"],
+            "最高价":     k["high_price"],
+            "最低价":     k["low_price"],
+            "成交量（手）": k["trading_volume"],
+            "成交额":     k.get("trading_amount"),
+            "振幅(%)": amplitude,
+            "涨跌幅(%)": change_pct,
+            "涨跌额":     change_amt,
+            "换手率(%)": k.get("change_hand"),
+        })
+    return result
+
+
 if __name__ == "__main__":
-    import asyncio
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
         stock_info = get_stock_info_by_name("北方华创")
-        klines = await get_stock_day_kline_10jqka(stock_info, limit=300)
+        klines = await get_stock_day_kline_cn_10jqka(stock_info, limit=400)
         print(json.dumps(klines, ensure_ascii=False, indent=2))
 
     asyncio.run(main())

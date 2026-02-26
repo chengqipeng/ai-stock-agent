@@ -105,10 +105,10 @@ async def get_stock_day_kline_cn(stock_info: StockInfo, limit=20) -> list[dict]:
             '最低价':     float(fields[4]),
             '成交量（手）': float(fields[5]),
             '成交额':     fields[6],
-            '振幅':       float(fields[7]),
-            '涨跌幅':     float(fields[8]),
+            '振幅(%)':       float(fields[7]),
+            '涨跌幅(%)':     float(fields[8]),
             '涨跌额':     float(fields[9]),
-            '换手率':     float(fields[10]),
+            '换手率(%)':     float(fields[10]),
         })
     return result
 
