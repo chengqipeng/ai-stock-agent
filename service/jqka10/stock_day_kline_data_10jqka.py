@@ -1,7 +1,9 @@
 import re
 import json
+import logging
 import aiohttp
-from datetime import date
+from datetime import date, timedelta
+from chinese_calendar import is_workday
 from common.utils.stock_info_utils import StockInfo
 from service.jqka10.stock_realtime_10jqka import get_today_trade_data
 
@@ -51,8 +53,16 @@ def _decode_prices(price_str: str, price_factor: int) -> list[tuple]:
     return records
 
 
+def _latest_trading_day() -> date:
+    """返回最近一个交易日（含今天）"""
+    d = date.today()
+    while d.weekday() >= 5 or not is_workday(d):
+        d -= timedelta(days=1)
+    return d
+
+
 async def _get_today_kline(stock_code: str) -> dict | None:
-    """从实时数据获取今日K线，若非交易日或数据不完整则返回 None"""
+    """从实时数据获取最近交易日K线，若数据不完整则返回 None"""
     try:
         raw = await get_today_trade_data(stock_code)
         item = raw.get(f"hs_{stock_code}", {})
@@ -70,7 +80,8 @@ async def _get_today_kline(stock_code: str) -> dict | None:
             "trading_volume": volume,
             "change_hand":    float(item["1968584"]) if item.get("1968584") else None,
         }
-    except Exception:
+    except Exception as e:
+        logging.getLogger(__name__).exception("_get_today_kline failed for %s: %s", stock_code, e)
         return None
 
 
@@ -119,8 +130,9 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
         })
 
     last_date = result[-1]["date"] if result else ""
+    latest_trading_day = _latest_trading_day().strftime("%Y%m%d")
     today_kline = await _get_today_kline(stock_info.stock_code)
-    if today_kline and today_kline["date"] > last_date:
+    if today_kline and today_kline["date"] == latest_trading_day and today_kline["date"] > last_date:
         result.append(today_kline)
         if len(result) > limit:
             result = result[-limit:]
