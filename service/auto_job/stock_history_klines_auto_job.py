@@ -224,24 +224,48 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
 
     counter['success'] += 1
     print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 完成，本次查询{len(klines)}条")
-    await asyncio.sleep(5)
+    await asyncio.sleep(2)
+
+
+def get_db_path_for_stock(db_dir: Path, stock_code: str) -> Path:
+    """
+    按股票代码分片规则返回对应的数据库路径。
+    分片规则（按交易所+板块）：
+      - stock_klines_sz_main.db : 深市主板  000xxx/001xxx/002xxx/003xxx .SZ
+      - stock_klines_sz_cyb.db  : 深市创业板 300xxx/301xxx/302xxx .SZ
+      - stock_klines_sh.db      : 沪市       所有 .SH
+      - stock_klines_other.db   : 其他（北交所等）
+    """
+    code_num = stock_code.split('.')[0]
+    exchange = stock_code.split('.')[-1].upper()
+    if exchange == 'SH':
+        return db_dir / 'stock_klines_sh.db'
+    if exchange == 'SZ':
+        prefix = int(code_num[:3])
+        if prefix >= 300:
+            return db_dir / 'stock_klines_sz_cyb.db'
+        if prefix < 1:
+            return db_dir / 'stock_klines_sz_000.db'
+        if prefix < 2:
+            return db_dir / 'stock_klines_sz_001.db'
+        return db_dir / 'stock_klines_sz_002.db'
+    return db_dir / 'stock_klines_other.db'
 
 
 async def run_stock_klines_job(limit=800, max_concurrent=1):
     """运行股票K线数据采集任务"""
-    # 创建数据库目录
     db_dir = Path(__file__).parent.parent.parent / "data_results/sql_lite"
     db_dir.mkdir(parents=True, exist_ok=True)
-    db_path = db_dir / "stock_klines.db"
-    
+
     print(f"开始采集股票K线数据，共 {len(STOCKS)} 只股票")
-    print(f"数据库路径: {db_path}")
-    
+    print(f"数据库目录: {db_dir}")
+
     semaphore = asyncio.Semaphore(max_concurrent)
     counter = {'total': len(STOCKS), 'success': 0, 'failed': 0}
 
     async def process_with_semaphore(stock):
         async with semaphore:
+            db_path = get_db_path_for_stock(db_dir, stock['code'])
             print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock['name']}] 开始查询")
             await process_stock_klines(stock['code'], stock['name'], str(db_path), limit, counter)
 

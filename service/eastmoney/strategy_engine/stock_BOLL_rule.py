@@ -154,13 +154,76 @@ async def get_boll_rule_cn(stock_info: StockInfo, limit=400, vol_ma_window=50) -
     return result
 
 
+async def get_boll_rule_boll_only(stock_info: StockInfo) -> dict:
+    """仅使用 BOLL 数据分析布林线信号，返回中文 key 的字典"""
+    boll_records = await calculate_bollinger_bands(stock_info)
+
+    df = pd.DataFrame(boll_records)
+    df.index = pd.to_datetime([r['date'] for r in boll_records])
+    df = df.rename(columns={'close_price': 'close', 'boll': 'MB', 'boll_ub': 'UP', 'boll_lb': 'DN'})
+    df = df.sort_index()
+
+    df['prev_close'] = df['close'].shift(1)
+    df['prev_MB']    = df['MB'].shift(1)
+    df['BW']         = (df['UP'] - df['DN']) / df['MB']
+    df['prev_BW']    = df['BW'].shift(1)
+    df['prev_UP']    = df['UP'].shift(1)
+    df['prev_DN']    = df['DN'].shift(1)
+
+    df['is_operable_zone'] = (df['close'] > df['MB']) & (df['MB'] > df['prev_MB'])
+    df['is_weak_zone']     = df['close'] < df['MB']
+    df['is_expanding']     = (df['UP'] > df['prev_UP']) & (df['DN'] < df['prev_DN']) & (df['BW'] > df['prev_BW'] * 1.1)
+    df['is_accelerating_up']   = df['is_expanding'] & df['is_operable_zone']
+    df['is_accelerating_down'] = df['is_expanding'] & df['is_weak_zone'] & (df['MB'] < df['prev_MB'])
+
+    df['cross_above_MB'] = (df['prev_close'] <= df['prev_MB']) & (df['close'] > df['MB'])
+    df['wave_end_signal'] = (df['prev_close'] > df['prev_MB']) & (df['close'] < df['MB'])
+
+    latest = df.sort_index(ascending=False).iloc[0]
+    latest_date = latest.name.strftime('%Y-%m-%d')
+
+    def to_row(date, row):
+        return {
+            '日期':     date.strftime('%Y-%m-%d'),
+            '收盘价':   round(row['close'], 2),
+            'BOLL':    round(row['MB'], 4),
+            'BOLL_UB': round(row['UP'], 4),
+            'BOLL_LB': round(row['DN'], 4),
+        }
+
+    def to_row_full(date, row):
+        return {
+            **to_row(date, row),
+            '突破中轨':      bool(row['cross_above_MB']),
+            '波段结束':      bool(row['wave_end_signal']),
+            '可操作区':      bool(row['is_operable_zone']),
+            '喇叭口加速上行': bool(row['is_accelerating_up']),
+            '喇叭口加速下行': bool(row['is_accelerating_down']),
+        }
+
+    cross_rows     = df[df['cross_above_MB']].sort_index(ascending=False).head(3)
+    wave_end_rows  = df[df['wave_end_signal']].sort_index(ascending=False).head(3)
+
+    return {
+        '最新交易日': latest_date,
+        f'突破中轨（{latest_date}）':    bool(latest['cross_above_MB']),
+        f'波段结束信号（{latest_date}）': bool(latest['wave_end_signal']),
+        f'可操作区（{latest_date}）':    bool(latest['is_operable_zone']),
+        f'喇叭口加速上行（{latest_date}）': bool(latest['is_accelerating_up']),
+        f'喇叭口加速下行（{latest_date}）': bool(latest['is_accelerating_down']),
+        '历史突破中轨（最近3次）':  [to_row(d, r) for d, r in cross_rows.iterrows()],
+        '历史波段结束（最近3次）':  [to_row(d, r) for d, r in wave_end_rows.iterrows()],
+        '明细数据': [to_row_full(d, r) for d, r in df.sort_index(ascending=False).head(50).iterrows()],
+    }
+
+
 if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
+    import json
 
     async def main():
         stock_info: StockInfo = get_stock_info_by_name('北方华创')
-        import json
-        result = await get_boll_rule_cn(stock_info)
+        result = await get_boll_rule_boll_only(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
     asyncio.run(main())

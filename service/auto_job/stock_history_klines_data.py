@@ -1,24 +1,42 @@
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent.parent / "data_results/sql_lite/stock_klines.db"
+_DB_DIR = Path(__file__).parent.parent.parent / "data_results/sql_lite"
+
+
+def _get_db_path(stock_code: str) -> Path:
+    code_num = stock_code.split('.')[0]
+    exchange = stock_code.split('.')[-1].upper()
+    if exchange == 'SH':
+        return _DB_DIR / 'stock_klines_sh.db'
+    if exchange == 'SZ':
+        prefix = int(code_num[:3])
+        if prefix >= 300:
+            return _DB_DIR / 'stock_klines_sz_cyb.db'
+        if prefix < 1:
+            return _DB_DIR / 'stock_klines_sz_000.db'
+        if prefix < 2:
+            return _DB_DIR / 'stock_klines_sz_001.db'
+        return _DB_DIR / 'stock_klines_sz_002.db'
+    return _DB_DIR / 'stock_klines_other.db'
 
 
 def get_db_cache_kline_data(stock_code: str, start_date: str = None, end_date: str = None, limit: int = None) -> list[dict]:
     """
     查询股票K线数据
-    
+
     Args:
         stock_code: 股票代码，如 "300812.SZ"
         start_date: 开始日期，如 "2024-01-01"（可选）
         end_date: 结束日期，如 "2024-12-31"（可选）
         limit: 返回条数限制（可选）
-    
+
     Returns:
         list[dict]: K线数据列表，按日期升序排列
     """
     table_name = f"kline_{stock_code.replace('.', '_')}"
-    conn = sqlite3.connect(DB_PATH)
+    db_path = _get_db_path(stock_code)
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 

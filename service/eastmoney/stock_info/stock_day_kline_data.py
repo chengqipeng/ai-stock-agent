@@ -149,6 +149,28 @@ async def get_stock_day_range_kline_by_db_cache(stock_info: StockInfo, limit=400
     return await get_stock_day_range_kline(stock_info, limit, _build_db_cache_headers())
 
 
+async def get_stock_day_kline_cn(stock_info: StockInfo, limit=20) -> list[dict]:
+    """获取K线数据，返回中文key，可指定条数"""
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=limit)
+    result = []
+    for kline in reversed(klines):
+        fields = kline.split(',')
+        result.append({
+            '日期':       fields[0],
+            '开盘价':     float(fields[1]),
+            '收盘价':     float(fields[2]),
+            '最高价':     float(fields[3]),
+            '最低价':     float(fields[4]),
+            '成交量（手）': float(fields[5]),
+            '成交额':     fields[6],
+            '振幅':       float(fields[7]),
+            '涨跌幅':     float(fields[8]),
+            '涨跌额':     float(fields[9]),
+            '换手率':     float(fields[10]),
+        })
+    return result
+
+
 async def get_stock_history_kline_max_min(stock_info: StockInfo, limit=400):
     klines = await get_stock_day_range_kline(stock_info, limit)
     result = {}
@@ -190,7 +212,7 @@ if __name__ == "__main__":
     async def main():
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
-        result = await get_stock_day_range_kline(stock_info)
-        print(json.dumps(result[:2], ensure_ascii=False))
+        result = await get_stock_day_kline_cn(stock_info, 50)
+        print(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

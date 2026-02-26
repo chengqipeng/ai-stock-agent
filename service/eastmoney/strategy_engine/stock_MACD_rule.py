@@ -394,13 +394,66 @@ async def get_macd_signals_cn(stock_info: StockInfo, limit: int = 400) -> dict:
     return result
 
 
+async def get_macd_signals_macd_only(stock_info: StockInfo, detail_limit: int = None) -> dict:
+    """仅使用 MACD 线数据分析信号，返回中文 key 的字典"""
+    from service.eastmoney.technical.stock_day_macd import calculate_macd
+
+    records = await calculate_macd(stock_info)
+    df = pd.DataFrame(records)
+    df.index = pd.to_datetime([r['date'] for r in records])
+    df = df.rename(columns={'macd': 'DIF', 'macds': 'DEA', 'macdh': 'MACD_Hist'})
+    df = df.sort_index()
+
+    prev_dif = df['DIF'].shift(1)
+    prev_dea = df['DEA'].shift(1)
+    df['金叉'] = (prev_dif <= prev_dea) & (df['DIF'] > df['DEA'])
+    df['死叉'] = (prev_dif >= prev_dea) & (df['DIF'] < df['DEA'])
+    df['零轴上金叉'] = df['金叉'] & (df['DIF'] > 0) & (df['DEA'] > 0)
+    df['零轴下死叉'] = df['死叉'] & (df['DIF'] < 0)
+    df['市场状态'] = np.where(
+        (df['DIF'] > 0) & (df['DEA'] > 0), '强多头',
+        np.where(df['DIF'] > 0, '弱多头',
+        np.where(df['DIF'] < 0, '空头', '中性'))
+    )
+
+    latest = df.sort_index(ascending=False).iloc[0]
+    latest_date = latest.name.strftime('%Y-%m-%d')
+
+    def to_row(date, row):
+        return {
+            '日期':    date.strftime('%Y-%m-%d'),
+            'DIF':     round(row['DIF'], 4),
+            'DEA':     round(row['DEA'], 4),
+            'MACD柱':  round(row['MACD_Hist'], 4),
+            '市场状态': row['市场状态'],
+        }
+
+    golden = df[df['金叉']].sort_index(ascending=False).head(3)
+    death  = df[df['死叉']].sort_index(ascending=False).head(3)
+
+    return {
+        '最新交易日': latest_date,
+        f'DIF（{latest_date}）':      round(latest['DIF'], 4),
+        f'DEA（{latest_date}）':      round(latest['DEA'], 4),
+        f'MACD柱（{latest_date}）':   round(latest['MACD_Hist'], 4),
+        f'市场状态（{latest_date}）':  latest['市场状态'],
+        f'金叉（{latest_date}）':      bool(latest['金叉']),
+        f'死叉（{latest_date}）':      bool(latest['死叉']),
+        f'零轴上金叉（{latest_date}）': bool(latest['零轴上金叉']),
+        f'零轴下死叉（{latest_date}）': bool(latest['零轴下死叉']),
+        '近期金叉（最近3次）': [to_row(d, r) for d, r in golden.iterrows()],
+        '近期死叉（最近3次）': [to_row(d, r) for d, r in death.iterrows()],
+        '明细数据': [to_row(d, r) for d, r in df.sort_index(ascending=False).head(detail_limit).iterrows()],
+    }
+
+
 if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
     import json
 
     async def main():
         stock_info: StockInfo = get_stock_info_by_name('中国卫通')
-        result = await get_macd_signals_cn(stock_info)
+        result = await get_macd_signals_macd_only(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
     asyncio.run(main())

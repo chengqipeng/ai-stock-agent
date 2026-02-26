@@ -128,13 +128,75 @@ def _log_result(stock_name: str, df: pd.DataFrame, result: dict, n: int, s1: int
     print("==========================================\n")
 
 
+async def get_kdj_rule_kdj_only(stock_info: StockInfo, n=9, s1=3, s2=3, blunt_n=3, defense_line=None) -> dict:
+    """仅使用 KDJ 数据分析信号，返回中文 key 的字典"""
+    from service.eastmoney.technical.stock_day_kdj import calculate_kdj
+
+    records = await calculate_kdj(stock_info, n=n, m1=s1, m2=s2)
+
+    df = pd.DataFrame(records)
+    df.index = pd.to_datetime([r['date'] for r in records])
+    df = df.rename(columns={'close_price': 'close', 'k': 'K', 'd': 'D', 'j': 'J'})
+    df = df.sort_index()
+
+    df['is_oversold']   = (df['K'] < 20) & (df['D'] < 20) & (df['J'] < 0)
+    df['is_overbought'] = (df['K'] > 80) & (df['D'] > 80) & (df['J'] > 100)
+    df['is_high_blunted'] = (df['K'] > 80).rolling(window=blunt_n).sum() == blunt_n
+    df['recently_oversold']   = df['is_oversold'].rolling(window=5).max().astype(bool)
+    df['recently_overbought'] = df['is_overbought'].rolling(window=5).max().astype(bool)
+
+    df['signal'] = 'Hold'
+    for i in range(1, len(df)):
+        cond_gold = (df.iloc[i-1]['K'] <= df.iloc[i-1]['D']) and (df.iloc[i]['K'] > df.iloc[i]['D'])
+        cond_dead = (df.iloc[i-1]['K'] >= df.iloc[i-1]['D']) and (df.iloc[i]['K'] < df.iloc[i]['D'])
+        cond_j_up = df.iloc[i]['J'] > df.iloc[i-1]['J']
+        if df.iloc[i]['recently_oversold'] and cond_gold and cond_j_up:
+            df.iloc[i, df.columns.get_loc('signal')] = 'Buy'
+        elif df.iloc[i]['is_high_blunted']:
+            if defense_line is not None and df.iloc[i]['close'] < defense_line:
+                df.iloc[i, df.columns.get_loc('signal')] = 'Sell (Blunted Exit)'
+        elif cond_dead and df.iloc[i]['recently_overbought'] and not df.iloc[i]['is_high_blunted']:
+            df.iloc[i, df.columns.get_loc('signal')] = 'Sell (Standard)'
+
+    latest = df.sort_index(ascending=False).iloc[0]
+    latest_date = latest.name.strftime('%Y-%m-%d')
+
+    def to_row(date, row):
+        return {
+            '日期': date.strftime('%Y-%m-%d'),
+            'K': round(float(row['K']), 2),
+            'D': round(float(row['D']), 2),
+            'J': round(float(row['J']), 2),
+            '收盘价': round(float(row['close']), 2),
+            '信号': row['signal'],
+        }
+
+    buy_rows  = df[df['signal'] == 'Buy'].sort_index(ascending=False).head(5)
+    sell_rows = df[df['signal'].str.startswith('Sell')].sort_index(ascending=False).head(5)
+
+    return {
+        '最新交易日': latest_date,
+        f'最新信号（{latest_date}）': latest['signal'],
+        'K': round(float(latest['K']), 2),
+        'D': round(float(latest['D']), 2),
+        'J': round(float(latest['J']), 2),
+        f'超卖区（{latest_date}）':  bool(latest['is_oversold']),
+        f'超买区（{latest_date}）':  bool(latest['is_overbought']),
+        f'高位钝化（{latest_date}）': bool(latest['is_high_blunted']),
+        '历史买入信号（最近5次）': [to_row(d, r) for d, r in buy_rows.iterrows()],
+        '历史卖出信号（最近5次）': [to_row(d, r) for d, r in sell_rows.iterrows()],
+        '最新数据': to_row(latest.name, latest),
+        '明细数据': [to_row(d, r) for d, r in df.sort_index(ascending=False).iterrows()],
+    }
+
+
 if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
         stock_info: StockInfo = get_stock_info_by_name('中国卫通')
         import json
-        result = await get_kdj_rule_cn(stock_info)
+        result = await get_kdj_rule_kdj_only(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
     asyncio.run(main())
