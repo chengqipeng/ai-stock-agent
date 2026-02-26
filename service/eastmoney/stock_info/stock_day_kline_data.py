@@ -80,6 +80,18 @@ def _row_to_kline_str(row: dict) -> str:
     ))
 
 
+_DEVICE_COOKIE_SAFARI = (
+    "qgqp_b_id=009fd27f95438f644f06c67d1affb630;"
+    " fullscreengg=1; fullscreengg2=1;"
+    " st_nvi=VM5voZlLviT_amNgElFYaffd3;"
+    " nid18=0a3c9f6e967610bb3355003450e464b4;"
+    " nid18_create_time=1772091764090;"
+    " gviem=B2CCTdl0hz9fyKQOlhiMx27ac;"
+    " gviem_create_time=1772091764090;"
+    " st_pvi=17643502070556;"
+    " st_sp=2026-02-26%2015%3A42%3A43"
+)
+
 _DEVICE_COOKIE_BASE_DB = (
     "qgqp_b_id=90ff9cece2b5376eed839c7647c1a384;"
     " fullscreengg=1; fullscreengg2=1;"
@@ -141,12 +153,45 @@ def _build_db_cache_headers() -> dict:
     )
 
 
+_session_sn_safari = [random.randint(30, 50)]
+
+
+def _build_db_cache_headers_safari() -> dict:
+    sn = _session_sn_safari
+    sn[0] += 1
+    psi_base = f"{time.strftime('%Y%m%d%H%M%S', time.localtime())}{int(time.time()*1000)%1000:03d}-113200301201-{random.randint(10**9, 10**10 - 1)}"
+    cookie = (
+        f"{_DEVICE_COOKIE_SAFARI};"
+        f" st_inirUrl=;"
+        f" st_psi={psi_base};"
+        f" st_si={random.randint(10**13, 10**14 - 1)};"
+        f" st_sn={sn[0]};"
+        f" st_asi=delete"
+    )
+    return {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15",
+        "Accept": "*/*",
+        "Accept-Language": "zh-CN,zh-Hans;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Referer": "https://quote.eastmoney.com/sz002413.html",
+        "Sec-Fetch-Dest": "script",
+        "Sec-Fetch-Mode": "no-cors",
+        "Sec-Fetch-Site": "same-site",
+        "Priority": "u=1, i",
+        "Cookie": cookie
+    }
+
+
 async def get_stock_day_range_kline_by_db_cache(stock_info: StockInfo, limit=400) -> list[str]:
     """优先从DB缓存获取K线数据，无数据则回退到网络请求"""
     rows = get_db_cache_kline_data(stock_info.stock_code_normalize, limit=limit)
     if rows:
         return [_row_to_kline_str(r) for r in rows]
-    return await get_stock_day_range_kline(stock_info, limit, _build_db_cache_headers())
+    try:
+        return await get_stock_day_range_kline(stock_info, limit, _build_db_cache_headers())
+    except Exception:
+        return await get_stock_day_range_kline(stock_info, limit, _build_db_cache_headers_safari())
 
 
 async def get_stock_day_kline_cn(stock_info: StockInfo, limit=20) -> list[dict]:
