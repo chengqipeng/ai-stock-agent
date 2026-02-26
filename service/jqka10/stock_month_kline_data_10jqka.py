@@ -1,5 +1,6 @@
 import re
 import json
+import asyncio
 import aiohttp
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.stock_info_utils import StockInfo
@@ -14,13 +15,13 @@ _HEADERS = {
 
 def _decode_week_prices(price_str: str, price_factor: int) -> list[tuple]:
     """
-    同花顺周K线价格解码，对齐东方财富价格体系：
-      chunk = [prev_close*pf, (close-prev_close)*pf, (high-prev_close)*pf, (prev_close-low)*pf]
-    映射关系（实测验证）：
+    同花顺周K线价格解码，对齐东方财富价格体系。
+    chunk = [prev_close*pf, (open-prev_close)*pf, (high-prev_close)*pf, (open-low)*pf]
+    映射（实测验证）：
       open  = (chunk[0] + chunk[1]) / pf  与东方财富open完全一致
-      close = (chunk[0] + chunk[1]) / pf  close无法精确还原，用同花顺自身close近似
       high  = (chunk[0] + chunk[2]) / pf  与东方财富high完全一致
       low   =  chunk[0] / pf              与东方财富low完全一致
+      close = 优先用last.js不复权数据（与东方财富完全一致），历史数据用open-chunk[3]近似
     """
     nums = list(map(int, price_str.split(",")))
     records = []
@@ -29,23 +30,20 @@ def _decode_week_prices(price_str: str, price_factor: int) -> list[tuple]:
         if len(chunk) < 4:
             break
         prev  = chunk[0]
-        close = prev + chunk[1]
+        open_ = prev + chunk[1]
         high  = prev + chunk[2]
+        close = open_ - chunk[3]  # 历史数据近似值，会被last.js数据覆盖
         records.append((
-            round(close / price_factor, 2),  # open
-            round(close / price_factor, 2),  # close (近似)
-            round(high  / price_factor, 2),  # high
-            round(prev  / price_factor, 2),  # low
+            round(open_  / price_factor, 2),
+            round(close  / price_factor, 2),
+            round(high   / price_factor, 2),
+            round(prev   / price_factor, 2),
         ))
     return records
 
 
-async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -> list[dict]:
-    """从同花顺获取周K线数据，返回最近 limit 条记录（由旧到新排列）。"""
-    code = stock_info.stock_code
-    url = f"https://d.10jqka.com.cn/v6/line/hs_{code}/11/all.js"
-
-    cache_path = get_cache_path("week_kline_10jqka", code)
+async def _fetch_raw(url: str, cache_key: str, code: str) -> dict:
+    cache_path = get_cache_path(cache_key, code)
     data = load_cache(cache_path)
     if not data:
         async with aiohttp.ClientSession() as session:
@@ -55,27 +53,59 @@ async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -
         json_text = re.sub(r"\);?\s*$", "", json_text)
         data = json.loads(json_text)
         save_cache(cache_path, data)
+    return data
 
-    price_factor = data.get("priceFactor", 100)
-    sort_year = data.get("sortYear", [])
-    dates = _build_dates(data.get("start", ""), sort_year, data.get("dates", ""))
-    prices = _decode_week_prices(data.get("price", ""), price_factor)
-    volumes = [int(v) // 100 for v in data.get("volumn", "").split(",") if v]
+
+def _build_nofq_close_map(last_data: dict) -> dict[str, float]:
+    """从last.js不复权数据构建 {YYYYMMDD: close} 映射，格式：日期,open,high,low,close,..."""
+    result = {}
+    for row in last_data.get("data", "").strip().split(";"):
+        parts = row.split(",")
+        if len(parts) >= 5 and parts[4]:
+            result[parts[0]] = float(parts[4])
+    return result
+
+
+async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -> list[dict]:
+    """
+    从同花顺获取周K线数据，返回最近 limit 条记录（由旧到新排列）。
+    close 优先用 last.js 不复权数据（与东方财富完全一致），历史数据用前复权近似。
+    """
+    code = stock_info.stock_code
+
+    week_data, last_data = await asyncio.gather(
+        _fetch_raw(f"https://d.10jqka.com.cn/v6/line/hs_{code}/11/all.js", "week_kline_10jqka", code),
+        _fetch_raw(f"https://d.10jqka.com.cn/v6/line/hs_{code}/01/last.js", "day_nofq_10jqka", code),
+    )
+
+    price_factor = week_data.get("priceFactor", 100)
+    dates = _build_dates(week_data.get("start", ""), week_data.get("sortYear", []), week_data.get("dates", ""))
+    prices = _decode_week_prices(week_data.get("price", ""), price_factor)
+    volumes = [int(v) // 100 for v in week_data.get("volumn", "").split(",") if v]
+
+    # 不复权日K close 映射（精确，覆盖最近约半年）
+    nofq_close = _build_nofq_close_map(last_data)
+    nofq_dates_sorted = sorted(nofq_close.keys())
 
     n = min(len(dates), len(prices), len(volumes))
     start = max(0, n - limit)
 
-    return [
-        {
-            "date":           dates[i],
+    result = []
+    for i in range(start, n):
+        week_date = dates[i]
+        next_week_date = dates[i + 1] if i + 1 < n else "99999999"
+        # 找该周内最后一个有不复权close的交易日
+        week_nofq_days = [d for d in nofq_dates_sorted if week_date <= d < next_week_date]
+        close = nofq_close[week_nofq_days[-1]] if week_nofq_days else prices[i][1]
+        result.append({
+            "date":           week_date,
             "open_price":     prices[i][0],
-            "close_price":    prices[i][1],
+            "close_price":    close,
             "high_price":     prices[i][2],
             "low_price":      prices[i][3],
             "trading_volume": volumes[i],
-        }
-        for i in range(start, n)
-    ]
+        })
+    return result
 
 
 async def get_stock_week_kline_list_10jqka(stock_info: StockInfo, limit: int = 200) -> list[dict]:
@@ -108,7 +138,7 @@ async def get_stock_week_kline_list_10jqka(stock_info: StockInfo, limit: int = 2
 
 
 if __name__ == "__main__":
-    import asyncio
+    import json
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
