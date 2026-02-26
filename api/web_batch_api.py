@@ -11,7 +11,7 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
-from common.utils.stock_list_parser import parse_stock_list
+from common.utils.stock_list_parser import parse_stock_list, update_stock_score
 from common.utils.stock_info_utils import get_stock_info_by_name
 from service.can_slim.can_slim_service import execute_can_slim_score
 from service.strategy_engine.stock_strategy_engine_service import get_strategy_engine_analysis
@@ -75,10 +75,19 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
 
                         # 调用策略引擎分析（大模型初筛）
                         prompt, result = await get_strategy_engine_analysis(stock_info)
-                        grade, content = extract_grade_and_content(result)
+                        grade, score, content = extract_grade_and_content(result)
 
                         db_manager.update_stock_dimension_score(stock['id'], 'kline', grade, content, None, prompt)
                         db_manager.update_stock_status(stock['id'], 'completed', None, deep_thinking)
+
+                        numeric_score = GRADE_SCORE_MAP.get(grade)
+                        if numeric_score is not None:
+                            update_stock_score(
+                                "data_results/stock_to_score_list/stock_score_list.md",
+                                stock_info.stock_name,
+                                stock_info.stock_code_normalize,
+                                numeric_score
+                            )
 
                         return {
                             'success': True,
@@ -433,7 +442,7 @@ def extract_grade_and_content(result: str):
             except json.JSONDecodeError:
                 import ast
                 data = ast.literal_eval(clean)
-            return data.get('grade', ''), data.get('content', '')
+            return data.get('grade', ''), data.get('score', ''), data.get('content', '')
     except Exception as e:
         logger.error("Error extracting grade/content: %s", e)
     return '', result[:200]

@@ -1,5 +1,5 @@
 import re
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 def parse_stock_list(file_path: str) -> List[Dict]:
     """
@@ -34,3 +34,38 @@ def parse_stock_list(file_path: str) -> List[Dict]:
         print(f"解析股票列表失败: {e}")
     
     return stocks
+
+
+def update_stock_score(file_path: str, stock_name: str, stock_code: str, new_score: int) -> bool:
+    """
+    更新 markdown 文件中指定股票的打分
+    优先按股票代码匹配，回退到股票名称匹配
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # 按股票代码匹配（更精确）
+        pattern = rf'(.+?)\s*\({re.escape(stock_code)}\)\s*-\s*打分[：:](\s*\d+)'
+        new_content, count = re.subn(
+            pattern,
+            lambda m: f'{m.group(1)} ({stock_code}) - 打分：{new_score}',
+            content
+        )
+        if count == 0:
+            # 回退：按股票名称匹配
+            pattern = rf'{re.escape(stock_name)}\s*\((\S+?)\)\s*-\s*打分[：:](\s*\d+)'
+            new_content, count = re.subn(
+                pattern,
+                lambda m: f'{stock_name} ({m.group(1)}) - 打分：{new_score}',
+                content
+            )
+        if count == 0:
+            return False
+
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        return True
+    except Exception as e:
+        print(f"更新股票打分失败: {e}")
+        return False

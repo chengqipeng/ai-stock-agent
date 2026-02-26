@@ -78,7 +78,8 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 {{
   'stock_code': '<股票代码>',
   'stock_name': '<股票名称>',
-  'grade': '积极买入 / 逢低建仓 / 持股待涨 / 逢高减仓 / 清仓离场 / 保持观望',
+  'grade': '<积极买入 / 逢低建仓 / 持股待涨 / 逢高减仓 / 清仓离场 / 保持观望>',
+  'score': '<0-100，结合content分析结果进行打分>',
   'content': '<结构化综合分析报告要求，包含MACD、KDJ、BOLL、近日交易数据指标分析，120字以内>'
 }}
 """
