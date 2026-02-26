@@ -80,7 +80,7 @@ class DatabaseManager:
                     overall_analysis TEXT,
                     
                     -- K线分析
-                    kline_score INTEGER,
+                    kline_score TEXT,
                     kline_prompt TEXT,
                     kline_score_prompt TEXT,
                     
@@ -125,6 +125,9 @@ class DatabaseManager:
             
             if 'overall_grade' not in existing_columns:
                 cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN overall_grade TEXT")
+
+            if 'kline_summary' not in existing_columns:
+                cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN kline_summary TEXT")
             
             # 深度分析历史记录表
             cursor.execute("""

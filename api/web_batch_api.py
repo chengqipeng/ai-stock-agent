@@ -14,7 +14,13 @@ logger = logging.getLogger(__name__)
 from common.utils.stock_list_parser import parse_stock_list
 from common.utils.stock_info_utils import get_stock_info_by_name
 from service.can_slim.can_slim_service import execute_can_slim_score
+from service.strategy_engine.stock_strategy_engine_service import get_strategy_engine_analysis
 from database.models import db_manager
+
+GRADE_SCORE_MAP = {
+    '积极买入': 95, '逢低建仓': 75, '持股待涨': 60,
+    '逢高减仓': 40, '清仓离场': 20, '保持观望': 50
+}
 
 app = FastAPI(title="AI Stock Agent")
 
@@ -66,36 +72,18 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                 async with semaphore:
                     try:
                         stock_info = get_stock_info_by_name(stock['stock_name'])
-                        
-                        # 获取打分提示词
-                        from service.can_slim.can_slim_service import CAN_SLIM_SERVICES
-                        c_service = CAN_SLIM_SERVICES['C'](stock_info)
-                        a_service = CAN_SLIM_SERVICES['A'](stock_info)
-                        
-                        # 收集数据并构建提示词
-                        c_service.data_cache = await c_service.collect_data()
-                        await c_service.process_data()
-                        c_score_prompt = c_service.build_prompt(use_score_output=True)
-                        
-                        a_service.data_cache = await a_service.collect_data()
-                        await a_service.process_data()
-                        a_score_prompt = a_service.build_prompt(use_score_output=True)
-                        
-                        # 执行打分
-                        c_result = await execute_can_slim_score('C', stock_info, deep_thinking)
-                        a_result = await execute_can_slim_score('A', stock_info, deep_thinking)
 
-                        c_score = extract_score_from_result(c_result)
-                        a_score = extract_score_from_result(a_result)
-                        
-                        db_manager.update_stock_dimension_score(stock['id'], 'c', c_score, c_result, None, c_score_prompt)
-                        db_manager.update_stock_dimension_score(stock['id'], 'a', a_score, a_result, None, a_score_prompt)
+                        # 调用策略引擎分析（大模型初筛）
+                        prompt, result = await get_strategy_engine_analysis(stock_info)
+                        grade, content = extract_grade_and_content(result)
+
+                        db_manager.update_stock_dimension_score(stock['id'], 'kline', grade, content, None, prompt)
                         db_manager.update_stock_status(stock['id'], 'completed', None, deep_thinking)
-                        
+
                         return {
                             'success': True,
                             'stock_name': stock['stock_name'],
-                            'score': f'C:{c_score}, A:{a_score}'
+                            'score': grade
                         }
                     except Exception as e:
                         logger.error(f"Error analyzing {stock['stock_name']}: {e}", exc_info=True)
@@ -105,6 +93,32 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                             'stock_name': stock['stock_name'],
                             'error': str(e)
                         }
+
+            # --- 历史初筛逻辑备份（CAN SLIM C/A维度打分）---
+            # async def analyze_stock_legacy(stock):
+            #     async with semaphore:
+            #         try:
+            #             stock_info = get_stock_info_by_name(stock['stock_name'])
+            #             from service.can_slim.can_slim_service import CAN_SLIM_SERVICES
+            #             c_service = CAN_SLIM_SERVICES['C'](stock_info)
+            #             a_service = CAN_SLIM_SERVICES['A'](stock_info)
+            #             c_service.data_cache = await c_service.collect_data()
+            #             await c_service.process_data()
+            #             c_score_prompt = c_service.build_prompt(use_score_output=True)
+            #             a_service.data_cache = await a_service.collect_data()
+            #             await a_service.process_data()
+            #             a_score_prompt = a_service.build_prompt(use_score_output=True)
+            #             c_result = await execute_can_slim_score('C', stock_info, deep_thinking)
+            #             a_result = await execute_can_slim_score('A', stock_info, deep_thinking)
+            #             c_score = extract_score_from_result(c_result)
+            #             a_score = extract_score_from_result(a_result)
+            #             db_manager.update_stock_dimension_score(stock['id'], 'c', c_score, c_result, None, c_score_prompt)
+            #             db_manager.update_stock_dimension_score(stock['id'], 'a', a_score, a_result, None, a_score_prompt)
+            #             db_manager.update_stock_status(stock['id'], 'completed', None, deep_thinking)
+            #             return {'success': True, 'stock_name': stock['stock_name'], 'score': f'C:{c_score}, A:{a_score}'}
+            #         except Exception as e:
+            #             db_manager.update_stock_status(stock['id'], 'failed', str(e), deep_thinking)
+            #             return {'success': False, 'stock_name': stock['stock_name'], 'error': str(e)}
             
             tasks = [analyze_stock(stock) for stock in stocks]
             
@@ -404,6 +418,21 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
         yield progress_event({'stage': 'done'})
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+def extract_grade_and_content(result: str):
+    """从策略引擎大模型结果中提取 grade 和 content"""
+    try:
+        clean = result.strip()
+        if clean.startswith('```'):
+            clean = re.sub(r'^```(?:json)?\s*\n', '', clean)
+            clean = re.sub(r'\n```\s*$', '', clean)
+        clean = clean.strip()
+        if clean.startswith('{'):
+            data = json.loads(clean)
+            return data.get('grade', ''), data.get('content', '')
+    except Exception as e:
+        logger.error("Error extracting grade/content: %s", e)
+    return '', result[:200]
 
 def extract_grade_from_overall(result: str) -> str:
     """从整体分析JSON结果中提取grade字段"""
