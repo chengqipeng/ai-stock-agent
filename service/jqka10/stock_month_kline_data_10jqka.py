@@ -56,13 +56,17 @@ async def _fetch_raw(url: str, cache_key: str, code: str) -> dict:
     return data
 
 
-def _build_nofq_close_map(last_data: dict) -> dict[str, float]:
-    """从last.js不复权数据构建 {YYYYMMDD: close} 映射，格式：日期,open,high,low,close,..."""
+def _build_nofq_map(last_data: dict) -> dict[str, dict]:
+    """从last.js不复权数据构建 {YYYYMMDD: {close, vol(手), amount}} 映射"""
     result = {}
     for row in last_data.get("data", "").strip().split(";"):
         parts = row.split(",")
-        if len(parts) >= 5 and parts[4]:
-            result[parts[0]] = float(parts[4])
+        if len(parts) >= 7 and parts[4]:
+            result[parts[0]] = {
+                "close":  float(parts[4]),
+                "vol":    int(parts[5]) // 100,
+                "amount": float(parts[6]),
+            }
     return result
 
 
@@ -83,9 +87,9 @@ async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -
     prices = _decode_week_prices(week_data.get("price", ""), price_factor)
     volumes = [int(v) // 100 for v in week_data.get("volumn", "").split(",") if v]
 
-    # 不复权日K close 映射（精确，覆盖最近约半年）
-    nofq_close = _build_nofq_close_map(last_data)
-    nofq_dates_sorted = sorted(nofq_close.keys())
+    # 不复权日K映射（精确，覆盖最近约半年）
+    nofq_map = _build_nofq_map(last_data)
+    nofq_dates_sorted = sorted(nofq_map.keys())
 
     n = min(len(dates), len(prices), len(volumes))
     start = max(0, n - limit)
@@ -94,16 +98,23 @@ async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -
     for i in range(start, n):
         week_date = dates[i]
         next_week_date = dates[i + 1] if i + 1 < n else "99999999"
-        # 找该周内最后一个有不复权close的交易日
         week_nofq_days = [d for d in nofq_dates_sorted if week_date <= d < next_week_date]
-        close = nofq_close[week_nofq_days[-1]] if week_nofq_days else prices[i][1]
+        if week_nofq_days:
+            close  = nofq_map[week_nofq_days[-1]]["close"]
+            volume = sum(nofq_map[d]["vol"] for d in week_nofq_days)
+            amount = round(sum(nofq_map[d]["amount"] for d in week_nofq_days), 2)
+        else:
+            close  = prices[i][1]
+            volume = volumes[i]
+            amount = None
         result.append({
             "date":           week_date,
             "open_price":     prices[i][0],
             "close_price":    close,
             "high_price":     prices[i][2],
             "low_price":      prices[i][3],
-            "trading_volume": volumes[i],
+            "trading_volume": volume,
+            "trading_amount": amount,
         })
     return result
 
@@ -128,7 +139,7 @@ async def get_stock_week_kline_list_10jqka(stock_info: StockInfo, limit: int = 2
             "最高":  k["high_price"],
             "最低":  k["low_price"],
             "成交量": k["trading_volume"],
-            "成交额": None,
+            "成交额": k.get("trading_amount"),
             "振幅":  amplitude,
             "涨跌幅": change_pct,
             "涨跌额": change_amt,
