@@ -4,6 +4,7 @@ import logging
 import aiohttp
 from datetime import date, timedelta
 from chinese_calendar import is_workday
+from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.stock_info_utils import StockInfo
 from service.jqka10.stock_realtime_10jqka import get_today_trade_data
 
@@ -40,15 +41,15 @@ def _decode_prices(price_str: str, price_factor: int) -> list[tuple]:
         chunk = nums[i:i + 4]
         if len(chunk) < 4:
             break
-        open_p  = chunk[0] / price_factor
-        close_p = open_p  + chunk[1] / price_factor
-        high_p  = close_p + chunk[2] / price_factor
-        low_p   = close_p - chunk[3] / price_factor
+        open_i  = chunk[0]
+        close_i = open_i  + chunk[1]
+        high_i  = close_i + chunk[2]
+        low_i   = close_i - chunk[3]
         records.append((
-            round(open_p,  2),
-            round(close_p, 2),
-            round(high_p,  2),
-            round(low_p,   2),
+            round(open_i  / price_factor, 2),
+            round(close_i / price_factor, 2),
+            round(high_i  / price_factor, 2),
+            round(low_i   / price_factor, 2),
         ))
     return records
 
@@ -95,13 +96,16 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     code = stock_info.stock_code
     url = f"https://d.10jqka.com.cn/v6/line/{market}_{code}/01/all.js"
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=_HEADERS) as resp:
-            text = await resp.text()
-
-    json_text = re.sub(r"^\w+\(", "", text)
-    json_text = re.sub(r"\);?\s*$", "", json_text)
-    data = json.loads(json_text)
+    cache_path = get_cache_path("day_kline_10jqka", code)
+    data = load_cache(cache_path)
+    if not data:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=_HEADERS) as resp:
+                text = await resp.text()
+        json_text = re.sub(r"^\w+\(", "", text)
+        json_text = re.sub(r"\);?\s*$", "", json_text)
+        data = json.loads(json_text)
+        save_cache(cache_path, data)
 
     price_factor = data.get("priceFactor", 100)
     sort_year = data.get("sortYear", [])
@@ -146,9 +150,7 @@ if __name__ == "__main__":
 
     async def main():
         stock_info = get_stock_info_by_name("北方华创")
-        while True:
-            klines = await get_stock_day_kline_10jqka(stock_info, limit=300)
-            print(json.dumps(klines, ensure_ascii=False, indent=2))
-            await asyncio.sleep(1)
+        klines = await get_stock_day_kline_10jqka(stock_info, limit=300)
+        print(json.dumps(klines, ensure_ascii=False, indent=2))
 
     asyncio.run(main())
