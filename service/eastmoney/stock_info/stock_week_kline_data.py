@@ -12,8 +12,8 @@ def _get_cache_date() -> str:
     return today.strftime("%Y%m%d")
 
 
-async def get_stock_month_kline(stock_info: StockInfo, beg: str = "0", end: str = "20500101", limit: int = 1000000):
-    """获取股票月K线数据
+async def get_stock_week_kline(stock_info: StockInfo, beg: str = "0", end: str = "20500101", limit: int = 1000000):
+    """获取股票周K线数据
     
     Args:
         stock_info: 股票信息对象
@@ -24,7 +24,7 @@ async def get_stock_month_kline(stock_info: StockInfo, beg: str = "0", end: str 
     Returns:
         dict: 包含K线数据的字典
     """
-    cache_path = get_cache_path("month_kline_" + beg + "_" + end + "_" + _get_cache_date(), stock_info.stock_code)
+    cache_path = get_cache_path("week_kline_" + beg + "_" + end + "_" + _get_cache_date(), stock_info.stock_code)
     
     # 检查缓存
     cached_data = load_cache(cache_path)
@@ -53,16 +53,16 @@ async def get_stock_month_kline(stock_info: StockInfo, beg: str = "0", end: str 
         save_cache(cache_path, data["data"])
         return data["data"]
     else:
-        raise Exception(f"未获取到股票 {stock_info.secid} 的月K线数据")
+        raise Exception(f"未获取到股票 {stock_info.secid} 的周K线数据")
 
 
-async def get_stock_month_kline_list(stock_info: StockInfo, beg: str = "0", end: str = "20500101", limit: int = 1000000):
-    """获取股票月K线数据列表
+async def get_stock_week_kline_list(stock_info: StockInfo, beg: str = "0", end: str = "20500101", limit: int = 1000000):
+    """获取股票周K线数据列表
     
     Returns:
         list: K线数据列表，每条数据格式为 [日期, 开盘, 收盘, 最高, 最低, 成交量, 成交额, 振幅, 涨跌幅, 涨跌额, 换手率]
     """
-    kline_data = await get_stock_month_kline(stock_info, beg, end, limit)
+    kline_data = await get_stock_week_kline(stock_info, beg, end, limit)
     klines = kline_data.get("klines", [])
     
     result = []
@@ -92,8 +92,8 @@ if __name__ == "__main__":
     async def main():
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
-        result = await get_stock_month_kline_list(stock_info)
-        print(f"获取到 {len(result)} 条月K线数据")
+        result = await get_stock_week_kline_list(stock_info)
+        print(f"获取到 {len(result)} 条周K线数据")
         if result:
             print("最近3条数据:")
             for item in result:
