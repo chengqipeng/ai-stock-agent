@@ -15,7 +15,7 @@ from common.utils.stock_list_parser import parse_stock_list, update_stock_score
 from common.utils.stock_info_utils import get_stock_info_by_name
 from service.can_slim.can_slim_service import execute_can_slim_score
 from service.strategy_engine.stock_strategy_engine_service import get_strategy_engine_analysis
-from database.models import db_manager
+from dao.stock_can_slim_dao import db_manager
 
 GRADE_SCORE_MAP = {
     '积极买入': 95, '逢低建仓': 75, '持股待涨': 60,
