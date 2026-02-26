@@ -2,7 +2,7 @@ import asyncio
 from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
-from common.constants.stocks_data import STOCKS
+import re
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline
 from common.utils.stock_info_utils import get_stock_info_by_code
 from dao.stock_kline_dao import (
@@ -74,16 +74,28 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
     await asyncio.sleep(2)
 
 
+def load_stocks_from_score_list() -> list[dict]:
+    score_list_path = Path(__file__).parent.parent.parent / "data_results/stock_to_score_list/stock_score_list.md"
+    stocks = []
+    pattern = re.compile(r'^(.+?)\s+\(([^)]+)\)')
+    for line in score_list_path.read_text(encoding='utf-8').splitlines():
+        m = pattern.match(line.strip())
+        if m:
+            stocks.append({'name': m.group(1), 'code': m.group(2)})
+    return stocks
+
+
 async def run_stock_klines_job(limit=800, max_concurrent=1):
     """运行股票K线数据采集任务"""
     db_dir = Path(__file__).parent.parent.parent / "data_results/sql_lite"
     db_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"开始采集股票K线数据，共 {len(STOCKS)} 只股票")
+    stocks = load_stocks_from_score_list()
+    print(f"开始采集股票K线数据，共 {len(stocks)} 只股票")
     print(f"数据库目录: {db_dir}")
 
     semaphore = asyncio.Semaphore(max_concurrent)
-    counter = {'total': len(STOCKS), 'success': 0, 'failed': 0}
+    counter = {'total': len(stocks), 'success': 0, 'failed': 0}
 
     async def process_with_semaphore(stock):
         async with semaphore:
@@ -91,7 +103,7 @@ async def run_stock_klines_job(limit=800, max_concurrent=1):
             print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock['name']}] 开始查询")
             await process_stock_klines(stock['code'], stock['name'], str(db_path), limit, counter)
 
-    await asyncio.gather(*[process_with_semaphore(stock) for stock in STOCKS], return_exceptions=True)
+    await asyncio.gather(*[process_with_semaphore(stock) for stock in stocks], return_exceptions=True)
     print(f"采集完成，总{counter['total']} 成功{counter['success']} 失败{counter['failed']}")
 
 
