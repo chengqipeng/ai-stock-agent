@@ -36,7 +36,9 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
     klines = None
     for attempt in range(1, 11):
         try:
+            t0 = asyncio.get_event_loop().time()
             klines = await get_stock_day_range_kline(stock_info, fetch_limit)
+            print(f"[{stock_name}] get_stock_day_range_kline 耗时 {asyncio.get_event_loop().time() - t0:.2f}s")
             break
         except Exception as e:
             if ('Server disconnected' in str(e) or 'Connection closed abruptly' in str(e)) and attempt < 10:

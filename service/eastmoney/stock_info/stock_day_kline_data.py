@@ -7,8 +7,7 @@ from common.utils.stock_info_utils import StockInfo
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache, get_market_cache_key
 from service.auto_job.stock_history_klines_data import get_db_cache_kline_data
 from service.eastmoney.stock_info.headers.stock_day_kline_headers import (
-    get_kline_header_builders, kline_headers_index,
-    build_db_cache_headers, build_db_cache_headers_safari
+    get_kline_header_builders, kline_headers_index
 )
 
 
@@ -87,9 +86,9 @@ async def get_stock_day_range_kline_by_db_cache(stock_info: StockInfo, limit=400
     if rows:
         return [_row_to_kline_str(r) for r in rows]
     try:
-        return await get_stock_day_range_kline(stock_info, limit, build_db_cache_headers())
+        return await get_stock_day_range_kline(stock_info, limit)
     except Exception:
-        return await get_stock_day_range_kline(stock_info, limit, build_db_cache_headers_safari())
+        return await get_stock_day_range_kline(stock_info, limit)
 
 
 async def get_stock_day_kline_cn(stock_info: StockInfo, limit=20) -> list[dict]:
