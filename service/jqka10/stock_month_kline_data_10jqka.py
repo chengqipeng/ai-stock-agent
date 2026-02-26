@@ -57,15 +57,16 @@ async def _fetch_raw(url: str, cache_key: str, code: str) -> dict:
 
 
 def _build_nofq_map(last_data: dict) -> dict[str, dict]:
-    """从last.js不复权数据构建 {YYYYMMDD: {close, vol(手), amount}} 映射"""
+    """从last.js不复权数据构建 {YYYYMMDD: {close, vol(手), amount, turnover}} 映射"""
     result = {}
     for row in last_data.get("data", "").strip().split(";"):
         parts = row.split(",")
         if len(parts) >= 7 and parts[4]:
             result[parts[0]] = {
-                "close":  float(parts[4]),
-                "vol":    int(parts[5]) // 100,
-                "amount": float(parts[6]),
+                "close":    float(parts[4]),
+                "vol":      int(parts[5]) // 100,
+                "amount":   float(parts[6]),
+                "turnover": float(parts[7]) if len(parts) > 7 and parts[7] else None,
             }
     return result
 
@@ -97,16 +98,20 @@ async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -
     result = []
     for i in range(start, n):
         week_date = dates[i]
-        next_week_date = dates[i + 1] if i + 1 < n else "99999999"
-        week_nofq_days = [d for d in nofq_dates_sorted if week_date <= d < next_week_date]
+        prev_week_date = dates[i - 1] if i > 0 else "00000000"
+        # 周K日期是该周最后一个交易日，找 prev_week_date < d <= week_date 的日K
+        week_nofq_days = [d for d in nofq_dates_sorted if prev_week_date < d <= week_date]
         if week_nofq_days:
-            close  = nofq_map[week_nofq_days[-1]]["close"]
-            volume = sum(nofq_map[d]["vol"] for d in week_nofq_days)
-            amount = round(sum(nofq_map[d]["amount"] for d in week_nofq_days), 2)
+            close    = nofq_map[week_nofq_days[-1]]["close"]
+            volume   = sum(nofq_map[d]["vol"] for d in week_nofq_days)
+            amount   = round(sum(nofq_map[d]["amount"] for d in week_nofq_days), 2)
+            turnovers = [nofq_map[d]["turnover"] for d in week_nofq_days if nofq_map[d]["turnover"] is not None]
+            turnover = round(sum(turnovers), 2) if turnovers else None
         else:
-            close  = prices[i][1]
-            volume = volumes[i]
-            amount = None
+            close    = prices[i][1]
+            volume   = volumes[i]
+            amount   = None
+            turnover = None
         result.append({
             "date":           week_date,
             "open_price":     prices[i][0],
@@ -115,6 +120,7 @@ async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -
             "low_price":      prices[i][3],
             "trading_volume": volume,
             "trading_amount": amount,
+            "turnover":       turnover,
         })
     return result
 
@@ -140,10 +146,10 @@ async def get_stock_week_kline_list_10jqka(stock_info: StockInfo, limit: int = 2
             "最低":  k["low_price"],
             "成交量": k["trading_volume"],
             "成交额": k.get("trading_amount"),
-            "振幅":  amplitude,
-            "涨跌幅": change_pct,
+            "振幅(%)": amplitude,
+            "涨跌幅(%)": change_pct,
             "涨跌额": change_amt,
-            "换手率": None,
+            "换手率(%)": k.get("turnover"),
         })
     return result
 
