@@ -1,161 +1,17 @@
 import asyncio
-import sqlite3
-from datetime import date, timedelta
+from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
-from chinese_calendar import is_workday
 from common.constants.stocks_data import STOCKS
-
-_CST = ZoneInfo("Asia/Shanghai")
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline
 from common.utils.stock_info_utils import get_stock_info_by_code
+from dao.stock_kline_dao import (
+    get_db_path_for_stock, get_missing_trading_days, get_latest_db_date,
+    create_kline_table, parse_kline_data, insert_or_update_kline_data, insert_suspension_day
+)
+import sqlite3
 
-
-def get_missing_trading_days(db_path, stock_code, n=20):
-    """
-    返回过去n天内需要拉取K线数据的交易日列表。
-
-    今天的处理逻辑（今天必须是A股交易日）：
-      - 盘前（< 09:30）：不拉取今天，今天数据尚未产生
-      - 盘中（09:30 ~ 15:00）：强制拉取今天，即使数据库已有今天记录也覆盖更新（实时数据持续变化）
-      - 收盘后（> 15:00）：今天已在数据库则跳过，不在则拉取
-
-    历史交易日：数据库中缺失的交易日均纳入拉取列表。
-
-    返回值按日期降序排列（最新日期在前）。
-    """
-    from datetime import datetime, time as dtime
-    now_cst = datetime.now(_CST)
-    today = now_cst.date()
-    now = now_cst.time()
-    in_trading = dtime(9, 30) <= now <= dtime(15, 0)
-    after_close = now > dtime(15, 0)
-
-    trading_days = set()
-    for i in range(n):
-        d = today - timedelta(days=i)
-        if d.weekday() < 5 and is_workday(d):
-            trading_days.add(d)
-
-    if not trading_days:
-        return []
-
-    table_name = f"kline_{stock_code.replace('.', '_')}"
-    start = min(trading_days).isoformat()
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute(f"SELECT date FROM {table_name} WHERE date >= ?", (start,))
-        existing = {date.fromisoformat(row[0]) for row in cursor.fetchall()}
-        conn.close()
-    except sqlite3.OperationalError:
-        existing = set()
-
-    missing = trading_days - existing
-    # 盘中或收盘后，今天强制包含（盘中更新实时数据；收盘后若数据是盘中写入则更新最终数据）
-    if today in trading_days and (in_trading or after_close):
-        if in_trading:
-            missing.add(today)
-        elif after_close and today not in missing:
-            # 收盘后：若今天数据是盘中（15:00前）写入的，需要更新为最终收盘数据
-            table_name = f"kline_{stock_code.replace('.', '_')}"
-            try:
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
-                cursor.execute(f"SELECT updated_at FROM {table_name} WHERE date=?", (today.isoformat(),))
-                row = cursor.fetchone()
-                conn.close()
-                if row and row[0] < f"{today.isoformat()} 15:00:00":
-                    missing.add(today)
-            except sqlite3.OperationalError:
-                pass
-    # 盘前不拉取今天
-    if not in_trading and not after_close:
-        missing.discard(today)
-
-    return sorted(missing, reverse=True)
-
-
-def get_latest_db_date(db_path, stock_code):
-    """获取数据库中该股票最新K线日期"""
-    table_name = f"kline_{stock_code.replace('.', '_')}"
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute(f"SELECT MAX(date) FROM {table_name}")
-        row = cursor.fetchone()
-        conn.close()
-        if row and row[0]:
-            return date.fromisoformat(row[0])
-    except sqlite3.OperationalError:
-        pass
-    return None
-
-
-def create_kline_table(cursor, table_name):
-    """创建K线数据表"""
-    cursor.execute(f'''
-        CREATE TABLE IF NOT EXISTS {table_name} (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            open_price REAL,
-            close_price REAL,
-            high_price REAL,
-            low_price REAL,
-            trading_volume REAL,
-            trading_amount REAL,
-            amplitude REAL,
-            change_percent REAL,
-            change_amount REAL,
-            change_hand REAL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(date)
-        )
-    ''')
-
-
-def parse_kline_data(kline_str):
-    """解析K线数据字符串"""
-    fields = kline_str.split(',')
-    return {
-        'date': fields[0],
-        'open_price': float(fields[1]),
-        'close_price': float(fields[2]),
-        'high_price': float(fields[3]),
-        'low_price': float(fields[4]),
-        'trading_volume': float(fields[5]),
-        'trading_amount': float(fields[6]),
-        'amplitude': float(fields[7]),
-        'change_percent': float(fields[8]),
-        'change_amount': float(fields[9]),
-        'change_hand': float(fields[10])
-    }
-
-
-def insert_or_update_kline_data(cursor, table_name, kline_data):
-    """插入或更新K线数据"""
-    from datetime import datetime
-    now_cst = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute(f'''
-        INSERT OR REPLACE INTO {table_name} 
-        (date, open_price, close_price, high_price, low_price, trading_volume, 
-         trading_amount, amplitude, change_percent, change_amount, change_hand, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        kline_data['date'],
-        kline_data['open_price'],
-        kline_data['close_price'],
-        kline_data['high_price'],
-        kline_data['low_price'],
-        kline_data['trading_volume'],
-        kline_data['trading_amount'],
-        kline_data['amplitude'],
-        kline_data['change_percent'],
-        kline_data['change_amount'],
-        kline_data['change_hand'],
-        now_cst
-    ))
+_CST = ZoneInfo("Asia/Shanghai")
 
 
 async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
@@ -165,7 +21,6 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
         counter['failed'] += 1
         return
 
-    # 判断过去20天交易日中数据库是否有缺失
     missing_days = get_missing_trading_days(db_path, stock_code)
     if not missing_days:
         latest_db_date = get_latest_db_date(db_path, stock_code)
@@ -174,9 +29,7 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
         return
 
     latest_db_date = get_latest_db_date(db_path, stock_code)
-    # fetch_limit 基于最早缺失日期到今天的自然日数，+5作为缓冲确保覆盖所有缺失交易日
-    earliest_missing = missing_days[-1]  # missing_days 降序，最后一个是最早的
-    from datetime import datetime
+    earliest_missing = missing_days[-1]
     today_cst = datetime.now(_CST).date()
     fetch_limit = (today_cst - earliest_missing).days + 5 if latest_db_date else limit
 
@@ -210,46 +63,15 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
             saved_dates.add(date.fromisoformat(kline_data['date']))
         except Exception as e:
             print(f"解析K线数据失败 {stock_code}: {e}")
-    # 停牌日处理：缺失日期在API返回数据中也不存在，说明是停牌日，插入占位记录避免重复拉取
     for d in missing_days:
         if d not in saved_dates:
-            cursor.execute(f'''
-                INSERT OR IGNORE INTO {table_name}
-                (date, open_price, close_price, high_price, low_price, trading_volume,
-                 trading_amount, amplitude, change_percent, change_amount, change_hand)
-                VALUES (?, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-            ''', (d.isoformat(),))
+            insert_suspension_day(cursor, table_name, d)
     conn.commit()
     conn.close()
 
     counter['success'] += 1
     print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 完成，本次查询{len(klines)}条")
     await asyncio.sleep(2)
-
-
-def get_db_path_for_stock(db_dir: Path, stock_code: str) -> Path:
-    """
-    按股票代码分片规则返回对应的数据库路径。
-    分片规则（按交易所+板块）：
-      - stock_klines_sz_main.db : 深市主板  000xxx/001xxx/002xxx/003xxx .SZ
-      - stock_klines_sz_cyb.db  : 深市创业板 300xxx/301xxx/302xxx .SZ
-      - stock_klines_sh.db      : 沪市       所有 .SH
-      - stock_klines_other.db   : 其他（北交所等）
-    """
-    code_num = stock_code.split('.')[0]
-    exchange = stock_code.split('.')[-1].upper()
-    if exchange == 'SH':
-        return db_dir / 'stock_klines_sh.db'
-    if exchange == 'SZ':
-        prefix = int(code_num[:3])
-        if prefix >= 300:
-            return db_dir / 'stock_klines_sz_cyb.db'
-        if prefix < 1:
-            return db_dir / 'stock_klines_sz_000.db'
-        if prefix < 2:
-            return db_dir / 'stock_klines_sz_001.db'
-        return db_dir / 'stock_klines_sz_002.db'
-    return db_dir / 'stock_klines_other.db'
 
 
 async def run_stock_klines_job(limit=800, max_concurrent=1):
@@ -265,7 +87,7 @@ async def run_stock_klines_job(limit=800, max_concurrent=1):
 
     async def process_with_semaphore(stock):
         async with semaphore:
-            db_path = get_db_path_for_stock(db_dir, stock['code'])
+            db_path = get_db_path_for_stock(stock['code'], db_dir)
             print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock['name']}] 开始查询")
             await process_stock_klines(stock['code'], stock['name'], str(db_path), limit, counter)
 
