@@ -8,7 +8,7 @@ async def get_strategy_engine_analysis(stock_info: StockInfo) -> tuple[str, str]
     prompt = await get_stock_indicator_prompt(stock_info)
     result = ""
     async for content in DeepSeekClient().chat_stream(
-        messages=[{"role": "user", "content": prompt}]
+        messages=[{"role": "user", "content": prompt}], model="deepseek-reasoner"
     ):
         result += content
     return prompt, result
