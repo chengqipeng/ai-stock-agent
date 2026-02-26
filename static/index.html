@@ -371,6 +371,7 @@
                                 <input type="checkbox" id="selectAllStocks" onchange="toggleSelectAllStocks()" style="cursor: pointer;">
                             </th>
                             <th style="padding: 6px; text-align: left; position: sticky; left: 40px; background: #f5f5f5; z-index: 10; min-width: 96px;">股票名称</th>
+                            <th style="padding: 6px; text-align: center; min-width: 120px;">K线</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">C维</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">A维</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">N维</th>
@@ -378,7 +379,6 @@
                             <th style="padding: 6px; text-align: center; min-width: 120px;">L维</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">I维</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">M维</th>
-                            <th style="padding: 6px; text-align: center; min-width: 120px;">K线</th>
                             <th style="padding: 6px; text-align: left; min-width: 100px; max-width: 150px;">整体分析</th>
                         </tr>
                     </thead>
@@ -735,6 +735,11 @@
                         <div style="font-size: 10px; color: #bbb; margin-top: 2px; white-space: nowrap;">${formatLocalTime(stock.completed_at)}</div>
                         <button onclick="showHistory('${stock.stock_name}')" style="margin-top:3px;padding: 2px 6px; background: #607d8b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">历史记录</button>
                     </td>
+                    <td style="padding: 6px; text-align: center; vertical-align: top;">
+                        <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.kline_score || '-'}</div>
+                        ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline', 'K线')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                        ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline_score_prompt', 'K线')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
+                    </td>
                     <td style="padding: 6px; text-align: center; vertical-align: top; display: table-cell;">
                         <div style="display: flex; flex-direction: column; height: 100%;">
                         <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">
@@ -839,11 +844,6 @@
                             ${stock.m_deep_score ? `<button onclick="showPrompt('${stockKey}', 'm_deep', 'M')" style="padding: 2px 6px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度结果</button>` : ''}
                             ${stock.m_deep_score ? `<button onclick="showPrompt('${stockKey}', 'm_deep_score_prompt', 'M')" style="padding: 2px 6px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">深度提示词</button>` : ''}
                         </div>
-                    </td>
-                    <td style="padding: 6px; text-align: center; vertical-align: top;">
-                        <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.kline_score || '-'}</div>
-                        ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline', 'K线')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
-                        ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline_score_prompt', 'K线')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
                     </td>
                     <td style="padding: 6px; min-width: 100px; max-width: 150px; vertical-align: top;">
                         <div style="min-height: 20px;">${stock.overall_grade ? `<span style="font-weight: 600; font-size: 11px; color: ${{'强烈买入':'#e53935','列入核心观察名单':'#fb8c00','保持观望':'#1e88e5','坚决规避':'#757575'}[stock.overall_grade] || '#333'}">${stock.overall_grade}</span>` : ''}</div>
