@@ -371,7 +371,8 @@
                                 <input type="checkbox" id="selectAllStocks" onchange="toggleSelectAllStocks()" style="cursor: pointer;">
                             </th>
                             <th style="padding: 6px; text-align: left; position: sticky; left: 40px; background: #f5f5f5; z-index: 10; min-width: 96px;">股票名称</th>
-                            <th style="padding: 6px; text-align: center; min-width: 120px;">K线</th>
+                            <th style="padding: 6px; text-align: center; min-width: 120px;">K线(未持有)</th>
+                            <th style="padding: 6px; text-align: center; min-width: 120px;">K线(持有)</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">C维</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">A维</th>
                             <th style="padding: 6px; text-align: center; min-width: 120px;">N维</th>
@@ -737,8 +738,13 @@
                     </td>
                     <td style="padding: 6px; text-align: center; vertical-align: top;">
                         <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.kline_score || '-'}</div>
-                        ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline', 'K线')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
-                        ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline_score_prompt', 'K线')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
+                        ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline', 'K线(未持有)')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                        ${stock.kline_score ? `<button onclick="showPrompt('${stockKey}', 'kline_score_prompt', 'K线(未持有)')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
+                    </td>
+                    <td style="padding: 6px; text-align: center; vertical-align: top;">
+                        <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${stock.kline_hold_score || '-'}</div>
+                        ${stock.kline_hold_score ? `<button onclick="showPrompt('${stockKey}', 'kline_hold', 'K线(持有)')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看分析结果</button>` : ''}
+                        ${stock.kline_hold_score ? `<button onclick="showPrompt('${stockKey}', 'kline_score_prompt', 'K线(持有)')" style="padding: 2px 6px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 9px; margin: 1px;">查看完整提示词</button>` : ''}
                     </td>
                     <td style="padding: 6px; text-align: center; vertical-align: top; display: table-cell;">
                         <div style="display: flex; flex-direction: column; height: 100%;">
@@ -1161,6 +1167,7 @@
                 } else if (dimKey.endsWith('_deep_score_prompt')) { type = 'deep'; dim = dimKey.replace('_deep_score_prompt', ''); }
                 else if (dimKey.endsWith('_score_prompt')) { type = 'score'; dim = dimKey.replace('_score_prompt', ''); }
                 else if (dimKey.endsWith('_deep')) { type = 'deep_prompt'; dim = dimKey.replace('_deep', ''); }
+                else if (dimKey === 'kline_hold') { type = 'prompt'; dim = 'kline_hold'; }
                 else { type = 'prompt'; dim = dimKey; }
                 try {
                     const resp = await fetch(`/api/batch/stock/${promptData.stock_id}/prompt?dim=${dim}&type=${type}`);

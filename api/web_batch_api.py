@@ -75,12 +75,18 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
 
                         # 调用策略引擎分析（大模型初筛）
                         prompt, result = await get_strategy_engine_analysis(stock_info)
-                        grade, score, content = extract_grade_and_content(result)
+                        not_hold_grade, not_hold_content, hold_grade, hold_content = extract_grade_and_content(result)
 
-                        db_manager.update_stock_dimension_score(stock['id'], 'kline', grade, content, None, prompt)
+                        db_manager.update_stock_dimension_score(stock['id'], 'kline', not_hold_grade, not_hold_content, None, prompt)
+                        # 存持有建议到 kline_hold_score / kline_hold_prompt
+                        with __import__('sqlite3').connect(db_manager.db_path) as _conn:
+                            _conn.execute(
+                                "UPDATE stock_analysis_detail SET kline_hold_score=?, kline_hold_prompt=? WHERE id=?",
+                                (hold_grade, hold_content, stock['id'])
+                            )
                         db_manager.update_stock_status(stock['id'], 'completed', None, deep_thinking)
 
-                        numeric_score = GRADE_SCORE_MAP.get(grade)
+                        numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)
                         if numeric_score is not None:
                             update_stock_score(
                                 "data_results/stock_to_score_list/stock_score_list.md",
@@ -92,7 +98,7 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                         return {
                             'success': True,
                             'stock_name': stock['stock_name'],
-                            'score': grade
+                            'score': not_hold_grade
                         }
                     except Exception as e:
                         logger.error(f"Error analyzing {stock['stock_name']}: {e}", exc_info=True)
@@ -185,6 +191,7 @@ async def get_batch_stocks(batch_id: int):
             scores = [stock.get(f'{dim}_score') for dim in ['c', 'a', 'n', 's', 'l', 'i', 'm'] if stock.get(f'{dim}_score')]
             stock['score'] = round(sum(scores) / len(scores)) if scores else None
             stock['technical_score'] = stock.get('kline_score')
+            stock['technical_hold_score'] = stock.get('kline_hold_score')
             stock['has_overall'] = bool(stock.get('overall_analysis'))
             stock['overall_grade'] = stock.get('overall_grade')
             for f in exclude_fields:
@@ -211,7 +218,11 @@ async def get_stock_prompt(stock_id: int, dim: str, type: str = "score"):
             'overall_prompt': 'overall_prompt',
             'overall_result': 'overall_analysis',
         }
-        field = field_map.get(type, f'{dim}_score_prompt')
+        # kline_hold 维度映射到 kline_hold_prompt
+        if dim == 'kline_hold' and type == 'prompt':
+            field = 'kline_hold_prompt'
+        else:
+            field = field_map.get(type, f'{dim}_score_prompt')
         return {"success": True, "data": stock.get(field)}
     except HTTPException:
         raise
@@ -442,10 +453,11 @@ def extract_grade_and_content(result: str):
             except json.JSONDecodeError:
                 import ast
                 data = ast.literal_eval(clean)
-            return data.get('grade', ''), data.get('score', ''), data.get('content', '')
+            return (data.get('not_hold_grade', ''), data.get('not_hold_content', ''),
+                    data.get('hold_grade', ''), data.get('hold_content', ''))
     except Exception as e:
         logger.error("Error extracting grade/content: %s", e)
-    return '', result[:200]
+    return '', result[:200], '', ''
 
 def extract_grade_from_overall(result: str) -> str:
     """从整体分析JSON结果中提取grade字段"""

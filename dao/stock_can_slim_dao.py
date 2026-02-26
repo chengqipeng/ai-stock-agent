@@ -128,6 +128,11 @@ class DatabaseManager:
 
             if 'kline_summary' not in existing_columns:
                 cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN kline_summary TEXT")
+
+            if 'kline_hold_score' not in existing_columns:
+                cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN kline_hold_score TEXT")
+            if 'kline_hold_prompt' not in existing_columns:
+                cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN kline_hold_prompt TEXT")
             
             # 深度分析历史记录表
             cursor.execute("""
