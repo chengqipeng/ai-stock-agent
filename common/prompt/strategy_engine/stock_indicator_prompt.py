@@ -60,9 +60,6 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 4. **近{data_num}日交易数据**：
     研判中线趋势结构与关键支撑/压力。结合过去{data_num}个交易日的K线走势、均线系统（如MA20/MA50等）、阶段性高低点及整体形态（如箱体震荡、上升通道、W底、头肩顶等），分析多空力量的中期博弈格局。
 
-# 输出格式要求
-请按以下结构输出你的分析报告，语言风格需专业、精炼，拒绝模棱两可的废话：
-
 ## 一、 核心诊断与综合打分
 * **综合技术评分**：[给出0-100的数字评分，并在括号内标注评级：极弱/偏弱/震荡/偏强/极强]
 * **一句话点评**：[用一句话精准概括该股当前的技术面核心特征]
@@ -96,7 +93,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('生益科技')
+        stock_info: StockInfo = get_stock_info_by_name('英维克')
         print(await get_stock_indicator_prompt(stock_info))
 
     asyncio.run(main())

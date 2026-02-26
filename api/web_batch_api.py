@@ -360,19 +360,19 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
             all_analysis_result = "\n".join(r for r in results if isinstance(r, str))
 
             try:
-                from service.can_slim.can_slim_service import execute_overall_analysis
-                overall_prompt, overall_result = await execute_overall_analysis(stock_info, all_analysis_result, deep_thinking)
-
-                overall_grade = extract_grade_from_overall(overall_result)
-                db_manager.update_stock_overall_analysis(stock_id, overall_result, overall_prompt, overall_grade)
-                db_manager.update_stock_status(stock_id, 'completed', None, deep_thinking)
-                db_manager.add_deep_analysis_history(
-                    batch_id=stock['batch_id'], stock_id=stock_id,
-                    stock_name=stock['stock_name'], stock_code=stock['stock_code'],
-                    is_deep_thinking=deep_thinking, dim_results=dim_results,
-                    overall_analysis=overall_result, overall_prompt=overall_prompt
-                )
-                db_manager.update_dim_history_overall_grade(execution_id, overall_grade)
+                # from service.can_slim.can_slim_service import execute_overall_analysis
+                # overall_prompt, overall_result = await execute_overall_analysis(stock_info, all_analysis_result, deep_thinking)
+                #
+                # overall_grade = extract_grade_from_overall(overall_result)
+                # db_manager.update_stock_overall_analysis(stock_id, overall_result, overall_prompt, overall_grade)
+                # db_manager.update_stock_status(stock_id, 'completed', None, deep_thinking)
+                # db_manager.add_deep_analysis_history(
+                #     batch_id=stock['batch_id'], stock_id=stock_id,
+                #     stock_name=stock['stock_name'], stock_code=stock['stock_code'],
+                #     is_deep_thinking=deep_thinking, dim_results=dim_results,
+                #     overall_analysis=overall_result, overall_prompt=overall_prompt
+                # )
+                # db_manager.update_dim_history_overall_grade(execution_id, overall_grade)
                 dim_progress[stock_id]['overall'] = 'done'
             except Exception as e:
                 logger.error(f"Overall analysis failed for {stock['stock_name']}: {e}", exc_info=True)
