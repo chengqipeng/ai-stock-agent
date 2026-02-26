@@ -1,9 +1,9 @@
 import asyncio
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
-from common.constants.stocks_data import STOCKS
 from common.utils.stock_info_utils import get_stock_info_by_name
 from service.eastmoney.stock_info.stock_month_kline_data import get_stock_month_kline_list
 
@@ -100,8 +100,17 @@ async def main():
                 if r.get("update_time", "").startswith(today):
                     processed_codes.add(r["code"])
 
+    # 从 stock_score_list.md 加载股票列表
+    score_list_path = project_root / "data_results/stock_to_score_list/stock_score_list.md"
+    pattern = re.compile(r'^(.+?)\s+\(([^)]+)\)')
+    all_stocks = []
+    for line in score_list_path.read_text(encoding='utf-8').splitlines():
+        m = pattern.match(line.strip())
+        if m:
+            all_stocks.append({'name': m.group(1), 'code': m.group(2)})
+
     # 过滤未处理的股票
-    remaining_stocks = [s for s in STOCKS if s["code"] not in processed_codes]
+    remaining_stocks = [s for s in all_stocks if s["code"] not in processed_codes]
     total_count = len(remaining_stocks)
     completed_count = 0
 

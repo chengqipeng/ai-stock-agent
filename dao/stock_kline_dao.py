@@ -10,20 +10,8 @@ _DB_DIR = Path(__file__).parent.parent / "data_results/sql_lite"
 
 def get_db_path_for_stock(stock_code: str, db_dir: Path = None) -> Path:
     db_dir = db_dir or _DB_DIR
-    code_num = stock_code.split('.')[0]
-    exchange = stock_code.split('.')[-1].upper()
-    if exchange == 'SH':
-        return db_dir / 'stock_klines_sh.db'
-    if exchange == 'SZ':
-        prefix = int(code_num[:3])
-        if prefix >= 300:
-            return db_dir / 'stock_klines_sz_cyb.db'
-        if prefix < 1:
-            return db_dir / 'stock_klines_sz_000.db'
-        if prefix < 2:
-            return db_dir / 'stock_klines_sz_001.db'
-        return db_dir / 'stock_klines_sz_002.db'
-    return db_dir / 'stock_klines_other.db'
+    safe_code = stock_code.replace('.', '_')
+    return db_dir / f'stock_{safe_code}.db'
 
 
 def create_kline_table(cursor, table_name):
