@@ -9,6 +9,7 @@ from service.auto_job.stock_history_klines_data import get_db_cache_kline_data
 from service.eastmoney.stock_info.headers.stock_day_kline_headers import (
     get_kline_header_builders, kline_headers_index
 )
+from service.jqka10.stock_day_kline_data_10jqka import get_stock_day_kline_10jqka, get_stock_day_kline_as_str_10jqka
 
 
 async def get_stock_day_range_kline(stock_info: StockInfo, limit=400, headers=None):
@@ -86,9 +87,9 @@ async def get_stock_day_range_kline_by_db_cache(stock_info: StockInfo, limit=400
     if rows:
         return [_row_to_kline_str(r) for r in rows]
     try:
-        return await get_stock_day_range_kline(stock_info, limit)
+        return await get_stock_day_kline_as_str_10jqka(stock_info, limit)
     except Exception:
-        return await get_stock_day_range_kline(stock_info, limit)
+        return await get_stock_day_kline_as_str_10jqka(stock_info, limit)
 
 
 async def get_stock_day_kline_cn(stock_info: StockInfo, limit=20) -> list[dict]:
@@ -154,7 +155,7 @@ if __name__ == "__main__":
     async def main():
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
-        result = await get_stock_day_kline_cn(stock_info, 50)
+        result = await get_stock_day_range_kline_by_db_cache(stock_info, 50)
         print(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

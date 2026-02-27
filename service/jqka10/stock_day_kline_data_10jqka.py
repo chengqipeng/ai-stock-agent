@@ -202,6 +202,28 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     return result
 
 
+async def get_stock_day_kline_as_str_10jqka(stock_info: StockInfo, limit: int = 400) -> list[str]:
+    """
+    返回与 get_stock_day_range_kline_by_db_cache 格式一致的逗号分隔字符串列表：
+    date,open_price,close_price,high_price,low_price,trading_volume,trading_amount,amplitude,change_percent,change_amount,change_hand
+    """
+    klines = await get_stock_day_kline_10jqka(stock_info, limit)
+    result = []
+    for i, k in enumerate(klines):
+        prev_close = klines[i - 1]["close_price"] if i > 0 else k["close_price"]
+        amplitude     = round((k["high_price"] - k["low_price"]) / prev_close * 100, 2) if prev_close else None
+        change_pct    = round((k["close_price"] - prev_close) / prev_close * 100, 2) if prev_close else None
+        change_amt    = round(k["close_price"] - prev_close, 2) if prev_close else None
+        trading_vol   = round(k["trading_volume"], 2)
+        trading_amt   = k["trading_amount"] if k.get("trading_amount") is not None else ""
+        result.append(','.join(str(v) for v in (
+            k["date"], k["open_price"], k["close_price"], k["high_price"], k["low_price"],
+            trading_vol, trading_amt, amplitude, change_pct, change_amt,
+            k.get("change_hand", ""),
+        )))
+    return result
+
+
 async def get_stock_day_kline_cn_10jqka(stock_info: StockInfo, limit: int = 400) -> list[dict]:
     """获取日K线数据，返回中文key，与 get_stock_day_kline_cn 格式一致"""
     klines = await get_stock_day_kline_10jqka(stock_info, limit)
@@ -236,7 +258,7 @@ if __name__ == "__main__":
 
     async def main():
         stock_info = get_stock_info_by_name("北方华创")
-        klines = await get_stock_day_kline_10jqka(stock_info, limit=400)
+        klines = await get_stock_day_kline_as_str_10jqka(stock_info, limit=400)
         print(json.dumps(klines, ensure_ascii=False, indent=2))
 
     asyncio.run(main())
