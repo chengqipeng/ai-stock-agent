@@ -74,17 +74,18 @@ async def _fetch_raw(url: str, cache_key: str, code: str) -> dict:
     return data
 
 
-def _build_nofq_map(last_data: dict) -> dict[str, dict]:
-    """从last.js不复权数据构建 {YYYYMMDD: {close, amount, turnover}} 映射"""
+def _build_nofq_map(year_data_list: list[dict]) -> dict[str, dict]:
+    """从年份分段不复权数据构建 {YYYYMMDD: {close, amount, turnover}} 映射"""
     result = {}
-    for row in last_data.get("data", "").strip().split(";"):
-        parts = row.split(",")
-        if len(parts) >= 8 and parts[4]:
-            result[parts[0]] = {
-                "close":    float(parts[4]),
-                "amount":   float(parts[6]),
-                "turnover": float(parts[7]) if parts[7] else None,
-            }
+    for year_data in year_data_list:
+        for row in year_data.get("data", "").strip().split(";"):
+            parts = row.split(",")
+            if len(parts) >= 8 and parts[4]:
+                result[parts[0]] = {
+                    "close":    float(parts[4]),
+                    "amount":   float(parts[6]),
+                    "turnover": float(parts[7]) if parts[7] else None,
+                }
     return result
 
 
@@ -130,11 +131,23 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     market = "hs"
     code = stock_info.stock_code
 
-    data, last_data = await asyncio.gather(
-        _fetch_raw(f"https://d.10jqka.com.cn/v6/line/{market}_{code}/01/all.js", "day_kline_10jqka", code),
-        _fetch_raw(f"https://d.10jqka.com.cn/v6/line/{market}_{code}/01/last.js", "day_nofq_10jqka", code),
-    )
-    nofq_map = _build_nofq_map(last_data)
+    # 需要覆盖的年份：从 (当前年 - limit/243向上取整) 到当前年
+    import math
+    current_year = date.today().year
+    years_needed = math.ceil(limit / 243) + 1
+    years = [current_year - i for i in range(years_needed)]
+
+    fetch_tasks = [_fetch_raw(f"https://d.10jqka.com.cn/v6/line/{market}_{code}/01/all.js", "day_kline_10jqka", code)]
+    for y in years:
+        fetch_tasks.append(_fetch_raw(
+            f"https://d.10jqka.com.cn/v6/line/{market}_{code}/01/{y}.js",
+            f"day_nofq_{y}_10jqka", code
+        ))
+
+    results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+    data = results[0]
+    year_data_list = [r for r in results[1:] if isinstance(r, dict)]
+    nofq_map = _build_nofq_map(year_data_list)
 
     price_factor = data.get("priceFactor", 100)
     sort_year = data.get("sortYear", [])
@@ -205,7 +218,7 @@ if __name__ == "__main__":
 
     async def main():
         stock_info = get_stock_info_by_name("北方华创")
-        klines = await get_stock_day_kline_cn_10jqka(stock_info, limit=400)
+        klines = await get_stock_day_kline_10jqka(stock_info, limit=400)
         print(json.dumps(klines, ensure_ascii=False, indent=2))
 
     asyncio.run(main())
