@@ -2,7 +2,7 @@ import asyncio
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, INDICATOR_CONFIG
-from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
 
 """
 CAN SLIM 系统下的“实战”阈值（战略数据量）
@@ -19,7 +19,7 @@ CAN SLIM 实战250 (1年)配合分析 C、A 增长及中长期杯柄形态。
 
 async def calculate_macd(stock_info: StockInfo, fast=12, slow=26, signal=9):
     """计算MACD指标"""
-    klines = await get_stock_day_range_kline(stock_info)
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info)
     df = parse_klines_to_df(klines)
     
     ema_fast = df['close_price'].ewm(span=fast, adjust=False).mean()

@@ -1,6 +1,7 @@
 import pandas as pd
 from common.utils.stock_info_utils import StockInfo
-from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline, \
+    get_stock_day_range_kline_by_db_cache
 
 
 async def get_volume_avg(stock_info: StockInfo, days=20, page_size=120):
@@ -9,7 +10,7 @@ async def get_volume_avg(stock_info: StockInfo, days=20, page_size=120):
     Returns:
         list: [{"date": "2024-01-01", "volume_avg": 1234.56}, ...]
     """
-    klines = await get_stock_day_range_kline(stock_info, limit=page_size + days)
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=page_size + days)
     rows = [{'date': k.split(',')[0], 'trading_volume': round(float(k.split(',')[5]) / 10000, 2)} for k in klines]
     rows.sort(key=lambda x: x['date'])
     df = pd.DataFrame(rows)
