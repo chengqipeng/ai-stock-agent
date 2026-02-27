@@ -44,11 +44,17 @@ async def calculate_moving_averages(stock_info: StockInfo):
     # 200日SMA
     df['close_200_sma'] = df['close_price'].rolling(window=200).mean().round(2)
     
+    # 乖离率 BIAS = (收盘价 - N日均线) / N日均线 * 100
+    df['bias_5'] = ((df['close_price'] - df['close_5_sma']) / df['close_5_sma'] * 100).round(2)
+    df['bias_10'] = ((df['close_price'] - df['close_10_ema']) / df['close_10_ema'] * 100).round(2)
+    df['bias_20'] = ((df['close_price'] - df['close_20_sma']) / df['close_20_sma'] * 100).round(2)
+    df['bias_60'] = ((df['close_price'] - df['close_60_sma']) / df['close_60_sma'] * 100).round(2)
+
     # 多头排列判断
     df['is_bullish_alignment'] = (df['close_5_sma'] > df['close_10_ema']) & (df['close_10_ema'] > df['close_21_sma']) & (df['close_21_sma'] > df['close_50_sma']) & (df['close_50_sma'] > df['close_200_sma'])
     
     config = INDICATOR_CONFIG.get('ma', {'tail_limit': 400})
-    return df[['date', 'close_5_sma', 'close_10_ema', 'close_20_sma', 'close_21_sma', 'close_50_sma', 'close_60_sma', 'close_200_sma', 'is_bullish_alignment']].tail(config['tail_limit']).to_dict('records')[::-1]
+    return df[['date', 'close_5_sma', 'close_10_ema', 'close_20_sma', 'close_21_sma', 'close_50_sma', 'close_60_sma', 'close_200_sma', 'bias_5', 'bias_10', 'bias_20', 'bias_60', 'is_bullish_alignment']].tail(config['tail_limit']).to_dict('records')[::-1]
 
 
 async def generate_can_slim_50_200_summary(stock_info: StockInfo):
@@ -152,7 +158,11 @@ async def get_moving_averages_json_cn(stock_info: StockInfo, include_fields: lis
         'close_50_sma': '50日均线',
         'close_60_sma': '60日均线',
         'close_200_sma': '200日均线',
-        'is_bullish_alignment': '多头排列'
+        'is_bullish_alignment': '多头排列',
+        'bias_5': 'BIAS5',
+        'bias_10': 'BIAS10',
+        'bias_20': 'BIAS20',
+        'bias_60': 'BIAS60'
     }
     
     # 转换数据字段
@@ -184,7 +194,7 @@ async def get_stock_history_volume_amount_yearly(stock_info: StockInfo):
 
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
-    klines = await get_moving_averages_json_cn(stock_info, ["date", "close_5_sma", "close_10_ema", "close_20_sma", "close_60_sma"], 120)
+    klines = await get_moving_averages_json_cn(stock_info, ["date", "close_5_sma", "close_10_ema", "close_20_sma", "close_60_sma", "bias_5", "bias_10", "bias_20", "bias_60"], 120)
     print(klines)
 
 if __name__ == "__main__":
