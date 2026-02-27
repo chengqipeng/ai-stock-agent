@@ -17,7 +17,7 @@ _HEADERS = {
 
 
 def _build_dates(start: str, sort_year: list, dates_str: str) -> list[str]:
-    """将 sortYear + dates 还原为完整日期列表 YYYYMMDD"""
+    """将 sortYear + dates 还原为完整日期列表 YYYY-MM-DD"""
     mmdd_list = dates_str.split(",")
     result = []
     idx = 0
@@ -25,7 +25,8 @@ def _build_dates(start: str, sort_year: list, dates_str: str) -> list[str]:
         for _ in range(count):
             if idx >= len(mmdd_list):
                 break
-            result.append(f"{year}{mmdd_list[idx]}")
+            mmdd = mmdd_list[idx]
+            result.append(f"{year}-{mmdd[:2]}-{mmdd[2:]}")
             idx += 1
     return result
 
@@ -147,7 +148,7 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     result = []
     for i in range(start, n):
         open_p, close_p, high_p, low_p = prices[i]
-        nofq = nofq_map.get(dates[i], {})
+        nofq = nofq_map.get(dates[i].replace("-", ""), {})
         result.append({
             "date":           dates[i],
             "open_price":     open_p,
@@ -160,7 +161,7 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
         })
 
     last_date = result[-1]["date"] if result else ""
-    latest_trading_day = _latest_trading_day().strftime("%Y%m%d")
+    latest_trading_day = _latest_trading_day().strftime("%Y-%m-%d")
     today_kline = await _get_today_kline(stock_info.stock_code)
     if today_kline and today_kline["date"] == latest_trading_day and today_kline["date"] > last_date:
         result.append(today_kline)
@@ -184,7 +185,7 @@ async def get_stock_day_kline_cn_10jqka(stock_info: StockInfo, limit: int = 400)
             amplitude = change_pct = change_amt = None
         d = k["date"]
         result.append({
-            "日期":       f"{d[:4]}-{d[4:6]}-{d[6:]}",
+            "日期":       d,
             "开盘价":     k["open_price"],
             "收盘价":     k["close_price"],
             "最高价":     k["high_price"],
