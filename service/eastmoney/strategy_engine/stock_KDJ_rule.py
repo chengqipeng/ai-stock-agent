@@ -194,7 +194,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name('中国卫通')
+        stock_info: StockInfo = get_stock_info_by_name('生益科技')
         import json
         result = await get_kdj_rule_kdj_only(stock_info)
         print(json.dumps(result, ensure_ascii=False, indent=2))
