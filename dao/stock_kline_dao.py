@@ -37,20 +37,24 @@ def create_kline_table(cursor, table_name):
     cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_{table_name}_date ON {table_name}(date)')
 
 
+def _to_float(v):
+    return float(v) if v != '' else 0.0
+
+
 def parse_kline_data(kline_str):
     fields = kline_str.split(',')
     return {
         'date': fields[0],
-        'open_price': float(fields[1]),
-        'close_price': float(fields[2]),
-        'high_price': float(fields[3]),
-        'low_price': float(fields[4]),
-        'trading_volume': float(fields[5]),
-        'trading_amount': float(fields[6]),
-        'amplitude': float(fields[7]),
-        'change_percent': float(fields[8]),
-        'change_amount': float(fields[9]),
-        'change_hand': float(fields[10])
+        'open_price': _to_float(fields[1]),
+        'close_price': _to_float(fields[2]),
+        'high_price': _to_float(fields[3]),
+        'low_price': _to_float(fields[4]),
+        'trading_volume': _to_float(fields[5]),
+        'trading_amount': _to_float(fields[6]),
+        'amplitude': _to_float(fields[7]),
+        'change_percent': _to_float(fields[8]),
+        'change_amount': _to_float(fields[9]),
+        'change_hand': _to_float(fields[10])
     }
 
 

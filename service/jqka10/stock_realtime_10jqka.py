@@ -1,4 +1,6 @@
+import asyncio
 import re
+import json
 import aiohttp
 
 HEADERS = {
@@ -33,15 +35,63 @@ async def get_today_trade_data(stock_code: str) -> dict:
     if not match:
         raise ValueError(f"Unexpected response format: {text[:200]}")
 
-    import json
     return json.loads(match.group(1))
+
+
+async def _get_prev_close(stock_code: str) -> float | None:
+    """从同花顺分时接口获取昨收价"""
+    url = f"https://d.10jqka.com.cn/v6/time/hs_{stock_code}/last.js"
+    async with aiohttp.ClientSession(headers=HEADERS) as session:
+        async with session.get(url) as resp:
+            text = await resp.text()
+    match = re.search(r"\((.+)\)", text, re.DOTALL)
+    if not match:
+        return None
+    data = json.loads(match.group(1))
+    pre = data.get(f"hs_{stock_code}", {}).get("pre")
+    return float(pre) if pre else None
+
+
+async def get_today_kline_as_str(stock_code: str) -> str | None:
+    """
+    获取今日实时K线，返回与 get_stock_day_range_kline 格式一致的逗号分隔字符串：
+    date,open_price,close_price,high_price,low_price,trading_volume,trading_amount,amplitude,change_percent,change_amount,change_hand
+    """
+    raw, prev_close = await asyncio.gather(
+        get_today_trade_data(stock_code),
+        _get_prev_close(stock_code),
+    )
+    item = raw.get(f"hs_{stock_code}", {})
+    trade_date = item.get("1", "")
+    if len(trade_date) == 8:
+        trade_date = f"{trade_date[:4]}-{trade_date[4:6]}-{trade_date[6:]}"
+    close_p = item.get("11")
+    if not trade_date or not close_p:
+        return None
+    close_p = float(close_p)
+    open_p = float(item.get("7", close_p))
+    high_p = float(item.get("8", close_p))
+    low_p = float(item.get("9", close_p))
+    volume = int(item.get("13", 0)) // 100
+    amount = item.get("19", "")
+    change_hand = item.get("1968584", "")
+    if prev_close:
+        amplitude  = round((high_p - low_p) / prev_close * 100, 2)
+        change_pct = round((close_p - prev_close) / prev_close * 100, 2)
+        change_amt = round(close_p - prev_close, 2)
+    else:
+        amplitude = change_pct = change_amt = ""
+    return ','.join(str(v) for v in (
+        trade_date, open_p, close_p, high_p, low_p,
+        volume, amount, amplitude, change_pct, change_amt, change_hand,
+    ))
 
 
 if __name__ == "__main__":
     import asyncio
 
     async def main():
-        data = await get_today_trade_data("002371")
+        data = await get_today_kline_as_str("002371")
         print(data)
 
     asyncio.run(main())

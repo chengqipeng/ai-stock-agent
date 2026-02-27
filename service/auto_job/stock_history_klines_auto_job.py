@@ -4,6 +4,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 import re
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline
+from service.jqka10.stock_realtime_10jqka import get_today_kline_as_str
 from common.utils.stock_info_utils import get_stock_info_by_code
 from dao.stock_kline_dao import (
     get_db_path_for_stock, get_missing_trading_days, get_latest_db_date,
@@ -35,22 +36,34 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
     fetch_limit = (today_cst - earliest_missing).days + 5 if latest_db_date else limit
 
     klines = None
-    for attempt in range(1, 11):
+    t0 = asyncio.get_event_loop().time()
+    # 仅缺最新一天时，直接从同花顺实时接口获取
+    if len(missing_days) == 1 and missing_days[0] == today_cst:
         try:
-            t0 = asyncio.get_event_loop().time()
-            klines = await get_stock_day_range_kline(stock_info, fetch_limit)
+            pure_code = stock_code.split('.')[0]
+            kline_str = await get_today_kline_as_str(pure_code)
+            klines = [kline_str] if kline_str else []
             elapsed = asyncio.get_event_loop().time() - t0
-            break
         except Exception as e:
-            if ('Server disconnected' in str(e) or 'Connection closed abruptly' in str(e)) and attempt < 10:
-                print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 连接中断({e.__class__.__name__})，第{attempt}次重试，等待10秒")
-                await asyncio.sleep(10)
-            else:
-                print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 获取K线失败: {e}")
-                counter['failed'] += 1
-                return
+            print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 实时K线获取失败: {e}")
+            counter['failed'] += 1
+            return
+    else:
+        for attempt in range(1, 11):
+            try:
+                klines = await get_stock_day_range_kline(stock_info, fetch_limit)
+                elapsed = asyncio.get_event_loop().time() - t0
+                break
+            except Exception as e:
+                if ('Server disconnected' in str(e) or 'Connection closed abruptly' in str(e)) and attempt < 10:
+                    print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 连接中断({e.__class__.__name__})，第{attempt}次重试，等待10秒")
+                    await asyncio.sleep(10)
+                else:
+                    print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 获取K线失败: {e}")
+                    counter['failed'] += 1
+                    return
 
-    if not klines:
+    if klines is None:
         counter['failed'] += 1
         return
 
