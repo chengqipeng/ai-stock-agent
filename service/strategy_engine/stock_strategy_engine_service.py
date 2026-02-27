@@ -14,11 +14,11 @@ async def get_strategy_engine_analysis(stock_info: StockInfo) -> tuple[str, str]
     return prompt, result
 
 
-if __name__ == '__main__':
-    async def main():
-        stock_info: StockInfo = get_stock_info_by_name('雷科防务')
-        prompt, result = await get_strategy_engine_analysis(stock_info)
-        print(result)
-        #print(json.dumps(result, ensure_ascii=False, indent=2))
-
-    asyncio.run(main())
+# if __name__ == '__main__':
+#     async def main():
+#         stock_info: StockInfo = get_stock_info_by_name('雷科防务')
+#         prompt, result = await get_strategy_engine_analysis(stock_info)
+#         print(result)
+#         #print(json.dumps(result, ensure_ascii=False, indent=2))
+#
+#     asyncio.run(main())

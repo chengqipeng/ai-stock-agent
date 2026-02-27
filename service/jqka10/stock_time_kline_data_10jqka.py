@@ -10,7 +10,7 @@ _HEADERS = {
 }
 
 
-async def get_stock_time_kline_10jqka(stock_info: StockInfo) -> list[dict]:
+async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None) -> list[dict]:
     """
     从同花顺获取当日分时数据，返回列表（由旧到新）。
     每条记录包含：time, price, avg_price, volume, change_percent
@@ -46,7 +46,20 @@ async def get_stock_time_kline_10jqka(stock_info: StockInfo) -> list[dict]:
             "change_percent": change_pct,
         })
 
-    return result
+    return result if limit is None else result[-limit:]
+
+
+async def get_stock_time_kline_cn_10jqka(stock_info: StockInfo, limit: int = None) -> list[dict]:
+    """获取当日分时数据，返回中文key列表"""
+    rows = await get_stock_time_kline_10jqka(stock_info, limit)
+    return [{
+        "时间":   r["time"],
+        "价格":   r["price"],
+        "成交额":  r["amount"],
+        "均价":   r["avg_price"],
+        "成交量":  r["volume"],
+        "涨跌幅":  r["change_percent"],
+    } for r in rows]
 
 
 if __name__ == "__main__":
@@ -54,7 +67,7 @@ if __name__ == "__main__":
 
     async def main():
         stock_info = get_stock_info_by_name("北方华创")
-        klines = await get_stock_time_kline_10jqka(stock_info)
+        klines = await get_stock_time_kline_cn_10jqka(stock_info)
         print(json.dumps(klines[:50], ensure_ascii=False, indent=2))
 
     asyncio.run(main())
