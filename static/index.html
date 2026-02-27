@@ -327,7 +327,7 @@
             <div class="panel">
                 <h2 style="font-size: 14px;">待分析股票列表</h2>
                 <div style="margin: 10px 0; position: relative;">
-                    <input type="text" id="stockSearch" placeholder="搜索股票名称或代码..." style="width: 100%; padding: 8px 28px 8px 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 13px; margin-bottom: 10px; box-sizing: border-box;" oninput="filterStocks()" onkeydown="handleStockSearchEnter(event)">
+                    <input type="text" id="stockSearch" placeholder="搜索或批量输入股票（逗号/空格分隔，回车选中）..." style="width: 100%; padding: 8px 28px 8px 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 13px; margin-bottom: 10px; box-sizing: border-box;" oninput="filterStocks()" onkeydown="handleStockSearchEnter(event)" onpaste="handleStockPaste(event)">
                     <span onclick="document.getElementById('stockSearch').value='';filterStocks()" style="position: absolute; right: 8px; top: 8px; cursor: pointer; color: #aaa; font-size: 14px; line-height: 1;">&times;</span>
                 </div>
                 <div style="margin: 10px 0; display: flex; align-items: center;">
@@ -500,18 +500,61 @@
             renderStockList();
         }
 
-        function handleStockSearchEnter(event) {
-            if (event.key !== 'Enter') return;
-            const term = document.getElementById('stockSearch').value.trim().toLowerCase();
-            if (!term) return;
-            const match = stockList.find(s => s.name.toLowerCase() === term || s.code.toLowerCase() === term);
-            if (!match) return;
-            const stockKey = `${match.name} (${match.code})`;
-            selectedStockKeys.add(stockKey);
-            selectedStocks.add(stockKey);
+        function fuzzyMatchStock(term) {
+            const t = term.trim().toLowerCase();
+            if (!t) return null;
+            // 精确匹配优先
+            let match = stockList.find(s => s.name.toLowerCase() === t || s.code.toLowerCase() === t);
+            if (match) return match;
+            // 包含匹配
+            const contains = stockList.filter(s => s.name.toLowerCase().includes(t) || s.code.toLowerCase().includes(t));
+            if (contains.length === 1) return contains[0];
+            if (contains.length > 1) {
+                // 优先名称以该词开头
+                const startsWith = contains.find(s => s.name.toLowerCase().startsWith(t));
+                return startsWith || contains[0];
+            }
+            return null;
+        }
+
+        function selectStockTerms(terms) {
+            const notFound = [];
+            terms.forEach(term => {
+                const match = fuzzyMatchStock(term);
+                if (match) {
+                    const stockKey = `${match.name} (${match.code})`;
+                    selectedStockKeys.add(stockKey);
+                    selectedStocks.add(stockKey);
+                } else {
+                    notFound.push(term);
+                }
+            });
             document.getElementById('selectedCount').textContent = selectedStocks.size;
             document.getElementById('stockSearch').value = '';
             renderStockList();
+            if (notFound.length) alert(`以下股票未找到：\n${notFound.join('、')}`);
+        }
+
+        function handleStockSearchEnter(event) {
+            if (event.key !== 'Enter') return;
+            const raw = document.getElementById('stockSearch').value.trim();
+            if (!raw) return;
+            const terms = raw.split(/[,，、;;。\s]+/).filter(Boolean);
+            if (terms.length === 1) {
+                // 单个词：仍支持实时搜索过滤，回车选中
+                selectStockTerms(terms);
+            } else {
+                selectStockTerms(terms);
+            }
+        }
+
+        function handleStockPaste(event) {
+            const text = (event.clipboardData || window.clipboardData).getData('text');
+            if (!text) return;
+            const terms = text.split(/[,，、;;。\s]+/).filter(Boolean);
+            if (terms.length <= 1) return;
+            event.preventDefault();
+            document.getElementById('stockSearch').value = terms.join('，');
         }
 
         function updateSelection() {
