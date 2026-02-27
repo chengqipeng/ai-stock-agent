@@ -232,3 +232,14 @@ def get_kline_data(stock_code: str, start_date: str = None, end_date: str = None
         conn.close()
 
     return rows
+
+
+if __name__ == '__main__':
+    stock_code = '600183.SH'
+    db_path = get_db_path_for_stock(stock_code)
+    print('DB path:', db_path)
+    print('Latest date:', get_latest_db_date(db_path, stock_code))
+    print('Missing trading days:', get_missing_trading_days(db_path, stock_code))
+    rows = get_kline_data(stock_code, limit=5)
+    for row in rows:
+        print(row)
