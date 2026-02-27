@@ -776,11 +776,11 @@
   {
     "code": "300938.SZ",
     "name": "信测标准",
-    "highest_price": 38.28,
-    "highest_date": "2026-01-30",
-    "lowest_price": 10.03,
-    "lowest_date": "2022-03-18",
-    "update_time": "2026-02-21 09:58:39"
+    "highest_price": 39.1,
+    "highest_date": "2026--0-2-27",
+    "lowest_price": 10.33,
+    "lowest_date": "2022--0-4-01",
+    "update_time": "2026-02-27 20:36:29"
   },
   {
     "code": "300895.SZ",
@@ -3908,11 +3908,11 @@
   {
     "code": "301248.SZ",
     "name": "杰创智能",
-    "highest_price": 53.35,
-    "highest_date": "2026-01-30",
+    "highest_price": 58.47,
+    "highest_date": "2026--0-2-27",
     "lowest_price": 8.19,
-    "lowest_date": "2024-02-08",
-    "update_time": "2026-02-21 09:58:40"
+    "lowest_date": "2024--0-2-08",
+    "update_time": "2026-02-27 20:36:20"
   },
   {
     "code": "001288.SZ",
@@ -5942,11 +5942,11 @@
   {
     "code": "002463.SZ",
     "name": "沪电股份",
-    "highest_price": 85.36,
-    "highest_date": "2026-02-26",
-    "lowest_price": 0.29,
-    "lowest_date": "2013-06-28",
-    "update_time": "2026-02-26 20:55:28"
+    "highest_price": 85.8,
+    "highest_date": "2026--0-2-27",
+    "lowest_price": 8.35,
+    "lowest_date": "2022--1-0-14",
+    "update_time": "2026-02-27 20:36:13"
   },
   {
     "code": "002486.SZ",
@@ -13718,11 +13718,11 @@
   {
     "code": "301630.SZ",
     "name": "同宇新材",
-    "highest_price": 237.9,
-    "highest_date": "2025-07-11",
+    "highest_price": 246.0,
+    "highest_date": "2026--0-2-27",
     "lowest_price": 157.01,
-    "lowest_date": "2025-07-18",
-    "update_time": "2026-02-21 09:58:48"
+    "lowest_date": "2025--0-7-18",
+    "update_time": "2026-02-27 20:36:50"
   },
   {
     "code": "002668.SZ",
@@ -25427,11 +25427,11 @@
   {
     "code": "002353.SZ",
     "name": "杰瑞股份",
-    "highest_price": 111.9,
-    "highest_date": "2026-02-26",
-    "lowest_price": 4.61,
-    "lowest_date": "2010-02-05",
-    "update_time": "2026-02-26 20:55:31"
+    "highest_price": 116.12,
+    "highest_date": "2026--0-2-27",
+    "lowest_price": 21.26,
+    "lowest_date": "2023--0-6-02",
+    "update_time": "2026-02-27 20:36:22"
   },
   {
     "code": "301468.SZ",
@@ -42238,12 +42238,12 @@
   },
   {
     "code": "688299.SH",
-    "name": "长阳科技",
-    "highest_price": 39.95,
-    "highest_date": "2021-08-06",
-    "lowest_price": 7.25,
-    "lowest_date": "2024-02-08",
-    "update_time": "2026-02-21 09:59:47"
+    "name": "长盈通",
+    "highest_price": 68.41,
+    "highest_date": "2026--0-2-13",
+    "lowest_price": 14.49,
+    "lowest_date": "2024--0-2-08",
+    "update_time": "2026-02-27 20:36:58"
   },
   {
     "code": "688063.SH",
@@ -46064,11 +46064,11 @@
   {
     "code": "600111.SH",
     "name": "北方稀土",
-    "highest_price": 61.69,
-    "highest_date": "2025-10-17",
-    "lowest_price": -1.04,
-    "lowest_date": "2005-07-29",
-    "update_time": "2026-02-21 09:59:59"
+    "highest_price": 62.79,
+    "highest_date": "2026--0-2-27",
+    "lowest_price": 14.98,
+    "lowest_date": "2024--0-2-08",
+    "update_time": "2026-02-27 20:36:24"
   },
   {
     "code": "601369.SH",
