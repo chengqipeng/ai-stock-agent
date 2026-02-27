@@ -5,7 +5,7 @@ import logging
 import aiohttp
 from datetime import date, timedelta
 from chinese_calendar import is_workday
-from common.utils.cache_utils import get_cache_path, load_cache, save_cache
+from common.utils.cache_utils import get_cache_path, load_cache, save_cache, get_market_cache_key
 from common.utils.stock_info_utils import StockInfo
 from service.jqka10.stock_realtime_10jqka import get_today_trade_data
 
@@ -103,6 +103,8 @@ async def _get_today_kline(stock_code: str) -> dict | None:
         raw = await get_today_trade_data(stock_code)
         item = raw.get(f"hs_{stock_code}", {})
         trade_date = item.get("1", "")
+        if len(trade_date) == 8:
+            trade_date = f"{trade_date[:4]}-{trade_date[4:6]}-{trade_date[6:]}"
         close_p = item.get("11")
         if not trade_date or not close_p:
             return None
@@ -128,6 +130,19 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     每条记录包含：date, open_price, close_price, high_price, low_price,
                  trading_volume（手）, trading_amount, change_hand（换手率%）
     """
+    cache_path = get_cache_path(f"day_kline_10jqka_{get_market_cache_key()}_{limit}", stock_info.stock_code)
+    cached = load_cache(cache_path)
+    if cached:
+        latest_trading_day = _latest_trading_day().strftime("%Y-%m-%d")
+        if cached[-1]["date"] < latest_trading_day:
+            today_kline = await _get_today_kline(stock_info.stock_code)
+            if today_kline and today_kline["date"] == latest_trading_day:
+                cached.append(today_kline)
+                if len(cached) > limit:
+                    cached = cached[-limit:]
+                save_cache(cache_path, cached)
+        return cached
+
     market = "hs"
     code = stock_info.stock_code
 
@@ -173,14 +188,17 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
             "change_hand":    nofq.get("turnover"),
         })
 
-    last_date = result[-1]["date"] if result else ""
     latest_trading_day = _latest_trading_day().strftime("%Y-%m-%d")
     today_kline = await _get_today_kline(stock_info.stock_code)
-    if today_kline and today_kline["date"] == latest_trading_day and today_kline["date"] > last_date:
-        result.append(today_kline)
-        if len(result) > limit:
-            result = result[-limit:]
+    if today_kline and today_kline["date"] == latest_trading_day:
+        if result and result[-1]["date"] == latest_trading_day:
+            result[-1] = today_kline
+        else:
+            result.append(today_kline)
+            if len(result) > limit:
+                result = result[-limit:]
 
+    save_cache(cache_path, result)
     return result
 
 
