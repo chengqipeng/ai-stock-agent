@@ -2,7 +2,8 @@ import asyncio
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, INDICATOR_CONFIG
-from service.eastmoney.stock_info.stock_day_kline_data import get_stock_history_kline_max_min, get_stock_day_range_kline
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_history_kline_max_min, \
+    get_stock_day_range_kline, get_stock_day_range_kline_by_db_cache
 
 """
 核心原则：必须拥有 250 条（约 1 年）以上的历史数据
@@ -19,23 +20,27 @@ from service.eastmoney.stock_info.stock_day_kline_data import get_stock_history_
 """
 async def calculate_moving_averages(stock_info: StockInfo):
     """计算移动平均线指标"""
-    klines = await get_stock_day_range_kline(stock_info)
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info)
     df = parse_klines_to_df(klines)
 
-    df['close_5_ema'] = df['close_price'].rolling(window=10).mean().round(2)
-    
     # 5日SMA
     df['close_5_sma'] = df['close_price'].rolling(window=5).mean().round(2)
     
     # 10日EMA - 使用adjust=True
     df['close_10_ema'] = df['close_price'].rolling(window=10).mean().round(2)
 
+    # 20日SMA
+    df['close_20_sma'] = df['close_price'].rolling(window=20).mean().round(2)
+
     # 21日SMA
     df['close_21_sma'] = df['close_price'].rolling(window=21).mean().round(2)
 
     # 50日SMA
     df['close_50_sma'] = df['close_price'].rolling(window=50).mean().round(2)
-    
+
+    # 60日SMA
+    df['close_60_sma'] = df['close_price'].rolling(window=60).mean().round(2)
+
     # 200日SMA
     df['close_200_sma'] = df['close_price'].rolling(window=200).mean().round(2)
     
@@ -43,7 +48,7 @@ async def calculate_moving_averages(stock_info: StockInfo):
     df['is_bullish_alignment'] = (df['close_5_sma'] > df['close_10_ema']) & (df['close_10_ema'] > df['close_21_sma']) & (df['close_21_sma'] > df['close_50_sma']) & (df['close_50_sma'] > df['close_200_sma'])
     
     config = INDICATOR_CONFIG.get('ma', {'tail_limit': 400})
-    return df[['date', 'close_5_sma', 'close_10_ema', 'close_21_sma', 'close_50_sma', 'close_200_sma', 'is_bullish_alignment']].tail(config['tail_limit']).to_dict('records')[::-1]
+    return df[['date', 'close_5_sma', 'close_10_ema', 'close_20_sma', 'close_21_sma', 'close_50_sma', 'close_60_sma', 'close_200_sma', 'is_bullish_alignment']].tail(config['tail_limit']).to_dict('records')[::-1]
 
 
 async def generate_can_slim_50_200_summary(stock_info: StockInfo):
@@ -142,8 +147,10 @@ async def get_moving_averages_json_cn(stock_info: StockInfo, include_fields: lis
         'date': '日期',
         'close_5_sma': '5日均线',
         'close_10_ema': '10日均线',
+        'close_20_sma': '20日均线',
         'close_21_sma': '21日均线',
         'close_50_sma': '50日均线',
+        'close_60_sma': '60日均线',
         'close_200_sma': '200日均线',
         'is_bullish_alignment': '多头排列'
     }
@@ -177,7 +184,7 @@ async def get_stock_history_volume_amount_yearly(stock_info: StockInfo):
 
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
-    klines = await get_stock_history_volume_amount_yearly(stock_info)
+    klines = await get_moving_averages_json_cn(stock_info, ["date", "close_5_sma", "close_10_ema", "close_20_sma", "close_60_sma"], 120)
     print(klines)
 
 if __name__ == "__main__":
