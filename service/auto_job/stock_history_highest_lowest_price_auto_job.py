@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from common.utils.stock_info_utils import get_stock_info_by_name
-from service.eastmoney.stock_info.stock_week_kline_data import get_stock_week_kline_list
+from service.jqka10.stock_week_kline_data_10jqka import get_stock_week_kline_list_10jqka
 
 # 获取项目根目录
 project_root = Path(__file__).parent.parent.parent
@@ -52,7 +52,7 @@ async def process_stock(stock):
     try:
         stock_name = stock["name"]
         stock_info = get_stock_info_by_name(stock_name)
-        kline_data = await get_stock_week_kline_list(stock_info)
+        kline_data = await get_stock_week_kline_list_10jqka(stock_info)
 
         if kline_data:
             highest_record = max(kline_data, key=lambda x: x["最高"])
@@ -81,7 +81,7 @@ async def process_batch(stocks):
     """处理一批股票"""
     for stock in stocks:
         await process_stock(stock)
-    await asyncio.sleep(2)
+    await asyncio.sleep(1)
 
 
 async def main():

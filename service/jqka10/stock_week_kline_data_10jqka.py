@@ -2,6 +2,7 @@ import re
 import json
 import asyncio
 import aiohttp
+from html import unescape
 from common.utils.amount_utils import convert_amount_unit
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.stock_info_utils import StockInfo
@@ -49,9 +50,11 @@ async def _fetch_raw(url: str, cache_key: str, code: str) -> dict:
     if not data:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=_HEADERS) as resp:
-                text = await resp.text()
+                text = unescape(await resp.text())
         json_text = re.sub(r"^\w+\(", "", text)
-        json_text = re.sub(r"\);?\s*$", "", json_text)
+        json_text = re.sub(r"\);?\s*$", "", json_text).strip()
+        if not json_text:
+            return {}
         data = json.loads(json_text)
         save_cache(cache_path, data)
     return data
@@ -62,7 +65,7 @@ def _build_nofq_map(last_data: dict) -> dict[str, dict]:
     result = {}
     for row in last_data.get("data", "").strip().split(";"):
         parts = row.split(",")
-        if len(parts) >= 7 and parts[4]:
+        if len(parts) >= 7 and parts[4] and parts[5] and parts[6]:
             result[parts[0]] = {
                 "close":          float(parts[4]),
                 "vol":            int(parts[5]) // 100,

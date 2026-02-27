@@ -31814,7 +31814,7 @@ STOCKS = [
   },
   {
     "code": "688702.SH",
-    "name": "盛科通信-U",
+    "name": "盛科通信",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -31838,7 +31838,7 @@ STOCKS = [
   },
   {
     "code": "688280.SH",
-    "name": "精进电动-UW",
+    "name": "精进电动",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -32012,7 +32012,7 @@ STOCKS = [
   },
   {
     "code": "688031.SH",
-    "name": "星环科技-U",
+    "name": "星环科技",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -32224,7 +32224,7 @@ STOCKS = [
   },
   {
     "code": "688343.SH",
-    "name": "云天励飞-U",
+    "name": "云天励飞",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -32406,7 +32406,7 @@ STOCKS = [
   },
   {
     "code": "688561.SH",
-    "name": "奇安信-U",
+    "name": "奇安信",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -32430,7 +32430,7 @@ STOCKS = [
   },
   {
     "code": "688515.SH",
-    "name": "裕太微-U",
+    "name": "裕太微",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -32474,7 +32474,7 @@ STOCKS = [
   },
   {
     "code": "688549.SH",
-    "name": "中巨芯-U",
+    "name": "中巨芯",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -32884,7 +32884,7 @@ STOCKS = [
   },
   {
     "code": "688512.SH",
-    "name": "慧智微-U",
+    "name": "慧智微",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -33314,7 +33314,7 @@ STOCKS = [
   },
   {
     "code": "688322.SH",
-    "name": "奥比中光-UW",
+    "name": "奥比中光",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -34510,7 +34510,7 @@ STOCKS = [
   },
   {
     "code": "688469.SH",
-    "name": "芯联集成-U",
+    "name": "芯联集成",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -35366,7 +35366,7 @@ STOCKS = [
   },
   {
     "code": "688197.SH",
-    "name": "首药控股-U",
+    "name": "首药控股",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -35626,7 +35626,7 @@ STOCKS = [
   },
   {
     "code": "688256.SH",
-    "name": "寒武纪-U",
+    "name": "寒武纪",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -35788,7 +35788,7 @@ STOCKS = [
   },
   {
     "code": "688326.SH",
-    "name": "经纬恒润-W",
+    "name": "经纬恒润",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -39348,7 +39348,7 @@ STOCKS = [
   },
   {
     "code": "688165.SH",
-    "name": "埃夫特-U",
+    "name": "埃夫特",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -39498,7 +39498,7 @@ STOCKS = [
   },
   {
     "code": "688373.SH",
-    "name": "盟科药业-U",
+    "name": "盟科药业",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -39710,7 +39710,7 @@ STOCKS = [
   },
   {
     "code": "688316.SH",
-    "name": "青云科技-U",
+    "name": "青云科技",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -40032,7 +40032,7 @@ STOCKS = [
   },
   {
     "code": "688553.SH",
-    "name": "汇宇制药-W",
+    "name": "汇宇制药",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -40798,7 +40798,7 @@ STOCKS = [
   },
   {
     "code": "688443.SH",
-    "name": "智翔金泰-U",
+    "name": "智翔金泰",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -40830,7 +40830,7 @@ STOCKS = [
   },
   {
     "code": "688192.SH",
-    "name": "迪哲医药-U",
+    "name": "迪哲医药",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -40864,7 +40864,7 @@ STOCKS = [
   },
   {
     "code": "688277.SH",
-    "name": "天智航-U",
+    "name": "天智航",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -41060,7 +41060,7 @@ STOCKS = [
   },
   {
     "code": "688790.SH",
-    "name": "昂瑞微-UW",
+    "name": "昂瑞微",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -42374,7 +42374,7 @@ STOCKS = [
   },
   {
     "code": "688176.SH",
-    "name": "亚虹医药-U",
+    "name": "亚虹医药",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -42542,7 +42542,7 @@ STOCKS = [
   },
   {
     "code": "688783.SH",
-    "name": "西安奕材-U",
+    "name": "西安奕材",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -43166,7 +43166,7 @@ STOCKS = [
   },
   {
     "code": "688302.SH",
-    "name": "海创药业-U",
+    "name": "海创药业",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -43624,7 +43624,7 @@ STOCKS = [
   },
   {
     "code": "688062.SH",
-    "name": "迈威生物-U",
+    "name": "迈威生物",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -43658,7 +43658,7 @@ STOCKS = [
   },
   {
     "code": "688428.SH",
-    "name": "诺诚健华-U",
+    "name": "诺诚健华",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -43926,7 +43926,7 @@ STOCKS = [
   },
   {
     "code": "688538.SH",
-    "name": "和辉光电-U",
+    "name": "和辉光电",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -44162,7 +44162,7 @@ STOCKS = [
   },
   {
     "code": "688327.SH",
-    "name": "云从科技-UW",
+    "name": "云从科技",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -45430,7 +45430,7 @@ STOCKS = [
   },
   {
     "code": "688180.SH",
-    "name": "君实生物-U",
+    "name": "君实生物",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -46360,7 +46360,7 @@ STOCKS = [
   },
   {
     "code": "688795.SH",
-    "name": "摩尔线程-U",
+    "name": "摩尔线程",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -46414,7 +46414,7 @@ STOCKS = [
   },
   {
     "code": "688235.SH",
-    "name": "百济神州-U",
+    "name": "百济神州",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -47256,7 +47256,7 @@ STOCKS = [
   },
   {
     "code": "688765.SH",
-    "name": "禾元生物-U",
+    "name": "禾元生物",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -47288,7 +47288,7 @@ STOCKS = [
   },
   {
     "code": "689009.SH",
-    "name": "九号公司-WD",
+    "name": "九号公司",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -47926,7 +47926,7 @@ STOCKS = [
   },
   {
     "code": "688382.SH",
-    "name": "益方生物-U",
+    "name": "益方生物",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -48198,7 +48198,7 @@ STOCKS = [
   },
   {
     "code": "688221.SH",
-    "name": "前沿生物-U",
+    "name": "前沿生物",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -48230,7 +48230,7 @@ STOCKS = [
   },
   {
     "code": "688802.SH",
-    "name": "沐曦股份-U",
+    "name": "沐曦股份",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -49614,7 +49614,7 @@ STOCKS = [
   },
   {
     "code": "688759.SH",
-    "name": "必贝特-U",
+    "name": "必贝特",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -50692,7 +50692,7 @@ STOCKS = [
   },
   {
     "code": "688339.SH",
-    "name": "亿华通-U",
+    "name": "亿华通",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -50822,7 +50822,7 @@ STOCKS = [
   },
   {
     "code": "688712.SH",
-    "name": "北芯生命-U",
+    "name": "北芯生命",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -51054,7 +51054,7 @@ STOCKS = [
   },
   {
     "code": "688266.SH",
-    "name": "泽璟制药-U",
+    "name": "泽璟制药",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -53190,7 +53190,7 @@ STOCKS = [
   },
   {
     "code": "688387.SH",
-    "name": "信科移动-U",
+    "name": "信科移动",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -54410,7 +54410,7 @@ STOCKS = [
   },
   {
     "code": "688213.SH",
-    "name": "思特威-W",
+    "name": "思特威",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -54732,7 +54732,7 @@ STOCKS = [
   },
   {
     "code": "688220.SH",
-    "name": "翱捷科技-U",
+    "name": "翱捷科技",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
@@ -55764,7 +55764,7 @@ STOCKS = [
   },
   {
     "code": "688158.SH",
-    "name": "优刻得-W",
+    "name": "优刻得",
     "indices_stock_codes": [
       "000001.SH",
       "000680.SH"
