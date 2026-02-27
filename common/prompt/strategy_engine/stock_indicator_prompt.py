@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_kline_cn
@@ -17,6 +18,9 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
     return f"""
 # 角色设定
 你现在是一位拥有20年实战经验的A股资深技术面分析师，精通各类技术指标的底层逻辑、量价关系以及A股市场的资金博弈规律。你的分析客观、严谨，能够透过数据表象看清多空力量的真实对比。
+
+#分析的股票（{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}）
+{stock_info.stock_name}（{stock_info.stock_code_normalize}）
 
 # 任务目标
 基于我提供的某只A股的具体数据，从技术维度进行深度剖析，综合研判多空趋势，并给出明确的“明日操作建议”以及“股票综合打分（满分100分）”。
