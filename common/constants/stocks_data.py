@@ -3350,7 +3350,7 @@ STOCKS = [
   },
   {
     "code": "000858.SZ",
-    "name": "五 粮 液",
+    "name": "五粮液",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -4276,7 +4276,7 @@ STOCKS = [
   },
   {
     "code": "000002.SZ",
-    "name": "万  科Ａ",
+    "name": "万科Ａ",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -6162,7 +6162,7 @@ STOCKS = [
   },
   {
     "code": "000735.SZ",
-    "name": "罗 牛 山",
+    "name": "罗牛山",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -8380,7 +8380,7 @@ STOCKS = [
   },
   {
     "code": "000025.SZ",
-    "name": "特  力Ａ",
+    "name": "特力Ａ",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -8858,7 +8858,7 @@ STOCKS = [
   },
   {
     "code": "000635.SZ",
-    "name": "英 力 特",
+    "name": "英力特",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -9778,7 +9778,7 @@ STOCKS = [
   },
   {
     "code": "002224.SZ",
-    "name": "三 力 士",
+    "name": "三力士",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -11034,7 +11034,7 @@ STOCKS = [
   },
   {
     "code": "002186.SZ",
-    "name": "全 聚 德",
+    "name": "全聚德",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -11570,7 +11570,7 @@ STOCKS = [
   },
   {
     "code": "000876.SZ",
-    "name": "新 希 望",
+    "name": "新希望",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -12116,7 +12116,7 @@ STOCKS = [
   },
   {
     "code": "002032.SZ",
-    "name": "苏 泊 尔",
+    "name": "苏泊尔",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -12530,7 +12530,7 @@ STOCKS = [
   },
   {
     "code": "000058.SZ",
-    "name": "深 赛 格",
+    "name": "深赛格",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -12794,7 +12794,7 @@ STOCKS = [
   },
   {
     "code": "002209.SZ",
-    "name": "达 意 隆",
+    "name": "达意隆",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -14230,7 +14230,7 @@ STOCKS = [
   },
   {
     "code": "002227.SZ",
-    "name": "奥 特 迅",
+    "name": "奥特迅",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -14682,7 +14682,7 @@ STOCKS = [
   },
   {
     "code": "000061.SZ",
-    "name": "农 产 品",
+    "name": "农产品",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -15392,7 +15392,7 @@ STOCKS = [
   },
   {
     "code": "000869.SZ",
-    "name": "张  裕Ａ",
+    "name": "张裕Ａ",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -15798,7 +15798,7 @@ STOCKS = [
   },
   {
     "code": "000726.SZ",
-    "name": "鲁  泰Ａ",
+    "name": "鲁泰Ａ",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -18464,7 +18464,7 @@ STOCKS = [
   },
   {
     "code": "000514.SZ",
-    "name": "渝 开 发",
+    "name": "渝开发",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -18984,7 +18984,7 @@ STOCKS = [
   },
   {
     "code": "002136.SZ",
-    "name": "安 纳 达",
+    "name": "安纳达",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -19596,7 +19596,7 @@ STOCKS = [
   },
   {
     "code": "002029.SZ",
-    "name": "七 匹 狼",
+    "name": "七匹狼",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -20470,7 +20470,7 @@ STOCKS = [
   },
   {
     "code": "002183.SZ",
-    "name": "怡 亚 通",
+    "name": "怡亚通",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -20852,7 +20852,7 @@ STOCKS = [
   },
   {
     "code": "000997.SZ",
-    "name": "新 大 陆",
+    "name": "新大陆",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -20990,7 +20990,7 @@ STOCKS = [
   },
   {
     "code": "002161.SZ",
-    "name": "远 望 谷",
+    "name": "远望谷",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -21172,7 +21172,7 @@ STOCKS = [
   },
   {
     "code": "002095.SZ",
-    "name": "生 意 宝",
+    "name": "生意宝",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -21780,7 +21780,7 @@ STOCKS = [
   },
   {
     "code": "000088.SZ",
-    "name": "盐 田 港",
+    "name": "盐田港",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -21876,7 +21876,7 @@ STOCKS = [
   },
   {
     "code": "002215.SZ",
-    "name": "诺 普 信",
+    "name": "诺普信",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -22370,7 +22370,7 @@ STOCKS = [
   },
   {
     "code": "000402.SZ",
-    "name": "金 融 街",
+    "name": "金融街",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -23046,7 +23046,7 @@ STOCKS = [
   },
   {
     "code": "002154.SZ",
-    "name": "报 喜 鸟",
+    "name": "报喜鸟",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -23410,7 +23410,7 @@ STOCKS = [
   },
   {
     "code": "000931.SZ",
-    "name": "中 关 村",
+    "name": "中关村",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -23476,7 +23476,7 @@ STOCKS = [
   },
   {
     "code": "002181.SZ",
-    "name": "粤 传 媒",
+    "name": "粤传媒",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -24876,7 +24876,7 @@ STOCKS = [
   },
   {
     "code": "002206.SZ",
-    "name": "海 利 得",
+    "name": "海利得",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -25116,7 +25116,7 @@ STOCKS = [
   },
   {
     "code": "002264.SZ",
-    "name": "新 华 都",
+    "name": "新华都",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -26588,7 +26588,7 @@ STOCKS = [
   },
   {
     "code": "002081.SZ",
-    "name": "金 螳 螂",
+    "name": "金螳螂",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -27090,7 +27090,7 @@ STOCKS = [
   },
   {
     "code": "002040.SZ",
-    "name": "南 京 港",
+    "name": "南京港",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -27880,7 +27880,7 @@ STOCKS = [
   },
   {
     "code": "000012.SZ",
-    "name": "南  玻Ａ",
+    "name": "南玻Ａ",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -28254,7 +28254,7 @@ STOCKS = [
   },
   {
     "code": "002001.SZ",
-    "name": "新 和 成",
+    "name": "新和成",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -28362,7 +28362,7 @@ STOCKS = [
   },
   {
     "code": "000528.SZ",
-    "name": "柳    工",
+    "name": "柳工",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -29746,7 +29746,7 @@ STOCKS = [
   },
   {
     "code": "002165.SZ",
-    "name": "红 宝 丽",
+    "name": "红宝丽",
     "indices_stock_codes": [
       "399001.SZ"
     ],
@@ -31392,7 +31392,7 @@ STOCKS = [
   },
   {
     "code": "002043.SZ",
-    "name": "兔 宝 宝",
+    "name": "兔宝宝",
     "indices_stock_codes": [
       "399001.SZ"
     ],

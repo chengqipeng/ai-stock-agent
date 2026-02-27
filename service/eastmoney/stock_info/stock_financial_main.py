@@ -275,6 +275,11 @@ def _calculate_single_quarter_yoy_growth(data_list):
         sq_kcfjcxsyjlr = d.get('SINGLE_QUARTER_KCFJCXSYJLR')
         
         year = report_date[:4]
+        if not year.isdigit():
+            d['SINGLE_QUARTER_REVENUETZ'] = None
+            d['SINGLE_QUARTER_PARENTNETPROFITTZ'] = None
+            d['SINGLE_QUARTER_KCFJCXSYJLRTZ'] = None
+            continue
         prev_year = str(int(year) - 1)
         
         # 查找去年同期数据
