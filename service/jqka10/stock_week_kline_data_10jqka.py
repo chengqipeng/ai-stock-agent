@@ -2,6 +2,7 @@ import re
 import json
 import asyncio
 import aiohttp
+from common.utils.amount_utils import convert_amount_unit
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.stock_info_utils import StockInfo
 from service.jqka10.stock_day_kline_data_10jqka import _build_dates
@@ -57,16 +58,16 @@ async def _fetch_raw(url: str, cache_key: str, code: str) -> dict:
 
 
 def _build_nofq_map(last_data: dict) -> dict[str, dict]:
-    """从last.js不复权数据构建 {YYYYMMDD: {close, vol(手), amount, turnover}} 映射"""
+    """从last.js不复权数据构建 {YYYYMMDD: {close, vol(手), trading_amount, change_hand}} 映射"""
     result = {}
     for row in last_data.get("data", "").strip().split(";"):
         parts = row.split(",")
         if len(parts) >= 7 and parts[4]:
             result[parts[0]] = {
-                "close":    float(parts[4]),
-                "vol":      int(parts[5]) // 100,
-                "amount":   float(parts[6]),
-                "turnover": float(parts[7]) if len(parts) > 7 and parts[7] else None,
+                "close":          float(parts[4]),
+                "vol":            int(parts[5]) // 100,
+                "trading_amount": convert_amount_unit(float(parts[6])),
+                "change_hand":    float(parts[7]) if len(parts) > 7 and parts[7] else None,
             }
     return result
 
@@ -102,16 +103,23 @@ async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -
         # 周K日期是该周最后一个交易日，找 prev_week_date < d <= week_date 的日K
         week_nofq_days = [d for d in nofq_dates_sorted if prev_week_date < d <= week_date]
         if week_nofq_days:
-            close    = nofq_map[week_nofq_days[-1]]["close"]
-            volume   = sum(nofq_map[d]["vol"] for d in week_nofq_days)
-            amount   = round(sum(nofq_map[d]["amount"] for d in week_nofq_days), 2)
-            turnovers = [nofq_map[d]["turnover"] for d in week_nofq_days if nofq_map[d]["turnover"] is not None]
-            turnover = round(sum(turnovers), 2) if turnovers else None
+            close          = nofq_map[week_nofq_days[-1]]["close"]
+            volume         = sum(nofq_map[d]["vol"] for d in week_nofq_days)
+            trading_amount = nofq_map[week_nofq_days[-1]]["trading_amount"]
+            change_hands   = [nofq_map[d]["change_hand"] for d in week_nofq_days if nofq_map[d]["change_hand"] is not None]
+            change_hand    = round(sum(change_hands), 2) if change_hands else None
         else:
-            close    = prices[i][1]
-            volume   = volumes[i]
-            amount   = None
-            turnover = None
+            close          = prices[i][1]
+            volume         = volumes[i]
+            trading_amount = None
+            change_hand    = None
+        prev_close = result[-1]["close_price"] if result else None
+        if prev_close:
+            amplitude      = round((prices[i][2] - prices[i][3]) / prev_close * 100, 2)
+            change_percent = round((close - prev_close) / prev_close * 100, 2)
+            change_amount  = round(close - prev_close, 2)
+        else:
+            amplitude = change_percent = change_amount = None
         result.append({
             "date":           week_date,
             "open_price":     prices[i][0],
@@ -119,8 +127,11 @@ async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -
             "high_price":     prices[i][2],
             "low_price":      prices[i][3],
             "trading_volume": volume,
-            "trading_amount": amount,
-            "turnover":       turnover,
+            "trading_amount": trading_amount,
+            "amplitude":      amplitude,
+            "change_percent": change_percent,
+            "change_amount":  change_amount,
+            "change_hand":    change_hand,
         })
     return result
 
@@ -129,27 +140,20 @@ async def get_stock_week_kline_list_10jqka(stock_info: StockInfo, limit: int = 2
     """返回与 get_stock_month_kline_list 格式一致的周K线数据"""
     klines = await get_stock_week_kline_10jqka(stock_info, limit)
     result = []
-    for i, k in enumerate(klines):
-        prev_close = klines[i - 1]["close_price"] if i > 0 else None
-        if prev_close:
-            amplitude = round((k["high_price"] - k["low_price"]) / prev_close * 100, 2)
-            change_pct = round((k["close_price"] - prev_close) / prev_close * 100, 2)
-            change_amt = round(k["close_price"] - prev_close, 2)
-        else:
-            amplitude = change_pct = change_amt = None
+    for k in klines:
         d = k["date"]
         result.append({
-            "日期":  f"{d[:4]}-{d[4:6]}-{d[6:]}",
-            "开盘":  k["open_price"],
-            "收盘":  k["close_price"],
-            "最高":  k["high_price"],
-            "最低":  k["low_price"],
-            "成交量": k["trading_volume"],
-            "成交额": k.get("trading_amount"),
-            "振幅(%)": amplitude,
-            "涨跌幅(%)": change_pct,
-            "涨跌额": change_amt,
-            "换手率(%)": k.get("turnover"),
+            "日期":      f"{d[:4]}-{d[4:6]}-{d[6:]}",
+            "开盘":      k["open_price"],
+            "收盘":      k["close_price"],
+            "最高":      k["high_price"],
+            "最低":      k["low_price"],
+            "成交量":    k["trading_volume"],
+            "成交额":    k["trading_amount"],
+            "振幅(%)": k["amplitude"],
+            "涨跌幅(%)": k["change_percent"],
+            "涨跌额":    k["change_amount"],
+            "换手率(%)": k["change_hand"],
         })
     return result
 
