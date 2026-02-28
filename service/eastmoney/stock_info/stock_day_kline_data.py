@@ -92,24 +92,31 @@ async def get_stock_day_range_kline_by_db_cache(stock_info: StockInfo, limit=400
         return await get_stock_day_kline_as_str_10jqka(stock_info, limit)
 
 
+def _to_float(v: str):
+    try:
+        return float(v)
+    except (ValueError, TypeError):
+        return None
+
+
 async def get_stock_day_kline_cn(stock_info: StockInfo, limit=20) -> list[dict]:
     """获取K线数据，返回中文key，可指定条数"""
-    klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=limit)
+    klines = await get_stock_day_kline_as_str_10jqka(stock_info, limit=limit)
     result = []
     for kline in reversed(klines):
         fields = kline.split(',')
         result.append({
             '日期':       fields[0],
-            '开盘价':     float(fields[1]),
-            '收盘价':     float(fields[2]),
-            '最高价':     float(fields[3]),
-            '最低价':     float(fields[4]),
-            '成交量（手）': float(fields[5]),
+            '开盘价':     _to_float(fields[1]),
+            '收盘价':     _to_float(fields[2]),
+            '最高价':     _to_float(fields[3]),
+            '最低价':     _to_float(fields[4]),
+            '成交量（手）': _to_float(fields[5]),
             '成交额':     fields[6],
-            '振幅(%)':       float(fields[7]),
-            '涨跌幅(%)':     float(fields[8]),
-            '涨跌额':     float(fields[9]),
-            '换手率(%)':     float(fields[10]),
+            '振幅(%)':    _to_float(fields[7]),
+            '涨跌幅(%)':  _to_float(fields[8]),
+            '涨跌额':     _to_float(fields[9]),
+            '换手率(%)':  _to_float(fields[10]),
         })
     return result
 
@@ -181,7 +188,7 @@ if __name__ == "__main__":
     async def main():
         stock_name = "沪电股份"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
-        result = await get_120day_high_to_latest_change(stock_info)
+        result = await get_stock_day_kline_cn(stock_info)
         print(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

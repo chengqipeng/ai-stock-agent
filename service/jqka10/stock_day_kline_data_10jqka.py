@@ -93,8 +93,12 @@ def _latest_trading_day() -> date:
 
 async def _get_today_kline(stock_code: str) -> dict | None:
     """从实时数据获取最近交易日K线，若数据不完整则返回 None"""
+    from service.jqka10.stock_realtime_10jqka import _get_prev_close
     try:
-        raw = await get_today_trade_data(stock_code)
+        raw, prev_close = await asyncio.gather(
+            get_today_trade_data(stock_code),
+            _get_prev_close(stock_code),
+        )
         item = raw.get(f"hs_{stock_code}", {})
         trade_date = item.get("1", "")
         if len(trade_date) == 8:
@@ -102,15 +106,22 @@ async def _get_today_kline(stock_code: str) -> dict | None:
         close_p = item.get("11")
         if not trade_date or not close_p:
             return None
+        close_p = float(close_p)
         volume = int(item.get("13", 0)) // 100  # 股 -> 手
+        amplitude    = round((float(item.get("8", close_p)) - float(item.get("9", close_p))) / prev_close * 100, 2) if prev_close else None
+        change_pct   = round((close_p - prev_close) / prev_close * 100, 2) if prev_close else None
+        change_amt   = round(close_p - prev_close, 2) if prev_close else None
         return {
             "date":           trade_date,
             "open_price":     float(item.get("7", close_p)),
-            "close_price":    float(close_p),
+            "close_price":    close_p,
             "high_price":     float(item.get("8", close_p)),
             "low_price":      float(item.get("9", close_p)),
             "trading_volume": volume,
             "trading_amount": float(item["19"]) if item.get("19") else None,
+            "amplitude":      amplitude,
+            "change_percent": change_pct,
+            "change_amount":  change_amt,
             "change_hand":    float(item["1968584"]) if item.get("1968584") else None,
         }
     except Exception as e:
@@ -155,14 +166,22 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     for i in range(start, n):
         open_p, close_p, high_p, low_p = prices[i]
         nofq = nofq_map.get(dates[i].replace("-", ""), {})
+        actual_close = nofq.get("close", close_p)
+        prev_close = result[-1]["close_price"] if result else None
+        amplitude   = round((high_p - low_p) / prev_close * 100, 2) if prev_close else None
+        change_pct  = round((actual_close - prev_close) / prev_close * 100, 2) if prev_close else None
+        change_amt  = round(actual_close - prev_close, 2) if prev_close else None
         result.append({
             "date":           dates[i],
             "open_price":     open_p,
-            "close_price":    nofq.get("close", close_p),
+            "close_price":    actual_close,
             "high_price":     high_p,
             "low_price":      low_p,
             "trading_volume": volumes[i],
             "trading_amount": nofq.get("amount"),
+            "amplitude":      amplitude,
+            "change_percent": change_pct,
+            "change_amount":  change_amt,
             "change_hand":    nofq.get("turnover"),
         })
 
@@ -185,49 +204,34 @@ async def get_stock_day_kline_as_str_10jqka(stock_info: StockInfo, limit: int = 
     date,open_price,close_price,high_price,low_price,trading_volume,trading_amount,amplitude,change_percent,change_amount,change_hand
     """
     klines = await get_stock_day_kline_10jqka(stock_info, limit)
-    result = []
-    for i, k in enumerate(klines):
-        prev_close = klines[i - 1]["close_price"] if i > 0 else k["close_price"]
-        amplitude     = round((k["high_price"] - k["low_price"]) / prev_close * 100, 2) if prev_close else None
-        change_pct    = round((k["close_price"] - prev_close) / prev_close * 100, 2) if prev_close else None
-        change_amt    = round(k["close_price"] - prev_close, 2) if prev_close else None
-        trading_vol   = round(k["trading_volume"], 2)
-        trading_amt   = k["trading_amount"] if k.get("trading_amount") is not None else ""
-        result.append(','.join(str(v) for v in (
+    return [
+        ','.join(str(v) for v in (
             k["date"], k["open_price"], k["close_price"], k["high_price"], k["low_price"],
-            trading_vol, trading_amt, amplitude, change_pct, change_amt,
+            round(k["trading_volume"], 2),
+            k["trading_amount"] if k.get("trading_amount") is not None else "",
+            k.get("amplitude", ""), k.get("change_percent", ""), k.get("change_amount", ""),
             k.get("change_hand", ""),
-        )))
-    return result
+        ))
+        for k in klines
+    ]
 
 
 async def get_stock_day_kline_cn_10jqka(stock_info: StockInfo, limit: int = 400) -> list[dict]:
     """获取日K线数据，返回中文key，与 get_stock_day_kline_cn 格式一致"""
     klines = await get_stock_day_kline_10jqka(stock_info, limit)
-    result = []
-    for i, k in enumerate(klines):
-        prev_close = klines[i - 1]["close_price"] if i > 0 else None
-        if prev_close:
-            amplitude  = round((k["high_price"] - k["low_price"]) / prev_close * 100, 2)
-            change_pct = round((k["close_price"] - prev_close) / prev_close * 100, 2)
-            change_amt = round(k["close_price"] - prev_close, 2)
-        else:
-            amplitude = change_pct = change_amt = None
-        d = k["date"]
-        result.append({
-            "日期":       d,
-            "开盘价":     k["open_price"],
-            "收盘价":     k["close_price"],
-            "最高价":     k["high_price"],
-            "最低价":     k["low_price"],
-            "成交量（手）": k["trading_volume"],
-            "成交额":     k.get("trading_amount"),
-            "振幅(%)": amplitude,
-            "涨跌幅(%)": change_pct,
-            "涨跌额":     change_amt,
-            "换手率(%)": k.get("change_hand"),
-        })
-    return result
+    return [{
+        "日期":       k["date"],
+        "开盘价":     k["open_price"],
+        "收盘价":     k["close_price"],
+        "最高价":     k["high_price"],
+        "最低价":     k["low_price"],
+        "成交量（手）": k["trading_volume"],
+        "成交额":     k.get("trading_amount"),
+        "振幅(%)": k.get("amplitude"),
+        "涨跌幅(%)": k.get("change_percent"),
+        "涨跌额":     k.get("change_amount"),
+        "换手率(%)": k.get("change_hand"),
+    } for k in klines]
 
 
 if __name__ == "__main__":
