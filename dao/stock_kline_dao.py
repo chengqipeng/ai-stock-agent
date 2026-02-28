@@ -38,7 +38,7 @@ def create_kline_table(cursor, table_name):
 
 
 def _to_float(v):
-    return float(v) if v != '' else 0.0
+    return float(v) if v and v != 'None' else 0.0
 
 
 def parse_kline_data(kline_str):
