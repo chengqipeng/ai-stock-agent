@@ -13,7 +13,8 @@ from service.eastmoney.strategy_engine.stock_KDJ_rule import get_kdj_rule_kdj_on
 from service.eastmoney.strategy_engine.stock_MACD_rule import get_macd_signals_macd_only
 from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_json_cn
 from service.eastmoney.stock_info.stock_billboard_data import get_billboard_json
-from service.eastmoney.stock_info.stock_holder_data import get_org_holder_json
+from service.eastmoney.stock_info.stock_org_realtime import get_org_realtime_snapshot, compute_org_snapshot_summary
+from service.eastmoney.stock_info.stock_org_hold_by_sh_sz_hk import get_org_hold_by_sh_sz_hk_rank_cn
 from service.jqka10.stock_time_kline_data_10jqka import get_stock_time_kline_cn_10jqka
 from service.jqka10.stock_week_kline_data_10jqka import get_stock_week_kline_list_10jqka
 from service.web_search.stock_news_search import search_stock_news, format_news_for_prompt
@@ -1080,83 +1081,6 @@ def _compute_fund_flow_behavior(fund_flow: list[dict]) -> dict:
     }
 
 
-def _compute_org_holder_summary(org_holder_data: list[dict]) -> dict:
-    """预计算机构持仓变化摘要，提取各类机构的持仓趋势和关键变化"""
-    if not org_holder_data:
-        return {'状态': '无机构持仓数据'}
-
-    # 取最近2期数据做对比
-    latest_report = org_holder_data[0] if len(org_holder_data) > 0 else None
-    prev_report = org_holder_data[1] if len(org_holder_data) > 1 else None
-
-    latest_date = latest_report.get('报告日期', '--') if latest_report else '--'
-    prev_date = prev_report.get('报告日期', '--') if prev_report else '--'
-
-    # 解析最新一期各机构持仓
-    latest_holdings = {}
-    if latest_report:
-        for item in latest_report.get('机构持仓', []):
-            name = item.get('机构名称', '')
-            if name:
-                latest_holdings[name] = item
-
-    # 解析上一期各机构持仓
-    prev_holdings = {}
-    if prev_report:
-        for item in prev_report.get('机构持仓', []):
-            name = item.get('机构名称', '')
-            if name:
-                prev_holdings[name] = item
-
-    # 汇总各机构变化
-    org_changes = []
-    all_org_names = set(list(latest_holdings.keys()) + list(prev_holdings.keys()))
-    for name in all_org_names:
-        curr = latest_holdings.get(name, {})
-        prev = prev_holdings.get(name, {})
-        org_changes.append({
-            '机构名称': name,
-            '最新持股家数': curr.get('持股家数(家)', '--'),
-            '上期持股家数': prev.get('持股家数(家)', '--'),
-            '最新持股市值': curr.get('持股市值(亿元)', '--'),
-            '上期持股市值': prev.get('持股市值(亿元)', '--'),
-            '最新占流通股比例': curr.get('占流通股比例(%)', '--'),
-            '上期占流通股比例': prev.get('占流通股比例(%)', '--'),
-            '持股变化': curr.get('持股变化(万股)', '--'),
-        })
-
-    # 总体判断
-    total_latest_ratio = 0
-    total_prev_ratio = 0
-    for name in all_org_names:
-        curr_ratio_str = latest_holdings.get(name, {}).get('占流通股比例(%)', '0')
-        prev_ratio_str = prev_holdings.get(name, {}).get('占流通股比例(%)', '0')
-        try:
-            total_latest_ratio += float(str(curr_ratio_str).replace('%', ''))
-        except (ValueError, TypeError):
-            pass
-        try:
-            total_prev_ratio += float(str(prev_ratio_str).replace('%', ''))
-        except (ValueError, TypeError):
-            pass
-
-    if total_latest_ratio > total_prev_ratio:
-        trend = '机构整体增持'
-    elif total_latest_ratio < total_prev_ratio:
-        trend = '机构整体减持'
-    else:
-        trend = '机构持仓基本持平'
-
-    return {
-        '最新报告日期': latest_date,
-        '上期报告日期': prev_date,
-        '机构持仓趋势': trend,
-        '最新机构合计占流通股比例': f"{round(total_latest_ratio, 2)}%",
-        '上期机构合计占流通股比例': f"{round(total_prev_ratio, 2)}%",
-        '各机构变化明细': org_changes,
-        '报告期数': len(org_holder_data),
-        '全部报告期数据': org_holder_data[:4],  # 最多展示最近4期
-    }
 
 
 def _compute_weekly_kline_summary(weekly_kline: list[dict]) -> dict:
@@ -1357,6 +1281,163 @@ def _compute_billboard_summary(billboard_data: list[dict]) -> dict:
         },
     }
 
+def _compute_northbound_summary(northbound_data: list[dict]) -> dict:
+    """预计算北向资金增减持摘要，避免LLM自行计算连续变化趋势。"""
+    if not northbound_data:
+        return {'状态': '未获取到北向资金数据'}
+
+    total_count = len(northbound_data)
+
+    # 统计连续增减持
+    increase_days = 0
+    decrease_days = 0
+    for item in northbound_data:
+        amp = item.get('增持幅度', 0) or 0
+        if amp > 0:
+            if decrease_days == 0:
+                increase_days += 1
+            else:
+                break
+        elif amp < 0:
+            if increase_days == 0:
+                decrease_days += 1
+            else:
+                break
+        else:
+            break
+
+    # 近N日增持幅度汇总
+    amp_list = [item.get('增持幅度', 0) or 0 for item in northbound_data]
+    total_amp = round(sum(amp_list), 2)
+    avg_amp = round(total_amp / total_count, 2) if total_count else 0
+
+    # 增减持方向判断
+    if increase_days >= 3:
+        direction = f"北向资金连续{increase_days}日增持，累计增持幅度{total_amp}%"
+    elif decrease_days >= 3:
+        direction = f"北向资金连续{decrease_days}日减持，累计增持幅度{total_amp}%"
+    elif total_amp > 0:
+        direction = f"北向资金近{total_count}日整体增持，累计增持幅度{total_amp}%"
+    elif total_amp < 0:
+        direction = f"北向资金近{total_count}日整体减持，累计增持幅度{total_amp}%"
+    else:
+        direction = "北向资金近期增减持幅度极小，方向不明"
+
+    # 最新一日
+    latest = northbound_data[0]
+    latest_desc = f"最新交易日{latest.get('交易日期', '--')}增持市值{latest.get('增持市值', '--')}，增持幅度{latest.get('增持幅度', 0)}%"
+
+    return {
+        '方向判断': direction,
+        '最新一日': latest_desc,
+        '连续增持天数': increase_days,
+        '连续减持天数': decrease_days,
+        f'近{total_count}日累计增持幅度(%)': total_amp,
+        f'近{total_count}日日均增持幅度(%)': avg_amp,
+        '逐日增持幅度(%)': amp_list,
+    }
+
+
+def _compute_sh_sz_hk_hold_summary(sh_sz_hk_data: list[dict]) -> dict:
+    """预计算沪深港通持股变化趋势摘要，避免LLM自行推导连续变化方向。"""
+    if not sh_sz_hk_data:
+        return {'状态': '未获取到沪深港通持股数据'}
+
+    total_count = len(sh_sz_hk_data)
+
+    # 提取持股数量和占流通股比的变化序列
+    hold_shares_list = []
+    ratio_list = []
+    for item in sh_sz_hk_data:
+        hs = item.get('持股数量（万股）')
+        ratio = item.get('占流通股比')
+        hold_shares_list.append(hs)
+        # 占流通股比可能是 "3.45%" 格式
+        if isinstance(ratio, str) and ratio.endswith('%'):
+            try:
+                ratio_list.append(float(ratio.replace('%', '')))
+            except ValueError:
+                ratio_list.append(None)
+        elif isinstance(ratio, (int, float)):
+            ratio_list.append(float(ratio))
+        else:
+            ratio_list.append(None)
+
+    # 统计连续增减持（基于增持数量字段）
+    increase_days = 0
+    decrease_days = 0
+    for item in sh_sz_hk_data:
+        change = item.get('增持数量（万股）')
+        change_val = _parse_hold_change(change)
+        if change_val > 0:
+            if decrease_days == 0:
+                increase_days += 1
+            else:
+                break
+        elif change_val < 0:
+            if increase_days == 0:
+                decrease_days += 1
+            else:
+                break
+        else:
+            break
+
+    # 占流通股比变化趋势
+    valid_ratios = [r for r in ratio_list if r is not None]
+    if len(valid_ratios) >= 2:
+        latest_ratio = valid_ratios[0]
+        oldest_ratio = valid_ratios[-1]
+        ratio_change = round(latest_ratio - oldest_ratio, 2)
+        if ratio_change > 0:
+            ratio_trend = f"占流通股比从{oldest_ratio}%升至{latest_ratio}%（+{ratio_change}pp），持股比例上升"
+        elif ratio_change < 0:
+            ratio_trend = f"占流通股比从{oldest_ratio}%降至{latest_ratio}%（{ratio_change}pp），持股比例下降"
+        else:
+            ratio_trend = f"占流通股比持平于{latest_ratio}%"
+    else:
+        ratio_trend = "数据不足，无法判断趋势"
+
+    # 方向判断
+    if increase_days >= 3:
+        direction = f"沪深港通连续{increase_days}日增持，{ratio_trend}"
+    elif decrease_days >= 3:
+        direction = f"沪深港通连续{decrease_days}日减持，{ratio_trend}"
+    elif increase_days > decrease_days:
+        direction = f"沪深港通近期偏增持（连续增持{increase_days}日），{ratio_trend}"
+    elif decrease_days > increase_days:
+        direction = f"沪深港通近期偏减持（连续减持{decrease_days}日），{ratio_trend}"
+    else:
+        direction = f"沪深港通增减持方向不明，{ratio_trend}"
+
+    # 最新一日
+    latest = sh_sz_hk_data[0]
+
+    return {
+        '方向判断': direction,
+        '最新交易日': latest.get('交易日期', '--'),
+        '最新持股数量': latest.get('持股数量（万股）', '--'),
+        '最新占流通股比': latest.get('占流通股比', '--'),
+        '最新增持数量': latest.get('增持数量（万股）', '--'),
+        '连续增持天数': increase_days,
+        '连续减持天数': decrease_days,
+        '占流通股比变化趋势': ratio_trend,
+    }
+
+
+def _parse_hold_change(change) -> float:
+    """解析持股变化值，支持数值和字符串格式"""
+    if isinstance(change, (int, float)):
+        return float(change)
+    if isinstance(change, str):
+        cleaned = change.replace('万股', '').replace(',', '').strip()
+        try:
+            return float(cleaned)
+        except ValueError:
+            return 0.0
+    return 0.0
+
+
+
 
 # ──────────────────────────────────────────────
 # 数据精简函数
@@ -1422,8 +1503,9 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
         120
     )
 
-    # ── 机构持仓 & 周线数据 ──
-    org_holder_data = await get_org_holder_json(stock_info)
+    # ── 机构持仓快照 & 沪深港通持股 & 周线数据 ──
+    org_snapshot = await get_org_realtime_snapshot(stock_info)
+    sh_sz_hk_hold = await get_org_hold_by_sh_sz_hk_rank_cn(stock_info, page_size=10)
     weekly_kline_data = await get_stock_week_kline_list_10jqka(stock_info, limit=30)
 
     # ── 龙虎榜数据 ──
@@ -1455,8 +1537,10 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
     volume_trend = _compute_volume_trend(valid_kline)
     fund_flow_behavior = _compute_fund_flow_behavior(real_main_fund_flow)
 
-    # ── 机构持仓 & 周线预计算 ──
-    org_holder_summary = _compute_org_holder_summary(org_holder_data)
+    # ── 机构持仓快照 & 周线预计算 ──
+    org_holder_summary = compute_org_snapshot_summary(org_snapshot)
+    northbound_summary = _compute_northbound_summary(northbound_funds_cn)
+    sh_sz_hk_summary = _compute_sh_sz_hk_hold_summary(sh_sz_hk_hold)
     weekly_kline_summary = _compute_weekly_kline_summary(weekly_kline_data)
     billboard_summary = _compute_billboard_summary(billboard_data)
     block_trade_summary = compute_block_trade_summary(block_trade_records)
@@ -1484,8 +1568,8 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 
 ## ★ 重要约束（必须遵守）
 
-1. **直接引用预计算结论**：背离信号、MACD柱趋势、BOLL空间摘要、KDJ状态摘要、分时特征摘要、K线统计摘要、均线排列状态、周线趋势摘要、机构持仓变化摘要、龙虎榜摘要、大宗交易摘要、五档盘口摘要、近期消息面 均已在 Python 端预计算完成，你必须直接引用这些结论，严禁自行重新推导。
-2. **禁止计算幻觉**：均线值、乖离率、BOLL距离、MACD柱趋势、KDJ差值、量能倍数等必须直接读取提供的预计算数据，严禁自行做加减乘除运算。
+1. **直接引用预计算结论**：背离信号、MACD柱趋势、BOLL空间摘要、KDJ状态摘要、分时特征摘要、K线统计摘要、均线排列状态、周线趋势摘要、资金流向行为特征、五档盘口摘要、北向资金增减持摘要、沪深港通持股变化摘要、机构持仓变化摘要、龙虎榜摘要、大宗交易摘要、近期消息面 均已在 Python 端预计算完成，你必须直接引用这些结论，严禁自行重新推导。
+2. **禁止计算幻觉**：均线值、乖离率、BOLL距离、MACD柱趋势、KDJ差值、量能倍数、北向资金连续增减持天数、沪深港通占流通股比变化等必须直接读取提供的预计算数据，严禁自行做加减乘除运算。
 3. **数据已清洗**：提供的数据已过滤停牌日（成交量为0的交易日），无需再次过滤。
 4. **严禁主观臆断**：每一个结论必须紧跟数据论据，引用具体数值。
 5. **精简原始数据仅供验证**：原始数据仅保留近期关键部分，用于验证预计算结论的合理性，不要试图从中推导120日全量统计。
@@ -1578,8 +1662,11 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 
 ### 四、 资金筹码面（机构行为与大资金动向）
 
-**★ 北向资金近期增减持记录（"聪明钱"风向标）：**
-{json.dumps(northbound_funds_cn, ensure_ascii=False)}
+**★ 预计算北向资金增减持摘要（必须直接引用）：**
+{json.dumps(northbound_summary, ensure_ascii=False)}
+
+**★ 预计算沪深港通持股变化摘要（必须直接引用）：**
+{json.dumps(sh_sz_hk_summary, ensure_ascii=False)}
 
 **★ 预计算机构持仓变化摘要（必须直接引用）：**
 {json.dumps(org_holder_summary, ensure_ascii=False)}
@@ -1590,12 +1677,13 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 **★ 预计算大宗交易摘要（必须直接引用）：**
 {json.dumps(block_trade_summary, ensure_ascii=False)}
 
-请基于上述摘要分析：
-- 北向资金近期增减持方向与力度
-- 机构持仓变化趋势（各类机构增减持方向、占流通股比例变化）
-- 龙虎榜席位特征（机构/游资/北向资金的买卖方向，若近期无上榜记录则说明"近期未触发龙虎榜"）
-- 大宗交易特征（折溢价方向、是否有机构席位参与，若近期无记录则说明"近期无大宗交易"）
-- 综合判断：大资金整体是流入还是流出，筹码结构是集中还是分散
+请基于上述预计算摘要分析（严禁自行计算连续天数、累计幅度等，必须直接引用摘要中的结论）：
+- 北向资金方向与力度：直接引用"方向判断"和"连续增/减持天数"，判断聪明钱态度
+- 沪深港通持股趋势：直接引用"方向判断"和"占流通股比变化趋势"，判断外资中长期态度
+- 机构持仓变化：直接引用"增持机构"/"减持机构"和"持仓变化趋势"，判断机构整体动向
+- 龙虎榜席位特征：直接引用"机构席位行为"，若近期无上榜记录则说明"近期未触发龙虎榜"
+- 大宗交易特征：直接引用"交易特征"和"机构席位情况"，若近期无记录则说明"近期无大宗交易"
+- 综合判断：基于以上五个子维度的预计算结论，判断大资金整体流入/流出方向和筹码集中/分散趋势
 
 ### 五、 外部环境（大盘系统性风险 + 消息面）
 
