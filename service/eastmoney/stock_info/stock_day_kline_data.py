@@ -148,6 +148,32 @@ async def get_stock_52week_high_low(stock_info: StockInfo):
         "latest_date": _parse_kline_fields(klines[-1])['date'] if klines else None
     }
 
+async def get_120day_high_to_latest_change(stock_info: StockInfo) -> dict:
+    """计算120天内最高点到最近一次交易日的涨跌幅"""
+    klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=120)
+    if not klines:
+        return {}
+    high_price, high_date = None, None
+    for kline in klines:
+        fields = kline.split(',')
+        high = float(fields[3])
+        if high_price is None or high > high_price:
+            high_price, high_date = high, fields[0]
+    latest = klines[-1].split(',')
+    latest_close = float(latest[2])
+    latest_date = latest[0]
+    change_amount = round(latest_close - high_price, 2)
+    change_pct = round(change_amount / high_price * 100, 2)
+    return {
+        "120天最高价": high_price,
+        "120天最高价日期": high_date,
+        "最新收盘价": latest_close,
+        "最新交易日": latest_date,
+        "涨跌幅度": change_amount,
+        "涨跌幅(%)": change_pct
+    }
+
+
 if __name__ == "__main__":
     import asyncio
     from common.utils.stock_info_utils import get_stock_info_by_name
@@ -155,7 +181,7 @@ if __name__ == "__main__":
     async def main():
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
-        result = await get_stock_day_range_kline_by_db_cache(stock_info, 50)
+        result = await get_120day_high_to_latest_change(stock_info)
         print(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())
