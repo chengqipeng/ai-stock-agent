@@ -12,8 +12,13 @@ from service.eastmoney.strategy_engine.stock_BOLL_rule import get_boll_rule_boll
 from service.eastmoney.strategy_engine.stock_KDJ_rule import get_kdj_rule_kdj_only
 from service.eastmoney.strategy_engine.stock_MACD_rule import get_macd_signals_macd_only
 from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_json_cn
+from service.eastmoney.stock_info.stock_billboard_data import get_billboard_json
+from service.eastmoney.stock_info.stock_holder_data import get_org_holder_json
 from service.jqka10.stock_time_kline_data_10jqka import get_stock_time_kline_cn_10jqka
+from service.jqka10.stock_week_kline_data_10jqka import get_stock_week_kline_list_10jqka
 from service.web_search.stock_news_search import search_stock_news, format_news_for_prompt
+from service.web_search.stock_block_trade_search import search_block_trade, compute_block_trade_summary
+from service.sina.stock_order_book_data import get_order_book, compute_order_book_summary
 
 
 # ──────────────────────────────────────────────
@@ -198,6 +203,17 @@ def _compute_kdj_summary(kdj_data: dict) -> dict:
     latest_d = kdj_data.get('D', 0) or 0
     kd_diff = round(latest_k - latest_d, 2)
 
+    # ── 下一关键阈值（避免LLM自行拍脑袋设定阈值） ──
+    latest_k_val = kdj_data.get('K', 0) or 0
+    if latest_k_val > 75:
+        next_threshold = f"若K跌破75将确认高位回落；若K突破80进入超买区"
+    elif latest_k_val < 25:
+        next_threshold = f"若K升破25将确认低位回升；若K跌破20进入超卖区"
+    elif 40 <= latest_k_val <= 60:
+        next_threshold = f"K值处于中性区间，关注方向选择"
+    else:
+        next_threshold = f"K值={latest_k_val:.1f}，上方关注80超买线，下方关注20超卖线"
+
     return {
         '最新K': kdj_data.get('K'),
         '最新D': kdj_data.get('D'),
@@ -211,7 +227,8 @@ def _compute_kdj_summary(kdj_data: dict) -> dict:
         'K>80连续天数': k_above_80_streak,
         '高位钝化': kdj_data.get(f'高位钝化（{kdj_data.get("最新交易日")}）', False),
         'KDJ拐头状态': kdj_turning if kdj_turning else '无明显拐头',
-        '近20日明细': recent,
+        '下一关键阈值': next_threshold,
+        '近5日明细': recent[:5],
     }
 
 
@@ -296,13 +313,32 @@ def _compute_intraday_summary(time_data: list[dict]) -> dict:
 
     # 脉冲事件价格变化范围（避免 LLM 自行计算）
     pulse_price_range = {}
+    pulse_total_count = len(pulse_events)
+    pulse_display_limit = 10
+    pulse_events_display = pulse_events[:pulse_display_limit]
     if pulse_events:
         pulse_prices = [e['价格'] for e in pulse_events]
+        # 脉冲集中时段（只取首尾脉冲的时间）
+        pulse_start = pulse_events[0]['时间']
+        pulse_end = pulse_events[-1]['时间']
+        # 判断脉冲是否集中在某个时段
+        pulse_in_morning = all(e['时间'] <= '10:00' for e in pulse_events)
+        pulse_in_afternoon = all(e['时间'] >= '13:00' for e in pulse_events)
+        if pulse_in_morning:
+            pulse_concentration = f"脉冲集中在早盘（{pulse_start}~{pulse_end}）"
+        elif pulse_in_afternoon:
+            pulse_concentration = f"脉冲集中在午后（{pulse_start}~{pulse_end}）"
+        else:
+            pulse_concentration = f"脉冲分散在全天（{pulse_start}~{pulse_end}）"
+
         pulse_price_range = {
+            '脉冲总数': pulse_total_count,
+            '明细展示数': min(pulse_total_count, pulse_display_limit),
+            '明细截断说明': f"共{pulse_total_count}次脉冲，明细仅展示前{pulse_display_limit}条，汇总基于全部{pulse_total_count}条计算，请以汇总结论为准" if pulse_total_count > pulse_display_limit else f"共{pulse_total_count}次脉冲，明细已完整展示",
             '脉冲最高价': max(pulse_prices),
             '脉冲最低价': min(pulse_prices),
             '脉冲价格跌幅': round(min(pulse_prices) - max(pulse_prices), 2),
-            '脉冲时间跨度': f"{pulse_events[0]['时间']}~{pulse_events[-1]['时间']}",
+            '脉冲集中时段': pulse_concentration,
             '脉冲涨跌幅范围': f"{pulse_events[0]['涨跌幅']}%~{pulse_events[-1]['涨跌幅']}%",
         }
 
@@ -317,7 +353,7 @@ def _compute_intraday_summary(time_data: list[dict]) -> dict:
         '收盘价vs均价差值（%）': close_vs_avg_pct,
         '白线在黄线上方占比': f"{round(above_avg_count / max(valid_count, 1) * 100, 1)}%",
         '分时段统计': segments,
-        '脉冲式放量事件': pulse_events[:10],  # 最多10个
+        '脉冲式放量事件': pulse_events_display,
         '脉冲事件汇总': pulse_price_range,
         '分钟均量': round(avg_vol),
     }
@@ -342,12 +378,8 @@ def _compute_kline_summary(kline_data: list[dict]) -> dict:
     volumes = [d['成交量（手）'] for d in valid]
     closes = [d['收盘价'] for d in valid]
 
-    # 近期量能（最近5日 vs 50日均量）
-    recent_5_vol = volumes[:5] if len(volumes) >= 5 else volumes
+    # 近期量能（50日均量）
     vol_50_avg = sum(volumes[:50]) / min(len(volumes), 50) if volumes else 0
-
-    # 近5日量比
-    recent_vol_ratio = round(sum(recent_5_vol) / len(recent_5_vol) / vol_50_avg, 2) if vol_50_avg > 0 else 0
 
     # 120日极值
     high_120 = max(highs) if highs else 0
@@ -370,17 +402,13 @@ def _compute_kline_summary(kline_data: list[dict]) -> dict:
     vol_50_avg_rounded = round(vol_50_avg)
     breakout_vol_threshold = round(vol_50_avg * 1.5)
 
-    # 近5日振幅与换手率统计（避免 LLM 忽略或自行计算）
+    # 近5日振幅统计
     recent_5_amplitude = [d.get('振幅(%)', 0) for d in recent_5]
-    recent_5_turnover = [d.get('换手率(%)', 0) for d in recent_5]
     avg_amplitude_5 = round(sum(recent_5_amplitude) / max(len(recent_5_amplitude), 1), 2)
-    avg_turnover_5 = round(sum(recent_5_turnover) / max(len(recent_5_turnover), 1), 3)
     max_amplitude_5 = max(recent_5_amplitude) if recent_5_amplitude else 0
-    max_turnover_5 = max(recent_5_turnover) if recent_5_turnover else 0
 
     # 最新日成交量与放量阈值的对比（避免 LLM 自行比较）
     latest_vol = latest.get('成交量（手）', 0)
-    latest_vol_vs_threshold = '未达标' if latest_vol < breakout_vol_threshold else '已达标'
     latest_vol_vs_threshold_detail = f"{latest_vol}手 vs 阈值{breakout_vol_threshold}手（{'未达到' if latest_vol < breakout_vol_threshold else '已达到'}放量突破标准）"
 
     return {
@@ -394,14 +422,10 @@ def _compute_kline_summary(kline_data: list[dict]) -> dict:
         '放量突破阈值（手）': breakout_vol_threshold,
         '最新日成交量（手）': latest_vol,
         '最新日成交量vs放量阈值': latest_vol_vs_threshold_detail,
-        '近5日均量（手）': round(sum(recent_5_vol) / len(recent_5_vol)) if recent_5_vol else 0,
-        '近5日量比（vs50日）': recent_vol_ratio,
         '近5日阳线数': up_days,
         '近5日阴线数': down_days,
         '近5日平均振幅(%)': avg_amplitude_5,
         '近5日最大振幅(%)': max_amplitude_5,
-        '近5日平均换手率(%)': avg_turnover_5,
-        '近5日最大换手率(%)': max_turnover_5,
         '最新日上影线': upper_shadow,
         '最新日下影线': lower_shadow,
         '最新日实体': body,
@@ -469,7 +493,41 @@ def _compute_ma_summary(ma_data: dict) -> dict:
         'BIAS10': bias10,
         'BIAS20': bias20,
         'BIAS60': bias60,
+        '近5日BIAS极值': _compute_bias_extremes(data_list),
     }
+def _compute_bias_extremes(data_list: list[dict]) -> dict:
+    """预计算近5日BIAS极值及回归描述，避免LLM自行从明细中查找极值。"""
+    recent_5 = data_list[:5]
+    if not recent_5:
+        return {'描述': '数据不足'}
+
+    bias5_vals = [(d.get('日期', ''), d.get('BIAS5', 0)) for d in recent_5 if d.get('BIAS5') is not None]
+    bias10_vals = [(d.get('日期', ''), d.get('BIAS10', 0)) for d in recent_5 if d.get('BIAS10') is not None]
+
+    result = {}
+    if bias5_vals:
+        max_b5 = max(bias5_vals, key=lambda x: abs(x[1]))
+        result['近5日BIAS5极值'] = max_b5[1]
+        result['近5日BIAS5极值日期'] = max_b5[0]
+        result['当前BIAS5'] = bias5_vals[0][1]
+        if abs(max_b5[1]) > abs(bias5_vals[0][1]):
+            result['BIAS5回归描述'] = f"BIAS5从{max_b5[0]}的{max_b5[1]}%回归至当前{bias5_vals[0][1]}%"
+        else:
+            result['BIAS5回归描述'] = f"BIAS5当前{bias5_vals[0][1]}%为近5日极值"
+
+    if bias10_vals:
+        max_b10 = max(bias10_vals, key=lambda x: abs(x[1]))
+        result['近5日BIAS10极值'] = max_b10[1]
+        result['近5日BIAS10极值日期'] = max_b10[0]
+        result['当前BIAS10'] = bias10_vals[0][1]
+        if abs(max_b10[1]) > abs(bias10_vals[0][1]):
+            result['BIAS10回归描述'] = f"BIAS10从{max_b10[0]}的{max_b10[1]}%回归至当前{bias10_vals[0][1]}%"
+        else:
+            result['BIAS10回归描述'] = f"BIAS10当前{bias10_vals[0][1]}%为近5日极值"
+
+    return result
+
+
 def _compute_macd_bar_trend(macd_data: dict) -> dict:
     """
     预计算 MACD 柱变化趋势（连续放大/收窄天数及方向），
@@ -519,6 +577,32 @@ def _compute_macd_bar_trend(macd_data: dict) -> dict:
     # 最近3日MACD柱值，供直接引用
     recent_bars = [{'日期': details[i]['日期'], 'MACD柱': details[i]['MACD柱']} for i in range(min(3, len(details)))]
 
+    # ── DIF近期走势描述（避免LLM自行从明细中推导趋势） ──
+    dif_values = [(d['日期'], d['DIF']) for d in details[:30] if 'DIF' in d]
+    dif_trend_desc = ''
+    if len(dif_values) >= 2:
+        latest_dif = dif_values[0][1]
+        # 找近30日DIF极值
+        dif_max = max(dif_values, key=lambda x: x[1])
+        dif_min = min(dif_values, key=lambda x: x[1])
+        parts = []
+        # 描述从极值到当前的变化
+        if dif_max[0] != dif_values[0][0]:
+            parts.append(f"近30日DIF最高{dif_max[1]}（{dif_max[0]}）")
+        if dif_min[0] != dif_values[0][0]:
+            parts.append(f"最低{dif_min[1]}（{dif_min[0]}）")
+        parts.append(f"当前{latest_dif}")
+        # 判断方向
+        if len(dif_values) >= 5:
+            recent_5_dif = [v[1] for v in dif_values[:5]]
+            if all(recent_5_dif[i] >= recent_5_dif[i+1] for i in range(4)):
+                parts.append('近5日DIF持续上升')
+            elif all(recent_5_dif[i] <= recent_5_dif[i+1] for i in range(4)):
+                parts.append('近5日DIF持续下降')
+            else:
+                parts.append('近5日DIF波动')
+        dif_trend_desc = '，'.join(parts)
+
     return {
         'MACD柱趋势': trend_desc,
         '最新MACD柱': latest_bar,
@@ -526,6 +610,7 @@ def _compute_macd_bar_trend(macd_data: dict) -> dict:
         '连续放大天数': expanding_days,
         '连续收窄天数': shrinking_days,
         '近3日MACD柱': recent_bars,
+        'DIF近期走势': dif_trend_desc if dif_trend_desc else '数据不足',
     }
 
 
@@ -563,6 +648,14 @@ def _compute_boll_summary(boll_data: dict, latest_close: float) -> dict:
         else:
             mid_direction = '走平'
 
+    # 风险收益比（避免LLM自行用距上轨/距中轨做除法）
+    if dist_mid_pct != 0 and dist_upper_pct != 0:
+        risk_reward = round(dist_upper_pct / abs(dist_mid_pct), 1) if dist_mid_pct > 0 else 0
+        risk_reward_desc = f"上方空间{dist_upper_pct}% vs 下方至中轨{abs(dist_mid_pct)}%，风险收益比约1:{risk_reward}" if risk_reward > 0 else "价格在中轨下方，风险收益比不利"
+    else:
+        risk_reward = 0
+        risk_reward_desc = '数据不足'
+
     return {
         '收盘价': latest_close,
         'BOLL中轨': mid,
@@ -577,6 +670,7 @@ def _compute_boll_summary(boll_data: dict, latest_close: float) -> dict:
         '带宽（%）': bandwidth,
         '中轨方向': mid_direction,
         '收盘价位置': '中轨上方' if dist_mid > 0 else ('中轨下方' if dist_mid < 0 else '中轨附近'),
+        '风险收益比': risk_reward_desc,
     }
 
 def _compute_data_consistency_check(kline_data: list[dict], intraday_summary: dict) -> dict:
@@ -629,29 +723,57 @@ def _compute_scenario_reference(kline_summary: dict, boll_summary: dict, ma_summ
     # 早盘30分钟量能参考（基于今日早盘数据）
     segments = intraday_summary.get('分时段统计', []) if isinstance(intraday_summary, dict) else []
     morning_vol = 0
+    morning_minutes = 0
     for seg in segments:
         if '早盘' in seg.get('时段', ''):
             morning_vol = seg.get('总成交量', 0)
+            morning_minutes = 30
             break
 
+    # 早盘分钟均量（手），统一单位避免LLM自行换算
+    morning_minute_avg = round(morning_vol / morning_minutes) if morning_minutes > 0 else 0
+
     ma5 = ma_summary.get('MA5', 0)
-    ma10 = ma_summary.get('MA10', 0)
     ma20 = ma_summary.get('MA20', 0)
     ma60 = ma_summary.get('MA60', 0)
     boll_mid = boll_summary.get('BOLL中轨', 0)
     boll_upper = boll_summary.get('BOLL上轨', 0)
     boll_lower = boll_summary.get('BOLL下轨', 0)
+    latest_close = boll_summary.get('收盘价', 0)
+
+    # ── 心理价位 & 前日开盘价（避免LLM自行推导阻力位） ──
+    latest_kline_open = 0
+    if isinstance(intraday_summary, dict):
+        # 分时数据中的开盘价即为今日开盘价
+        open_change = intraday_summary.get('开盘涨跌幅')
+        if open_change is not None and latest_close:
+            close_change = intraday_summary.get('收盘涨跌幅', 0) or 0
+            # 反推昨收 = 今收 / (1 + 收盘涨跌幅/100)
+            if close_change != -100:
+                prev_close = round(latest_close / (1 + close_change / 100), 2)
+                latest_kline_open = round(prev_close * (1 + open_change / 100), 2)
+
+    # 整数关口
+    if latest_close:
+        round_up = math.ceil(latest_close / 5) * 5  # 向上取整到5的倍数
+        round_down = math.floor(latest_close / 5) * 5  # 向下取整到5的倍数
+    else:
+        round_up = round_down = 0
 
     return {
         '放量标准（日线）': f"日成交量>{breakout_threshold}手（50日均量{vol_50_avg}手×1.5）",
-        '今日早盘30分钟总量': f"{morning_vol}手",
-        '今日分钟均量': f"{minute_avg_vol}手",
+        '今日早盘30分钟总量（手）': morning_vol,
+        '今日早盘分钟均量（手）': morning_minute_avg,
+        '今日全天分钟均量（手）': minute_avg_vol,
         '关键压力位参考': {
+            '今日开盘价': latest_kline_open,
+            '整数关口（上方）': round_up,
             'MA20': ma20,
             'BOLL上轨': boll_upper,
             '120日最高价': kline_summary.get('120日最高价', 0),
         },
         '关键支撑位参考': {
+            '整数关口（下方）': round_down,
             'MA5': ma5,
             'BOLL中轨': boll_mid,
             'MA60': ma60,
@@ -733,12 +855,32 @@ def _compute_volume_trend(kline_data: list[dict]) -> dict:
     vol_20_avg = round(sum(volumes[:min(20, len(volumes))]) / min(20, len(volumes)))
     vol_10_vs_20 = round((vol_10_avg - vol_20_avg) / vol_20_avg * 100, 1) if vol_20_avg > 0 else 0
 
+    # ── 量价形态判断（避免LLM自行推导"放量冲高缩量回落"等模式） ──
+    vol_price_pattern = ''
+    if len(daily_vol_changes) >= 2:
+        d0 = daily_vol_changes[0]  # 最新日
+        d1 = daily_vol_changes[1]  # 前一日
+        # 放量冲高缩量回落
+        if d1['放量/缩量'] == '放量' and d1['涨跌幅(%)'] > 0 and d0['放量/缩量'] == '缩量' and d0['涨跌幅(%)'] < 0:
+            vol_price_pattern = f"放量冲高缩量回落（前日放量{d1['较前日变化(%)']:+.1f}%涨{d1['涨跌幅(%)']:.2f}%，最新日缩量{d0['较前日变化(%)']:+.1f}%跌{d0['涨跌幅(%)']:.2f}%）"
+        # 放量突破
+        elif d0['放量/缩量'] == '放量' and d0['涨跌幅(%)'] > 2:
+            vol_price_pattern = f"放量上攻（最新日放量{d0['较前日变化(%)']:+.1f}%涨{d0['涨跌幅(%)']:.2f}%）"
+        # 放量下跌
+        elif d0['放量/缩量'] == '放量' and d0['涨跌幅(%)'] < -2:
+            vol_price_pattern = f"放量杀跌（最新日放量{d0['较前日变化(%)']:+.1f}%跌{d0['涨跌幅(%)']:.2f}%）"
+        # 缩量上涨
+        elif d0['放量/缩量'] == '缩量' and d0['涨跌幅(%)'] > 0:
+            vol_price_pattern = f"缩量反弹（最新日缩量{d0['较前日变化(%)']:+.1f}%涨{d0['涨跌幅(%)']:.2f}%）"
+        # 缩量下跌
+        elif d0['放量/缩量'] == '缩量' and d0['涨跌幅(%)'] < 0:
+            vol_price_pattern = f"缩量阴跌（最新日缩量{d0['较前日变化(%)']:+.1f}%跌{d0['涨跌幅(%)']:.2f}%）"
+
     return {
         '近5日量能趋势': vol_trend_5d,
         '近5日逐日量能变化': daily_vol_changes,
+        '量价形态': vol_price_pattern if vol_price_pattern else '无明显量价形态',
         '近10日量价配合度': f"{match_ratio}%（{vol_price_match}天同向/{vol_price_diverge}天背离）",
-        '近10日均量（手）': vol_10_avg,
-        '近20日均量（手）': vol_20_avg,
         '10日均量vs20日均量': f"{vol_10_vs_20}%（{'量能扩张' if vol_10_vs_20 > 10 else ('量能萎缩' if vol_10_vs_20 < -10 else '量能平稳')}）",
         '近20日脉冲式放量': pulse_vol_days if pulse_vol_days else '无脉冲式放量',
     }
@@ -813,14 +955,13 @@ async def _fetch_market_index_summary(index_name: str, days: int = 20) -> dict:
             else:
                 break
 
-        # 近5日明细（供验证）
+        # 近5日明细（供验证，剔除成交额以减少token）
         recent_5_detail = []
         for d in kline_data[:5]:
             recent_5_detail.append({
                 '日期': d['日期'],
                 '收盘价': d['收盘价'],
                 '涨跌幅(%)': d.get('涨跌幅(%)', 0),
-                '成交额': d.get('成交额', ''),
             })
 
         return {
@@ -890,6 +1031,338 @@ async def _compute_market_environment(stock_info: StockInfo) -> dict:
 
 
 
+def _compute_fund_flow_behavior(fund_flow: list[dict]) -> dict:
+    """预计算资金流向行为特征，避免LLM自行推断'主力出货散户接盘'等模式。"""
+    if not fund_flow:
+        return {'资金行为特征': '无资金流向数据'}
+
+    latest = fund_flow[0] if isinstance(fund_flow, list) else fund_flow
+
+    # 解析主力净流入（可能是字符串带"亿"）
+    def _parse_amount(val):
+        if isinstance(val, (int, float)):
+            return float(val)
+        if isinstance(val, str):
+            val = val.replace('亿', '').replace(',', '').strip()
+            try:
+                return float(val)
+            except ValueError:
+                return 0
+        return 0
+
+    main_net = _parse_amount(latest.get('主力净流入', 0))
+    small_net = _parse_amount(latest.get('小单净流入', 0))
+    super_large_net = _parse_amount(latest.get('超大单净流入', 0))
+
+    # 行为模式判断
+    if main_net < -1 and small_net > 1:
+        behavior = f"主力净流出{latest.get('主力净流入', '')}，小单净流入{latest.get('小单净流入', '')}，呈现主力减仓散户承接格局"
+    elif main_net > 1 and small_net < -1:
+        behavior = f"主力净流入{latest.get('主力净流入', '')}，小单净流出{latest.get('小单净流入', '')}，呈现主力吸筹格局"
+    elif main_net < -1:
+        behavior = f"主力净流出{latest.get('主力净流入', '')}，资金整体流出"
+    elif main_net > 1:
+        behavior = f"主力净流入{latest.get('主力净流入', '')}，资金整体流入"
+    else:
+        behavior = f"主力净流入{latest.get('主力净流入', '')}，资金流向不明显"
+
+    return {
+        '资金行为特征': behavior,
+        '主力净流入': latest.get('主力净流入', ''),
+        '主力净流入占比': latest.get('主力净流入占比', ''),
+        '超大单净流入': latest.get('超大单净流入', ''),
+        '超大单净比': latest.get('超大单净比', ''),
+        '大单净流入': latest.get('大单净流入', ''),
+        '大单净比': latest.get('大单净比', ''),
+        '小单净流入': latest.get('小单净流入', ''),
+        '小单净比': latest.get('小单净比', ''),
+        '成交额': latest.get('成交额', ''),
+    }
+
+
+def _compute_org_holder_summary(org_holder_data: list[dict]) -> dict:
+    """预计算机构持仓变化摘要，提取各类机构的持仓趋势和关键变化"""
+    if not org_holder_data:
+        return {'状态': '无机构持仓数据'}
+
+    # 取最近2期数据做对比
+    latest_report = org_holder_data[0] if len(org_holder_data) > 0 else None
+    prev_report = org_holder_data[1] if len(org_holder_data) > 1 else None
+
+    latest_date = latest_report.get('报告日期', '--') if latest_report else '--'
+    prev_date = prev_report.get('报告日期', '--') if prev_report else '--'
+
+    # 解析最新一期各机构持仓
+    latest_holdings = {}
+    if latest_report:
+        for item in latest_report.get('机构持仓', []):
+            name = item.get('机构名称', '')
+            if name:
+                latest_holdings[name] = item
+
+    # 解析上一期各机构持仓
+    prev_holdings = {}
+    if prev_report:
+        for item in prev_report.get('机构持仓', []):
+            name = item.get('机构名称', '')
+            if name:
+                prev_holdings[name] = item
+
+    # 汇总各机构变化
+    org_changes = []
+    all_org_names = set(list(latest_holdings.keys()) + list(prev_holdings.keys()))
+    for name in all_org_names:
+        curr = latest_holdings.get(name, {})
+        prev = prev_holdings.get(name, {})
+        org_changes.append({
+            '机构名称': name,
+            '最新持股家数': curr.get('持股家数(家)', '--'),
+            '上期持股家数': prev.get('持股家数(家)', '--'),
+            '最新持股市值': curr.get('持股市值(亿元)', '--'),
+            '上期持股市值': prev.get('持股市值(亿元)', '--'),
+            '最新占流通股比例': curr.get('占流通股比例(%)', '--'),
+            '上期占流通股比例': prev.get('占流通股比例(%)', '--'),
+            '持股变化': curr.get('持股变化(万股)', '--'),
+        })
+
+    # 总体判断
+    total_latest_ratio = 0
+    total_prev_ratio = 0
+    for name in all_org_names:
+        curr_ratio_str = latest_holdings.get(name, {}).get('占流通股比例(%)', '0')
+        prev_ratio_str = prev_holdings.get(name, {}).get('占流通股比例(%)', '0')
+        try:
+            total_latest_ratio += float(str(curr_ratio_str).replace('%', ''))
+        except (ValueError, TypeError):
+            pass
+        try:
+            total_prev_ratio += float(str(prev_ratio_str).replace('%', ''))
+        except (ValueError, TypeError):
+            pass
+
+    if total_latest_ratio > total_prev_ratio:
+        trend = '机构整体增持'
+    elif total_latest_ratio < total_prev_ratio:
+        trend = '机构整体减持'
+    else:
+        trend = '机构持仓基本持平'
+
+    return {
+        '最新报告日期': latest_date,
+        '上期报告日期': prev_date,
+        '机构持仓趋势': trend,
+        '最新机构合计占流通股比例': f"{round(total_latest_ratio, 2)}%",
+        '上期机构合计占流通股比例': f"{round(total_prev_ratio, 2)}%",
+        '各机构变化明细': org_changes,
+        '报告期数': len(org_holder_data),
+        '全部报告期数据': org_holder_data[:4],  # 最多展示最近4期
+    }
+
+
+def _compute_weekly_kline_summary(weekly_kline: list[dict]) -> dict:
+    """预计算周线级别趋势摘要，提供更大周期的趋势判断"""
+    if not weekly_kline:
+        return {'状态': '无周线数据'}
+
+    # 取最近的数据（数据由旧到新排列，取末尾）
+    recent = weekly_kline[-20:] if len(weekly_kline) >= 20 else weekly_kline
+    latest = recent[-1]
+    latest_close = latest.get('收盘', 0)
+
+    # 周线MA计算（5周、10周、20周）
+    closes = [k.get('收盘', 0) for k in weekly_kline if k.get('收盘')]
+    ma5w = round(sum(closes[-5:]) / min(len(closes[-5:]), 5), 2) if len(closes) >= 5 else None
+    ma10w = round(sum(closes[-10:]) / min(len(closes[-10:]), 10), 2) if len(closes) >= 10 else None
+    ma20w = round(sum(closes[-20:]) / min(len(closes[-20:]), 20), 2) if len(closes) >= 20 else None
+
+    # 周线均线排列
+    if ma5w and ma10w and ma20w:
+        if ma5w > ma10w > ma20w:
+            weekly_alignment = '周线多头排列（MA5W>MA10W>MA20W）'
+        elif ma5w < ma10w < ma20w:
+            weekly_alignment = '周线空头排列（MA5W<MA10W<MA20W）'
+        else:
+            weekly_alignment = '周线均线纠缠'
+    elif ma5w and ma10w:
+        weekly_alignment = f"周线MA5W={'>' if ma5w > ma10w else '<'}MA10W（数据不足20周）"
+    else:
+        weekly_alignment = '周线数据不足'
+
+    # 近4周涨跌统计
+    recent_4 = recent[-4:] if len(recent) >= 4 else recent
+    up_weeks = sum(1 for k in recent_4 if (k.get('涨跌幅(%)') or 0) > 0)
+    down_weeks = sum(1 for k in recent_4 if (k.get('涨跌幅(%)') or 0) < 0)
+    recent_4_change = sum(k.get('涨跌幅(%)', 0) or 0 for k in recent_4)
+
+    # 近4周量能趋势
+    recent_4_vols = [k.get('成交量', 0) for k in recent_4 if k.get('成交量')]
+    if len(recent_4_vols) >= 2:
+        vol_trend_parts = []
+        for i in range(1, len(recent_4_vols)):
+            if recent_4_vols[i - 1] > 0:
+                change = round((recent_4_vols[i] - recent_4_vols[i - 1]) / recent_4_vols[i - 1] * 100, 1)
+                vol_trend_parts.append(change)
+        if all(v > 0 for v in vol_trend_parts):
+            weekly_vol_trend = '周线连续放量'
+        elif all(v < 0 for v in vol_trend_parts):
+            weekly_vol_trend = '周线连续缩量'
+        else:
+            weekly_vol_trend = '周线量能不规则'
+    else:
+        weekly_vol_trend = '周线量能数据不足'
+
+    # 周线级别高低点
+    recent_20_highs = [k.get('最高', 0) for k in recent if k.get('最高')]
+    recent_20_lows = [k.get('最低', 0) for k in recent if k.get('最低')]
+    week_high = max(recent_20_highs) if recent_20_highs else None
+    week_low = min(recent_20_lows) if recent_20_lows else None
+
+    # 最新周K线形态
+    latest_open = latest.get('开盘', 0)
+    latest_high = latest.get('最高', 0)
+    latest_low = latest.get('最低', 0)
+    body = abs(latest_close - latest_open) if latest_close and latest_open else 0
+    upper_shadow = (latest_high - max(latest_close, latest_open)) if latest_high else 0
+    lower_shadow = (min(latest_close, latest_open) - latest_low) if latest_low else 0
+
+    # 近4周逐周明细
+    weekly_details = []
+    for k in recent_4:
+        weekly_details.append({
+            '日期': k.get('日期', ''),
+            '开盘': k.get('开盘'),
+            '收盘': k.get('收盘'),
+            '最高': k.get('最高'),
+            '最低': k.get('最低'),
+            '涨跌幅(%)': k.get('涨跌幅(%)'),
+            '成交量': k.get('成交量'),
+            '换手率(%)': k.get('换手率(%)'),
+        })
+
+    return {
+        '周线均线排列': weekly_alignment,
+        'MA5W': ma5w,
+        'MA10W': ma10w,
+        'MA20W': ma20w,
+        '最新周收盘价': latest_close,
+        '最新周涨跌幅': latest.get('涨跌幅(%)'),
+        '近4周涨跌': f"{up_weeks}阳{down_weeks}阴，累计涨跌{round(recent_4_change, 2)}%",
+        '近4周量能趋势': weekly_vol_trend,
+        '近20周最高价': week_high,
+        '近20周最低价': week_low,
+        '当前价距20周高点': f"{round((latest_close - week_high) / week_high * 100, 2)}%" if week_high and latest_close else None,
+        '当前价距20周低点': f"{round((latest_close - week_low) / week_low * 100, 2)}%" if week_low and latest_close else None,
+        '最新周K线': {
+            '实体': round(body, 2),
+            '上影线': round(upper_shadow, 2),
+            '下影线': round(lower_shadow, 2),
+            '阴阳': '阳线' if latest_close >= latest_open else '阴线',
+        },
+        '近4周明细': weekly_details,
+    }
+
+
+def _compute_billboard_summary(billboard_data: list[dict]) -> dict:
+    """预计算龙虎榜摘要，提取机构/游资/北向资金的买卖行为特征"""
+    if not billboard_data:
+        return {'状态': '近期无龙虎榜上榜记录', '上榜次数': 0}
+
+    total_count = len(billboard_data)
+    latest = billboard_data[0]
+
+    # 统计各类席位的净买卖
+    org_net_buy = 0  # 机构净买
+    org_net_sell = 0
+    north_net_buy = 0  # 北向净买
+    north_net_sell = 0
+    hot_money_net_buy = 0  # 游资净买
+    hot_money_net_sell = 0
+
+    all_entries_summary = []
+    for entry in billboard_data:
+        buy_seats = entry.get('买入席位', [])
+        sell_seats = entry.get('卖出席位', [])
+
+        entry_org_buy = 0
+        entry_org_sell = 0
+        entry_north_buy = 0
+        entry_north_sell = 0
+        entry_hot_buy = 0
+        entry_hot_sell = 0
+
+        for s in buy_seats:
+            seat_type = s.get('类型', '游资')
+            # 净额字段可能是字符串如"1.23亿"，这里直接保留原始席位信息
+            if seat_type == '机构':
+                entry_org_buy += 1
+            elif seat_type == '北向资金':
+                entry_north_buy += 1
+            else:
+                entry_hot_buy += 1
+
+        for s in sell_seats:
+            seat_type = s.get('类型', '游资')
+            if seat_type == '机构':
+                entry_org_sell += 1
+            elif seat_type == '北向资金':
+                entry_north_sell += 1
+            else:
+                entry_hot_sell += 1
+
+        org_net_buy += entry_org_buy
+        org_net_sell += entry_org_sell
+        north_net_buy += entry_north_buy
+        north_net_sell += entry_north_sell
+        hot_money_net_buy += entry_hot_buy
+        hot_money_net_sell += entry_hot_sell
+
+        all_entries_summary.append({
+            '上榜日期': entry.get('上榜日期', ''),
+            '上榜原因': entry.get('上榜原因', ''),
+            '涨跌幅(%)': entry.get('涨跌幅(%)', 0),
+            '龙虎榜净买额': entry.get('龙虎榜净买额', '--'),
+            '龙虎榜买入额': entry.get('龙虎榜买入额', '--'),
+            '龙虎榜卖出额': entry.get('龙虎榜卖出额', '--'),
+            '龙虎榜净买占比(%)': entry.get('龙虎榜净买占比(%)', 0),
+            '次日涨跌(%)': entry.get('次日涨跌(%)', None),
+            '5日涨跌(%)': entry.get('5日涨跌(%)', None),
+            '买入席位机构数': entry_org_buy,
+            '买入席位游资数': entry_hot_buy,
+            '买入席位北向数': entry_north_buy,
+            '卖出席位机构数': entry_org_sell,
+            '卖出席位游资数': entry_hot_sell,
+            '卖出席位北向数': entry_north_sell,
+        })
+
+    # 整体行为判断
+    if org_net_buy > org_net_sell:
+        org_behavior = f"机构偏买入（买入席位{org_net_buy}次 vs 卖出席位{org_net_sell}次）"
+    elif org_net_buy < org_net_sell:
+        org_behavior = f"机构偏卖出（买入席位{org_net_buy}次 vs 卖出席位{org_net_sell}次）"
+    else:
+        org_behavior = f"机构买卖均衡（买入席位{org_net_buy}次 vs 卖出席位{org_net_sell}次）" if org_net_buy > 0 else "无机构席位参与"
+
+    return {
+        '上榜次数': total_count,
+        '最近上榜日期': latest.get('上榜日期', ''),
+        '机构席位行为': org_behavior,
+        '游资买入席位总次数': hot_money_net_buy,
+        '游资卖出席位总次数': hot_money_net_sell,
+        '北向资金买入席位总次数': north_net_buy,
+        '北向资金卖出席位总次数': north_net_sell,
+        '各次上榜摘要': all_entries_summary,
+        '最近一次席位明细': {
+            '买入席位': latest.get('买入席位', []),
+            '卖出席位': latest.get('卖出席位', []),
+        },
+    }
+
+
+# ──────────────────────────────────────────────
+# 数据精简函数
+# ──────────────────────────────────────────────
+
+
 def _trim_macd_details(macd_data: dict, keep_recent: int = 30) -> dict:
     """精简 MACD 明细数据，只保留最近 N 日，减少 token 消耗"""
     trimmed = dict(macd_data)
@@ -949,8 +1422,21 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
         120
     )
 
+    # ── 机构持仓 & 周线数据 ──
+    org_holder_data = await get_org_holder_json(stock_info)
+    weekly_kline_data = await get_stock_week_kline_list_10jqka(stock_info, limit=30)
+
+    # ── 龙虎榜数据 ──
+    billboard_data = await get_billboard_json(stock_info, days=30)
+
     # ── 百度搜索近期新闻/公告/事件 ──
     stock_news = await search_stock_news(stock_info, days=7)
+
+    # ── 百度搜索大宗交易数据 ──
+    block_trade_records = await search_block_trade(stock_info, days=30)
+
+    # ── 五档盘口数据（新浪实时行情） ──
+    order_book_data = await get_order_book(stock_info)
 
     # ── Python 端预计算（核心优化：把容易出错的计算从 LLM 移到代码端）──
     valid_kline = _filter_valid_trading_days(stock_day_kline)
@@ -967,6 +1453,14 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
     data_consistency = _compute_data_consistency_check(valid_kline, intraday_summary)
     scenario_ref = _compute_scenario_reference(kline_summary, boll_summary, ma_summary, intraday_summary)
     volume_trend = _compute_volume_trend(valid_kline)
+    fund_flow_behavior = _compute_fund_flow_behavior(real_main_fund_flow)
+
+    # ── 机构持仓 & 周线预计算 ──
+    org_holder_summary = _compute_org_holder_summary(org_holder_data)
+    weekly_kline_summary = _compute_weekly_kline_summary(weekly_kline_data)
+    billboard_summary = _compute_billboard_summary(billboard_data)
+    block_trade_summary = compute_block_trade_summary(block_trade_records)
+    order_book_summary = compute_order_book_summary(order_book_data)
 
     # ── 大盘指数环境数据 ──
     market_env = await _compute_market_environment(stock_info)
@@ -990,7 +1484,7 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 
 ## ★ 重要约束（必须遵守）
 
-1. **直接引用预计算结论**：背离信号、MACD柱趋势、BOLL空间摘要、KDJ状态摘要、分时特征摘要、K线统计摘要、均线排列状态、近期消息面 均已在 Python 端预计算完成，你必须直接引用这些结论，严禁自行重新推导。
+1. **直接引用预计算结论**：背离信号、MACD柱趋势、BOLL空间摘要、KDJ状态摘要、分时特征摘要、K线统计摘要、均线排列状态、周线趋势摘要、机构持仓变化摘要、龙虎榜摘要、大宗交易摘要、五档盘口摘要、近期消息面 均已在 Python 端预计算完成，你必须直接引用这些结论，严禁自行重新推导。
 2. **禁止计算幻觉**：均线值、乖离率、BOLL距离、MACD柱趋势、KDJ差值、量能倍数等必须直接读取提供的预计算数据，严禁自行做加减乘除运算。
 3. **数据已清洗**：提供的数据已过滤停牌日（成交量为0的交易日），无需再次过滤。
 4. **严禁主观臆断**：每一个结论必须紧跟数据论据，引用具体数值。
@@ -1058,23 +1552,46 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 
 请基于上述预计算结论，分析均线排列、乖离率风险、量价匹配、量能趋势、支撑压力位。严禁自行计算均线值和量能变化。
 
+### 二（补充）、 周线级别趋势判断（更大周期视角）
+
+**★ 预计算周线趋势摘要（必须直接引用）：**
+{json.dumps(weekly_kline_summary, ensure_ascii=False)}
+
+请基于上述周线摘要，判断周线级别的趋势方向，与日线趋势是否共振。周线趋势应纳入多空博弈清单和综合评分中的"趋势强度"维度。
+
 ### 三、 今日分时盘口深度解析（超短线博弈）
 
 **★ 预计算分时特征摘要（必须直接引用）：**
 {json.dumps(intraday_summary, ensure_ascii=False)}
 
-**★ 资金流向数据（主力净流入/流出、大单/中单/小单占比：**
-{json.dumps(real_main_fund_flow, ensure_ascii=False)}
+**★ 资金流向数据（已预计算行为特征，必须直接引用）：**
+{json.dumps(fund_flow_behavior, ensure_ascii=False)}
+
+**★ 预计算五档盘口摘要（必须直接引用）：**
+{json.dumps(order_book_summary, ensure_ascii=False)}
 
 ### 四、大机构数据
 ** 北向资金 (Northbound Capital)近期增减持记录: 香港过来的外资，通常被视为"聪明钱"的风向标 **
 {json.dumps(northbound_funds_cn, ensure_ascii=False)}
+
+**★ 预计算机构持仓变化摘要（必须直接引用）：**
+{json.dumps(org_holder_summary, ensure_ascii=False)}
+
+**★ 预计算龙虎榜摘要（必须直接引用）：**
+{json.dumps(billboard_summary, ensure_ascii=False)}
+
+**★ 预计算大宗交易摘要（必须直接引用）：**
+{json.dumps(block_trade_summary, ensure_ascii=False)}
 
 请基于上述摘要分析：
 - 黄白线格局（白线在黄线上方占比已给出）
 - 各时段量价分布特征
 - 脉冲式放量事件的含义
 - 尾盘资金动向
+- 五档盘口买卖力量对比（买卖比、大单托底/压盘情况、价差宽窄）
+- 机构持仓变化趋势（各类机构增减持方向、占流通股比例变化）
+- 龙虎榜席位特征（机构/游资/北向资金的买卖方向，若近期无上榜记录则说明"近期未触发龙虎榜"）
+- 大宗交易特征（折溢价方向、是否有机构席位参与，若近期无记录则说明"近期无大宗交易"）
 
 ### 五、 大盘环境（系统性风险判断）
 
@@ -1100,7 +1617,7 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 
 | 评分维度 | 权重 | 核心考察点 | 得分 |
 |---------|------|----------|------|
-| 趋势强度 | 25% | MACD位置、长短期均线排列 | /25 |
+| 趋势强度 | 25% | MACD位置、长短期均线排列、周线趋势方向 | /25 |
 | 动能与量价 | 25% | KDJ拐点、分时量能、日线量价配合 | /25 |
 | 结构边界 | 20% | BOLL轨道位置、乖离率极端值 | /20 |
 | 短线情绪 | 15% | 分时均线承接力、尾盘资金动向 | /15 |

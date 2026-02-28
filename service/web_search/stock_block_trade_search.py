@@ -1,0 +1,195 @@
+"""大宗交易数据搜索模块。
+
+通过百度搜索获取个股近期大宗交易信息，爬取网页内容后
+通过大模型提取结构化的大宗交易记录。
+"""
+
+import asyncio
+import json
+import logging
+import time
+from datetime import datetime
+
+from common.utils.llm_utils import parse_llm_json
+from common.utils.stock_info_utils import StockInfo
+from service.llm.deepseek_client import DeepSeekClient
+from service.web_search.baidu_search import baidu_search
+from service.web_search.stock_news_search import _clean_text, _dedup_by_title
+
+logger = logging.getLogger(__name__)
+
+# ── 缓存（当日有效） ──
+_block_trade_cache: dict[str, dict] = {}
+_CACHE_TTL = 4 * 60 * 60  # 4小时
+
+
+def _build_extract_prompt(stock_info: StockInfo, search_items: list[dict]) -> str:
+    """构建大模型提取大宗交易数据的提示词"""
+    now_str = datetime.now().strftime('%Y-%m-%d')
+    items_json = json.dumps(search_items, ensure_ascii=False)
+    return (
+        "# Role\n"
+        "你是一位专业的证券数据分析师，擅长从非结构化文本中精确提取大宗交易数据。\n\n"
+        f"当前日期：{now_str}\n"
+        f"目标公司：{stock_info.stock_name}（{stock_info.stock_code_normalize}）\n\n"
+        "# Task\n"
+        "从以下搜索结果中提取与目标公司**直接相关**的大宗交易记录。\n\n"
+        "# 提取规则\n"
+        "1. 只提取明确标注为「大宗交易」的记录，不要混淆龙虎榜、融资融券等其他数据\n"
+        "2. 每条记录尽量提取以下字段（缺失字段填null）：\n"
+        "   - trade_date: 交易日期（YYYY-MM-DD格式）\n"
+        "   - price: 成交价（元）\n"
+        "   - volume: 成交量（万股）\n"
+        "   - amount: 成交额（万元）\n"
+        "   - premium_rate: 溢价率（%，正数为溢价，负数为折价）\n"
+        "   - buyer: 买方营业部\n"
+        "   - seller: 卖方营业部\n"
+        "   - close_price: 当日收盘价（元）\n"
+        "3. 只保留近30天内的记录\n"
+        "4. 如果搜索结果中没有任何大宗交易数据，返回空数组\n\n"
+        "# 搜索结果\n"
+        f"{items_json}\n\n"
+        "# Output\n"
+        "只返回JSON数组，每个元素为一条大宗交易记录。禁止输出任何解释。\n"
+        '示例：[{"trade_date":"2026-02-20","price":68.5,"volume":50,"amount":3425,'
+        '"premium_rate":-2.15,"buyer":"中信证券北京总部","seller":"机构专用","close_price":69.8}]\n'
+        "无数据时返回：[]\n"
+    )
+
+
+async def search_block_trade(stock_info: StockInfo, days: int = 30) -> list[dict]:
+    """搜索并提取个股近期大宗交易数据。
+
+    流程：缓存检查 -> 百度搜索 -> 文本清洗 -> 去重 -> 大模型提取结构化数据
+    """
+    cache_key = f"block_trade_{stock_info.stock_code_normalize}_{days}"
+    now = time.time()
+
+    cached = _block_trade_cache.get(cache_key)
+    if cached and (now - cached['ts']) < _CACHE_TTL:
+        logger.info(f"命中大宗交易缓存 [{stock_info.stock_name}]")
+        return cached['data']
+
+    query = f"{stock_info.stock_name} 大宗交易"
+    try:
+        results = await baidu_search(query=query, days=days, top_k=10)
+        if not results:
+            _block_trade_cache[cache_key] = {'data': [], 'ts': now}
+            return []
+
+        # 清洗 + 构建搜索条目
+        search_items = []
+        for i, item in enumerate(results, 1):
+            title = _clean_text(item.get('title') or '')
+            content = _clean_text(item.get('content') or '')
+            if not title:
+                continue
+            search_items.append({
+                'id': i,
+                'title': title,
+                'date': item.get('date', ''),
+                'content': content[:800],
+            })
+
+        if not search_items:
+            _block_trade_cache[cache_key] = {'data': [], 'ts': now}
+            return []
+
+        search_items = _dedup_by_title(search_items)
+
+        # 大模型提取结构化数据
+        client = DeepSeekClient()
+        prompt = _build_extract_prompt(stock_info, search_items)
+        response = await client.chat(
+            messages=[{"role": "user", "content": prompt}],
+            model="deepseek-chat",
+            temperature=0.1,
+        )
+        resp_content = response['choices'][0]['message']['content']
+        records = parse_llm_json(resp_content)
+
+        if not isinstance(records, list):
+            records = []
+
+        _block_trade_cache[cache_key] = {'data': records, 'ts': now}
+        return records
+
+    except Exception as e:
+        logger.warning(f"搜索大宗交易失败 [{stock_info.stock_name}]: {e}")
+        if cached:
+            return cached['data']
+        return []
+
+
+def compute_block_trade_summary(records: list[dict]) -> dict:
+    """预计算大宗交易摘要，供提示词直接引用"""
+    if not records:
+        return {'状态': '近期无大宗交易记录', '交易笔数': 0}
+
+    total_count = len(records)
+    total_amount = 0
+    premium_list = []
+    discount_count = 0
+    premium_count = 0
+
+    for r in records:
+        amt = r.get('amount')
+        if amt and isinstance(amt, (int, float)):
+            total_amount += amt
+        pr = r.get('premium_rate')
+        if pr is not None and isinstance(pr, (int, float)):
+            premium_list.append(pr)
+            if pr < 0:
+                discount_count += 1
+            elif pr > 0:
+                premium_count += 1
+
+    avg_premium = round(sum(premium_list) / len(premium_list), 2) if premium_list else None
+
+    # 判断整体特征
+    if discount_count > premium_count:
+        trade_character = f"以折价成交为主（折价{discount_count}笔/溢价{premium_count}笔），平均溢价率{avg_premium}%"
+    elif premium_count > discount_count:
+        trade_character = f"以溢价成交为主（溢价{premium_count}笔/折价{discount_count}笔），平均溢价率{avg_premium}%"
+    else:
+        trade_character = f"折溢价均衡（折价{discount_count}笔/溢价{premium_count}笔），平均溢价率{avg_premium}%"
+
+    # 检查是否有机构席位
+    has_org_buyer = any('机构' in (r.get('buyer') or '') for r in records)
+    has_org_seller = any('机构' in (r.get('seller') or '') for r in records)
+    org_note = ''
+    if has_org_seller and not has_org_buyer:
+        org_note = '机构席位出现在卖方，可能存在机构减持'
+    elif has_org_buyer and not has_org_seller:
+        org_note = '机构席位出现在买方，可能存在机构建仓'
+    elif has_org_buyer and has_org_seller:
+        org_note = '机构席位买卖双方均有出现'
+
+    return {
+        '交易笔数': total_count,
+        '累计成交额（万元）': round(total_amount, 2),
+        '交易特征': trade_character,
+        '机构席位情况': org_note if org_note else '未发现机构专用席位',
+        '最近交易日期': records[0].get('trade_date', '--'),
+        '交易明细': records[:5],  # 最多展示5条
+    }
+
+
+if __name__ == "__main__":
+    from common.utils.stock_info_utils import get_stock_info_by_name
+
+    async def main():
+        stock_info = get_stock_info_by_name('生益科技')
+        print(f"=== {stock_info.stock_name}（{stock_info.stock_code_normalize}）大宗交易数据 ===\n")
+
+        records = await search_block_trade(stock_info, days=30)
+        if records:
+            print(f"找到 {len(records)} 条大宗交易记录：")
+            print(json.dumps(records, ensure_ascii=False, indent=2))
+            print("\n--- 预计算摘要 ---")
+            summary = compute_block_trade_summary(records)
+            print(json.dumps(summary, ensure_ascii=False, indent=2))
+        else:
+            print("近期无大宗交易记录")
+
+    asyncio.run(main())
