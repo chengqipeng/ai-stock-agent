@@ -1,4 +1,5 @@
 import aiohttp
+import logging
 from typing import Optional
 import io
 import asyncio
@@ -6,6 +7,8 @@ import PyPDF2
 import os
 import hashlib
 import aiofiles
+
+logger = logging.getLogger(__name__)
 
 class PDFParser:
     @staticmethod
@@ -35,7 +38,8 @@ class PDFParser:
                             async for chunk in response.content.iter_chunked(4096):
                                 if chunk:
                                     await f.write(chunk)
-                        except (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError):
+                        except (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError) as e:
+                            logger.warning("PDF下载连接断开 [%s]: %s", pdf_url, e)
                             print(f"警告：服务器连接提前断开，尝试抢救已下载的数据...")
             
             if os.path.exists(file_path):
@@ -62,7 +66,8 @@ class PDFParser:
                     for page in reader.pages:
                         try:
                             text += page.extract_text()
-                        except Exception:
+                        except Exception as e:
+                            logger.warning("PDF页面解析失败 [%s]: %s", file_path, e)
                             continue
                 except Exception as e:
                     print(f"PDF解析警告: {file_path}, 错误: {e}, 尝试保存已读取内容")

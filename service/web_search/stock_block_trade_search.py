@@ -159,7 +159,8 @@ def _assess_block_trade_next_day_impact(records: list[dict], next_trading_day: s
             return f"最近大宗交易发生在{latest_trade_date}，距下一个交易日{next_trading_day}较近，仍有间接影响"
         else:
             return f"最近大宗交易发生在{latest_trade_date}，距下一个交易日{next_trading_day}较远，影响已减弱"
-    except (ValueError, ImportError):
+    except (ValueError, ImportError) as e:
+        logger.debug("_assess_block_trade_next_day_impact 解析失败: %s", e)
         return '无法判断'
 
 

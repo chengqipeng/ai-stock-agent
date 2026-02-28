@@ -1,4 +1,8 @@
+import logging
+
 from common.constants.stocks_data import get_stock_code, STOCK_INDICES_DICT
+
+logger = logging.getLogger(__name__)
 
 
 class StockInfo:
@@ -47,7 +51,8 @@ def get_stock_info_by_name(stock_name):
                 indices_stock_name = indices_names[-1]
         
         return StockInfo(secid, stock_code, stock_code_normalize, stock_name, indices_stock_code, indices_stock_name)
-    except (ValueError, AttributeError):
+    except (ValueError, AttributeError) as e:
+        logger.warning("get_stock_info_by_name 失败 [%s]: %s", stock_name, e)
         return None
 
 
@@ -86,7 +91,8 @@ def get_stock_info_by_code(stock_code_normalize):
         indices_stock_name = indices_names[-1] if indices_names else None
         
         return StockInfo(secid, stock_code, stock_code_normalize, stock_name, indices_stock_code, indices_stock_name)
-    except (ValueError, AttributeError):
+    except (ValueError, AttributeError) as e:
+        logger.warning("get_stock_info_by_code 失败 [%s]: %s", stock_code_normalize, e)
         return None
 
 

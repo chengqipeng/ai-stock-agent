@@ -1,8 +1,11 @@
 import aiohttp
 import json
 import base64
+import logging
 import asyncio
 from typing import Optional, List, Dict, Any, AsyncIterator
+
+logger = logging.getLogger(__name__)
 
 VOL_API_KEY = "YjZlY2QxZGEtYTA3Yi00YTI2LThjNTgtY2M1OGViMmU1YTk3"
 
@@ -49,6 +52,7 @@ class VolcengineClient:
             except (aiohttp.ClientPayloadError, aiohttp.ClientError, ConnectionResetError) as e:
                 if attempt == 2:
                     raise e
+                logger.warning("VolcengineClient.chat 请求失败 (attempt %d): %s", attempt + 1, e)
                 await asyncio.sleep(2 ** attempt)
     
     async def chat_stream(
@@ -91,10 +95,12 @@ class VolcengineClient:
                                     content = chunk.get('choices', [{}])[0].get('delta', {}).get('content', '')
                                     if content:
                                         yield content
-                                except json.JSONDecodeError:
+                                except json.JSONDecodeError as e:
+                                    logger.debug("VolcengineClient.chat_stream JSON解析失败: %s", e)
                                     continue
                 break
             except (aiohttp.ClientPayloadError, aiohttp.ClientError, ConnectionResetError) as e:
                 if attempt == 2:
                     raise e
+                logger.warning("VolcengineClient.chat_stream 请求失败 (attempt %d): %s", attempt + 1, e)
                 await asyncio.sleep(2 ** attempt)
