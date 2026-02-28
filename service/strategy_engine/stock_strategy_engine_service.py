@@ -1,11 +1,12 @@
 import asyncio
 
+from common.prompt.strategy_engine.stock_indicator_all_prompt import get_stock_indicator_all_prompt
 from common.prompt.strategy_engine.stock_indicator_prompt import get_stock_indicator_prompt
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.llm.deepseek_client import DeepSeekClient
 
 async def get_strategy_engine_analysis(stock_info: StockInfo) -> tuple[str, str]:
-    prompt = await get_stock_indicator_prompt(stock_info)
+    prompt = await get_stock_indicator_all_prompt(stock_info)
     result = ""
     async for content in DeepSeekClient().chat_stream(
         messages=[{"role": "user", "content": prompt}], model="deepseek-reasoner"

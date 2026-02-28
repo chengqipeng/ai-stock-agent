@@ -2378,7 +2378,7 @@ def _compute_comprehensive_score(
 # 主函数
 # ──────────────────────────────────────────────
 
-async def get_stock_indicator_prompt(stock_info: StockInfo):
+async def get_stock_indicator_all_prompt(stock_info: StockInfo):
     data_num = 120
 
     # 并发获取所有数据
@@ -2783,7 +2783,7 @@ if __name__ == '__main__':
 
     async def main():
         stock_info = get_stock_info_by_name('生益科技')
-        prompt = await get_stock_indicator_prompt(stock_info)
+        prompt = await get_stock_indicator_all_prompt(stock_info)
         print(prompt)
 
     asyncio.run(main())
