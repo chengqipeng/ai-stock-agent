@@ -5,7 +5,6 @@ import logging
 import aiohttp
 from datetime import date, timedelta
 from chinese_calendar import is_workday
-from common.utils.cache_utils import get_cache_path, load_cache, save_cache, get_market_cache_key
 from common.utils.stock_info_utils import StockInfo
 from service.jqka10.stock_realtime_10jqka import get_today_trade_data
 
@@ -60,18 +59,13 @@ def _decode_prices(price_str: str, price_factor: int) -> list[tuple]:
     return records
 
 
-async def _fetch_raw(url: str, cache_key: str, code: str) -> dict:
-    cache_path = get_cache_path(cache_key, code)
-    data = load_cache(cache_path)
-    if not data:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=_HEADERS) as resp:
-                text = await resp.text()
-        json_text = re.sub(r"^\w+\(", "", text)
-        json_text = re.sub(r"\);?\s*$", "", json_text)
-        data = json.loads(json_text)
-        save_cache(cache_path, data)
-    return data
+async def _fetch_raw(url: str) -> dict:
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=_HEADERS) as resp:
+            text = await resp.text()
+    json_text = re.sub(r"^\w+\(", "", text)
+    json_text = re.sub(r"\);?\s*$", "", json_text)
+    return json.loads(json_text)
 
 
 def _build_nofq_map(year_data_list: list[dict]) -> dict[str, dict]:
@@ -130,19 +124,6 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     每条记录包含：date, open_price, close_price, high_price, low_price,
                  trading_volume（手）, trading_amount, change_hand（换手率%）
     """
-    cache_path = get_cache_path(f"day_kline_10jqka_{get_market_cache_key()}_{limit}", stock_info.stock_code)
-    cached = load_cache(cache_path)
-    if cached:
-        latest_trading_day = _latest_trading_day().strftime("%Y-%m-%d")
-        if cached[-1]["date"] < latest_trading_day:
-            today_kline = await _get_today_kline(stock_info.stock_code)
-            if today_kline and today_kline["date"] == latest_trading_day:
-                cached.append(today_kline)
-                if len(cached) > limit:
-                    cached = cached[-limit:]
-                save_cache(cache_path, cached)
-        return cached
-
     market = "hs"
     code = stock_info.stock_code
 
@@ -152,12 +133,9 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     years_needed = math.ceil(limit / 243) + 1
     years = [current_year - i for i in range(years_needed)]
 
-    fetch_tasks = [_fetch_raw(f"https://d.10jqka.com.cn/v6/line/{market}_{code}/01/all.js", "day_kline_10jqka", code)]
+    fetch_tasks = [_fetch_raw(f"https://d.10jqka.com.cn/v6/line/{market}_{code}/01/all.js")]
     for y in years:
-        fetch_tasks.append(_fetch_raw(
-            f"https://d.10jqka.com.cn/v6/line/{market}_{code}/01/{y}.js",
-            f"day_nofq_{y}_10jqka", code
-        ))
+        fetch_tasks.append(_fetch_raw(f"https://d.10jqka.com.cn/v6/line/{market}_{code}/01/{y}.js"))
 
     results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
     data = results[0]
@@ -198,7 +176,6 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
             if len(result) > limit:
                 result = result[-limit:]
 
-    save_cache(cache_path, result)
     return result
 
 
@@ -257,8 +234,8 @@ if __name__ == "__main__":
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info = get_stock_info_by_name("北方华创")
-        klines = await get_stock_day_kline_as_str_10jqka(stock_info, limit=400)
+        stock_info = get_stock_info_by_name("沪电股份")
+        klines = await get_stock_day_kline_10jqka(stock_info, limit=400)
         print(json.dumps(klines, ensure_ascii=False, indent=2))
 
     asyncio.run(main())

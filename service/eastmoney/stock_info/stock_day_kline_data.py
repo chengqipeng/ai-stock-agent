@@ -179,7 +179,7 @@ if __name__ == "__main__":
     from common.utils.stock_info_utils import get_stock_info_by_name
     
     async def main():
-        stock_name = "北方华创"
+        stock_name = "沪电股份"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         result = await get_120day_high_to_latest_change(stock_info)
         print(json.dumps(result, ensure_ascii=False))

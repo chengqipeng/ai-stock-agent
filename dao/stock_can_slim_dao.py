@@ -133,6 +133,10 @@ class DatabaseManager:
                 cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN kline_hold_score TEXT")
             if 'kline_hold_prompt' not in existing_columns:
                 cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN kline_hold_prompt TEXT")
+
+            for col, col_type in [('change_pct', 'REAL'), ('high_price_120', 'REAL'), ('high_price_date_120', 'TEXT'), ('latest_price', 'REAL')]:
+                if col not in existing_columns:
+                    cursor.execute(f"ALTER TABLE stock_analysis_detail ADD COLUMN {col} {col_type}")
             
             # 深度分析历史记录表
             cursor.execute("""
@@ -332,6 +336,17 @@ class DatabaseManager:
             
             conn.commit()
     
+    def update_stock_prescreening_data(self, stock_id: int, change_pct: float, high_price: float, high_price_date: str, latest_price: float = None):
+        """更新涨跌初筛数据"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE stock_analysis_detail
+                SET change_pct = ?, high_price_120 = ?, high_price_date_120 = ?, latest_price = ?
+                WHERE id = ?
+            """, (change_pct, high_price, high_price_date, latest_price, stock_id))
+            conn.commit()
+
     def update_stock_kline(self, stock_id: int, score: int, prompt: str):
         """更新K线分析"""
         with sqlite3.connect(self.db_path) as conn:

@@ -15,6 +15,7 @@ from common.utils.stock_list_parser import parse_stock_list, update_stock_score
 from common.utils.stock_info_utils import get_stock_info_by_name
 from service.can_slim.can_slim_service import execute_can_slim_score
 from service.strategy_engine.stock_strategy_engine_service import get_strategy_engine_analysis
+from service.eastmoney.stock_info.stock_day_kline_data import get_120day_high_to_latest_change
 from dao.stock_can_slim_dao import db_manager
 
 GRADE_SCORE_MAP = {
@@ -43,6 +44,42 @@ async def get_stock_list():
         file_path = "data_results/stock_to_score_list/stock_score_list.md"
         stocks = parse_stock_list(file_path)
         return {"success": True, "data": stocks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/prescreening_batch")
+async def create_prescreening_batch(request: BatchRequest):
+    """创建涨跌初筛批次，并发获取120天涨跌幅并保存"""
+    try:
+        batch_id = db_manager.create_batch(request.stock_codes)
+        stocks = db_manager.get_batch_stocks(batch_id)
+
+        semaphore = asyncio.Semaphore(10)
+
+        async def fetch_and_save(stock):
+            async with semaphore:
+                try:
+                    stock_info = get_stock_info_by_name(stock['stock_name'])
+                    result = await get_120day_high_to_latest_change(stock_info)
+                    db_manager.update_stock_prescreening_data(
+                        stock['id'],
+                        result.get('涨跌幅(%)'),
+                        result.get('120天最高价'),
+                        result.get('120天最高价日期'),
+                        result.get('最新收盘价')
+                    )
+                    db_manager.update_stock_status(stock['id'], 'completed')
+                    return {**stock, **result, 'success': True}
+                except Exception as e:
+                    logger.warning(f"初筛获取失败 {stock['stock_name']}: {e}")
+                    db_manager.update_stock_status(stock['id'], 'failed', str(e))
+                    return {'stock_name': stock['stock_name'], 'success': False}
+
+        results = await asyncio.gather(*[fetch_and_save(s) for s in stocks])
+        db_manager.update_batch_progress(batch_id)
+        results = [r for r in results if r.get('success')]
+        results.sort(key=lambda x: (x.get('涨跌幅(%)') is None, x.get('涨跌幅(%)', 0) or 0))
+        return {"success": True, "data": {"batch_id": batch_id, "stocks": results}}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
