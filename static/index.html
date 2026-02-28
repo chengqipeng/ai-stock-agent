@@ -380,6 +380,10 @@
         .row-change { background: rgba(255,248,225,0.5); }
         .row-kline { background: rgba(237,233,254,0.45); }
         .row-canslim { background: rgba(232,240,254,0.45); }
+        .row-canslim .data-metric { min-width: 80px; padding: 5px 10px; }
+        .row-canslim .dm-label { font-size: 11px; font-weight: 600; }
+        .row-canslim .dm-value { font-size: 15px; }
+        .row-canslim .dim-btn { padding: 4px 10px; font-size: 11px; }
         .modal {
             display: none;
             position: fixed;
@@ -593,7 +597,7 @@
                     <button id="batchPrescreeningBtn" class="btn" style="background:#e67e22;" disabled onclick="batchPrescreeningUpdate()">涨跌初筛 (<span id="batchPrescreeningCount">0</span>)</button>
                     <button id="batchKlineBtn" class="btn btn-success" disabled onclick="batchKlineUpdate()">K线初筛 (<span id="batchKlineCount">0</span>)</button>
                     <button id="batchCanslimBtn" class="btn" style="background:#5c6bc0;" disabled onclick="batchCanslimPrescreening()">CAN SLIM初筛 (<span id="batchCanslimCount">0</span>)</button>
-                    <button id="batchActionsBar" class="btn btn-success" disabled onclick="batchDeepAnalysis()">批量深度分析 (<span id="batchSelectedCount">0</span>)</button>
+                    <button id="batchActionsBar" class="btn btn-success" disabled onclick="batchDeepAnalysis()">CAN SLIM深度分析 (<span id="batchSelectedCount">0</span>)</button>
                 </div>
             </h2>
             <div style="overflow-x: auto; max-height: 600px;">
@@ -659,7 +663,7 @@
         let selectedStocks = new Set();
         let selectedStockKeys = new Set(); // 存储选中的股票key
         let currentBatchId = null;
-        let batchSelectedStockIds = new Set(); // 批量深度分析选中的股票ID
+        let batchSelectedStockIds = new Set(); // CAN SLIM深度分析选中的股票ID
 
         function formatLocalTime(utcStr) {
             if (!utcStr) return '-';
@@ -1501,7 +1505,7 @@
 
             const useDeepThinking = confirm('是否使用深度思考模式？\n\n点击"确定"使用深度思考模式（更准确但更慢）\n点击"取消"使用普通模式');
 
-            showProgressModal('正在执行批量深度分析...');
+            showProgressModal('正在执行CAN SLIM深度分析...');
             disableUI();
             document.getElementById('deepAnalysisStockList').style.display = 'block';
 
@@ -1557,7 +1561,7 @@
                 updateBatchSelection();
                 if (currentBatchId) await loadBatchStocks(currentBatchId);
             } catch (error) {
-                alert('批量深度分析失败: ' + error.message);
+                alert('CAN SLIM深度分析失败: ' + error.message);
             } finally {
                 document.getElementById('deepAnalysisStockList').style.display = 'none';
                 hideProgressModal();
