@@ -58,9 +58,10 @@ def _build_extract_prompt(stock_info: StockInfo, search_items: list[dict]) -> st
 
 
 async def search_block_trade(stock_info: StockInfo, days: int = 30) -> list[dict]:
-    """搜索并提取个股近期大宗交易数据。
+    """获取个股近期大宗交易数据。
 
-    流程：缓存检查 -> 百度搜索 -> 文本清洗 -> 去重 -> 大模型提取结构化数据
+    优先使用东方财富 API 获取结构化数据（字段完整），
+    若 API 无数据则回退到百度搜索 + LLM 提取。
     """
     cache_key = f"block_trade_{stock_info.stock_code_normalize}_{datetime.now().strftime('%Y-%m-%d')}"
     now = time.time()
@@ -70,54 +71,71 @@ async def search_block_trade(stock_info: StockInfo, days: int = 30) -> list[dict
         logger.info(f"命中大宗交易缓存 [{stock_info.stock_name}]")
         return cached['data']
 
-    query = f"{stock_info.stock_name} 大宗交易"
+    # ── 优先：东方财富 API（结构化数据，字段完整） ──
     try:
-        results = await baidu_search(query=query, days=days, top_k=10)
-        if not results:
-            _block_trade_cache[cache_key] = {'data': [], 'ts': now}
-            return []
-
-        # 清洗 + 构建搜索条目
-        search_items = []
-        for i, item in enumerate(results, 1):
-            title = _clean_text(item.get('title') or '')
-            content = _clean_text(item.get('content') or '')
-            if not title:
-                continue
-            search_items.append({
-                'id': i,
-                'title': title,
-                'date': item.get('date', ''),
-                'content': content[:800],
-            })
-
-        if not search_items:
-            _block_trade_cache[cache_key] = {'data': [], 'ts': now}
-            return []
-
-        search_items = _dedup_by_title(search_items)
-
-        # 大模型提取结构化数据
-        client = VolcengineClient()
-        prompt = _build_extract_prompt(stock_info, search_items)
-        response = await client.chat(
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-        )
-        resp_content = response['choices'][0]['message']['content']
-        records = parse_llm_json(resp_content)
-
-        if not isinstance(records, list):
-            records = []
-
-        _block_trade_cache[cache_key] = {'data': records, 'ts': now}
-        return records
-
+        from service.eastmoney.stock_info.stock_block_trade_data import get_block_trade_records
+        records = await get_block_trade_records(stock_info, days=days)
+        if records:
+            logger.info(f"东方财富API获取到 {len(records)} 条大宗交易 [{stock_info.stock_name}]")
+            _block_trade_cache[cache_key] = {'data': records, 'ts': now}
+            return records
     except Exception as e:
-        logger.warning(f"搜索大宗交易失败 [{stock_info.stock_name}]: {e}")
+        logger.warning(f"东方财富API获取大宗交易失败 [{stock_info.stock_name}]: {e}")
+
+    # ── 回退：百度搜索 + LLM 提取 ──
+    try:
+        return await _search_block_trade_via_baidu(stock_info, days)
+    except Exception as e:
+        logger.warning(f"百度搜索大宗交易失败 [{stock_info.stock_name}]: {e}")
         if cached:
             return cached['data']
         return []
+
+
+async def _search_block_trade_via_baidu(stock_info: StockInfo, days: int=7) -> list[dict]:
+    """通过百度搜索 + LLM 提取大宗交易数据（回退方案）"""
+    cache_key = f"block_trade_{stock_info.stock_code_normalize}_{datetime.now().strftime('%Y-%m-%d')}"
+    now = time.time()
+    query = f"{stock_info.stock_name} 大宗交易"
+    results = await baidu_search(query=query, days=days, top_k=10)
+    if not results:
+        _block_trade_cache[cache_key] = {'data': [], 'ts': now}
+        return []
+
+    search_items = []
+    for i, item in enumerate(results, 1):
+        title = _clean_text(item.get('title') or '')
+        content = _clean_text(item.get('content') or '')
+        if not title:
+            continue
+        search_items.append({
+            'id': i,
+            'title': title,
+            'date': item.get('date', ''),
+            'content': content[:800],
+        })
+
+    if not search_items:
+        _block_trade_cache[cache_key] = {'data': [], 'ts': now}
+        return []
+
+    search_items = _dedup_by_title(search_items)
+
+    client = VolcengineClient()
+    prompt = _build_extract_prompt(stock_info, search_items)
+    response = await client.chat(
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1,
+        thinking=True
+    )
+    resp_content = response['choices'][0]['message']['content']
+    records = parse_llm_json(resp_content)
+
+    if not isinstance(records, list):
+        records = []
+
+    _block_trade_cache[cache_key] = {'data': records, 'ts': now}
+    return records
 
 
 def _assess_block_trade_next_day_impact(records: list[dict], next_trading_day: str) -> str:
@@ -226,7 +244,7 @@ if __name__ == "__main__":
         stock_info = get_stock_info_by_name('生益科技')
         print(f"=== {stock_info.stock_name}（{stock_info.stock_code_normalize}）大宗交易数据 ===\n")
 
-        records = await search_block_trade(stock_info, days=30)
+        records = await _search_block_trade_via_baidu(stock_info, days=7)
         if records:
             print(f"找到 {len(records)} 条大宗交易记录：")
             print(json.dumps(records, ensure_ascii=False, indent=2))
