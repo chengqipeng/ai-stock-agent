@@ -2154,6 +2154,28 @@ def _compute_comprehensive_score(
             capital_score += 1
             capital_reasons.append(f'大宗交易溢价成交+1')
 
+    # --- 融资融券杠杆方向（-2~+2分）---
+    # 行业共识：融资余额增加反映杠杆资金看多，融券余额增加反映做空力量增强
+    margin_news = [n for n in news_data if isinstance(n, dict) and n.get('类别') == '融资融券'] if news_data else []
+    if margin_news:
+        margin_texts = ' '.join(n.get('标题', '') + n.get('摘要', '') for n in margin_news)
+        margin_bullish_kw = ['融资净买入', '融资余额增', '融资买入额增', '两融余额增']
+        margin_bearish_kw = ['融资净偿还', '融资余额降', '融资余额减', '融券余额增', '融券卖出增']
+        is_margin_bullish = any(kw in margin_texts for kw in margin_bullish_kw)
+        is_margin_bearish = any(kw in margin_texts for kw in margin_bearish_kw)
+        if is_margin_bullish and not is_margin_bearish:
+            capital_score += 2
+            capital_reasons.append('融资融券：杠杆资金偏多+2')
+        elif is_margin_bearish and not is_margin_bullish:
+            capital_score -= 2
+            capital_reasons.append('融资融券：杠杆资金偏空-2')
+        elif is_margin_bullish and is_margin_bearish:
+            capital_reasons.append('融资融券：多空信号混合+0')
+        else:
+            capital_reasons.append(f'融资融券：有相关消息但方向不明+0')
+    else:
+        capital_reasons.append('融资融券：无近期数据（中性）+0')
+
     # --- 约束规则 ---
     # 机构持仓连续减持且北向资金净卖出
     if ('降' in str(org_trend)) and nb_decrease_days >= 1:
@@ -2206,16 +2228,18 @@ def _compute_comprehensive_score(
         env_reasons.append('当日大盘普跌-1')
 
     # --- 消息面（-2~+2分）---
+    # 只扫描非融资融券类消息，融资融券已在资金筹码维度处理
     has_major_positive = False
     has_major_negative = False
     if news_data:
         for news in news_data:
+            if isinstance(news, dict) and news.get('类别') == '融资融券':
+                continue  # 融资融券已在维度5评分
             title = ''
             if isinstance(news, dict):
                 title = news.get('标题', '') or news.get('title', '')
             elif isinstance(news, str):
                 title = news
-            title_lower = title.lower()
             # 重大利好关键词
             if any(kw in title for kw in ['业绩大增', '净利润增长', '业绩快报', '同比增', '超预期']):
                 has_major_positive = True
@@ -2588,14 +2612,15 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 - 机构持仓变化：直接引用"增持机构"/"减持机构"和"持仓变化趋势"，判断机构整体动向
 - 龙虎榜席位特征：直接引用"机构席位行为"，若近期无上榜记录则说明"近期未触发龙虎榜"
 - 大宗交易特征：直接引用"交易特征"和"机构席位情况"，并引用"对下一个交易日影响"判断时效性；若近期无记录则说明"近期无大宗交易"
-- 综合判断：基于以上五个子维度的预计算结论，判断大资金整体流入/流出方向和筹码集中/分散趋势
+- 融资融券杠杆方向：引用消息面中【融资融券动态】板块数据，判断杠杆资金偏多/偏空方向，与北向资金、主力资金流向交叉验证（该维度已在Python端评分中纳入资金筹码维度）
+- 综合判断：基于以上六个子维度的预计算结论，判断大资金整体流入/流出方向和筹码集中/分散趋势
 
 ### 五、 外部环境（大盘系统性风险 + 消息面）
 
 **★ 预计算大盘指数走势摘要（必须直接引用）：**
 {json.dumps(market_env, ensure_ascii=False)}
 
-**★ 近期消息面（百度搜索，近7日，含发布时间与对次日影响判断）：**
+**★ 近期消息面（百度搜索，近7日，按融资融券与其他消息分类展示）：**
 **时效性判定规则（A股交易时段：09:30-11:30 / 13:00-15:00 北京时间）：**
 - 上一个交易日15:00后发布的盘后消息 → 市场尚未消化，对{next_trading_day.strftime('%Y-%m-%d')}开盘有直接影响（标记为★）
 - {next_trading_day.strftime('%Y-%m-%d')}当日09:30前发布的盘前消息 → 对当日开盘有直接影响（标记为★）
@@ -2608,7 +2633,8 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 请基于上述数据分析：
 - 大盘当前系统性风险水平，个股走势是跟随大盘还是独立行情
 - 消息面时效性判断：重点关注标记为★的消息（盘后/盘前发布、市场尚未消化），这些消息对{next_trading_day.strftime('%Y-%m-%d')}开盘有直接影响；盘中已发布的消息影响已减弱，需降低权重
-- 是否存在影响股价的重大利好/利空事件，若无重大消息则简要说明"消息面平淡"
+- 融资融券动态分析（【融资融券动态】板块）：关注融资融券余额变化趋势，判断杠杆资金方向（融资余额增加偏多、融券余额增加偏空），与北向资金、主力资金流向交叉验证，该维度已在Python端评分中纳入"资金筹码"维度
+- 其他重要消息分析（【其他重要消息】板块）：判断是否存在影响股价的重大利好/利空事件，若无重大消息则简要说明"消息面平淡"
 - 外部环境对次日操作的约束（如大盘弱势则个股反弹空间受限）
 
 ### 六、 多空力量博弈清单
@@ -2661,13 +2687,14 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 - 机构持仓：占比上升+2 / 下降-2 / 筹码集中+1 / 分散-1
 - 龙虎榜：机构净买入+2 / 机构净卖出-3 / 无记录+0
 - 大宗交易：折价+机构卖方-2 / 溢价+1 / 无记录+0
+- 融资融券：杠杆资金偏多+2 / 杠杆资金偏空-2 / 多空混合+0 / 无数据+0
 - 约束：机构减持+北向减持上限5分 / 北向减持≥3+港通占比下降上限6分 / 北向增持≥3+港通占比上升下限10分 / 港通减持≥5+机构减持上限3分
 
 *外部环境（满分5分）评分规则：*
 - 基准分2分
 - 大盘环境：偏多+2 / 偏空-2 / 震荡+0
 - 当日大盘：普涨+1 / 普跌-1
-- 消息面：重大利好+2 / 重大利空=0分
+- 消息面（仅非融资融券类消息）：重大利好+2 / 重大利空=0分
 - 约束：大盘跌破5日和10日均线上限2分 / 重大利空消息0分
 
 *风险收益比（满分10分）评分规则：*
@@ -2755,7 +2782,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info = get_stock_info_by_name('三花智控')
+        stock_info = get_stock_info_by_name('生益科技')
         prompt = await get_stock_indicator_prompt(stock_info)
         print(prompt)
 

@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 
 from common.utils.llm_utils import parse_llm_json
 from common.utils.stock_info_utils import StockInfo
-from service.llm.deepseek_client import DeepSeekClient
+from service.llm.volcengine_client import VolcengineClient
 from service.web_search.baidu_search import baidu_search
 from service.web_search.web_scraper import extract_main_content, extract_content_with_datetime, BUSINESS_TIMEOUT
 
@@ -134,26 +134,42 @@ def _clean_text(text: str) -> str:
     return text.strip()
 
 
-def _dedup_by_title(items: list[dict]) -> list[dict]:
-    """按标题去重，相同/高度相似的标题只保留内容最长的一条。
+def _time_precision(publish_time: str) -> int:
+    """返回时间精度分：含有效时分秒=2，仅含时分=1，仅日期或空=0。
+    注意：00:00:00 视为无精确时间，降级为0。
+    """
+    if not publish_time:
+        return 0
+    t = publish_time.strip()
+    if len(t) >= 19 and t[16] == ':' and not t[11:].startswith('00:00:00'):
+        return 2
+    if len(t) >= 16 and t[13] == ':' and not t[11:].startswith('00:00'):
+        return 1
+    return 0
 
-    判定规则：将标题归一化（只保留中文+字母+数字）后，
-    若两条标题归一化结果相同，或其中一个是另一个的子串，视为重复。
+
+def _dedup_by_title(items: list[dict]) -> list[dict]:
+    """按标题去重，相同/高度相似的标题只保留最优的一条。
+
+    优先级：时间精度高 > 内容更长。
     """
     seen: dict[str, dict] = {}  # norm_title -> best item
     for item in items:
         norm = _TITLE_NORM_RE.sub('', item['title'])
         if not norm:
             continue
-        # 检查是否与已有标题重复（完全相同或互为子串）
         matched_key = None
         for existing_key in seen:
             if norm == existing_key or norm in existing_key or existing_key in norm:
                 matched_key = existing_key
                 break
         if matched_key is not None:
-            # 保留内容更长的那条
-            if len(item.get('content', '')) > len(seen[matched_key].get('content', '')):
+            existing = seen[matched_key]
+            item_prec = _time_precision(item.get('publish_time', ''))
+            exist_prec = _time_precision(existing.get('publish_time', ''))
+            if item_prec > exist_prec or (
+                item_prec == exist_prec and len(item.get('content', '')) > len(existing.get('content', ''))
+            ):
                 seen[matched_key] = item
         else:
             seen[norm] = item
@@ -184,6 +200,29 @@ def _classify_market_session(publish_time: str) -> str:
         return '盘后'
     except (ValueError, IndexError):
         return '未知'
+
+# ── 股票交易数据过滤（标题命中则直接剔除） ──
+_TRADING_DATA_RE = re.compile(
+    r'(今日|昨日|本周|本月)?'
+    r'(股价|收盘|开盘|涨停|跌停|涨幅|跌幅|涨跌|成交量|成交额|换手率|振幅|量比|委比|'
+    r'市盈率|市净率|总市值|流通市值|每股收益|每股净资产|'
+    r'分时|K线|均线|MACD|KDJ|RSI|布林|技术指标|'
+    r'行情|报价|实时|最新价|最高价|最低价)'
+)
+
+# ── 融资融券关键词 ──
+_MARGIN_KEYWORDS = [
+    '融资融券', '融资余额', '融券余额', '融资买入', '融券卖出',
+    '融资净买入', '融券净卖出', '融资偿还', '融券偿还',
+    '两融', '融资净偿还', '融券净偿还', '融资融券余额',
+    '融资融券标的', '融资融券数据', '融资融券变动',
+]
+
+def _is_margin_trading_news(title: str, content: str) -> bool:
+    """判断新闻是否属于融资融券类别。"""
+    text = (title + content).lower()
+    return any(kw in text for kw in _MARGIN_KEYWORDS)
+
 
 
 
@@ -232,12 +271,18 @@ def _build_filter_prompt(stock_info: StockInfo, search_results: list[dict]) -> s
         "2. 业绩变动：财报超预期/不及预期、业绩预告、重大资产减值\n"
         "3. 经营动态：重大合同、核心高管变动、技术突破、产能扩张\n"
         "4. 外部环境：行业重磅政策、监管处罚、重大诉讼\n"
-        "5. 市场关注：机构评级调整、热点题材催化、行业景气度变化\n\n"
+        "5. 市场关注：机构评级调整、热点题材催化、行业景气度变化\n"
+        "6. 融资融券：融资余额变化、融券余额变化、两融数据异动\n\n"
         "# 严格禁选\n"
         "- 实时股价波动、K线走势、技术指标分析\n"
+        "- 股票交易数据：成交量、换手率、涨跌幅、开收盘价、市盈率、市净率等行情数据\n"
         "- 常规产品介绍、营销软文、用户评价\n"
-        "- 与目标公司无直接关联的泛行业讨论\n"
-        "- 搜索内容相近的条目只保留最详细的一条\n\n"
+        "- 与目标公司无直接关联的泛行业讨论\n\n"
+        "# 强制去重规则（最高优先级，必须严格执行）\n"
+        "同一事件可能以不同标题出现多次（如官方公告原文、媒体转载、快讯摘要），必须合并为一条：\n"
+        "- 判定标准：两条内容描述的是同一事件（如同一份业绩快报、同一笔减持），无论标题措辞是否相同，均视为重复\n"
+        "- 保留规则：只保留信息最完整的一条；若完整度相近，优先保留官方公告原文（来源为 cninfo、sse、szse 等官方域名）\n"
+        "- 其余重复条目一律剔除，不得同时保留\n\n"
         "# 排序要求\n"
         "返回的 id 必须按对股价影响程度从高到低排序（影响最大的排最前面）。\n\n"
         "# 搜索结果\n"
@@ -264,8 +309,13 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
         return cached['data']
 
     query = f"{stock_info.stock_name} 公告"
+    query_margin = f"{stock_info.stock_name} 融资融券"
     try:
-        results = await baidu_search(query=query, days=days, top_k=20, preferred_domains=_FINANCE_DOMAINS)
+        results_ann, results_margin = await asyncio.gather(
+            baidu_search(query=query, days=days, top_k=15, preferred_domains=_FINANCE_DOMAINS),
+            baidu_search(query=query_margin, days=days, top_k=10, preferred_domains=_FINANCE_DOMAINS),
+        )
+        results = (results_ann or []) + (results_margin or [])
         if not results:
             _news_cache[cache_key] = {'data': [], 'ts': now}
             return []
@@ -296,16 +346,19 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
             _news_cache[cache_key] = {'data': [], 'ts': now}
             return []
 
+        # 过滤股票交易数据条目
+        search_items = [item for item in search_items if not _TRADING_DATA_RE.search(item['title'])]
+
         # 标题去重：相似标题只保留内容最长的一条
         search_items = _dedup_by_title(search_items)
 
         # 大模型过滤
-        client = DeepSeekClient()
+        client = VolcengineClient()
         prompt = _build_filter_prompt(stock_info, search_items)
         response = await client.chat(
             messages=[{"role": "user", "content": prompt}],
-            model="deepseek-chat",
-            temperature=0.1
+            temperature=0.1,
+            thinking=True
         )
         resp_content = response['choices'][0]['message']['content']
         filtered_ids = parse_llm_json(resp_content)
@@ -321,9 +374,10 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
                 '时段': _classify_market_session(item.get('publish_time', '')),
                 '摘要': item['content'][:300],
                 '来源': item.get('url', ''),
+                '类别': '融资融券' if _is_margin_trading_news(item['title'], item.get('content', '')) else '公告',
             }
             for item in filtered
-        ][:5]
+        ]
 
         _news_cache[cache_key] = {'data': filtered_result, 'ts': now}
         return filtered_result
@@ -381,34 +435,50 @@ def _assess_news_next_day_impact(publish_time: str, session: str, next_trading_d
 
 
 def format_news_for_prompt(news_list: list[dict], next_trading_day: str = '') -> str:
-    """将新闻列表格式化为提示词中的文本块，包含发布时间、盘前/盘后标记和对下一个交易日的影响判断。
+    """将新闻列表格式化为提示词中的文本块，按融资融券和其他消息分类展示。
 
     Args:
-        news_list: 新闻列表
+        news_list: 新闻列表（每条含 '类别' 字段：'融资融券' 或 '其他'）
         next_trading_day: 下一个交易日日期（YYYY-MM-DD），用于判断消息对次日的影响
     """
     if not news_list:
         return "未获取到近期相关新闻/公告信息。"
 
-    lines = []
-    for i, news in enumerate(news_list, 1):
-        # 构建时间标签：发布时间 + 时段标记
-        time_label = ''
-        publish_time = news.get('发布时间', '')
-        session = news.get('时段', '未知')
-        if publish_time:
-            time_label = f'（{publish_time} [{session}]）'
+    margin_news = [n for n in news_list if n.get('类别') == '融资融券']
+    other_news = [n for n in news_list if n.get('类别') != '融资融券']
 
-        # 对下一个交易日的影响判断
-        impact_label = ''
-        if next_trading_day:
-            impact = _assess_news_next_day_impact(publish_time, session, next_trading_day)
-            impact_label = f'\n   → 对次日影响：{impact}'
+    def _format_section(items: list[dict]) -> str:
+        lines = []
+        for i, news in enumerate(items, 1):
+            time_label = ''
+            publish_time = news.get('发布时间', '')
+            session = news.get('时段', '未知')
+            if publish_time:
+                time_label = f'（{publish_time} [{session}]）'
 
-        lines.append(f'{i}. {news["标题"]}{time_label}{impact_label}')
-        if news.get('摘要'):
-            lines.append(f'   摘要：{news["摘要"]}')
-    return '\n'.join(lines)
+            impact_label = ''
+            if next_trading_day:
+                impact = _assess_news_next_day_impact(publish_time, session, next_trading_day)
+                impact_label = f'\n   → 对次日影响：{impact}'
+
+            lines.append(f'{i}. {news["标题"]}{time_label}{impact_label}')
+            if news.get('摘要'):
+                lines.append(f'   摘要：{news["摘要"]}')
+        return '\n'.join(lines)
+
+    sections = []
+
+    if margin_news:
+        sections.append(f'【融资融券动态】\n{_format_section(margin_news)}')
+    else:
+        sections.append('【融资融券动态】\n无近期融资融券相关消息。')
+
+    if other_news:
+        sections.append(f'【重要公告消息】\n{_format_section(other_news)}')
+    else:
+        sections.append('【重要公告消息】\n无近期其他重要消息。')
+
+    return '\n\n'.join(sections)
 
 
 

@@ -17,7 +17,8 @@ class VolcengineClient:
         model: str = "doubao-seed-1-6-flash-250828",
         temperature: float = 1.0,
         max_tokens: Optional[int] = None,
-        stream: bool = False
+        stream: bool = False,
+        thinking: bool = False
     ) -> Dict[str, Any]:
         """调用火山引擎聊天接口"""
         url = f"{self.base_url}/chat/completions"
@@ -31,7 +32,7 @@ class VolcengineClient:
             "temperature": temperature,
             "stream": stream,
             "thinking": {
-                "type": "disabled"
+                "type": "enabled" if thinking else "disabled"
             }
         }
         if max_tokens:

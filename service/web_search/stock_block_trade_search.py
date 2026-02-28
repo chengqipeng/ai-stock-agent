@@ -12,7 +12,7 @@ from datetime import datetime
 
 from common.utils.llm_utils import parse_llm_json
 from common.utils.stock_info_utils import StockInfo
-from service.llm.deepseek_client import DeepSeekClient
+from service.llm.volcengine_client import VolcengineClient
 from service.web_search.baidu_search import baidu_search
 from service.web_search.stock_news_search import _clean_text, _dedup_by_title
 
@@ -62,7 +62,7 @@ async def search_block_trade(stock_info: StockInfo, days: int = 30) -> list[dict
 
     流程：缓存检查 -> 百度搜索 -> 文本清洗 -> 去重 -> 大模型提取结构化数据
     """
-    cache_key = f"block_trade_{stock_info.stock_code_normalize}_{days}"
+    cache_key = f"block_trade_{stock_info.stock_code_normalize}_{datetime.now().strftime('%Y-%m-%d')}"
     now = time.time()
 
     cached = _block_trade_cache.get(cache_key)
@@ -98,11 +98,10 @@ async def search_block_trade(stock_info: StockInfo, days: int = 30) -> list[dict
         search_items = _dedup_by_title(search_items)
 
         # 大模型提取结构化数据
-        client = DeepSeekClient()
+        client = VolcengineClient()
         prompt = _build_extract_prompt(stock_info, search_items)
         response = await client.chat(
             messages=[{"role": "user", "content": prompt}],
-            model="deepseek-chat",
             temperature=0.1,
         )
         resp_content = response['choices'][0]['message']['content']
