@@ -16,21 +16,30 @@ _semaphore = asyncio.Semaphore(18)
 def _decode_token(encoded: str) -> str:
     return base64.b64decode(encoded).decode('utf-8')
 
+
 async def baidu_search(
     query: str,
     days: int = 30,
-    top_k: int = 5
+    top_k: int = 5,
+    preferred_domains: list[str] | None = None,
 ) -> dict:
-    """使用百度千帆 AI Search 进行搜索"""
+    """使用百度千帆 AI Search 进行搜索
+
+    Args:
+        query: 搜索关键词
+        days: 搜索时间范围（天）
+        top_k: 返回结果数量
+        preferred_domains: 优先域名列表，结果会按域名匹配度排序（匹配的排前面）
+    """
     url = "https://qianfan.baidubce.com/v2/ai_search/web_search"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {_decode_token(ACCESS_TOKEN)}"
     }
-    
+
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
-    
+
     payload = {
         "messages": [{"role": "user", "content": query}],
         "edition": "standard",
@@ -43,7 +52,10 @@ async def baidu_search(
                     "gte": start_date.strftime("%Y-%m-%d"),
                     "lte": end_date.strftime("%Y-%m-%d")
                 }
-            }
+            },
+            **({
+                "match": {"site": preferred_domains}
+            } if preferred_domains else {})
         }
     }
 

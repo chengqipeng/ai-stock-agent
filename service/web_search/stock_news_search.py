@@ -16,13 +16,31 @@ from common.utils.llm_utils import parse_llm_json
 from common.utils.stock_info_utils import StockInfo
 from service.llm.deepseek_client import DeepSeekClient
 from service.web_search.baidu_search import baidu_search
-from service.web_search.web_scraper import extract_main_content, BUSINESS_TIMEOUT
+from service.web_search.web_scraper import extract_main_content, extract_content_with_datetime, BUSINESS_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
 # ── 新闻搜索缓存（2小时TTL） ──
 _news_cache: dict[str, dict] = {}  # key -> {'data': [...], 'ts': timestamp}
 _NEWS_CACHE_TTL = 2 * 60 * 60  # 2小时（秒）
+
+# ── 优先财经网站域名（按权威性排序） ──
+_FINANCE_DOMAINS = [
+    'eastmoney.com',      # 东方财富
+    'cninfo.com.cn',      # 巨潮资讯（官方公告披露）
+    'sse.com.cn',         # 上交所
+    'szse.cn',            # 深交所
+    '10jqka.com.cn',      # 同花顺
+    'cls.cn',             # 财联社
+    'stcn.com',           # 证券时报
+    'cs.com.cn',          # 中证网
+    'sina.com.cn',        # 新浪财经
+    'hexun.com',          # 和讯网
+    'caixin.com',         # 财新网
+    'yicai.com',          # 第一财经
+    'nbd.com.cn',         # 每日经济新闻
+    'securities.com',     # 证券之星
+]
 
 # ── 百度搜索私有标记字符（高频出现的 PUA 区段） ──
 _BAIDU_MARKER_RE = re.compile(r'[\ue000-\ue099]')
@@ -141,16 +159,50 @@ def _dedup_by_title(items: list[dict]) -> list[dict]:
             seen[norm] = item
     return list(seen.values())
 
+def _classify_market_session(publish_time: str) -> str:
+    """根据发布时间判定消息属于盘前/盘中/盘后。
+
+    A股交易时段：09:30-15:00
+    - 盘中（09:30-15:00）：发布时间在交易时段内
+    - 盘后（15:00后）或盘前（09:30前）：看发布时间之后是否有新的交易日
+      - 有新交易日 → 盘前（影响下一个交易日开盘）
+      - 无新交易日 → 盘后（最新交易日收盘后）
+    - 无法解析时间 → 未知
+    """
+    if not publish_time or len(publish_time) < 11:
+        return '未知'
+    try:
+        import chinese_calendar
+        dt = datetime.strptime(publish_time.strip()[:16], '%Y-%m-%d %H:%M')
+        hour, minute = dt.hour, dt.minute
+        total_minutes = hour * 60 + minute
+        is_trading_day = dt.date().weekday() < 5 and not chinese_calendar.is_holiday(dt.date())
+        if is_trading_day and (570 <= total_minutes <= 690 or 780 <= total_minutes <= 900):  # 09:30-11:30 or 13:00-15:00
+            return '盘中'
+        if total_minutes < 570:  # 09:30 之前
+            return '盘前'
+        return '盘后'
+    except (ValueError, IndexError):
+        return '未知'
+
+
+
 
 async def _fetch_and_replace_content(item: dict) -> dict:
-    """爬取网页全文，成功且内容更丰富则替换原有 content，失败则保留原内容。"""
+    """爬取网页全文及发布时间，成功且内容更丰富则替换原有 content，同时提取精确发布时间。"""
     try:
-        text = await extract_main_content(item['url'], timeout=BUSINESS_TIMEOUT)
+        result = await extract_content_with_datetime(item['url'], timeout=BUSINESS_TIMEOUT)
+        text = result.get('content', '')
+        publish_time = result.get('publish_time')
         if text and len(text[:800]) > len(item.get('content') or ''):
             item['content'] = text[:800]
+        # 如果成功提取到精确时间（含时分），优先使用
+        if publish_time:
+            item['publish_time'] = publish_time
     except Exception as e:
         logger.warning(f"爬取全文失败 [{item.get('url')}]: {e}")
     return item
+
 
 
 def _build_filter_prompt(stock_info: StockInfo, search_results: list[dict]) -> str:
@@ -163,6 +215,12 @@ def _build_filter_prompt(stock_info: StockInfo, search_results: list[dict]) -> s
         "你是一位资深证券分析师，擅长从海量信息中快速识别对股价有实质驱动力的核心事件。\n\n"
         f"当前日期：{now_str}\n"
         f"目标公司：{stock_info.stock_name}（{stock_info.stock_code_normalize}）\n\n"
+        "# 盘前盘后判定说明\n"
+        "A股交易时段为 09:30-15:00。每条搜索结果中的 publish_time 字段为精确发布时间（格式 YYYY-MM-DD HH:MM）。\n"
+        "- 15:00 之后发布 → 盘后消息，影响次日开盘\n"
+        "- 09:30 之前发布 → 盘前消息，影响当日开盘\n"
+        "- 09:30-15:00 之间发布 → 盘中消息，可能已被市场消化\n"
+        "请在筛选时优先关注盘后和盘前消息，它们对股价的潜在影响更大。\n\n"
         "# Task\n"
         "对以下网络搜索结果进行筛选，只保留与目标公司**直接相关**且对股价有**实质影响**的信息。\n\n"
         "# 时效性硬约束（最高优先级）\n"
@@ -207,7 +265,7 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
 
     query = f"{stock_info.stock_name} 公告"
     try:
-        results = await baidu_search(query=query, days=days, top_k=20)
+        results = await baidu_search(query=query, days=days, top_k=20, preferred_domains=_FINANCE_DOMAINS)
         if not results:
             _news_cache[cache_key] = {'data': [], 'ts': now}
             return []
@@ -224,10 +282,12 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
             content = _clean_text(item.get('content') or '')
             if not title:
                 continue
+            # 优先使用爬取到的精确发布时间，回退到百度返回的日期
+            publish_time = item.get('publish_time') or item.get('date', '')
             search_items.append({
                 'id': i,
                 'title': title,
-                'date': item.get('date', ''),
+                'publish_time': publish_time,
                 'content': content[:500],
                 'url': item.get('url', ''),
             })
@@ -257,7 +317,8 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
         filtered_result = [
             {
                 '标题': item['title'],
-                '日期': item.get('date', ''),
+                '发布时间': item.get('publish_time', ''),
+                '时段': _classify_market_session(item.get('publish_time', '')),
                 '摘要': item['content'][:300],
                 '来源': item.get('url', ''),
             }
@@ -276,20 +337,25 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
         return []
 
 
+
 def format_news_for_prompt(news_list: list[dict]) -> str:
-    """将新闻列表格式化为提示词中的文本块"""
+    """将新闻列表格式化为提示词中的文本块，包含发布时间和盘前/盘后标记。"""
     if not news_list:
         return "未获取到近期相关新闻/公告信息。"
 
     lines = []
     for i, news in enumerate(news_list, 1):
-        date_str = ''
-        if news.get('日期'):
-            date_str = '（' + news['日期'] + '）'
-        lines.append(str(i) + '. ' + news['标题'] + date_str)
+        # 构建时间标签：发布时间 + 时段标记
+        time_label = ''
+        publish_time = news.get('发布时间', '')
+        session = news.get('时段', '未知')
+        if publish_time:
+            time_label = f'（{publish_time} [{session}]）'
+        lines.append(f'{i}. {news["标题"]}{time_label}')
         if news.get('摘要'):
-            lines.append('   摘要：' + news['摘要'])
+            lines.append(f'   摘要：{news["摘要"]}')
     return '\n'.join(lines)
+
 
 
 if __name__ == "__main__":

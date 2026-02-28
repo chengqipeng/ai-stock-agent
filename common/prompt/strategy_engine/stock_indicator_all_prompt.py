@@ -1,7 +1,8 @@
 import json
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 
+import chinese_calendar
 import pandas as pd
 
 from common.utils.stock_info_utils import StockInfo
@@ -1555,8 +1556,12 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
     kline_trimmed = _trim_kline_data(valid_kline, keep_recent=30)
     ma_trimmed = _trim_ma_data(moving_averages_json, keep_recent=20)
 
+    next_trading_day = datetime.now().date() + timedelta(days=1)
+    while next_trading_day.weekday() >= 5 or chinese_calendar.is_holiday(next_trading_day):
+        next_trading_day += timedelta(days=1)
+
     return f"""
-# 当前时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+# 当前时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}，下一个交易日：{next_trading_day.strftime('%Y-%m-%d')} 09:30-11:30 / 13:00-15:00
 
 # Role: 资深A股技术面分析师 / 操盘手
 你拥有20年实战交易经验，精通量价关系、分时盘口语言以及MACD、KDJ、BOLL等核心指标的底层逻辑。你的分析风格：客观、严谨、直击本质、拒绝模棱两可。
