@@ -244,52 +244,75 @@ async def _fetch_and_replace_content(item: dict) -> dict:
 
 
 
-def _build_filter_prompt(stock_info: StockInfo, search_results: list[dict]) -> str:
-    """构建大模型过滤提示词"""
+def _common_prompt_header(stock_info: StockInfo) -> str:
     now_str = datetime.now().strftime('%Y-%m-%d')
     cutoff_str = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-    results_json = json.dumps(search_results, ensure_ascii=False)
     return (
         "# Role\n"
         "你是一位资深证券分析师，擅长从海量信息中快速识别对股价有实质驱动力的核心事件。\n\n"
         f"当前日期：{now_str}\n"
         f"目标公司：{stock_info.stock_name}（{stock_info.stock_code_normalize}）\n\n"
         "# 盘前盘后判定说明\n"
-        "A股交易时段为 09:30-15:00。每条搜索结果中的 publish_time 字段为精确发布时间（格式 YYYY-MM-DD HH:MM）。\n"
-        "- 15:00 之后发布 → 盘后消息，影响次日开盘\n"
-        "- 09:30 之前发布 → 盘前消息，影响当日开盘\n"
-        "- 09:30-15:00 之间发布 → 盘中消息，可能已被市场消化\n"
-        "请在筛选时优先关注盘后和盘前消息，它们对股价的潜在影响更大。\n\n"
-        "# Task\n"
-        "对以下网络搜索结果进行筛选，只保留与目标公司**直接相关**且对股价有**实质影响**的信息。\n\n"
+        "A股交易时段为 09:30-15:00，publish_time 格式为 YYYY-MM-DD HH:MM。\n"
+        "- 15:00 后发布 → 盘后消息，影响次日开盘\n"
+        "- 09:30 前发布 → 盘前消息，影响当日开盘\n"
+        "- 09:30-15:00 发布 → 盘中消息，可能已被市场消化\n"
+        "优先关注盘后和盘前消息。\n\n"
         "# 时效性硬约束（最高优先级）\n"
-        f"只允许保留发布日期在 {cutoff_str} 至 {now_str} 之间（近7天）的消息。\n"
-        "超出该时间范围的条目无论内容多重要，一律剔除。\n"
-        "若条目缺少日期字段，视为不符合时效要求，同样剔除。\n\n"
-        "# 筛选准则（在满足时效性前提下，符合任一即可保留）\n"
+        f"只保留发布日期在 {cutoff_str} 至 {now_str} 之间（近7天）的条目，超出或缺少日期一律剔除。\n\n"
+        "# 强制去重（必须严格执行）\n"
+        "同一事件以不同标题出现多次时，只保留信息最完整的一条；完整度相近时优先保留官方来源（cninfo、sse、szse）。\n\n"
+    ), now_str
+
+
+def _build_ann_filter_prompt(stock_info: StockInfo, ann_results: list[dict]) -> str:
+    """构建公告/新闻过滤提示词"""
+    header, _ = _common_prompt_header(stock_info)
+    results_json = json.dumps(ann_results, ensure_ascii=False)
+    return (
+        header +
+        "# Task\n"
+        "从以下公告/新闻搜索结果中，筛选与目标公司**直接相关**且对股价有**实质影响**的条目。\n\n"
+        "# 保留准则（符合任一即可）\n"
         "1. 资本运作：并购重组、定增融资、股权激励、大股东增减持\n"
-        "2. 业绩变动：财报超预期/不及预期、业绩预告、重大资产减值\n"
+        "2. 业绩变动：财报、业绩预告、重大资产减值\n"
         "3. 经营动态：重大合同、核心高管变动、技术突破、产能扩张\n"
         "4. 外部环境：行业重磅政策、监管处罚、重大诉讼\n"
-        "5. 市场关注：机构评级调整、热点题材催化、行业景气度变化\n"
-        "6. 融资融券：融资余额变化、融券余额变化、两融数据异动\n\n"
+        "5. 市场关注：机构评级调整、热点题材催化\n\n"
         "# 严格禁选\n"
-        "- 实时股价波动、K线走势、技术指标分析\n"
-        "- 股票交易数据：成交量、换手率、涨跌幅、开收盘价、市盈率、市净率等行情数据\n"
-        "- 常规产品介绍、营销软文、用户评价\n"
-        "- 与目标公司无直接关联的泛行业讨论\n\n"
-        "# 强制去重规则（最高优先级，必须严格执行）\n"
-        "同一事件可能以不同标题出现多次（如官方公告原文、媒体转载、快讯摘要），必须合并为一条：\n"
-        "- 判定标准：两条内容描述的是同一事件（如同一份业绩快报、同一笔减持），无论标题措辞是否相同，均视为重复\n"
-        "- 保留规则：只保留信息最完整的一条；若完整度相近，优先保留官方公告原文（来源为 cninfo、sse、szse 等官方域名）\n"
-        "- 其余重复条目一律剔除，不得同时保留\n\n"
-        "# 排序要求\n"
-        "返回的 id 必须按对股价影响程度从高到低排序（影响最大的排最前面）。\n\n"
+        "- 股价行情、K线、技术指标、成交量、换手率、涨跌幅等交易数据\n"
+        "- 融资融券相关内容（由另一组数据单独处理）\n"
+        "- 营销软文、产品介绍、泛行业讨论\n\n"
         "# 搜索结果\n"
         f"{results_json}\n\n"
         "# Output\n"
-        "只返回符合要求的 id 列表，JSON 数组格式，按影响面从高到低排序，最多5条最少0条。禁止输出任何解释。\n"
+        "只返回符合要求的 id 列表，JSON 数组格式，按影响面从高到低排序，最多4条最少0条。禁止输出任何解释。\n"
         "示例：[3, 1, 5]\n"
+    )
+
+
+def _build_margin_filter_prompt(stock_info: StockInfo, margin_results: list[dict]) -> str:
+    """构建融资融券过滤提示词"""
+    header, _ = _common_prompt_header(stock_info)
+    results_json = json.dumps(margin_results, ensure_ascii=False)
+    return (
+        header +
+        "# Task\n"
+        "从以下融资融券搜索结果中，筛选与目标公司**直接相关**且反映两融资金动向的条目。\n\n"
+        "# 保留准则（符合任一即可）\n"
+        "1. 融资余额变化：融资余额大幅增加或减少\n"
+        "2. 融券余额变化：融券余额异动\n"
+        "3. 两融数据异动：融资净买入/净偿还、融券净卖出/净偿还\n"
+        "4. 融资融券标的调整：新增或移除标的\n\n"
+        "# 严格禁选\n"
+        "- 股价行情、K线、技术指标等交易数据\n"
+        "- 与融资融券无关的公告、新闻\n"
+        "- 泛行业两融数据（非目标公司个股数据）\n\n"
+        "# 搜索结果\n"
+        f"{results_json}\n\n"
+        "# Output\n"
+        "只返回符合要求的 id 列表，JSON 数组格式，按影响面从高到低排序，最多2条最少0条。禁止输出任何解释。\n"
+        "示例：[2, 1]\n"
     )
 
 
@@ -315,69 +338,81 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
             baidu_search(query=query, days=days, top_k=15, preferred_domains=_FINANCE_DOMAINS),
             baidu_search(query=query_margin, days=days, top_k=10, preferred_domains=_FINANCE_DOMAINS),
         )
-        results = (results_ann or []) + (results_margin or [])
-        if not results:
+        results_ann = results_ann or []
+        results_margin = results_margin or []
+        if not results_ann and not results_margin:
             _news_cache[cache_key] = {'data': [], 'ts': now}
             return []
 
-        # 并发爬取全文，成功则替换原有摘要内容
-        results = list(await asyncio.gather(
-            *[_fetch_and_replace_content(item) for item in results]
-        ))
-
-        # 清洗 + 构建带 id 的搜索结果供大模型筛选
-        search_items = []
-        for i, item in enumerate(results, 1):
-            title = _clean_text(item.get('title') or '')
-            content = _clean_text(item.get('content') or '')
-            if not title:
-                continue
-            # 优先使用爬取到的精确发布时间，回退到百度返回的日期
-            publish_time = item.get('publish_time') or item.get('date', '')
-            search_items.append({
-                'id': i,
-                'title': title,
-                'publish_time': publish_time,
-                'content': content[:500],
-                'url': item.get('url', ''),
-            })
-
-        if not search_items:
-            _news_cache[cache_key] = {'data': [], 'ts': now}
-            return []
-
-        # 过滤股票交易数据条目
-        search_items = [item for item in search_items if not _TRADING_DATA_RE.search(item['title'])]
-
-        # 标题去重：相似标题只保留内容最长的一条
-        search_items = _dedup_by_title(search_items)
-
-        # 大模型过滤
-        client = VolcengineClient()
-        prompt = _build_filter_prompt(stock_info, search_items)
-        response = await client.chat(
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-            thinking=True
+        # 并发爬取全文
+        results_ann, results_margin = await asyncio.gather(
+            asyncio.gather(*[_fetch_and_replace_content(item) for item in results_ann]),
+            asyncio.gather(*[_fetch_and_replace_content(item) for item in results_margin]),
         )
-        resp_content = response['choices'][0]['message']['content']
-        filtered_ids = parse_llm_json(resp_content)
+        results_ann = list(results_ann)
+        results_margin = list(results_margin)
 
-        # 按大模型返回的顺序（影响面从高到低）提取结果
-        id_to_item = {item['id']: item for item in search_items}
-        filtered = [id_to_item[fid] for fid in filtered_ids if fid in id_to_item]
+        def _to_search_items(results: list, id_start: int) -> list[dict]:
+            items = []
+            for i, item in enumerate(results, id_start):
+                title = _clean_text(item.get('title') or '')
+                content = _clean_text(item.get('content') or '')
+                if not title or _TRADING_DATA_RE.search(title):
+                    continue
+                publish_time = item.get('publish_time') or item.get('date', '')
+                items.append({
+                    'id': i,
+                    'title': title,
+                    'publish_time': publish_time,
+                    'content': content[:500],
+                    'url': item.get('url', ''),
+                })
+            return _dedup_by_title(items)
 
-        filtered_result = [
-            {
+        ann_items = _to_search_items(results_ann, 1)
+        margin_items = _to_search_items(results_margin, 1000)  # id 区间隔开避免冲突
+
+        if not ann_items and not margin_items:
+            _news_cache[cache_key] = {'data': [], 'ts': now}
+            return []
+
+        # 并发调用大模型过滤
+        client = VolcengineClient()
+
+        async def _filter(items: list[dict], prompt_fn) -> list[dict]:
+            if not items:
+                return []
+            prompt = prompt_fn(stock_info, items)
+            resp = await client.chat(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                thinking=True
+            )
+            msg = resp['choices'][0]['message']
+            resp_content = msg.get('content') or msg.get('reasoning_content') or ''
+            ids = parse_llm_json(resp_content) if resp_content else []
+            id_map = {item['id']: item for item in items}
+            return [id_map[fid] for fid in ids if fid in id_map]
+
+        filtered_ann, filtered_margin = await asyncio.gather(
+            _filter(ann_items, _build_ann_filter_prompt),
+            _filter(margin_items, _build_margin_filter_prompt),
+        )
+
+        def _to_result(item: dict, category: str) -> dict:
+            return {
                 '标题': item['title'],
                 '发布时间': item.get('publish_time', ''),
                 '时段': _classify_market_session(item.get('publish_time', '')),
                 '摘要': item['content'][:300],
                 '来源': item.get('url', ''),
-                '类别': '融资融券' if _is_margin_trading_news(item['title'], item.get('content', '')) else '公告',
+                '类别': category,
             }
-            for item in filtered
-        ]
+
+        filtered_result = (
+            [_to_result(item, '公告') for item in filtered_ann] +
+            [_to_result(item, '融资融券') for item in filtered_margin]
+        )
 
         _news_cache[cache_key] = {'data': filtered_result, 'ts': now}
         return filtered_result
