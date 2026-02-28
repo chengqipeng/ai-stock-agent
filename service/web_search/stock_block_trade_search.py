@@ -71,17 +71,6 @@ async def search_block_trade(stock_info: StockInfo, days: int = 30) -> list[dict
         logger.info(f"命中大宗交易缓存 [{stock_info.stock_name}]")
         return cached['data']
 
-    # ── 优先：东方财富 API（结构化数据，字段完整） ──
-    try:
-        from service.eastmoney.stock_info.stock_block_trade_data import get_block_trade_records
-        records = await get_block_trade_records(stock_info, days=days)
-        if records:
-            logger.info(f"东方财富API获取到 {len(records)} 条大宗交易 [{stock_info.stock_name}]")
-            _block_trade_cache[cache_key] = {'data': records, 'ts': now}
-            return records
-    except Exception as e:
-        logger.warning(f"东方财富API获取大宗交易失败 [{stock_info.stock_name}]: {e}")
-
     # ── 回退：百度搜索 + LLM 提取 ──
     try:
         return await _search_block_trade_via_baidu(stock_info, days)
