@@ -9,6 +9,7 @@ import html
 import json
 import logging
 import re
+import time
 from datetime import datetime, timedelta
 
 from common.utils.llm_utils import parse_llm_json
@@ -18,6 +19,10 @@ from service.web_search.baidu_search import baidu_search
 from service.web_search.web_scraper import extract_main_content, BUSINESS_TIMEOUT
 
 logger = logging.getLogger(__name__)
+
+# ── 新闻搜索缓存（2小时TTL） ──
+_news_cache: dict[str, dict] = {}  # key -> {'data': [...], 'ts': timestamp}
+_NEWS_CACHE_TTL = 2 * 60 * 60  # 2小时（秒）
 
 # ── 百度搜索私有标记字符（高频出现的 PUA 区段） ──
 _BAIDU_MARKER_RE = re.compile(r'[\ue000-\ue099]')
@@ -188,12 +193,23 @@ def _build_filter_prompt(stock_info: StockInfo, search_results: list[dict]) -> s
 async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
     """搜索并过滤个股近期新闻/公告/事件。
 
-    流程：百度搜索 -> 爬取全文 -> 文本清洗 -> 标题去重 -> 大模型过滤 -> 按影响面排序返回
+    流程：缓存检查 -> 百度搜索 -> 爬取全文 -> 文本清洗 -> 标题去重 -> 大模型过滤 -> 按影响面排序返回
+    缓存策略：同一股票2小时内不重复搜索，直接返回缓存结果。
     """
+    cache_key = f"{stock_info.stock_code_normalize}_{days}"
+    now = time.time()
+
+    # 检查缓存
+    cached = _news_cache.get(cache_key)
+    if cached and (now - cached['ts']) < _NEWS_CACHE_TTL:
+        logger.info(f"命中新闻缓存 [{stock_info.stock_name}]，缓存时间 {datetime.fromtimestamp(cached['ts']).strftime('%H:%M:%S')}")
+        return cached['data']
+
     query = f"{stock_info.stock_name} 公告"
     try:
         results = await baidu_search(query=query, days=days, top_k=20)
         if not results:
+            _news_cache[cache_key] = {'data': [], 'ts': now}
             return []
 
         # 并发爬取全文，成功则替换原有摘要内容
@@ -217,6 +233,7 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
             })
 
         if not search_items:
+            _news_cache[cache_key] = {'data': [], 'ts': now}
             return []
 
         # 标题去重：相似标题只保留内容最长的一条
@@ -237,7 +254,7 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
         id_to_item = {item['id']: item for item in search_items}
         filtered = [id_to_item[fid] for fid in filtered_ids if fid in id_to_item]
 
-        return [
+        filtered_result = [
             {
                 '标题': item['title'],
                 '日期': item.get('date', ''),
@@ -247,8 +264,15 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
             for item in filtered
         ][:5]
 
+        _news_cache[cache_key] = {'data': filtered_result, 'ts': now}
+        return filtered_result
+
     except Exception as e:
         logger.warning(f"搜索股票新闻失败 [{stock_info.stock_name}]: {e}")
+        # 搜索失败时，如果有过期缓存也返回（降级策略）
+        if cached:
+            logger.info(f"搜索失败，降级使用过期缓存 [{stock_info.stock_name}]")
+            return cached['data']
         return []
 
 
