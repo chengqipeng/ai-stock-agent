@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import chinese_calendar
 import pandas as pd
 
-from common.utils.stock_info_utils import StockInfo
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_kline_cn
 from service.eastmoney.stock_info.stock_northbound_funds import get_northbound_funds_cn
 
@@ -2783,7 +2783,6 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 
 if __name__ == '__main__':
     import asyncio
-    from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
         stock_info = get_stock_info_by_name('生益科技')
