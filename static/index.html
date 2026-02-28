@@ -446,7 +446,7 @@
                             <th style="padding:6px;text-align:center;position:sticky;left:0;background:rgba(255,255,255,0.6);z-index:10;min-width:40px;">
                                 <input type="checkbox" id="selectAllStocks" onchange="toggleSelectAllStocks()" style="cursor:pointer;">
                             </th>
-                            <th style="padding:6px;text-align:left;position:sticky;left:40px;background:rgba(255,255,255,0.6);z-index:10;min-width:62px;">股票</th>
+                            <th style="padding:6px;text-align:left;position:sticky;left:40px;background:rgba(255,255,255,0.6);z-index:10;min-width:62px;">股票信息</th>
                             <th style="padding:6px;text-align:left;">数据详情（涨跌幅 / K线 / CAN SLIM 分行展示）</th>
                         </tr>
                     </thead>
@@ -865,7 +865,7 @@
                 const rowStyle = 'border-top:1px solid rgba(0,0,0,0.06);';
                 const nameCell = (rowspan) => `<td rowspan="${rowspan}" style="padding:4px;position:sticky;left:40px;background:rgba(255,255,255,0.7);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:5;vertical-align:top;max-width:62px;">
                     <div style="font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${stock.stock_name.replace(/ *\(.*\)$/, '')}</div>
-                    <div style="font-size:10px;color:#667eea;white-space:nowrap;">${stock.stock_code.replace(/ *\(.*\)$/, '')}</div>
+                    <div style="font-size:10px;color:#667eea;white-space:nowrap;">${(stockList.find(s => s.name === stock.stock_name.replace(/ *\(.*\)$/, '')) || {}).code || stock.stock_code}</div>
                     <div style="font-size:9px;color:#aeaeb2;white-space:nowrap;">${formatLocalTime(stock.completed_at)}</div>
                     <button onclick="showHistory('${stock.stock_name}')" style="margin-top:2px;padding:2px 6px;background:rgba(96,125,139,0.75);color:white;border:none;border-radius:6px;cursor:pointer;font-size:9px;">can slim历史记录</button>
                 </td>`;
