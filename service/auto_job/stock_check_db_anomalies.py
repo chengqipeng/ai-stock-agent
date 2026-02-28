@@ -48,7 +48,8 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 def _is_trading_day(d: date) -> bool:
     try:
         return d.weekday() < 5 and is_workday(d)
-    except Exception:
+    except Exception as e:
+        logger.warning("_is_trading_day 判断失败 [%s]: %s", d, e)
         return True  # 无法判断时保守处理，不删除
 
 
@@ -107,11 +108,10 @@ def check_db(db_path: Path) -> list[dict]:
                 conn.commit()
                 log.warning("[%s] 删除非交易日数据: date=%s", stock_code, d)
                 continue
-        except ValueError:
-            pass
+        except ValueError as e:
+            log.debug("[%s] 日期解析失败: date=%s, %s", stock_code, d, e)
 
         # 2. 日期重复
-        if d in seen_dates:
             issue(d, "DUPLICATE_DATE", f"日期重复出现")
         seen_dates[d] = True
 
@@ -165,8 +165,8 @@ def check_db(db_path: Path) -> list[dict]:
                     if missing_days:
                         issue(d, "MISSING_TRADING_DAYS",
                               f"缺失 {len(missing_days)} 个交易日: {', '.join(missing_days)}")
-            except (ValueError, Exception):
-                pass
+            except (ValueError, Exception) as e:
+                log.debug("[%s] 缺失交易日检测异常: %s", stock_code, e)
         prev_date = d
 
     conn.close()

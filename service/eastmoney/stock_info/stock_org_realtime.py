@@ -81,7 +81,8 @@ def _safe_hold_focus(val) -> str | None:
     if isinstance(val, str):
         try:
             return f"{round(float(val), 2)}%"
-        except ValueError:
+        except ValueError as e:
+            logger.debug("_safe_hold_focus 转换失败: val=%s, %s", val, e)
             return val  # 直接返回文本描述
     if isinstance(val, (int, float)):
         return f"{round(float(val), 2)}%"
@@ -240,13 +241,13 @@ def _parse_change_val(change) -> float:
         cleaned = change.replace("万股", "").replace(",", "").strip()
         try:
             return float(cleaned)
-        except ValueError:
+        except ValueError as e:
+            logger.debug("_parse_change_val 转换失败: change=%s, %s", change, e)
             return 0.0
     return 0.0
 
 
 if __name__ == "__main__":
-    import asyncio
     import json
     from common.utils.stock_info_utils import get_stock_info_by_name
 

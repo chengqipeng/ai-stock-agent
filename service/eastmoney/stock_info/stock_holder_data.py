@@ -1,8 +1,12 @@
+import logging
+
 from common.utils.amount_utils import convert_amount_unit, convert_amount_org_holder, convert_amount_org_holder_1, \
     convert_amount_org_holder_2
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.http.http_utils import EASTMONEY_API_URL, fetch_eastmoney_api
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+
+logger = logging.getLogger(__name__)
 
 
 async def get_org_holder(stock_info: StockInfo, page_size=30, page_number=1):
@@ -498,7 +502,8 @@ async def get_holder_number_json(stock_info: StockInfo, page_size=20, lang='en',
                 if value:
                     try:
                         row[field] = f"{round(float(value), 2)}%"
-                    except (ValueError, TypeError):
+                    except (ValueError, TypeError) as e:
+                        logger.debug("HOLD_FOCUS 转换失败: value=%s, %s", value, e)
                         row[field] = str(value)
                 else:
                     row[field] = '--'

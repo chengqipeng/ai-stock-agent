@@ -650,8 +650,21 @@ def extract_grade_and_content(result: str):
             try:
                 data = json.loads(clean)
             except json.JSONDecodeError:
-                import ast
-                data = ast.literal_eval(clean)
+                # 尝试修复常见的LLM输出问题：字符串值中的未转义换行符
+                sanitized = re.sub(r'(?<=:\s*")(.*?)(?=")', lambda m: m.group(0).replace('\n', '\\n'), clean, flags=re.DOTALL)
+                try:
+                    data = json.loads(sanitized)
+                except (json.JSONDecodeError, ValueError):
+                    # 最后尝试用正则提取字段
+                    not_hold_grade = re.search(r'"not_hold_grade"\s*:\s*"([^"]*)"', clean)
+                    content = re.search(r'"content"\s*:\s*"(.*?)"', clean, re.DOTALL)
+                    hold_grade = re.search(r'"hold_grade"\s*:\s*"([^"]*)"', clean)
+                    return (
+                        not_hold_grade.group(1) if not_hold_grade else '',
+                        content.group(1) if content else result[:200],
+                        hold_grade.group(1) if hold_grade else '',
+                        ''
+                    )
             return (data.get('not_hold_grade', ''), data.get('content', ''),
                     data.get('hold_grade', ''), data.get('content', ''))
             # return (data.get('not_hold_grade', ''), data.get('not_hold_content', ''),

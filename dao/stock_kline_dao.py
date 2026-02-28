@@ -1,8 +1,11 @@
+import logging
 import sqlite3
 from datetime import date, timedelta, datetime, time as dtime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from chinese_calendar import is_workday
+
+logger = logging.getLogger(__name__)
 
 _CST = ZoneInfo("Asia/Shanghai")
 _DB_DIR = Path(__file__).parent.parent / "data_results/sql_lite"
@@ -124,8 +127,8 @@ def get_latest_db_date(db_path, stock_code):
         conn.close()
         if row and row[0]:
             return date.fromisoformat(row[0])
-    except sqlite3.OperationalError:
-        pass
+    except sqlite3.OperationalError as e:
+        logger.warning("get_latest_db_date 查询失败 [%s]: %s", stock_code, e)
     return None
 
 
@@ -170,7 +173,8 @@ def get_missing_trading_days(db_path, stock_code, n=20):
         conn.close()
         existing = {date.fromisoformat(r[0]) for r in rows}
         today_updated_at = next((r[1] for r in rows if r[0] == today_iso), None)
-    except sqlite3.OperationalError:
+    except sqlite3.OperationalError as e:
+        logger.warning("get_missing_trading_days 查询失败 [%s]: %s", stock_code, e)
         existing = set()
         today_updated_at = None
 
@@ -226,7 +230,8 @@ def get_kline_data(stock_code: str, start_date: str = None, end_date: str = None
         cursor.execute(sql, params)
         rows = [dict(row) for row in cursor.fetchall()]
         rows.reverse()
-    except sqlite3.OperationalError:
+    except sqlite3.OperationalError as e:
+        logger.warning("get_kline_data 查询失败 [%s]: %s", stock_code, e)
         rows = []
     finally:
         conn.close()

@@ -1,7 +1,11 @@
+import logging
+
 from common.http.http_utils import EASTMONEY_API_URL, fetch_eastmoney_api
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 
 async def get_stock_repurchase_data(stock_info: StockInfo, page_size: int = 50, page_number: int = 1):
@@ -117,7 +121,8 @@ async def get_stock_repurchase_recent_json(stock_info: StockInfo):
                 item_date = datetime.strptime(date_str.split()[0], "%Y-%m-%d")
                 if one_year_ago <= item_date <= one_year_later:
                     filtered_data.append(item)
-            except (ValueError, IndexError):
+            except (ValueError, IndexError) as e:
+                logger.debug("回购数据日期解析失败 [%s]: %s", date_str, e)
                 continue
     
     return filtered_data

@@ -101,14 +101,16 @@ def _parse_order_book(fields: list[str], stock_name: str) -> dict:
     def _safe_float(val):
         try:
             return float(val)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as e:
+            logger.debug("_safe_float 转换失败: val=%s, %s", val, e)
             return 0.0
 
     def _safe_int(val):
         """成交量单位为股，转换为手（÷100）"""
         try:
             return int(float(val)) // 100
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as e:
+            logger.debug("_safe_int 转换失败: val=%s, %s", val, e)
             return 0
 
     cur_price = _safe_float(fields[3])

@@ -198,7 +198,8 @@ def _classify_market_session(publish_time: str) -> str:
         if total_minutes < 570:  # 09:30 之前
             return '盘前'
         return '盘后'
-    except (ValueError, IndexError):
+    except (ValueError, IndexError) as e:
+        logger.debug("_classify_market_session 解析失败: publish_time=%s, %s", publish_time, e)
         return '未知'
 
 # ── 股票交易数据过滤（标题命中则直接剔除） ──
@@ -465,7 +466,8 @@ def _assess_news_next_day_impact(publish_time: str, session: str, next_trading_d
         else:
             days_gap = (next_td - pub_date).days
             return f"发布于{days_gap}天前，影响已逐步衰减"
-    except (ValueError, ImportError):
+    except (ValueError, ImportError) as e:
+        logger.debug("_assess_news_next_day_impact 解析失败: %s", e)
         return '时间不明，无法判断'
 
 

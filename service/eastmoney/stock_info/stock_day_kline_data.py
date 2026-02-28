@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 from datetime import datetime
 from common.http.http_utils import EASTMONEY_PUSH2HIS_API_URL, fetch_eastmoney_api
@@ -10,6 +11,8 @@ from service.eastmoney.stock_info.headers.stock_day_kline_headers import (
     get_kline_header_builders, kline_headers_index
 )
 from service.jqka10.stock_day_kline_data_10jqka import get_stock_day_kline_10jqka, get_stock_day_kline_as_str_10jqka
+
+logger = logging.getLogger(__name__)
 
 
 async def get_stock_day_range_kline(stock_info: StockInfo, limit=400, headers=None):
@@ -88,14 +91,16 @@ async def get_stock_day_range_kline_by_db_cache(stock_info: StockInfo, limit=400
         return [_row_to_kline_str(r) for r in rows]
     try:
         return await get_stock_day_kline_as_str_10jqka(stock_info, limit)
-    except Exception:
+    except Exception as e:
+        logger.warning("get_stock_day_range_kline_by_db_cache 10jqka回退失败 [%s]: %s", stock_info.stock_name, e)
         return await get_stock_day_kline_as_str_10jqka(stock_info, limit)
 
 
 def _to_float(v: str):
     try:
         return float(v)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as e:
+        logger.debug("_to_float 转换失败: v=%s, %s", v, e)
         return None
 
 

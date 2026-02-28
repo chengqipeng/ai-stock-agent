@@ -4,11 +4,14 @@
 """
 
 import asyncio
+import logging
 import re
 from typing import List
 
 from bs4 import BeautifulSoup
 from curl_cffi.requests import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 
 # 常量定义
@@ -137,8 +140,8 @@ def extract_publish_datetime(html_text: str) -> str | None:
                 try:
                     dt = _dt.fromisoformat(m.group().replace('T', ' '))
                     return dt.strftime('%Y-%m-%d %H:%M')
-                except ValueError:
-                    pass
+                except ValueError as e:
+                    logger.debug("meta标签日期解析失败 [%s]: %s", tag['content'], e)
 
     # 2) <time> 标签的 datetime 属性
     time_tag = soup.find('time', attrs={'datetime': True})
@@ -148,8 +151,8 @@ def extract_publish_datetime(html_text: str) -> str | None:
             try:
                 dt = _dt.fromisoformat(m.group().replace('T', ' '))
                 return dt.strftime('%Y-%m-%d %H:%M')
-            except ValueError:
-                pass
+            except ValueError as e:
+                logger.debug("time标签日期解析失败 [%s]: %s", time_tag['datetime'], e)
 
     # 3) 正文正则匹配
     body = soup.find('body')
@@ -164,13 +167,11 @@ def extract_publish_datetime(html_text: str) -> str | None:
                 if dt.year == 1900:
                     dt = dt.replace(year=_dt.now().year)
                 return dt.strftime('%Y-%m-%d %H:%M')
-            except ValueError:
+            except ValueError as e:
+                logger.debug("正文日期解析失败 [%s]: %s", raw, e)
                 continue
 
     return None
-
-
-
 async def extract_titles(url: str, tag: str = "h2", use_proxy: bool = True) -> List[str]:
     """提取网页中指定标签的文本内容。
 
