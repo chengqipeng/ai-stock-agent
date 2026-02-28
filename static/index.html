@@ -381,6 +381,7 @@
         .row-kline { background: rgba(237,233,254,0.45); }
         .row-canslim { background: rgba(232,240,254,0.45); }
         .row-canslim .data-metric { min-width: 80px; padding: 5px 10px; }
+        .row-canslim .data-section-items { flex-wrap: nowrap; }
         .row-canslim .dm-label { font-size: 11px; font-weight: 600; }
         .row-canslim .dm-value { font-size: 15px; }
         .row-canslim .dim-btn, .row-kline .dim-btn { padding: 4px 10px; font-size: 11px; }
@@ -1018,10 +1019,11 @@
                         <span class="dm-value empty">-</span>
                     </div>`;
                     return `<div class="data-metric">
-                        <span class="dm-label">${label}: ${score||''}${deep ? `<span style="color:#ff6b6b">/${deep}</span>` : ''}</span>
-                        <div class="dm-actions">
+                        <span class="dm-label">${label}: ${score||''}${deep ? `<span style="color:#ff6b6b">${score ? '/' : ''}${deep}</span>` : ''}</span>
+                        <div class="dm-actions" style="flex-wrap:wrap;">
                             ${hasPrescreening && score ? dbtn('初筛', `showPrompt('${stockKey}','${key}','${label}')`, 'primary') : ''}
                             ${hasPrescreening && score ? dbtn('初筛词', `showPrompt('${stockKey}','${key}_score_prompt','${label}')`, 'success') : ''}
+                            ${deep ? '<div style="width:100%"></div>' : ''}
                             ${deep ? dbtn('深度', `showPrompt('${stockKey}','${key}_deep','${label}')`, 'danger') : ''}
                             ${deep ? dbtn('深度词', `showPrompt('${stockKey}','${key}_deep_score_prompt','${label}')`, 'success') : ''}
                         </div>
