@@ -121,8 +121,49 @@ async def search_block_trade(stock_info: StockInfo, days: int = 30) -> list[dict
         return []
 
 
-def compute_block_trade_summary(records: list[dict]) -> dict:
-    """预计算大宗交易摘要，供提示词直接引用"""
+def _assess_block_trade_next_day_impact(records: list[dict], next_trading_day: str) -> str:
+    """根据大宗交易日期判断对下一个交易日的影响程度。
+
+    大宗交易发生在A股收盘后（15:00-15:30），属于盘后交易。
+    - 交易日期 == 上一个交易日 → 最新盘后大宗交易，对下一个交易日有直接影响
+    - 交易日期在近3个交易日内 → 近期大宗交易，对下一个交易日有间接影响
+    - 交易日期更早 → 历史大宗交易，对下一个交易日影响较弱
+    """
+    if not records or not next_trading_day:
+        return '无法判断'
+
+    from datetime import datetime, timedelta
+    import chinese_calendar
+
+    try:
+        next_td = datetime.strptime(next_trading_day, '%Y-%m-%d').date()
+        # 找到上一个交易日（即next_trading_day的前一个交易日）
+        prev_td = next_td - timedelta(days=1)
+        while prev_td.weekday() >= 5 or chinese_calendar.is_holiday(prev_td):
+            prev_td -= timedelta(days=1)
+        prev_td_str = prev_td.strftime('%Y-%m-%d')
+
+        latest_trade_date = records[0].get('trade_date', '')
+        if not latest_trade_date:
+            return '交易日期缺失，无法判断'
+
+        if latest_trade_date == prev_td_str:
+            return f"最新大宗交易发生在{latest_trade_date}（上一个交易日盘后15:00-15:30），对{next_trading_day}开盘有直接影响"
+        elif latest_trade_date >= (prev_td - timedelta(days=5)).strftime('%Y-%m-%d'):
+            return f"最近大宗交易发生在{latest_trade_date}，距下一个交易日{next_trading_day}较近，仍有间接影响"
+        else:
+            return f"最近大宗交易发生在{latest_trade_date}，距下一个交易日{next_trading_day}较远，影响已减弱"
+    except (ValueError, ImportError):
+        return '无法判断'
+
+
+def compute_block_trade_summary(records: list[dict], next_trading_day: str = '') -> dict:
+    """预计算大宗交易摘要，供提示词直接引用。
+
+    Args:
+        records: 大宗交易记录列表
+        next_trading_day: 下一个交易日日期（YYYY-MM-DD），用于判断对次日的影响
+    """
     if not records:
         return {'状态': '近期无大宗交易记录', '交易笔数': 0}
 
@@ -165,12 +206,16 @@ def compute_block_trade_summary(records: list[dict]) -> dict:
     elif has_org_buyer and has_org_seller:
         org_note = '机构席位买卖双方均有出现'
 
+    # 对下一个交易日的影响判断
+    next_day_impact = _assess_block_trade_next_day_impact(records, next_trading_day)
+
     return {
         '交易笔数': total_count,
         '累计成交额（万元）': round(total_amount, 2),
         '交易特征': trade_character,
         '机构席位情况': org_note if org_note else '未发现机构专用席位',
         '最近交易日期': records[0].get('trade_date', '--'),
+        '对下一个交易日影响': next_day_impact,
         '交易明细': records[:5],  # 最多展示5条
     }
 

@@ -652,8 +652,10 @@ def extract_grade_and_content(result: str):
             except json.JSONDecodeError:
                 import ast
                 data = ast.literal_eval(clean)
-            return (data.get('not_hold_grade', ''), data.get('not_hold_content', ''),
-                    data.get('hold_grade', ''), data.get('hold_content', ''))
+            return (data.get('not_hold_grade', ''), data.get('content', ''),
+                    data.get('hold_grade', ''), data.get('content', ''))
+            # return (data.get('not_hold_grade', ''), data.get('not_hold_content', ''),
+            #     data.get('hold_grade', ''), data.get('hold_content', ''))
     except Exception as e:
         logger.error("Error extracting grade/content: %s", e)
     return '', result[:200], '', ''

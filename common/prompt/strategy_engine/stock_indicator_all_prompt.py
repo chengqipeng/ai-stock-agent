@@ -616,6 +616,200 @@ def _compute_macd_bar_trend(macd_data: dict) -> dict:
     }
 
 
+def _compute_golden_cross_quality(macd_data: dict, kline_data: list[dict]) -> dict:
+    """
+    预计算最近一次金叉的质量评估，避免 LLM 自行推导。
+
+    评估维度：
+    1. 零轴位置：零轴上金叉（强）> 零轴附近金叉（中）> 零轴下金叉（弱）
+    2. 金叉力度：DIF 上穿 DEA 的速度（金叉后3日 DIF-DEA 扩张幅度）
+    3. 量能配合：金叉当日及后续3日成交量 vs 50日均量
+    4. 前空头波段特征：空头持续天数、DIF最低值（越深反弹空间越大）
+    5. 金叉后存活状态：金叉后是否已被死叉覆盖
+    """
+    details = macd_data.get('明细数据', [])
+    golden_crosses = macd_data.get('近期金叉（最近3次）', macd_data.get('近期金叉（最近2次）', []))
+
+    if not golden_crosses:
+        return {'金叉质量': '近期无金叉', '质量评级': '无'}
+
+    latest_gc = golden_crosses[0]  # 最近一次金叉
+    gc_date = latest_gc['日期']
+    gc_dif = latest_gc['DIF']
+    gc_dea = latest_gc['DEA']
+
+    # ── 1. 零轴位置判定 ──
+    if gc_dif > 0 and gc_dea > 0:
+        axis_position = '零轴上金叉（强信号）'
+        axis_score = 3
+    elif gc_dif > 0 and gc_dea <= 0:
+        axis_position = '零轴附近金叉（DIF刚上穿零轴，中等信号）'
+        axis_score = 2
+    elif gc_dif > -0.5 and gc_dea > -0.5:
+        axis_position = '零轴略下方金叉（接近零轴，中等偏弱信号）'
+        axis_score = 1.5
+    else:
+        axis_position = '零轴下方金叉（弱信号，仅代表空头动能衰竭）'
+        axis_score = 1
+
+    # ── 2. 金叉力度（金叉后DIF-DEA扩张速度）──
+    # 在明细数据中找到金叉日及之后的数据
+    details_asc = sorted(details, key=lambda x: x['日期'])
+    gc_idx = None
+    for i, d in enumerate(details_asc):
+        if d['日期'] == gc_date:
+            gc_idx = i
+            break
+
+    spread_expansion = '数据不足'
+    spread_score = 1
+    if gc_idx is not None:
+        post_gc = details_asc[gc_idx:gc_idx + 4]  # 金叉日 + 后3日
+        if len(post_gc) >= 2:
+            spreads = [round(d['DIF'] - d['DEA'], 4) for d in post_gc]
+            initial_spread = spreads[0]
+            latest_spread = spreads[-1]
+            expansion = round(latest_spread - initial_spread, 4)
+            if expansion > 0.5:
+                spread_expansion = f'快速扩张（DIF-DEA从{initial_spread}扩至{latest_spread}，+{expansion}）'
+                spread_score = 3
+            elif expansion > 0.1:
+                spread_expansion = f'温和扩张（DIF-DEA从{initial_spread}扩至{latest_spread}，+{expansion}）'
+                spread_score = 2
+            elif expansion > 0:
+                spread_expansion = f'缓慢扩张（DIF-DEA从{initial_spread}扩至{latest_spread}，+{expansion}）'
+                spread_score = 1.5
+            else:
+                spread_expansion = f'扩张乏力（DIF-DEA从{initial_spread}变为{latest_spread}，{expansion}）'
+                spread_score = 0.5
+
+    # ── 3. 量能配合 ──
+    kline_map = {k['日期']: k for k in kline_data}
+    volume_confirm = '无K线数据'
+    volume_score = 1
+
+    # 计算50日均量
+    valid_klines_sorted = sorted(kline_data, key=lambda x: x['日期'], reverse=True)
+    if len(valid_klines_sorted) >= 50:
+        avg_vol_50 = sum(k.get('成交量（手）', 0) for k in valid_klines_sorted[:50]) / 50
+    elif len(valid_klines_sorted) >= 20:
+        avg_vol_50 = sum(k.get('成交量（手）', 0) for k in valid_klines_sorted[:20]) / 20
+    else:
+        avg_vol_50 = 0
+
+    if gc_date in kline_map and avg_vol_50 > 0:
+        gc_vol = kline_map[gc_date].get('成交量（手）', 0)
+        vol_ratio = round(gc_vol / avg_vol_50, 2)
+        # 金叉后3日平均量
+        post_gc_dates = [d['日期'] for d in details_asc[gc_idx:gc_idx + 4]] if gc_idx is not None else []
+        post_vols = [kline_map[d].get('成交量（手）', 0) for d in post_gc_dates if d in kline_map]
+        avg_post_vol = round(sum(post_vols) / len(post_vols), 0) if post_vols else 0
+        avg_post_ratio = round(avg_post_vol / avg_vol_50, 2) if avg_vol_50 > 0 else 0
+
+        if vol_ratio >= 1.5:
+            volume_confirm = f'金叉当日放量确认（成交量为50日均量的{vol_ratio}倍）'
+            volume_score = 3
+        elif vol_ratio >= 1.0:
+            volume_confirm = f'金叉当日量能温和（成交量为50日均量的{vol_ratio}倍）'
+            volume_score = 2
+        else:
+            volume_confirm = f'金叉当日缩量（成交量仅为50日均量的{vol_ratio}倍，量能不足）'
+            volume_score = 1
+
+        if avg_post_ratio >= 1.3:
+            volume_confirm += f'，金叉后持续放量（后续均量为50日均量的{avg_post_ratio}倍）'
+            volume_score = min(volume_score + 0.5, 3)
+        elif avg_post_ratio < 0.8:
+            volume_confirm += f'，金叉后量能萎缩（后续均量仅为50日均量的{avg_post_ratio}倍）'
+            volume_score = max(volume_score - 0.5, 0.5)
+
+    # ── 4. 前空头波段特征 ──
+    bear_duration = 0
+    bear_dif_min = 0
+    bear_desc = '无法判断'
+    bear_score = 1
+
+    if gc_idx is not None and gc_idx > 0:
+        # 向前回溯找空头波段（DIF < DEA 的连续区间）
+        bear_days = []
+        for i in range(gc_idx - 1, -1, -1):
+            d = details_asc[i]
+            if d['DIF'] <= d['DEA']:
+                bear_days.append(d)
+            else:
+                break
+        bear_duration = len(bear_days)
+        if bear_days:
+            bear_dif_min = round(min(d['DIF'] for d in bear_days), 4)
+            if bear_duration >= 20:
+                bear_desc = f'长期空头波段（{bear_duration}日），DIF最低{bear_dif_min}，空头充分释放'
+                bear_score = 3
+            elif bear_duration >= 10:
+                bear_desc = f'中期空头波段（{bear_duration}日），DIF最低{bear_dif_min}'
+                bear_score = 2
+            else:
+                bear_desc = f'短期空头波段（{bear_duration}日），DIF最低{bear_dif_min}，调整不充分'
+                bear_score = 1
+
+    # ── 5. 金叉存活状态 ──
+    death_crosses = macd_data.get('近期死叉（最近3次）', macd_data.get('近期死叉（最近2次）', []))
+    is_alive = True
+    killed_by = None
+    if death_crosses:
+        for dc in death_crosses:
+            if dc['日期'] > gc_date:
+                is_alive = False
+                killed_by = dc['日期']
+                break
+
+    if is_alive:
+        # 计算金叉存活天数
+        alive_days = 0
+        if gc_idx is not None:
+            alive_days = len(details_asc) - gc_idx
+        survival = f'金叉仍有效（已存活{alive_days}个交易日）'
+        survival_score = 2
+    else:
+        survival = f'金叉已失效（被{killed_by}死叉覆盖）'
+        survival_score = 0
+
+    # ── 综合质量评级 ──
+    total_score = axis_score + spread_score + volume_score + bear_score + survival_score
+    max_score = 3 + 3 + 3 + 3 + 2  # 14分满分
+    quality_pct = round(total_score / max_score * 100, 1)
+
+    if quality_pct >= 75:
+        quality_grade = '高质量金叉'
+    elif quality_pct >= 50:
+        quality_grade = '中等质量金叉'
+    elif quality_pct >= 30:
+        quality_grade = '低质量金叉'
+    else:
+        quality_grade = '无效金叉'
+
+    return {
+        '最近金叉日期': gc_date,
+        '金叉时DIF': gc_dif,
+        '金叉时DEA': gc_dea,
+        '零轴位置': axis_position,
+        '金叉力度': spread_expansion,
+        '量能配合': volume_confirm,
+        '前空头波段': bear_desc,
+        '前空头波段天数': bear_duration,
+        '前空头DIF最低值': bear_dif_min,
+        '金叉存活状态': survival,
+        '质量评级': quality_grade,
+        '质量得分': f'{total_score}/{max_score}（{quality_pct}%）',
+        '分项得分': {
+            '零轴位置': f'{axis_score}/3',
+            '金叉力度': f'{spread_score}/3',
+            '量能配合': f'{volume_score}/3',
+            '前空头波段充分度': f'{bear_score}/3',
+            '金叉存活': f'{survival_score}/2',
+        },
+    }
+
+
 def _compute_boll_summary(boll_data: dict, latest_close: float) -> dict:
     """
     预计算 BOLL 关键距离指标，避免 LLM 自行做减法和除法。
@@ -1481,6 +1675,682 @@ def _trim_ma_data(ma_data: dict, keep_recent: int = 20) -> dict:
 
 
 # ──────────────────────────────────────────────
+# 综合评分函数（基于行业共识规则，Python端预计算）
+# ──────────────────────────────────────────────
+
+
+def _compute_comprehensive_score(
+    macd_data: dict,
+    macd_bar_trend: dict,
+    divergence_result: dict,
+    golden_cross_quality: dict,
+    kdj_summary: dict,
+    boll_summary: dict,
+    ma_summary: dict,
+    kline_summary: dict,
+    volume_trend: dict,
+    weekly_kline_summary: dict,
+    intraday_summary: dict,
+    fund_flow_behavior: dict,
+    order_book_summary: dict,
+    northbound_summary: dict,
+    sh_sz_hk_summary: dict,
+    org_holder_summary: dict,
+    billboard_summary: dict,
+    block_trade_summary: dict,
+    market_env: dict,
+    news_data: list,
+) -> dict:
+    """
+    基于行业共识规则的综合评分体系（满分100分），7个维度。
+
+    所有评分规则均基于A股技术分析行业共识：
+    - MACD：零轴位置决定趋势强度，金叉/死叉质量影响信号可靠性
+    - KDJ：超买超卖区间（20/80）为国际通用阈值，钝化需特殊处理
+    - BOLL：中轨方向决定可操作性，带宽变化反映波动率周期
+    - 量价关系：放量突破为有效突破的必要条件（1.5倍均量为行业惯例）
+    - 均线系统：多头/空头排列为趋势判定的基础框架
+    - 资金流向：主力资金方向为短期最核心变量
+    """
+
+    scores = {}
+    details = {}
+
+    # ════════════════════════════════════════════
+    # 维度1：趋势强度（满分20分）
+    # ════════════════════════════════════════════
+    trend_score = 10  # 基准分
+    trend_reasons = []
+
+    # --- MACD位置与方向（0~8分）---
+    # 行业共识：DIF/DEA均>0为强多头，DIF>0/DEA<0为弱多头，DIF<0为空头
+    latest_detail = macd_data.get('明细数据', [{}])[0] if macd_data.get('明细数据') else {}
+    market_state = latest_detail.get('市场状态', '')
+    if market_state == '强多头':
+        trend_score += 4
+        trend_reasons.append('MACD强多头（DIF>0且DEA>0）+4')
+    elif market_state == '弱多头':
+        trend_score += 1
+        trend_reasons.append('MACD弱多头（DIF>0但DEA<0）+1')
+    elif market_state == '空头':
+        trend_score -= 3
+        trend_reasons.append('MACD空头（DIF<0）-3')
+
+    # MACD柱方向
+    bar_trend = macd_bar_trend.get('MACD柱趋势', '')
+    if '红柱' in bar_trend and '放大' in bar_trend:
+        trend_score += 2
+        trend_reasons.append(f'MACD{bar_trend}+2')
+    elif '红柱' in bar_trend and '收窄' in bar_trend:
+        trend_score += 0
+        trend_reasons.append(f'MACD{bar_trend}+0（多头动能边际减弱）')
+    elif '绿柱' in bar_trend and '收窄' in bar_trend:
+        trend_score += 1
+        trend_reasons.append(f'MACD{bar_trend}+1（空头动能衰竭）')
+    elif '绿柱' in bar_trend and '放大' in bar_trend:
+        trend_score -= 2
+        trend_reasons.append(f'MACD{bar_trend}-2')
+
+    # 金叉质量加减分
+    gc_grade = golden_cross_quality.get('质量评级', '')
+    if gc_grade == '高质量金叉':
+        trend_score += 2
+        trend_reasons.append(f'高质量金叉+2（{golden_cross_quality.get("质量得分", "")}）')
+    elif gc_grade == '中等质量金叉':
+        trend_score += 1
+        trend_reasons.append(f'中等质量金叉+1（{golden_cross_quality.get("质量得分", "")}）')
+    elif gc_grade == '低质量金叉':
+        trend_score += 0
+        trend_reasons.append(f'低质量金叉+0（{golden_cross_quality.get("质量得分", "")}）')
+    elif gc_grade == '无效金叉':
+        trend_score -= 1
+        trend_reasons.append(f'无效金叉-1')
+
+    # --- 均线排列（0~4分）---
+    # 行业共识：多头排列（MA5>MA10>MA20>MA60）为最强趋势信号
+    alignment = ma_summary.get('均线排列状态', '')
+    if '多头排列' in alignment:
+        trend_score += 4
+        trend_reasons.append('日线均线多头排列+4')
+    elif '空头排列' in alignment:
+        trend_score -= 4
+        trend_reasons.append('日线均线空头排列-4')
+    else:
+        trend_score += 0
+        trend_reasons.append(f'日线{alignment}+0')
+
+    # --- 周线趋势及日周共振（-4~+4分）---
+    weekly_alignment = weekly_kline_summary.get('周线均线排列', '')
+    if '多头排列' in weekly_alignment:
+        if '多头排列' in alignment:
+            trend_score += 4
+            trend_reasons.append('日周均线多头共振+4（强信号）')
+        else:
+            trend_score += 2
+            trend_reasons.append('周线多头但日线未共振+2')
+    elif '空头排列' in weekly_alignment:
+        if '空头排列' in alignment:
+            trend_score -= 4
+            trend_reasons.append('日周均线空头共振-4（强空信号）')
+        else:
+            trend_score -= 2
+            trend_reasons.append('周线空头但日线未共振-2')
+    else:
+        trend_score += 0
+        trend_reasons.append(f'{weekly_alignment}+0')
+
+    # --- 背离信号约束 ---
+    if divergence_result.get('顶背离'):
+        trend_score = min(trend_score, 12)
+        trend_reasons.append('★顶背离约束：趋势强度上限12分')
+    if divergence_result.get('底背离'):
+        trend_score += 2
+        trend_reasons.append('底背离信号+2（潜在反转）')
+
+    # --- MACD零轴下死叉+均线空头排列约束 ---
+    latest_macd = macd_data.get('明细数据', [{}])[0] if macd_data.get('明细数据') else {}
+    is_death_cross_below_zero = (latest_macd.get('DIF', 0) < 0 and
+                                  latest_macd.get('DEA', 0) < 0 and
+                                  latest_macd.get('MACD柱', 0) < 0)
+    if is_death_cross_below_zero and '空头排列' in alignment:
+        trend_score = min(trend_score, 5)
+        trend_reasons.append('★零轴下方死叉+均线空头排列约束：上限5分')
+
+    # 日线与周线方向相反约束
+    daily_bullish = '多头排列' in alignment or market_state in ('强多头', '弱多头')
+    weekly_bearish = '空头排列' in weekly_alignment
+    daily_bearish = '空头排列' in alignment or market_state == '空头'
+    weekly_bullish = '多头排列' in weekly_alignment
+    if (daily_bullish and weekly_bearish) or (daily_bearish and weekly_bullish):
+        trend_score = min(trend_score, 14)
+        trend_reasons.append('★日周趋势方向相反约束：上限14分')
+
+    trend_score = max(0, min(20, trend_score))
+    scores['趋势强度'] = trend_score
+    details['趋势强度'] = trend_reasons
+
+    # ════════════════════════════════════════════
+    # 维度2：动能与量价（满分20分）
+    # ════════════════════════════════════════════
+    momentum_score = 10  # 基准分
+    momentum_reasons = []
+
+    # --- KDJ位置与信号（-4~+6分）---
+    # 行业共识：K<20超卖区金叉为买入信号，K>80超买区死叉为卖出信号
+    latest_k = kdj_summary.get('最新K', 50)
+    latest_j = kdj_summary.get('最新J', 50)
+    kdj_turning = kdj_summary.get('KDJ拐头状态', '')
+    was_oversold = kdj_summary.get('近5日曾超卖', False)
+    was_overbought = kdj_summary.get('近5日曾超买', False)
+    is_stale = kdj_summary.get('高位钝化', False)
+    k_change = kdj_summary.get('K日变化', 0)
+    j_change = kdj_summary.get('J日变化', 0)
+
+    if was_oversold and '低位拐头向上' in kdj_turning:
+        momentum_score += 6
+        momentum_reasons.append('KDJ超卖区低位拐头向上+6（强买入信号）')
+    elif '低位拐头向上' in kdj_turning:
+        momentum_score += 3
+        momentum_reasons.append('KDJ低位拐头向上+3')
+    elif was_overbought and '高位拐头向下' in kdj_turning:
+        momentum_score -= 4
+        momentum_reasons.append('KDJ超买区高位拐头向下-4（卖出信号）')
+    elif '高位拐头向下' in kdj_turning:
+        momentum_score -= 2
+        momentum_reasons.append(f'KDJ高位拐头向下-2（K={latest_k:.1f}，J日变化{j_change:+.1f}）')
+    elif latest_k > 50 and k_change > 0:
+        momentum_score += 1
+        momentum_reasons.append(f'KDJ中高位上行+1（K={latest_k:.1f}）')
+    elif latest_k < 50 and k_change < 0:
+        momentum_score -= 1
+        momentum_reasons.append(f'KDJ中低位下行-1（K={latest_k:.1f}）')
+
+    # KDJ高位钝化约束
+    if is_stale and '高位拐头向下' in kdj_turning:
+        momentum_score = min(momentum_score, 8)
+        momentum_reasons.append('★KDJ高位钝化拐头向下约束：上限8分')
+
+    # --- 量价配合度（-3~+4分）---
+    # 行业共识：量价同向为健康，量价背离为危险信号
+    vol_price_pattern = volume_trend.get('量价形态', '')
+    vol_trend_5d = volume_trend.get('近5日量能趋势', '')
+
+    if '放量上攻' in vol_price_pattern:
+        momentum_score += 4
+        momentum_reasons.append(f'量价形态：{vol_price_pattern}+4')
+    elif '放量冲高缩量回落' in vol_price_pattern:
+        momentum_score -= 1
+        momentum_reasons.append(f'量价形态：{vol_price_pattern}-1')
+    elif '放量杀跌' in vol_price_pattern:
+        momentum_score -= 3
+        momentum_reasons.append(f'量价形态：{vol_price_pattern}-3')
+    elif '缩量反弹' in vol_price_pattern:
+        momentum_score += 0
+        momentum_reasons.append(f'量价形态：{vol_price_pattern}+0（反弹力度存疑）')
+    elif '缩量阴跌' in vol_price_pattern:
+        momentum_score -= 2
+        momentum_reasons.append(f'量价形态：{vol_price_pattern}-2')
+
+    # --- 量能趋势（-2~+2分）---
+    if '持续放量' in vol_trend_5d or '连续放量' in vol_trend_5d:
+        momentum_score += 2
+        momentum_reasons.append(f'{vol_trend_5d}+2')
+    elif '持续缩量' in vol_trend_5d or '连续缩量' in vol_trend_5d:
+        momentum_score -= 2
+        momentum_reasons.append(f'{vol_trend_5d}-2')
+    else:
+        momentum_reasons.append(f'{vol_trend_5d}+0')
+
+    # 持续缩量且无放量突破约束
+    latest_vol_vs_threshold = kline_summary.get('最新日成交量vs放量阈值', '')
+    if ('缩量' in vol_trend_5d or '萎缩' in vol_trend_5d) and '未达到' in str(latest_vol_vs_threshold):
+        momentum_score = min(momentum_score, 10)
+        momentum_reasons.append('★持续缩量且未达放量突破标准约束：上限10分')
+
+    momentum_score = max(0, min(20, momentum_score))
+    scores['动能与量价'] = momentum_score
+    details['动能与量价'] = momentum_reasons
+
+    # ════════════════════════════════════════════
+    # 维度3：结构边界（满分15分）
+    # ════════════════════════════════════════════
+    structure_score = 7  # 基准分
+    structure_reasons = []
+
+    # --- BOLL轨道位置（-3~+4分）---
+    # 行业共识：收盘>中轨且中轨上倾为可操作区，跌破中轨为波段结束
+    boll_position = boll_summary.get('收盘价位置', '')
+    mid_direction = boll_summary.get('中轨方向', '')
+    dist_to_mid_pct = boll_summary.get('距中轨（%）', 0)
+    dist_to_upper_pct = boll_summary.get('距上轨（%）', 0)
+
+    if '上方' in boll_position and '上倾' in mid_direction:
+        structure_score += 4
+        structure_reasons.append(f'收盘在中轨上方+中轨上倾（可操作区）+4')
+    elif '上方' in boll_position and '下倾' in mid_direction:
+        structure_score += 1
+        structure_reasons.append(f'收盘在中轨上方但中轨下倾+1（突破可靠性存疑）')
+    elif '下方' in boll_position and '下倾' in mid_direction:
+        structure_score -= 3
+        structure_reasons.append(f'收盘在中轨下方+中轨下倾-3（弱势格局）')
+    elif '下方' in boll_position:
+        structure_score -= 1
+        structure_reasons.append(f'收盘在中轨下方-1')
+
+    # --- 乖离率风险（-2~+1分）---
+    # 行业共识：BIAS5>7%短线超买，BIAS5<-7%短线超卖
+    bias_warning = ma_summary.get('乖离率预警', '')
+    if '超买' in bias_warning:
+        structure_score -= 2
+        structure_reasons.append(f'乖离率超买预警-2（{bias_warning}）')
+    elif '超卖' in bias_warning or '深度超跌' in bias_warning:
+        structure_score += 1
+        structure_reasons.append(f'乖离率超卖/超跌+1（反弹空间）')
+    else:
+        structure_reasons.append('乖离率正常区间+0')
+
+    # --- 上方空间与风险收益比（-1~+3分）---
+    risk_reward = boll_summary.get('风险收益比', '')
+    if dist_to_upper_pct and isinstance(dist_to_upper_pct, (int, float)):
+        if dist_to_upper_pct > 10:
+            structure_score += 3
+            structure_reasons.append(f'距上轨{dist_to_upper_pct}%空间充足+3')
+        elif dist_to_upper_pct > 5:
+            structure_score += 1
+            structure_reasons.append(f'距上轨{dist_to_upper_pct}%空间适中+1')
+        elif dist_to_upper_pct < 2:
+            structure_score -= 1
+            structure_reasons.append(f'距上轨仅{dist_to_upper_pct}%空间有限-1')
+
+    structure_score = max(0, min(15, structure_score))
+    scores['结构边界'] = structure_score
+    details['结构边界'] = structure_reasons
+
+    # ════════════════════════════════════════════
+    # 维度4：短线情绪（满分15分）
+    # ════════════════════════════════════════════
+    sentiment_score = 7  # 基准分
+    sentiment_reasons = []
+
+    # --- 分时黄白线格局（-3~+3分）---
+    # 行业共识：白线（股价）在黄线（均价）上方表示大资金主导上涨
+    above_avg_str = intraday_summary.get('白线在黄线上方占比', '50%')
+    above_avg_pct = float(above_avg_str.replace('%', '')) if isinstance(above_avg_str, str) else 50
+    if above_avg_pct > 70:
+        sentiment_score += 3
+        sentiment_reasons.append(f'白线在黄线上方占比{above_avg_str}+3（大资金主导）')
+    elif above_avg_pct > 50:
+        sentiment_score += 1
+        sentiment_reasons.append(f'白线在黄线上方占比{above_avg_str}+1')
+    elif above_avg_pct < 30:
+        sentiment_score -= 3
+        sentiment_reasons.append(f'白线在黄线上方占比{above_avg_str}-3（大资金持续出货）')
+    elif above_avg_pct < 50:
+        sentiment_score -= 1
+        sentiment_reasons.append(f'白线在黄线上方占比{above_avg_str}-1')
+
+    # 白线长期在黄线下方约束（占比>70%在下方 = 上方占比<30%）
+    if above_avg_pct < 30:
+        sentiment_score = min(sentiment_score, 6)
+        sentiment_reasons.append('★白线长期在黄线下方约束：上限6分')
+
+    # --- 资金流向行为特征（-3~+3分）---
+    # 行业共识：主力资金方向是短线最核心变量
+    fund_behavior = fund_flow_behavior.get('资金行为特征', '')
+    main_net_str = fund_flow_behavior.get('主力净流入', '0')
+
+    def _parse_fund_amount(val):
+        if isinstance(val, (int, float)):
+            return float(val)
+        if isinstance(val, str):
+            cleaned = val.replace('亿', '').replace(',', '').strip()
+            try:
+                return float(cleaned)
+            except ValueError:
+                return 0
+        return 0
+
+    main_net = _parse_fund_amount(main_net_str)
+
+    if '主力吸筹' in fund_behavior:
+        sentiment_score += 3
+        sentiment_reasons.append(f'资金流向：{fund_behavior}+3')
+    elif '主力减仓散户承接' in fund_behavior:
+        sentiment_score -= 3
+        sentiment_reasons.append(f'资金流向：{fund_behavior}-3')
+    elif main_net < -1:
+        sentiment_score -= 2
+        sentiment_reasons.append(f'主力净流出{main_net_str}-2')
+    elif main_net > 1:
+        sentiment_score += 2
+        sentiment_reasons.append(f'主力净流入{main_net_str}+2')
+    else:
+        sentiment_reasons.append(f'资金流向不明显+0')
+
+    # 主力减仓散户承接约束
+    if '主力减仓散户承接' in fund_behavior:
+        sentiment_score = min(sentiment_score, 7)
+        sentiment_reasons.append('★主力减仓散户承接格局约束：上限7分')
+
+    # 尾盘资金净流出+主力为负约束
+    if main_net < 0:
+        close_change = intraday_summary.get('收盘涨跌幅', 0) or 0
+        if close_change < (intraday_summary.get('开盘涨跌幅', 0) or 0):
+            sentiment_score = min(sentiment_score, 8)
+            sentiment_reasons.append('★尾盘走弱+主力资金为负约束：上限8分')
+
+    # --- 五档盘口（-2~+2分）---
+    # 行业共识：买卖力量比>1.5为买盘强势，<0.67为卖盘强势
+    buy_sell_ratio = order_book_summary.get('买卖力量比', 1.0)
+    if isinstance(buy_sell_ratio, (int, float)):
+        if buy_sell_ratio > 1.5:
+            sentiment_score += 2
+            sentiment_reasons.append(f'五档买卖比{buy_sell_ratio}:1+2（买盘强势）')
+        elif buy_sell_ratio > 1.1:
+            sentiment_score += 1
+            sentiment_reasons.append(f'五档买卖比{buy_sell_ratio}:1+1')
+        elif buy_sell_ratio < 0.67:
+            sentiment_score -= 2
+            sentiment_reasons.append(f'五档买卖比{buy_sell_ratio}:1-2（卖盘强势）')
+            # 卖盘明显强于买盘约束
+            sentiment_reasons.append('★五档卖盘明显强于买盘约束：额外扣减')
+        elif buy_sell_ratio < 0.9:
+            sentiment_score -= 1
+            sentiment_reasons.append(f'五档买卖比{buy_sell_ratio}:1-1')
+
+    sentiment_score = max(0, min(15, sentiment_score))
+    scores['短线情绪'] = sentiment_score
+    details['短线情绪'] = sentiment_reasons
+
+    # ════════════════════════════════════════════
+    # 维度5：资金筹码（满分15分）
+    # ════════════════════════════════════════════
+    capital_score = 7  # 基准分
+    capital_reasons = []
+
+    # --- 北向资金（-3~+3分）---
+    # 行业共识：北向资金被称为"聪明钱"，连续增减持方向具有领先意义
+    nb_direction = northbound_summary.get('方向判断', '')
+    nb_increase_days = northbound_summary.get('连续增持天数', 0)
+    nb_decrease_days = northbound_summary.get('连续减持天数', 0)
+
+    if nb_increase_days >= 3:
+        capital_score += 3
+        capital_reasons.append(f'北向资金连续{nb_increase_days}日增持+3')
+    elif nb_increase_days >= 1:
+        capital_score += 1
+        capital_reasons.append(f'北向资金近期增持+1')
+    elif nb_decrease_days >= 3:
+        capital_score -= 3
+        capital_reasons.append(f'北向资金连续{nb_decrease_days}日减持-3')
+    elif nb_decrease_days >= 1:
+        capital_score -= 1
+        capital_reasons.append(f'北向资金近期减持-1')
+    else:
+        capital_reasons.append('北向资金方向不明+0')
+
+    # --- 沪深港通持股比例变化（-2~+2分）---
+    hk_direction = sh_sz_hk_summary.get('方向判断', '')
+    hk_ratio_trend = sh_sz_hk_summary.get('占流通股比变化趋势', '')
+    hk_increase_days = sh_sz_hk_summary.get('连续增持天数', 0)
+    hk_decrease_days = sh_sz_hk_summary.get('连续减持天数', 0)
+
+    if '上升' in hk_ratio_trend:
+        capital_score += 2
+        capital_reasons.append(f'沪深港通持股比例上升+2（{hk_ratio_trend}）')
+    elif '下降' in hk_ratio_trend:
+        capital_score -= 2
+        capital_reasons.append(f'沪深港通持股比例下降-2（{hk_ratio_trend}）')
+    else:
+        capital_reasons.append('沪深港通持股比例持平+0')
+
+    # --- 机构持仓变化（-3~+3分）---
+    # 行业共识：机构持仓占比上升+筹码集中为积极信号
+    org_trend = org_holder_summary.get('持仓变化趋势', '')
+    org_holder_change = org_holder_summary.get('股东人数变化', '')
+    org_increase = org_holder_summary.get('增持机构', '')
+    org_decrease = org_holder_summary.get('减持机构', '')
+
+    if '升至' in org_trend or '升' in str(org_trend):
+        capital_score += 2
+        capital_reasons.append(f'机构持仓占比上升+2（{org_trend}）')
+    elif '降至' in org_trend or '降' in str(org_trend):
+        capital_score -= 2
+        capital_reasons.append(f'机构持仓占比下降-2（{org_trend}）')
+
+    if '集中' in org_holder_change and '分散' not in org_holder_change:
+        capital_score += 1
+        capital_reasons.append(f'筹码集中+1（{org_holder_change}）')
+    elif '分散' in org_holder_change:
+        capital_score -= 1
+        capital_reasons.append(f'筹码分散-1（{org_holder_change}）')
+
+    # --- 龙虎榜（-3~+2分）---
+    billboard_status = billboard_summary.get('状态', '')
+    if billboard_status and '无' in billboard_status:
+        capital_reasons.append('近期无龙虎榜记录（中性）+0')
+    else:
+        org_buy_seats = billboard_summary.get('机构买入席位总次数', 0)
+        org_sell_seats = billboard_summary.get('机构卖出席位总次数', 0)
+        if org_buy_seats > org_sell_seats:
+            capital_score += 2
+            capital_reasons.append(f'龙虎榜机构净买入+2（买{org_buy_seats}次/卖{org_sell_seats}次）')
+        elif org_sell_seats > org_buy_seats:
+            capital_score -= 3
+            capital_reasons.append(f'龙虎榜机构净卖出-3（买{org_buy_seats}次/卖{org_sell_seats}次）')
+
+    # --- 大宗交易（-2~+1分）---
+    block_status = block_trade_summary.get('状态', '')
+    block_count = block_trade_summary.get('交易笔数', 0)
+    if block_count == 0:
+        capital_reasons.append('近期无大宗交易（中性）+0')
+    else:
+        block_character = block_trade_summary.get('交易特征', '')
+        block_org = block_trade_summary.get('机构席位情况', '')
+        if '折价' in block_character and '卖方' in block_org:
+            capital_score -= 2
+            capital_reasons.append(f'大宗交易折价+机构卖方-2')
+        elif '溢价' in block_character:
+            capital_score += 1
+            capital_reasons.append(f'大宗交易溢价成交+1')
+
+    # --- 约束规则 ---
+    # 机构持仓连续减持且北向资金净卖出
+    if ('降' in str(org_trend)) and nb_decrease_days >= 1:
+        capital_score = min(capital_score, 5)
+        capital_reasons.append('★机构减持+北向减持约束：上限5分')
+
+    # 北向连续减持≥3且沪深港通占比下降
+    if nb_decrease_days >= 3 and '下降' in hk_ratio_trend:
+        capital_score = min(capital_score, 6)
+        capital_reasons.append('★北向连续减持≥3日+港通占比下降约束：上限6分')
+
+    # 北向连续增持≥3且沪深港通占比上升
+    if nb_increase_days >= 3 and '上升' in hk_ratio_trend:
+        capital_score = max(capital_score, 10)
+        capital_reasons.append('★北向连续增持≥3日+港通占比上升约束：下限10分')
+
+    # 沪深港通连续减持≥5且机构也在减持
+    if hk_decrease_days >= 5 and '降' in str(org_trend):
+        capital_score = min(capital_score, 3)
+        capital_reasons.append('★港通连续减持≥5日+机构减持约束：上限3分')
+
+    capital_score = max(0, min(15, capital_score))
+    scores['资金筹码'] = capital_score
+    details['资金筹码'] = capital_reasons
+
+    # ════════════════════════════════════════════
+    # 维度6：外部环境（满分5分）
+    # ════════════════════════════════════════════
+    env_score = 2  # 基准分
+    env_reasons = []
+
+    # --- 大盘环境（0~3分）---
+    market_sentiment = market_env.get('大盘环境判断', '')
+    today_market = market_env.get('当日大盘表现', '')
+
+    if '偏多' in market_sentiment:
+        env_score += 2
+        env_reasons.append(f'大盘环境偏多+2')
+    elif '偏空' in market_sentiment:
+        env_score -= 2
+        env_reasons.append(f'大盘环境偏空-2')
+    else:
+        env_reasons.append(f'大盘震荡+0')
+
+    if '普涨' in today_market:
+        env_score += 1
+        env_reasons.append('当日大盘普涨+1')
+    elif '普跌' in today_market:
+        env_score -= 1
+        env_reasons.append('当日大盘普跌-1')
+
+    # --- 消息面（-2~+2分）---
+    has_major_positive = False
+    has_major_negative = False
+    if news_data:
+        for news in news_data:
+            title = ''
+            if isinstance(news, dict):
+                title = news.get('标题', '') or news.get('title', '')
+            elif isinstance(news, str):
+                title = news
+            title_lower = title.lower()
+            # 重大利好关键词
+            if any(kw in title for kw in ['业绩大增', '净利润增长', '业绩快报', '同比增', '超预期']):
+                has_major_positive = True
+            # 重大利空关键词
+            if any(kw in title for kw in ['业绩暴雷', '监管处罚', '立案调查', '退市', '暂停上市', 'ST']):
+                has_major_negative = True
+
+    if has_major_negative:
+        env_score = 0
+        env_reasons.append('★存在重大利空消息约束：外部环境0分')
+    elif has_major_positive:
+        env_score += 2
+        env_reasons.append('存在重大利好消息+2')
+
+    # 大盘下跌趋势约束
+    sh_index = market_env.get('上证指数', {})
+    sh_ma5_pos = sh_index.get('5日均线位置', '')
+    sh_ma10_pos = sh_index.get('10日均线位置', '')
+    if '跌破' in sh_ma5_pos and '跌破' in sh_ma10_pos:
+        env_score = min(env_score, 2)
+        env_reasons.append('★大盘跌破5日和10日均线约束：上限2分')
+
+    env_score = max(0, min(5, env_score))
+    scores['外部环境'] = env_score
+    details['外部环境'] = env_reasons
+
+    # ════════════════════════════════════════════
+    # 维度7：风险收益比（满分10分）
+    # ════════════════════════════════════════════
+    rr_score = 5  # 基准分
+    rr_reasons = []
+
+    # 基于BOLL风险收益比
+    dist_up = boll_summary.get('距上轨（%）', 0) or 0
+    dist_mid = boll_summary.get('距中轨（%）', 0) or 0
+
+    # 行业共识：风险收益比>3:1为优秀，2:1为良好，<1:1为不利
+    if isinstance(dist_up, (int, float)) and isinstance(dist_mid, (int, float)) and dist_mid > 0:
+        rr_ratio = round(dist_up / dist_mid, 1)
+        if rr_ratio >= 3:
+            rr_score += 4
+            rr_reasons.append(f'BOLL风险收益比{rr_ratio}:1+4（上方{dist_up}% vs 下方至中轨{dist_mid}%）')
+        elif rr_ratio >= 2:
+            rr_score += 2
+            rr_reasons.append(f'BOLL风险收益比{rr_ratio}:1+2')
+        elif rr_ratio >= 1:
+            rr_score += 0
+            rr_reasons.append(f'BOLL风险收益比{rr_ratio}:1+0')
+        else:
+            rr_score -= 2
+            rr_reasons.append(f'BOLL风险收益比{rr_ratio}:1-2（风险大于收益）')
+    elif '下方' in boll_position:
+        rr_score -= 2
+        rr_reasons.append('收盘在中轨下方，风险收益比不利-2')
+
+    # 距120日高低点的位置
+    dist_high = kline_summary.get('当前价距120日高点', '')
+    dist_low = kline_summary.get('当前价距120日低点', '')
+    if isinstance(dist_high, str) and '%' in dist_high:
+        try:
+            high_pct = float(dist_high.replace('%', ''))
+            if high_pct < -30:
+                rr_score += 1
+                rr_reasons.append(f'距120日高点{dist_high}（深度回调，反弹空间大）+1')
+            elif high_pct > -5:
+                rr_score -= 1
+                rr_reasons.append(f'距120日高点{dist_high}（接近前高，上方压力大）-1')
+        except ValueError:
+            pass
+
+    rr_score = max(0, min(10, rr_score))
+    scores['风险收益比'] = rr_score
+    details['风险收益比'] = rr_reasons
+
+    # ════════════════════════════════════════════
+    # 汇总
+    # ════════════════════════════════════════════
+    total = sum(scores.values())
+
+    # 评级
+    if total >= 85:
+        grade = '积极买入'
+    elif total >= 70:
+        grade = '逢低建仓'
+    elif total >= 55:
+        grade = '持股待涨'
+    elif total >= 40:
+        grade = '逢高减仓'
+    elif total >= 25:
+        grade = '保持观望'
+    else:
+        grade = '清仓离场'
+
+    # 持有/未持有建议
+    if total >= 70:
+        not_hold_grade = '逢低建仓' if total < 85 else '积极买入'
+        hold_grade = '持股待涨'
+    elif total >= 55:
+        not_hold_grade = '保持观望'
+        hold_grade = '持股待涨'
+    elif total >= 40:
+        not_hold_grade = '保持观望'
+        hold_grade = '逢高减仓'
+    else:
+        not_hold_grade = '保持观望'
+        hold_grade = '清仓离场'
+
+    return {
+        '总分': total,
+        '评级': grade,
+        '未持有建议': not_hold_grade,
+        '持有建议': hold_grade,
+        '各维度得分': {
+            '趋势强度': f'{scores["趋势强度"]}/20',
+            '动能与量价': f'{scores["动能与量价"]}/20',
+            '结构边界': f'{scores["结构边界"]}/15',
+            '短线情绪': f'{scores["短线情绪"]}/15',
+            '资金筹码': f'{scores["资金筹码"]}/15',
+            '外部环境': f'{scores["外部环境"]}/5',
+            '风险收益比': f'{scores["风险收益比"]}/10',
+        },
+        '各维度评分依据': {
+            '趋势强度': details['趋势强度'],
+            '动能与量价': details['动能与量价'],
+            '结构边界': details['结构边界'],
+            '短线情绪': details['短线情绪'],
+            '资金筹码': details['资金筹码'],
+            '外部环境': details['外部环境'],
+            '风险收益比': details['风险收益比'],
+        },
+    }
+
+
+
+# ──────────────────────────────────────────────
 # 主函数
 # ──────────────────────────────────────────────
 
@@ -1522,9 +2392,15 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
     order_book_data = await get_order_book(stock_info)
 
     # ── Python 端预计算（核心优化：把容易出错的计算从 LLM 移到代码端）──
+    # 先计算下一个交易日（供大宗交易/消息面时效性判断使用）
+    next_trading_day = datetime.now().date() + timedelta(days=1)
+    while next_trading_day.weekday() >= 5 or chinese_calendar.is_holiday(next_trading_day):
+        next_trading_day += timedelta(days=1)
+
     valid_kline = _filter_valid_trading_days(stock_day_kline)
     divergence_result = _compute_macd_divergence(macd_signals_macd, valid_kline)
     macd_bar_trend = _compute_macd_bar_trend(macd_signals_macd)
+    golden_cross_quality = _compute_golden_cross_quality(macd_signals_macd, valid_kline)
     kdj_summary = _compute_kdj_summary(kdj_rule_kdj)
     intraday_summary = _compute_intraday_summary(stock_time_kline_10jqka)
     kline_summary = _compute_kline_summary(valid_kline)
@@ -1544,21 +2420,41 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
     sh_sz_hk_summary = _compute_sh_sz_hk_hold_summary(sh_sz_hk_hold)
     weekly_kline_summary = _compute_weekly_kline_summary(weekly_kline_data)
     billboard_summary = _compute_billboard_summary(billboard_data)
-    block_trade_summary = compute_block_trade_summary(block_trade_records)
+    block_trade_summary = compute_block_trade_summary(block_trade_records, next_trading_day.strftime('%Y-%m-%d'))
     order_book_summary = compute_order_book_summary(order_book_data)
 
     # ── 大盘指数环境数据 ──
     market_env = await _compute_market_environment(stock_info)
+
+    # ── 综合评分（Python端预计算，基于行业共识规则）──
+    comprehensive_score = _compute_comprehensive_score(
+        macd_data=macd_signals_macd,
+        macd_bar_trend=macd_bar_trend,
+        divergence_result=divergence_result,
+        golden_cross_quality=golden_cross_quality,
+        kdj_summary=kdj_summary,
+        boll_summary=boll_summary,
+        ma_summary=ma_summary,
+        kline_summary=kline_summary,
+        volume_trend=volume_trend,
+        weekly_kline_summary=weekly_kline_summary,
+        intraday_summary=intraday_summary,
+        fund_flow_behavior=fund_flow_behavior,
+        order_book_summary=order_book_summary,
+        northbound_summary=northbound_summary,
+        sh_sz_hk_summary=sh_sz_hk_summary,
+        org_holder_summary=org_holder_summary,
+        billboard_summary=billboard_summary,
+        block_trade_summary=block_trade_summary,
+        market_env=market_env,
+        news_data=stock_news,
+    )
 
     # ── 精简数据（减少 token，降低幻觉概率）──
     macd_trimmed = _trim_macd_details(macd_signals_macd, keep_recent=30)
     boll_trimmed = _trim_boll_details(boll_rule_boll, keep_recent=20)
     kline_trimmed = _trim_kline_data(valid_kline, keep_recent=30)
     ma_trimmed = _trim_ma_data(moving_averages_json, keep_recent=20)
-
-    next_trading_day = datetime.now().date() + timedelta(days=1)
-    while next_trading_day.weekday() >= 5 or chinese_calendar.is_holiday(next_trading_day):
-        next_trading_day += timedelta(days=1)
 
     return f"""
 # 当前时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}，下一个交易日：{next_trading_day.strftime('%Y-%m-%d')} 09:30-11:30 / 13:00-15:00
@@ -1573,7 +2469,7 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 
 ## ★ 重要约束（必须遵守）
 
-1. **直接引用预计算结论**：背离信号、MACD柱趋势、BOLL空间摘要、KDJ状态摘要、分时特征摘要、K线统计摘要、均线排列状态、周线趋势摘要、资金流向行为特征、五档盘口摘要、北向资金增减持摘要、沪深港通持股变化摘要、机构持仓变化摘要、龙虎榜摘要、大宗交易摘要、近期消息面 均已在 Python 端预计算完成，你必须直接引用这些结论，严禁自行重新推导。
+1. **直接引用预计算结论**：背离信号、MACD柱趋势、金叉质量评估、BOLL空间摘要、KDJ状态摘要、分时特征摘要、K线统计摘要、均线排列状态、周线趋势摘要、资金流向行为特征、五档盘口摘要、北向资金增减持摘要、沪深港通持股变化摘要、机构持仓变化摘要、龙虎榜摘要、大宗交易摘要、近期消息面 均已在 Python 端预计算完成，你必须直接引用这些结论，严禁自行重新推导。
 2. **禁止计算幻觉**：均线值、乖离率、BOLL距离、MACD柱趋势、KDJ差值、量能倍数、北向资金连续增减持天数、沪深港通占流通股比变化等必须直接读取提供的预计算数据，严禁自行做加减乘除运算。
 3. **数据已清洗**：提供的数据已过滤停牌日（成交量为0的交易日），无需再次过滤。
 4. **严禁主观臆断**：每一个结论必须紧跟数据论据，引用具体数值。
@@ -1598,7 +2494,10 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 **★ 预计算MACD柱变化趋势（必须直接引用）：**
 {json.dumps(macd_bar_trend, ensure_ascii=False)}
 
-请结合MACD明细数据，分析当前多空状态、最近金叉/死叉的质量，并直接引用上述MACD柱趋势结论和背离结论。
+**★ 预计算金叉质量评估（必须直接引用，严禁自行推导金叉质量）：**
+{json.dumps(golden_cross_quality, ensure_ascii=False)}
+
+请结合MACD明细数据，分析当前多空状态，并直接引用上述MACD柱趋势结论、背离结论和金叉质量评估结论。
 
 #### 2. KDJ（极限与拐点）
 
@@ -1679,7 +2578,8 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 **★ 预计算龙虎榜摘要（必须直接引用）：**
 {json.dumps(billboard_summary, ensure_ascii=False)}
 
-**★ 预计算大宗交易摘要（必须直接引用）：**
+**★ 预计算大宗交易摘要（必须直接引用，含对次日影响判断）：**
+大宗交易发生在A股收盘后（15:00-15:30盘后撮合），属于盘后交易。请直接引用"对下一个交易日影响"字段判断其时效性。
 {json.dumps(block_trade_summary, ensure_ascii=False)}
 
 请基于上述预计算摘要分析（严禁自行计算连续天数、累计幅度等，必须直接引用摘要中的结论）：
@@ -1687,7 +2587,7 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 - 沪深港通持股趋势：直接引用"方向判断"和"占流通股比变化趋势"，判断外资中长期态度
 - 机构持仓变化：直接引用"增持机构"/"减持机构"和"持仓变化趋势"，判断机构整体动向
 - 龙虎榜席位特征：直接引用"机构席位行为"，若近期无上榜记录则说明"近期未触发龙虎榜"
-- 大宗交易特征：直接引用"交易特征"和"机构席位情况"，若近期无记录则说明"近期无大宗交易"
+- 大宗交易特征：直接引用"交易特征"和"机构席位情况"，并引用"对下一个交易日影响"判断时效性；若近期无记录则说明"近期无大宗交易"
 - 综合判断：基于以上五个子维度的预计算结论，判断大资金整体流入/流出方向和筹码集中/分散趋势
 
 ### 五、 外部环境（大盘系统性风险 + 消息面）
@@ -1695,12 +2595,19 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 **★ 预计算大盘指数走势摘要（必须直接引用）：**
 {json.dumps(market_env, ensure_ascii=False)}
 
-**★ 近期消息面（百度搜索，近7日）：**
+**★ 近期消息面（百度搜索，近7日，含发布时间与对次日影响判断）：**
+**时效性判定规则（A股交易时段：09:30-11:30 / 13:00-15:00 北京时间）：**
+- 上一个交易日15:00后发布的盘后消息 → 市场尚未消化，对{next_trading_day.strftime('%Y-%m-%d')}开盘有直接影响（标记为★）
+- {next_trading_day.strftime('%Y-%m-%d')}当日09:30前发布的盘前消息 → 对当日开盘有直接影响（标记为★）
+- 盘中发布的消息 → 已被部分消化，对次日影响减弱
+- 更早的消息 → 影响逐步衰减
+- 每条消息后的"→ 对次日影响"已根据上述规则预判断，请直接引用
 
-{format_news_for_prompt(stock_news)}
+{format_news_for_prompt(stock_news, next_trading_day.strftime('%Y-%m-%d'))}
 
 请基于上述数据分析：
 - 大盘当前系统性风险水平，个股走势是跟随大盘还是独立行情
+- 消息面时效性判断：重点关注标记为★的消息（盘后/盘前发布、市场尚未消化），这些消息对{next_trading_day.strftime('%Y-%m-%d')}开盘有直接影响；盘中已发布的消息影响已减弱，需降低权重
 - 是否存在影响股价的重大利好/利空事件，若无重大消息则简要说明"消息面平淡"
 - 外部环境对次日操作的约束（如大盘弱势则个股反弹空间受限）
 
@@ -1713,46 +2620,60 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 
 ### 七、 综合评分体系（满分100分）
 
-| 评分维度 | 权重 | 核心考察点 | 得分 |
-|---------|------|----------|------|
-| 趋势强度 | 20% | MACD位置与方向、长短期均线排列、周线趋势方向及日周共振 | /20 |
-| 动能与量价 | 20% | KDJ拐点信号、日线量价配合度、量能趋势（缩量/放量） | /20 |
-| 结构边界 | 15% | BOLL轨道位置与带宽变化、乖离率极端值、关键支撑压力位距离 | /15 |
-| 短线情绪 | 15% | 分时均线承接力、尾盘资金动向、资金流向行为特征（主力/散户格局）、五档盘口买卖力量比与大单分布 | /15 |
-| 资金筹码 | 15% | 北向资金连续增减持方向、沪深港通持股比例变化趋势、机构持仓变化、龙虎榜席位方向、大宗交易折溢价 | /15 |
-| 外部环境 | 5% | 大盘指数趋势与系统性风险、近期重大消息面利好/利空 | /5 |
-| 风险收益比 | 10% | 潜在上涨空间 vs 潜在下跌空间（基于BOLL/均线/支撑压力位） | /10 |
-| **总分** | **100%**| | **/100** |
+**★ 预计算综合评分（Python端基于行业共识规则计算，必须直接引用，严禁自行重新打分）：**
+{json.dumps(comprehensive_score, ensure_ascii=False)}
 
-**评分约束规则（必须与预计算结论一致）：**
+**评分规则说明（已在Python端执行，以下仅供理解评分逻辑）：**
 
-*趋势强度约束：*
-- 若预计算显示顶背离，趋势强度不应超过12分
-- 若日线与周线趋势方向相反（如日线多头但周线空头），趋势强度不应超过14分
-- 若MACD零轴下方死叉且均线空头排列，趋势强度不应超过5分
+*趋势强度（满分20分）评分规则：*
+- 基准分10分
+- MACD市场状态：强多头+4 / 弱多头+1 / 空头-3
+- MACD柱方向：红柱放大+2 / 红柱收窄+0 / 绿柱收窄+1 / 绿柱放大-2
+- 金叉质量：高质量+2 / 中等+1 / 低质量+0 / 无效-1
+- 日线均线排列：多头+4 / 空头-4 / 纠缠+0
+- 周线趋势及日周共振：日周多头共振+4 / 周线多头日线未共振+2 / 日周空头共振-4 / 周线空头日线未共振-2
+- 约束：顶背离上限12分 / 日周方向相反上限14分 / 零轴下死叉+均线空头上限5分
 
-*动能与量价约束：*
-- 若KDJ高位钝化拐头向下，动能得分不应超过8分
-- 若量能趋势为"持续缩量"且无放量突破信号，动能得分不应超过10分
+*动能与量价（满分20分）评分规则：*
+- 基准分10分
+- KDJ信号：超卖区低位拐头向上+6 / 低位拐头向上+3 / 超买区高位拐头向下-4 / 高位拐头向下-2 / 中高位上行+1 / 中低位下行-1
+- 量价形态：放量上攻+4 / 放量冲高缩量回落-1 / 放量杀跌-3 / 缩量反弹+0 / 缩量阴跌-2
+- 量能趋势：持续放量+2 / 持续缩量-2
+- 约束：KDJ高位钝化拐头向下上限8分 / 持续缩量且未达放量标准上限10分
 
-*短线情绪约束：*
-- 若分时白线长期在黄线下方（占比>70%），短线情绪不应超过6分
-- 若五档盘口卖盘明显强于买盘（买卖比<0.67），短线情绪应扣减2-3分
-- 若尾盘资金净流出且主力资金为负，短线情绪不应超过8分
-- 若资金流向显示"主力减仓散户承接格局"，短线情绪不应超过7分
+*结构边界（满分15分）评分规则：*
+- 基准分7分
+- BOLL位置：中轨上方+中轨上倾+4 / 中轨上方+中轨下倾+1 / 中轨下方+中轨下倾-3 / 中轨下方-1
+- 乖离率：超买-2 / 超卖+1 / 正常+0
+- 上方空间：距上轨>10%+3 / >5%+1 / <2%-1
 
-*资金筹码约束：*
-- 若机构持仓连续减持且北向资金净卖出，资金筹码不应超过5分
-- 若北向资金连续减持天数≥3且沪深港通占流通股比下降，资金筹码不应超过6分
-- 若北向资金连续增持天数≥3且沪深港通占流通股比上升，资金筹码不应低于10分
-- 若龙虎榜显示机构净卖出+游资主导，资金筹码应扣减3-4分
-- 若大宗交易以折价为主且有机构卖方席位，资金筹码应扣减2-3分
-- 若近期无龙虎榜/大宗交易记录，该子项按中性处理（不加不减）
-- 若沪深港通连续减持≥5日且机构持仓也在减持，资金筹码不应超过3分
+*短线情绪（满分15分）评分规则：*
+- 基准分7分
+- 分时黄白线：白线上方占比>70%+3 / >50%+1 / <30%-3 / <50%-1
+- 资金流向：主力吸筹+3 / 主力减仓散户承接-3 / 主力净流出>1亿-2 / 主力净流入>1亿+2
+- 五档盘口：买卖比>1.5+2 / >1.1+1 / <0.67-2 / <0.9-1
+- 约束：白线长期在黄线下方上限6分 / 主力减仓散户承接上限7分 / 尾盘走弱+主力为负上限8分
 
-*外部环境约束：*
-- 若大盘处于下跌趋势（均线空头排列），外部环境不应超过2分
-- 若存在重大利空消息（如业绩暴雷、监管处罚），外部环境应给0分
+*资金筹码（满分15分）评分规则：*
+- 基准分7分
+- 北向资金：连续增持≥3日+3 / 增持+1 / 连续减持≥3日-3 / 减持-1
+- 沪深港通占比：上升+2 / 下降-2
+- 机构持仓：占比上升+2 / 下降-2 / 筹码集中+1 / 分散-1
+- 龙虎榜：机构净买入+2 / 机构净卖出-3 / 无记录+0
+- 大宗交易：折价+机构卖方-2 / 溢价+1 / 无记录+0
+- 约束：机构减持+北向减持上限5分 / 北向减持≥3+港通占比下降上限6分 / 北向增持≥3+港通占比上升下限10分 / 港通减持≥5+机构减持上限3分
+
+*外部环境（满分5分）评分规则：*
+- 基准分2分
+- 大盘环境：偏多+2 / 偏空-2 / 震荡+0
+- 当日大盘：普涨+1 / 普跌-1
+- 消息面：重大利好+2 / 重大利空=0分
+- 约束：大盘跌破5日和10日均线上限2分 / 重大利空消息0分
+
+*风险收益比（满分10分）评分规则：*
+- 基准分5分
+- BOLL风险收益比：≥3:1+4 / ≥2:1+2 / ≥1:1+0 / <1:1-2
+- 距120日高点：<-30%+1（深度回调） / >-5%-1（接近前高）
 
 **实战评级标准**：
 - 85-100：积极买入
@@ -1761,6 +2682,8 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 - 40-54：逢高减仓
 - 25-39：保持观望
 - <25：清仓离场
+
+请直接引用上述预计算评分结果，在分析报告中展示评分表格和各维度评分依据。若你认为某些特殊因素（如盘后重大消息尚未反映在技术面数据中）需要调整评级，必须明确说明调整原因和幅度。
 
 ### 八、 明日实战操作策略（Strategy）
 
@@ -1832,7 +2755,7 @@ if __name__ == '__main__':
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info = get_stock_info_by_name('生益科技')
+        stock_info = get_stock_info_by_name('三花智控')
         prompt = await get_stock_indicator_prompt(stock_info)
         print(prompt)
 

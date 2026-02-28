@@ -338,8 +338,55 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
 
 
 
-def format_news_for_prompt(news_list: list[dict]) -> str:
-    """将新闻列表格式化为提示词中的文本块，包含发布时间和盘前/盘后标记。"""
+def _assess_news_next_day_impact(publish_time: str, session: str, next_trading_day: str) -> str:
+    """根据新闻发布时间和下一个交易日，判断该消息对下一个交易日的影响。
+
+    A股交易时段：09:30-11:30（上午）、13:00-15:00（下午），北京时间。
+
+    判定逻辑：
+    - 盘后消息（15:00后）：如果发布日 == 下一个交易日的前一个交易日 → 尚未被市场消化，直接影响次日开盘
+    - 盘前消息（09:30前）：如果发布日 == 下一个交易日 → 直接影响当日开盘
+    - 盘中消息（09:30-15:00）：已在盘中被部分消化，对次日影响减弱
+    - 更早的消息：影响已逐步衰减
+    """
+    if not publish_time or not next_trading_day or len(publish_time) < 10:
+        return '时间不明，无法判断'
+
+    try:
+        from datetime import datetime, timedelta
+        import chinese_calendar
+
+        next_td = datetime.strptime(next_trading_day, '%Y-%m-%d').date()
+        # 找到上一个交易日
+        prev_td = next_td - timedelta(days=1)
+        while prev_td.weekday() >= 5 or chinese_calendar.is_holiday(prev_td):
+            prev_td -= timedelta(days=1)
+
+        pub_date_str = publish_time.strip()[:10]
+        pub_date = datetime.strptime(pub_date_str, '%Y-%m-%d').date()
+
+        if session == '盘后' and pub_date == prev_td:
+            return f"★ 上一个交易日盘后发布，市场尚未消化，直接影响{next_trading_day}开盘"
+        elif session == '盘前' and pub_date == next_td:
+            return f"★ 下一个交易日盘前发布，直接影响{next_trading_day}开盘"
+        elif session == '盘中' and pub_date == prev_td:
+            return f"上一个交易日盘中发布，已被部分消化，对{next_trading_day}影响减弱"
+        elif pub_date >= prev_td:
+            return f"近期消息，对{next_trading_day}仍有一定参考价值"
+        else:
+            days_gap = (next_td - pub_date).days
+            return f"发布于{days_gap}天前，影响已逐步衰减"
+    except (ValueError, ImportError):
+        return '时间不明，无法判断'
+
+
+def format_news_for_prompt(news_list: list[dict], next_trading_day: str = '') -> str:
+    """将新闻列表格式化为提示词中的文本块，包含发布时间、盘前/盘后标记和对下一个交易日的影响判断。
+
+    Args:
+        news_list: 新闻列表
+        next_trading_day: 下一个交易日日期（YYYY-MM-DD），用于判断消息对次日的影响
+    """
     if not news_list:
         return "未获取到近期相关新闻/公告信息。"
 
@@ -351,7 +398,14 @@ def format_news_for_prompt(news_list: list[dict]) -> str:
         session = news.get('时段', '未知')
         if publish_time:
             time_label = f'（{publish_time} [{session}]）'
-        lines.append(f'{i}. {news["标题"]}{time_label}')
+
+        # 对下一个交易日的影响判断
+        impact_label = ''
+        if next_trading_day:
+            impact = _assess_news_next_day_impact(publish_time, session, next_trading_day)
+            impact_label = f'\n   → 对次日影响：{impact}'
+
+        lines.append(f'{i}. {news["标题"]}{time_label}{impact_label}')
         if news.get('摘要'):
             lines.append(f'   摘要：{news["摘要"]}')
     return '\n'.join(lines)
