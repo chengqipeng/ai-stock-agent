@@ -74,6 +74,20 @@ async def _fetch_holder_num_trend(stock_info: StockInfo, page_size: int = 8) -> 
     return []
 
 
+def _safe_hold_focus(val) -> str | None:
+    """安全解析筹码集中度，支持数值和文本（如'非常分散'、'集中'）"""
+    if val is None:
+        return None
+    if isinstance(val, str):
+        try:
+            return f"{round(float(val), 2)}%"
+        except ValueError:
+            return val  # 直接返回文本描述
+    if isinstance(val, (int, float)):
+        return f"{round(float(val), 2)}%"
+    return str(val)
+
+
 async def get_org_realtime_snapshot(stock_info: StockInfo) -> dict:
     """获取机构持仓实时快照。
 
@@ -123,7 +137,7 @@ async def get_org_realtime_snapshot(stock_info: StockInfo) -> dict:
             "截止日期": (item.get("END_DATE") or "")[:10],
             "股东总数": item.get("HOLDER_TOTAL_NUM"),
             "较上期变化（%）": round(float(item.get("TOTAL_NUM_RATIO") or 0), 2),
-            "筹码集中度": f'{round(float(item.get("HOLD_FOCUS") or 0), 2)}%' if item.get("HOLD_FOCUS") else None,
+            "筹码集中度": _safe_hold_focus(item.get("HOLD_FOCUS")),
             "人均持股金额（元）": round(float(item.get("AVG_HOLD_AMT") or 0), 2) if item.get("AVG_HOLD_AMT") else None,
         })
 
