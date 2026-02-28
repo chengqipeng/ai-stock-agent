@@ -83,7 +83,11 @@ async def get_top_strongest_stocks(days: int = 120, top_n: int = 10) -> list:
         lowest_price = stock.get("lowest_price")
         
         if highest_date >= start_date and highest_price and lowest_price and stock.get("name"):
-            days_ago = (datetime.now() - datetime.strptime(highest_date, "%Y-%m-%d")).days
+            try:
+                days_ago = (datetime.now() - datetime.strptime(highest_date, "%Y-%m-%d")).days
+            except ValueError as e:
+                logger.warning("Invalid highest_date format for stock %s: %s", stock.get("name"), e)
+                continue
             rough_gain = round((highest_price - lowest_price) / lowest_price * 100, 2)
             
             candidates.append({

@@ -37,11 +37,11 @@ async def get_revenue_analysis(stock_info: StockInfo, report_date="2024-12-31", 
     data = await fetch_eastmoney_api(url, params, referer="https://emweb.securities.eastmoney.com/")
     if data.get("result") and data["result"].get("data"):
         result = data["result"]["data"]
-        # 保存缓存
         save_cache(cache_path, result)
         return result
     else:
-        raise Exception(f"未获取到股票 {stock_info.stock_code_normalize} 的主营业务构成数据")
+        logger.warning("未获取到股票 %s 的主营业务构成数据", stock_info.stock_code_normalize)
+        return []
 
 
 async def get_revenue_analysis_with_count(stock_info: StockInfo, report_date="2024-12-31", page_size=200):
