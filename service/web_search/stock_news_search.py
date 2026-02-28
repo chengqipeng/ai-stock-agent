@@ -13,7 +13,7 @@ import time
 from datetime import datetime, timedelta
 
 from common.utils.llm_utils import parse_llm_json
-from common.utils.stock_info_utils import StockInfo
+from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.llm.volcengine_client import VolcengineClient
 from service.web_search.baidu_search import baidu_search
 from service.web_search.web_scraper import extract_main_content, extract_content_with_datetime, BUSINESS_TIMEOUT

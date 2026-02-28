@@ -1,4 +1,5 @@
 import json
+import logging
 import math
 from datetime import datetime, timedelta
 
@@ -8,6 +9,8 @@ import pandas as pd
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_kline_cn
 from service.eastmoney.stock_info.stock_northbound_funds import get_northbound_funds_cn
+
+logger = logging.getLogger(__name__)
 from service.eastmoney.stock_info.stock_real_fund_flow import get_real_main_fund_flow
 from service.eastmoney.strategy_engine.stock_BOLL_rule import get_boll_rule_boll_only
 from service.eastmoney.strategy_engine.stock_KDJ_rule import get_kdj_rule_kdj_only
@@ -1177,6 +1180,7 @@ async def _fetch_market_index_summary(index_name: str, days: int = 20) -> dict:
             '近5日明细': recent_5_detail,
         }
     except Exception as e:
+        logger.warning(f"获取指数数据失败 [{index_name}]: {e}")
         return {'指数名称': index_name, '状态': f'获取失败: {str(e)}'}
 
 
@@ -2783,7 +2787,7 @@ if __name__ == '__main__':
 
     async def main():
         stock_info = get_stock_info_by_name('生益科技')
-        prompt = await get_stock_indicator_all_prompt(stock_info)
+        prompt = await _fetch_market_index_summary("深证成指")
         print(prompt)
 
     asyncio.run(main())
