@@ -8,20 +8,28 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #e8ecf4 0%, #d5dbe8 25%, #c9d6f0 50%, #ddd5ee 75%, #e8ecf4 100%);
+            background-attachment: fixed;
             padding: 20px;
+            min-height: 100vh;
+            color: #1d1d1f;
         }
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: rgba(102, 126, 234, 0.75);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
             color: white;
             padding: 10px;
-            border-radius: 8px;
+            border-radius: 12px;
             margin-bottom: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
         }
         .header h1 {
             font-size: 16px;
             margin: 0;
+            font-weight: 600;
+            letter-spacing: -0.2px;
         }
         .container {
             max-width: 1400px;
@@ -55,60 +63,71 @@
             z-index: 100;
             width: 20px;
             height: 60px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: rgba(102, 126, 234, 0.7);
+            backdrop-filter: blur(12px) saturate(180%);
+            -webkit-backdrop-filter: blur(12px) saturate(180%);
             color: white;
             border: none;
-            border-radius: 0 6px 6px 0;
+            border-radius: 0 8px 8px 0;
             cursor: pointer;
             font-size: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 2px 0 8px rgba(0,0,0,0.15);
-            transition: left 0.3s;
+            box-shadow: 2px 0 12px rgba(0,0,0,0.1);
+            transition: left 0.3s, width 0.15s;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-left: none;
         }
         .sidebar-toggle:hover {
             width: 24px;
+            background: rgba(102, 126, 234, 0.85);
         }
         .panel {
-            background: white;
-            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border-radius: 14px;
             padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 16px rgba(0,0,0,0.06), 0 0 1px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255, 255, 255, 0.5);
         }
         .stock-list {
             max-height: 125px;
             overflow-y: auto;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 10px;
             padding: 10px;
+            background: rgba(255, 255, 255, 0.45);
         }
         .stock-item {
             padding: 4px;
             margin: 2px 0;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
             display: flex;
             align-items: center;
             gap: 5px;
             font-size: 13px;
+            transition: background 0.15s;
         }
-        .stock-item:hover { background: #f0f7ff; }
+        .stock-item:hover { background: rgba(102, 126, 234, 0.08); }
         .stock-item input[type="checkbox"] { cursor: pointer; }
         .btn {
             padding: 5px 10px;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
             color: white;
             margin: 5px 2px 0 0;
             font-size: 11px;
+            transition: all 0.15s;
         }
-        .btn-primary { background: #667eea; }
-        .btn-primary:hover { background: #5568d3; }
-        .btn-success { background: #4caf50; }
-        .btn-success:hover { background: #45a049; }
+        .btn-primary { background: rgba(102, 126, 234, 0.85); }
+        .btn-primary:hover { background: rgba(102, 126, 234, 1); }
+        .btn-success { background: rgba(76, 175, 80, 0.85); }
+        .btn-success:hover { background: rgba(76, 175, 80, 1); }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
@@ -120,14 +139,14 @@
         .progress-bar {
             width: 100%;
             height: 30px;
-            background: #e0e0e0;
-            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.06);
+            border-radius: 10px;
             overflow: hidden;
             margin: 10px 0;
         }
         .progress-fill {
             height: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, rgba(102,126,234,0.9) 0%, rgba(118,75,162,0.9) 100%);
             transition: width 0.3s;
             display: flex;
             align-items: center;
@@ -168,25 +187,29 @@
         }
         .fullscreen-btn {
             padding: 5px 10px;
-            background: #667eea;
+            background: rgba(102, 126, 234, 0.8);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 11px;
             font-weight: 600;
             margin: 5px 2px 0 0;
+            transition: all 0.15s;
         }
+        .fullscreen-btn:hover { background: rgba(102, 126, 234, 1); }
         .batch-item {
             padding: 6px;
             margin: 4px 0;
-            border: 2px solid #e0e0e0;
-            border-radius: 4px;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            border-radius: 10px;
             cursor: pointer;
             font-size: 13px;
+            background: rgba(255, 255, 255, 0.35);
+            transition: all 0.15s;
         }
-        .batch-item:hover { border-color: #667eea; background: #f0f7ff; }
-        .batch-item.active { border-color: #667eea; background: #f0f7ff; }
+        .batch-item:hover { border-color: rgba(102, 126, 234, 0.3); background: rgba(102, 126, 234, 0.06); }
+        .batch-item.active { border-color: rgba(102, 126, 234, 0.4); background: rgba(102, 126, 234, 0.08); }
         .stock-result-list {
             max-height: 600px;
             overflow-y: auto;
@@ -194,12 +217,13 @@
         .stock-result-item {
             padding: 5px;
             margin: 3px 0;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            border-radius: 8px;
             cursor: pointer;
             font-size: 13px;
+            transition: background 0.15s;
         }
-        .stock-result-item:hover { background: #f0f7ff; }
+        .stock-result-item:hover { background: rgba(102, 126, 234, 0.06); }
         .score { font-weight: 600; color: #667eea; }
         .modal {
             display: none;
@@ -208,21 +232,26 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
             z-index: 1000;
             align-items: center;
             justify-content: center;
         }
         .modal.show { display: flex; }
         .modal-content {
-            background: white;
-            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: blur(40px) saturate(200%);
+            -webkit-backdrop-filter: blur(40px) saturate(200%);
+            border-radius: 16px;
             padding: 30px;
             max-width: 90%;
             width: 1400px;
             max-height: 80vh;
             overflow-y: auto;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12), 0 0 1px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.5);
             position: relative;
         }
         .prompt-container {
@@ -232,9 +261,10 @@
             margin-bottom: 20px;
         }
         .prompt-section {
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            border-radius: 12px;
             padding: 15px;
+            background: rgba(255, 255, 255, 0.4);
         }
         .prompt-section h3 {
             margin: 0 0 10px 0;
@@ -247,11 +277,12 @@
             gap: 20px;
         }
         .result-section {
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            border-radius: 12px;
             padding: 15px;
             max-height: 500px;
             overflow-y: auto;
+            background: rgba(255, 255, 255, 0.4);
         }
         .result-section h3 {
             margin: 0 0 10px 0;
@@ -266,7 +297,9 @@
             width: 30px;
             height: 30px;
             border: none;
-            background: #f44;
+            background: rgba(255, 59, 48, 0.8);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             color: white;
             border-radius: 50%;
             cursor: pointer;
@@ -276,9 +309,10 @@
             align-items: center;
             justify-content: center;
             z-index: 10;
+            transition: background 0.15s;
         }
         .close-btn:hover {
-            background: #d33;
+            background: rgba(255, 59, 48, 1);
         }
         .markdown-body { line-height: 1.6; font-size: 14px; }
         .markdown-body h2 { color: #667eea; margin-top: 20px; }
@@ -289,39 +323,44 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
             z-index: 2000;
             align-items: center;
             justify-content: center;
         }
         .progress-modal.show { display: flex; }
         .progress-modal-content {
-            background: white;
-            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: blur(40px) saturate(200%);
+            -webkit-backdrop-filter: blur(40px) saturate(200%);
+            border-radius: 16px;
             padding: 30px;
             width: 500px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12), 0 0 1px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.5);
         }
         .progress-modal-title {
             font-size: 18px;
             font-weight: 600;
             margin-bottom: 20px;
-            color: #333;
+            color: #1d1d1f;
         }
         .progress-modal-bar {
             width: 100%;
             height: 40px;
-            background: #e0e0e0;
-            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.06);
+            border-radius: 12px;
             overflow: visible;
             margin-bottom: 15px;
             position: relative;
         }
         .progress-modal-fill {
             height: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%);
             transition: width 0.3s;
-            border-radius: 8px;
+            border-radius: 12px;
         }
         .progress-modal-text {
             position: absolute;
@@ -359,7 +398,7 @@
             <div class="panel">
                 <h2 style="font-size: 14px;">待分析股票列表</h2>
                 <div style="margin: 4px 0 0 0; position: relative;">
-                    <input type="text" id="stockSearch" placeholder="搜索或批量输入股票（逗号/空格分隔，回车选中）..." style="width: 100%; padding: 6px 28px 6px 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 13px; margin-bottom: 2px; box-sizing: border-box;" oninput="filterStocks()" onkeydown="handleStockSearchEnter(event)" onpaste="handleStockPaste(event)">
+                    <input type="text" id="stockSearch" placeholder="搜索或批量输入股票（逗号/空格分隔，回车选中）..." style="width: 100%; padding: 6px 28px 6px 8px; border: 1px solid rgba(0,0,0,0.08); border-radius: 8px; font-size: 13px; margin-bottom: 2px; box-sizing: border-box; background: rgba(255,255,255,0.5);" oninput="filterStocks()" onkeydown="handleStockSearchEnter(event)" onpaste="handleStockPaste(event)">
                     <span onclick="document.getElementById('stockSearch').value='';filterStocks()" style="position: absolute; right: 8px; top: 6px; cursor: pointer; color: #aaa; font-size: 14px; line-height: 1;">&times;</span>
                 </div>
                 <div style="margin: 2px 0; display: flex; align-items: center; gap: 2px;">
@@ -382,7 +421,7 @@
             <div class="panel">
                 <h2 style="font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
                     <span>批次记录</span>
-                    <button onclick="clearHistory()" style="padding: 4px 12px; background: #f44; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">清空历史</button>
+                    <button onclick="clearHistory()" style="padding: 4px 12px; background: rgba(255,59,48,0.8); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 11px;">清空历史</button>
                 </h2>
                 <div class="batch-list" id="batchList">
                     <p style="text-align: center; color: #999;">加载中...</p>
@@ -395,17 +434,19 @@
                 <span>批次股票列表</span>
                 <div style="display:flex;gap:6px;align-items:center;">
                     <button class="fullscreen-btn" onclick="toggleFullscreen(this.closest('.panel'))">⛶ 全屏</button>
-                    <button id="batchActionsBar" class="btn btn-success" onclick="batchDeepAnalysis()" style="display:none;">批量深度分析 (<span id="batchSelectedCount">0</span>)</button>
+                    <button id="batchPrescreeningBtn" class="btn" style="background:#e67e22;" disabled onclick="batchPrescreeningUpdate()">涨跌初筛 (<span id="batchPrescreeningCount">0</span>)</button>
+                    <button id="batchKlineBtn" class="btn btn-success" disabled onclick="batchKlineUpdate()">K线初筛 (<span id="batchKlineCount">0</span>)</button>
+                    <button id="batchActionsBar" class="btn btn-success" disabled onclick="batchDeepAnalysis()">批量深度分析 (<span id="batchSelectedCount">0</span>)</button>
                 </div>
             </h2>
             <div style="overflow-x: auto; max-height: 600px;">
                 <table id="stockResultTable" style="min-width: 900px; border-collapse: collapse; display: none; font-size: 11px;">
                     <thead>
-                        <tr style="background:#f5f5f5; border-bottom:2px solid #667eea;">
-                            <th style="padding:6px;text-align:center;position:sticky;left:0;background:#f5f5f5;z-index:10;min-width:40px;">
+                        <tr style="background:rgba(255,255,255,0.4); border-bottom:2px solid rgba(102,126,234,0.3);">
+                            <th style="padding:6px;text-align:center;position:sticky;left:0;background:rgba(255,255,255,0.6);z-index:10;min-width:40px;">
                                 <input type="checkbox" id="selectAllStocks" onchange="toggleSelectAllStocks()" style="cursor:pointer;">
                             </th>
-                            <th style="padding:6px;text-align:left;position:sticky;left:40px;background:#f5f5f5;z-index:10;min-width:96px;">股票名称</th>
+                            <th style="padding:6px;text-align:left;position:sticky;left:40px;background:rgba(255,255,255,0.6);z-index:10;min-width:62px;">股票</th>
                             <th style="padding:6px;text-align:left;">数据详情（涨跌幅 / K线 / CAN SLIM 分行展示）</th>
                         </tr>
                     </thead>
@@ -724,16 +765,16 @@
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="font-weight: 600; font-size: 12px;">${batch.is_pinned ? '📌 ' : ''}${batch.batch_name}</div>
                         <div style="display:flex;gap:4px;flex-shrink:0;">
-                            <button onclick="event.stopPropagation(); pinBatch(${batch.id})" title="${batch.is_pinned ? '取消置顶' : '置顶'}" style="padding: 2px 6px; background: ${batch.is_pinned ? '#ff9800' : '#aaa'}; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">${batch.is_pinned ? '取消置顶' : '置顶'}</button>
-                            <button onclick="event.stopPropagation(); renameBatch(${batch.id}, '${batch.batch_name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')" style="padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">重命名</button>
-                            <button onclick="event.stopPropagation(); deleteBatch(${batch.id})" style="padding: 2px 6px; background: #f44; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">删除</button>
+                            <button onclick="event.stopPropagation(); pinBatch(${batch.id})" title="${batch.is_pinned ? '取消置顶' : '置顶'}" style="padding: 2px 6px; background: ${batch.is_pinned ? 'rgba(255,152,0,0.8)' : 'rgba(142,142,147,0.6)'}; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 10px;">${batch.is_pinned ? '取消置顶' : '置顶'}</button>
+                            <button onclick="event.stopPropagation(); renameBatch(${batch.id}, '${batch.batch_name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')" style="padding: 2px 6px; background: rgba(102,126,234,0.8); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 10px;">重命名</button>
+                            <button onclick="event.stopPropagation(); deleteBatch(${batch.id})" style="padding: 2px 6px; background: rgba(255,59,48,0.75); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 10px;">删除</button>
                         </div>
                     </div>
-                    <div style="font-size: 11px; color: #666; margin-top: 2px;">
+                    <div style="font-size: 11px; color: #86868b; margin-top: 2px;">
                         总数: ${batch.total_count} | 成功: ${batch.success_count} | 失败: ${batch.completed_count - batch.success_count} | 
                         状态: ${batch.status === 'completed' ? '✅ 已完成' : '⏳ 进行中'} | 
                         ${formatLocalTime(batch.created_at)}
-                        ${batch.status !== 'completed' && batch.completed_count < batch.total_count ? '<button onclick="event.stopPropagation(); continueBatch(' + batch.id + ')" style="margin-left: 10px; padding: 2px 8px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">继续分析</button>' : ''}
+                        ${batch.status !== 'completed' && batch.completed_count < batch.total_count ? '<button onclick="event.stopPropagation(); continueBatch(' + batch.id + ')" style="margin-left: 10px; padding: 2px 8px; background: rgba(76,175,80,0.8); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 10px;">继续分析</button>' : ''}
                     </div>
                 </div>
             `).join('');
@@ -808,11 +849,11 @@
                 const dimCell = (key, label) => {
                     const score = stock[`${key}_score`];
                     const deep = stock[`${key}_deep_score`];
-                    if (!score && !deep) return `<div style="display:inline-flex;flex-direction:column;align-items:center;min-width:56px;padding:2px 4px;margin:0 2px;border-right:1px solid #e0e0e0;">
+                    if (!score && !deep) return `<div style="display:inline-flex;flex-direction:column;align-items:center;min-width:56px;padding:2px 4px;margin:0 2px;border-right:1px solid rgba(0,0,0,0.06);">
                         <span style="font-weight:600;color:#bbb;font-size:10px;">${label}</span>
                         <span style="color:#ccc;font-size:10px;">-</span>
                     </div>`;
-                    return `<div style="display:inline-flex;flex-direction:column;align-items:center;min-width:56px;padding:2px 4px;margin:0 2px;border-right:1px solid #e0e0e0;">
+                    return `<div style="display:inline-flex;flex-direction:column;align-items:center;min-width:56px;padding:2px 4px;margin:0 2px;border-right:1px solid rgba(0,0,0,0.06);">
                         <span style="font-weight:600;color:#667eea;font-size:10px;">${label}: ${score||''}${deep ? `<span style="color:#ff6b6b">/${deep}</span>` : ''}</span>
                         <span style="display:flex;gap:2px;margin-top:1px;">
                             ${score ? btn('结果', `showPrompt('${stockKey}','${key}','${label}')`, '#667eea') : ''}
@@ -821,42 +862,42 @@
                     </div>`;
                 };
 
-                const rowStyle = 'border-top:1px solid #e0e0e0;';
-                const nameCell = (rowspan) => `<td rowspan="${rowspan}" style="padding:6px;position:sticky;left:40px;background:white;z-index:5;vertical-align:top;">
-                    <div style="font-weight:600;">${stock.stock_name}</div>
-                    <div style="font-size:10px;color:#999;">${stock.stock_code}</div>
-                    <div style="font-size:10px;color:#bbb;white-space:nowrap;">${formatLocalTime(stock.completed_at)}</div>
-                    <button onclick="showHistory('${stock.stock_name}')" style="margin-top:3px;padding:2px 6px;background:#607d8b;color:white;border:none;border-radius:3px;cursor:pointer;font-size:9px;">历史记录</button>
+                const rowStyle = 'border-top:1px solid rgba(0,0,0,0.06);';
+                const nameCell = (rowspan) => `<td rowspan="${rowspan}" style="padding:4px;position:sticky;left:40px;background:rgba(255,255,255,0.7);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:5;vertical-align:top;max-width:62px;">
+                    <div style="font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${stock.stock_name.replace(/ *\(.*\)$/, '')}</div>
+                    <div style="font-size:10px;color:#667eea;white-space:nowrap;">${stock.stock_code.replace(/ *\(.*\)$/, '')}</div>
+                    <div style="font-size:9px;color:#aeaeb2;white-space:nowrap;">${formatLocalTime(stock.completed_at)}</div>
+                    <button onclick="showHistory('${stock.stock_name}')" style="margin-top:2px;padding:2px 6px;background:rgba(96,125,139,0.75);color:white;border:none;border-radius:6px;cursor:pointer;font-size:9px;">can slim历史记录</button>
                 </td>`;
-                const checkCell = (rowspan) => `<td rowspan="${rowspan}" style="padding:6px;text-align:center;position:sticky;left:0;background:white;z-index:5;vertical-align:top;">
+                const checkCell = (rowspan) => `<td rowspan="${rowspan}" style="padding:6px;text-align:center;position:sticky;left:0;background:rgba(255,255,255,0.7);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:5;vertical-align:top;">
                     <input type="checkbox" class="stock-checkbox" data-stock-id="${stock.id}" onchange="updateBatchSelection()" style="cursor:pointer;">
                 </td>`;
 
                 // 行1: 涨跌幅数据 - 内部分列展示
-                const row1 = `<tr style="${rowStyle}background:#fffde7;">
+                const row1 = `<tr style="${rowStyle}background:rgba(255,251,235,0.45);">
                     ${checkCell(3)}
                     ${nameCell(3)}
                     <td style="padding:5px 8px;font-size:11px;">
                         <div style="display:flex;align-items:center;gap:0;">
-                            <div style="font-weight:600;color:#888;white-space:nowrap;margin-right:8px;">📈 涨跌幅</div>
+                            <div style="font-weight:600;color:#86868b;white-space:nowrap;margin-right:8px;">📈 涨跌幅</div>
                             <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap;">
-                                <div style="display:inline-flex;flex-direction:column;align-items:center;min-width:72px;padding:2px 8px;border-right:1px solid #e8e0c0;">
-                                    <span style="font-size:9px;color:#999;">最新价</span>
-                                    <span style="font-weight:600;color:#333;">${stock.latest_price ?? '-'}</span>
+                                <div style="display:inline-flex;flex-direction:column;align-items:center;min-width:72px;padding:2px 8px;border-right:1px solid rgba(0,0,0,0.06);">
+                                    <span style="font-size:9px;color:#86868b;">最新价</span>
+                                    <span style="font-weight:600;color:#1d1d1f;">${stock.latest_price ?? '-'}</span>
                                 </div>
-                                <div style="display:inline-flex;flex-direction:column;align-items:center;min-width:72px;padding:2px 8px;border-right:1px solid #e8e0c0;">
-                                    <span style="font-size:9px;color:#999;">涨跌幅</span>
+                                <div style="display:inline-flex;flex-direction:column;align-items:center;min-width:72px;padding:2px 8px;border-right:1px solid rgba(0,0,0,0.06);">
+                                    <span style="font-size:9px;color:#86868b;">涨跌幅</span>
                                     ${stock.change_pct != null
                                         ? `<span style="color:${stock.change_pct>=0?'#e53935':'#4caf50'};font-weight:700;">${stock.change_pct}%</span>`
                                         : '<span style="color:#ccc;">-</span>'}
                                 </div>
-                                <div style="display:inline-flex;flex-direction:column;align-items:center;min-width:72px;padding:2px 8px;border-right:1px solid #e8e0c0;">
-                                    <span style="font-size:9px;color:#999;">120天最高价</span>
+                                <div style="display:inline-flex;flex-direction:column;align-items:center;min-width:72px;padding:2px 8px;border-right:1px solid rgba(0,0,0,0.06);">
+                                    <span style="font-size:9px;color:#86868b;">120天最高价</span>
                                     <span style="font-weight:600;">${stock.high_price_120 ?? '-'}</span>
                                 </div>
                                 <div style="display:inline-flex;flex-direction:column;align-items:center;min-width:80px;padding:2px 8px;">
-                                    <span style="font-size:9px;color:#999;">最高价日期</span>
-                                    <span style="color:#666;">${stock.high_price_date_120 ?? '-'}</span>
+                                    <span style="font-size:9px;color:#86868b;">最高价日期</span>
+                                    <span style="color:#48484a;">${stock.high_price_date_120 ?? '-'}</span>
                                 </div>
                             </div>
                         </div>
@@ -865,8 +906,8 @@
 
                 // 行2: K线数据 - 内部分列展示
                 const klineCol = (label, scoreVal, resultKey, promptKey) => {
-                    return `<div style="display:inline-flex;flex-direction:column;align-items:center;min-width:100px;padding:2px 8px;border-right:1px solid #ddd0f0;">
-                        <span style="font-size:9px;color:#999;">${label}</span>
+                    return `<div style="display:inline-flex;flex-direction:column;align-items:center;min-width:100px;padding:2px 8px;border-right:1px solid rgba(0,0,0,0.06);">
+                        <span style="font-size:9px;color:#86868b;">${label}</span>
                         ${scoreVal ? `<b style="color:#667eea;">${scoreVal}</b>
                             <span style="display:flex;gap:2px;margin-top:1px;">
                                 ${btn('结果', `showPrompt('${stockKey}','${resultKey}','K线(${label})')`, '#667eea')}
@@ -874,10 +915,10 @@
                             </span>` : '<span style="color:#ccc;">-</span>'}
                     </div>`;
                 };
-                const row2 = `<tr style="${rowStyle}background:#f3f0ff;">
+                const row2 = `<tr style="${rowStyle}background:rgba(238,235,255,0.4);">
                     <td style="padding:5px 8px;font-size:11px;">
                         <div style="display:flex;align-items:center;gap:0;">
-                            <div style="font-weight:600;color:#888;white-space:nowrap;margin-right:8px;">📊 K线</div>
+                            <div style="font-weight:600;color:#86868b;white-space:nowrap;margin-right:8px;">📊 K线</div>
                             <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap;">
                                 ${klineCol('未持有', stock.kline_score, 'kline', 'kline_score_prompt')}
                                 ${klineCol('持有', stock.kline_hold_score, 'kline_hold', 'kline_score_prompt')}
@@ -887,10 +928,10 @@
                 </tr>`;
 
                 // 行3: CAN SLIM维度 - 内部分列展示
-                const row3 = `<tr style="${rowStyle}background:#f0f4ff;">
+                const row3 = `<tr style="${rowStyle}background:rgba(230,238,255,0.4);">
                     <td style="padding:5px 8px;font-size:11px;">
                         <div style="display:flex;align-items:center;gap:0;">
-                            <div style="font-weight:600;color:#888;white-space:nowrap;margin-right:8px;">🔬 CAN SLIM</div>
+                            <div style="font-weight:600;color:#86868b;white-space:nowrap;margin-right:8px;">🔬 CAN SLIM</div>
                             <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap;">
                                 ${['c','a','n','s','l','i','m'].map(k => dimCell(k, k.toUpperCase())).join('')}
                             </div>
@@ -947,13 +988,13 @@
                         const summary = stock[`${dim.key}_summary`];
                         
                         content += `
-                            <div class="dimension-card" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background: #f9f9f9;">
+                            <div class="dimension-card" style="border: 1px solid rgba(0,0,0,0.06); border-radius: 12px; padding: 15px; background: rgba(255,255,255,0.45);">
                                 <h4 style="margin: 0 0 10px 0; color: #667eea; font-size: 14px;">
                                     ${dim.name} 
                                     ${score ? `<span style="color: #4caf50; font-weight: 600;">(${score}分)</span>` : '<span style="color: #999;">(未分析)</span>'}
                                 </h4>
                                 ${summary ? `<p style="margin: 0 0 10px 0; font-size: 12px; color: #666; line-height: 1.4;">${summary}</p>` : ''}
-                                ${prompt ? `<details style="margin-top: 10px;"><summary style="cursor: pointer; font-size: 11px; color: #667eea;">查看提示词</summary><pre style="margin: 5px 0 0 0; font-size: 10px; background: #fff; padding: 8px; border-radius: 4px; max-height: 150px; overflow-y: auto; white-space: pre-wrap;">${prompt}</pre></details>` : ''}
+                                ${prompt ? `<details style="margin-top: 10px;"><summary style="cursor: pointer; font-size: 11px; color: #667eea;">查看提示词</summary><pre style="margin: 5px 0 0 0; font-size: 10px; background: rgba(255,255,255,0.5); padding: 8px; border-radius: 8px; max-height: 150px; overflow-y: auto; white-space: pre-wrap;">${prompt}</pre></details>` : ''}
                             </div>
                         `;
                     });
@@ -963,12 +1004,12 @@
                     // K线分析
                     if (stock.kline_score || stock.kline_prompt) {
                         content += `
-                            <div class="kline-section" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #f0f7ff;">
+                            <div class="kline-section" style="border: 1px solid rgba(0,0,0,0.06); border-radius: 12px; padding: 15px; margin-bottom: 15px; background: rgba(230,238,255,0.35);">
                                 <h4 style="margin: 0 0 10px 0; color: #667eea; font-size: 14px;">
                                     K线技术分析 
                                     ${stock.kline_score ? `<span style="color: #4caf50; font-weight: 600;">(${stock.kline_score}分)</span>` : '<span style="color: #999;">(未分析)</span>'}
                                 </h4>
-                                ${stock.kline_prompt ? `<details><summary style="cursor: pointer; font-size: 11px; color: #667eea;">查看分析详情</summary><pre style="margin: 5px 0 0 0; font-size: 10px; background: #fff; padding: 8px; border-radius: 4px; max-height: 200px; overflow-y: auto; white-space: pre-wrap;">${stock.kline_prompt}</pre></details>` : ''}
+                                ${stock.kline_prompt ? `<details><summary style="cursor: pointer; font-size: 11px; color: #667eea;">查看分析详情</summary><pre style="margin: 5px 0 0 0; font-size: 10px; background: rgba(255,255,255,0.5); padding: 8px; border-radius: 8px; max-height: 200px; overflow-y: auto; white-space: pre-wrap;">${stock.kline_prompt}</pre></details>` : ''}
                             </div>
                         `;
                     }
@@ -976,9 +1017,9 @@
                     // 整体分析
                     if (stock.overall_analysis) {
                         content += `
-                            <div class="overall-section" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background: #f0fff0;">
+                            <div class="overall-section" style="border: 1px solid rgba(0,0,0,0.06); border-radius: 12px; padding: 15px; background: rgba(230,255,230,0.35);">
                                 <h4 style="margin: 0 0 10px 0; color: #667eea; font-size: 14px;">整体分析总结</h4>
-                                <pre style="margin: 0; font-size: 12px; background: #fff; padding: 10px; border-radius: 4px; white-space: pre-wrap; line-height: 1.4;">${stock.overall_analysis}</pre>
+                                <pre style="margin: 0; font-size: 12px; background: rgba(255,255,255,0.5); padding: 10px; border-radius: 8px; white-space: pre-wrap; line-height: 1.4;">${stock.overall_analysis}</pre>
                             </div>
                         `;
                     }
@@ -1219,7 +1260,7 @@
             
             document.getElementById('modalTitle').innerHTML = `
                 ${promptData.name} - ${dimName}维度打分详情
-                <button onclick="copyPromptContent()" style="margin-left: 20px; padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">📋 复制内容</button>
+                <button onclick="copyPromptContent()" style="margin-left: 20px; padding: 8px 16px; background: rgba(76,175,80,0.85); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px;">📋 复制内容</button>
             `;
             
             // 存储当前提示词内容供复制使用
@@ -1240,11 +1281,11 @@
                     const mdContent = jsonData.content || jsonData.summary || jsonData.analysis || '';
                     if (mdContent) {
                         const formattedJson = JSON.stringify({...jsonData, content: undefined, summary: undefined, analysis: undefined}, null, 2).replace(/,?\s*"(content|summary|analysis)":\s*null/g, '');
-                        content = `<pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; margin-bottom:12px;">${formattedJson}</pre>`
+                        content = `<pre style="background: rgba(0,0,0,0.04); padding: 10px; border-radius: 10px; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; margin-bottom:12px;">${formattedJson}</pre>`
                                 + `<div class="markdown-body">${marked.parse(mdContent)}</div>`;
                     } else {
                         const formattedJson = JSON.stringify(jsonData, null, 2);
-                        content = `<pre style="background: #f5f5f5; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;">${formattedJson}</pre>`;
+                        content = `<pre style="background: rgba(0,0,0,0.04); padding: 15px; border-radius: 10px; overflow-x: auto; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;">${formattedJson}</pre>`;
                     }
                 } catch (e) {
                     content = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-size: 12px; line-height: 1.6;">${prompt}</pre>`;
@@ -1293,7 +1334,11 @@
             
             const count = batchSelectedStockIds.size;
             document.getElementById('batchSelectedCount').textContent = count;
-            document.getElementById('batchActionsBar').style.display = count > 0 ? 'inline-block' : 'none';
+            document.getElementById('batchActionsBar').disabled = count === 0;
+            document.getElementById('batchPrescreeningBtn').disabled = count === 0;
+            document.getElementById('batchPrescreeningCount').textContent = count;
+            document.getElementById('batchKlineBtn').disabled = count === 0;
+            document.getElementById('batchKlineCount').textContent = count;
             
             // 更新全选框状态
             const totalCheckboxes = document.querySelectorAll('.stock-checkbox').length;
@@ -1370,6 +1415,77 @@
                 alert('批量深度分析失败: ' + error.message);
             } finally {
                 document.getElementById('deepAnalysisStockList').style.display = 'none';
+                hideProgressModal();
+                enableUI();
+            }
+        }
+
+        async function batchPrescreeningUpdate() {
+            if (!currentBatchId || batchSelectedStockIds.size === 0) {
+                alert('请先选择批次并勾选股票');
+                return;
+            }
+            showProgressModal('正在执行涨跌初筛更新...');
+            disableUI();
+            try {
+                const resp = await fetch(`/api/batch/${currentBatchId}/prescreening_update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(Array.from(batchSelectedStockIds))
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    updateProgressModal(data.data.updated_count, data.data.updated_count, `✅ 涨跌初筛完成，更新 ${data.data.updated_count} 只股票`);
+                    await loadBatchStocks(currentBatchId);
+                } else {
+                    updateProgressModal(0, 100, '❌ 失败: ' + (data.detail || '未知错误'));
+                }
+            } catch(e) {
+                updateProgressModal(0, 100, '❌ 失败: ' + e.message);
+            } finally {
+                hideProgressModal();
+                enableUI();
+            }
+        }
+
+        async function batchKlineUpdate() {
+            if (!currentBatchId || batchSelectedStockIds.size === 0) {
+                alert('请先选择批次并勾选股票');
+                return;
+            }
+            showProgressModal('正在执行K线初筛更新...');
+            disableUI();
+            try {
+                const ids = Array.from(batchSelectedStockIds).join(',');
+                await new Promise((resolve, reject) => {
+                    const url = `/api/batch/${currentBatchId}/kline_execute_update?stock_ids=${ids}`;
+                    const eventSource = new EventSource(url);
+                    eventSource.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            if (data.stage === 'start') {
+                                updateProgressModal(data.completed, data.total, '开始K线初筛...');
+                            } else if (data.stage === 'progress') {
+                                const info = data.error
+                                    ? `❌ ${data.stock_name} 失败`
+                                    : `✅ ${data.stock_name} 完成 (${data.score})`;
+                                updateProgressModal(data.completed, data.total, info);
+                            } else if (data.stage === 'done') {
+                                eventSource.close();
+                                updateProgressModal(data.completed, data.total, '✅ K线初筛全部完成');
+                                resolve();
+                            } else if (data.stage === 'error') {
+                                eventSource.close();
+                                reject(new Error(data.message));
+                            }
+                        } catch(e) { console.error('解析事件失败:', e); }
+                    };
+                    eventSource.onerror = () => { eventSource.close(); reject(new Error('连接失败')); };
+                });
+                await loadBatchStocks(currentBatchId);
+            } catch(e) {
+                updateProgressModal(0, 100, '❌ 失败: ' + e.message);
+            } finally {
                 hideProgressModal();
                 enableUI();
             }

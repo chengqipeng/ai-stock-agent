@@ -83,6 +83,95 @@ async def create_prescreening_batch(request: BatchRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/batch/{batch_id}/prescreening_update")
+async def update_batch_prescreening(batch_id: int, stock_ids: List[int]):
+    """对已有批次中指定股票执行涨跌初筛，更新到当前记录"""
+    try:
+        semaphore = asyncio.Semaphore(10)
+
+        async def fetch_and_save(stock_id):
+            async with semaphore:
+                try:
+                    stock = db_manager.get_stock_detail(stock_id)
+                    if not stock or stock['batch_id'] != batch_id:
+                        return {'stock_name': str(stock_id), 'success': False}
+                    stock_info = get_stock_info_by_name(stock['stock_name'])
+                    result = await get_120day_high_to_latest_change(stock_info)
+                    db_manager.update_stock_prescreening_data(
+                        stock_id,
+                        result.get('涨跌幅(%)'),
+                        result.get('120天最高价'),
+                        result.get('120天最高价日期'),
+                        result.get('最新收盘价')
+                    )
+                    return {**stock, **result, 'success': True}
+                except Exception as e:
+                    logger.warning(f"初筛更新失败 {stock_id}: {e}")
+                    return {'stock_name': str(stock_id), 'success': False}
+
+        results = await asyncio.gather(*[fetch_and_save(sid) for sid in stock_ids])
+        success_results = [r for r in results if r.get('success')]
+        success_results.sort(key=lambda x: (x.get('涨跌幅(%)') is None, x.get('涨跌幅(%)', 0) or 0))
+        return {"success": True, "data": {"batch_id": batch_id, "stocks": success_results, "updated_count": len(success_results)}}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/batch/{batch_id}/kline_execute_update")
+async def execute_batch_kline_update(batch_id: int, stock_ids: str = Query(...), deep_thinking: bool = Query(False)):
+    """对已有批次中指定股票执行K线初筛，SSE流式更新到当前记录"""
+    sid_list = [int(s) for s in stock_ids.split(',') if s.strip()]
+
+    async def generate_progress():
+        try:
+            total = len(sid_list)
+            completed = 0
+            yield f"data: {json.dumps({'stage': 'start', 'completed': completed, 'total': total})}\n\n"
+
+            semaphore = asyncio.Semaphore(5)
+
+            async def analyze_stock(stock_id):
+                async with semaphore:
+                    try:
+                        stock = db_manager.get_stock_detail(stock_id)
+                        if not stock or stock['batch_id'] != batch_id:
+                            return {'success': False, 'stock_name': str(stock_id), 'error': 'not found'}
+                        stock_info = get_stock_info_by_name(stock['stock_name'])
+                        prompt, result = await get_strategy_engine_analysis(stock_info)
+                        not_hold_grade, not_hold_content, hold_grade, hold_content = extract_grade_and_content(result)
+                        db_manager.update_stock_dimension_score(stock_id, 'kline', not_hold_grade, not_hold_content, None, prompt)
+                        with __import__('sqlite3').connect(db_manager.db_path) as _conn:
+                            _conn.execute(
+                                "UPDATE stock_analysis_detail SET kline_hold_score=?, kline_hold_prompt=? WHERE id=?",
+                                (hold_grade, hold_content, stock_id)
+                            )
+                        numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)
+                        if numeric_score is not None:
+                            update_stock_score(
+                                "data_results/stock_to_score_list/stock_score_list.md",
+                                stock_info.stock_name,
+                                stock_info.stock_code_normalize,
+                                numeric_score
+                            )
+                        return {'success': True, 'stock_name': stock['stock_name'], 'score': not_hold_grade}
+                    except Exception as e:
+                        logger.error(f"K线更新失败 {stock_id}: {e}", exc_info=True)
+                        return {'success': False, 'stock_name': str(stock_id), 'error': str(e)}
+
+            tasks = [analyze_stock(sid) for sid in sid_list]
+            for task in asyncio.as_completed(tasks):
+                result = await task
+                completed += 1
+                if result['success']:
+                    yield f"data: {json.dumps({'stage': 'progress', 'completed': completed, 'total': total, 'stock_name': result['stock_name'], 'score': result['score']})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'stage': 'progress', 'completed': completed, 'total': total, 'stock_name': result['stock_name'], 'error': result.get('error', '')})}\n\n"
+
+            yield f"data: {json.dumps({'stage': 'done', 'completed': total, 'total': total})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'stage': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(generate_progress(), media_type="text/event-stream")
+
 @app.post("/api/batch_analysis")
 async def create_batch_analysis(request: BatchRequest):
     """创建批量分析批次"""
