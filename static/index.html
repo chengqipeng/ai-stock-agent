@@ -564,7 +564,7 @@
                     <button class="btn btn-primary" onclick="selectAll()">全选</button>
                     <button class="btn btn-primary" onclick="deselectAll()">取消全选</button>
                 </div>
-                <div style="margin: 2px 0; display: flex; align-items: center; gap: 2px; flex-wrap: wrap;">
+                <div style="margin: 2px 0; display: flex; align-items: center; gap: 2px; flex-wrap: nowrap;">
                     <button class="btn btn-success" onclick="startBatchAnalysis()" id="startBtn">K线初筛 (<span id="selectedCount">0</span>)</button>
                     <button class="btn" style="background:#e67e22;" onclick="openPrescreening()">涨跌初筛(<span id="prescreeningCount">0</span>)</button>
                     <button class="btn" style="background:#5c6bc0;" onclick="startCanslimPrescreening()">CAN SLIM初筛(<span id="canslimCount">0</span>)</button>
@@ -1012,6 +1012,7 @@
                 const dimCell = (key, label) => {
                     const score = stock[`${key}_score`];
                     const deep = stock[`${key}_deep_score`];
+                    const hasPrescreening = key === 'c' || key === 'a';
                     if (!score && !deep) return `<div class="data-metric">
                         <span class="dm-label">${label}</span>
                         <span class="dm-value empty">-</span>
@@ -1019,8 +1020,10 @@
                     return `<div class="data-metric">
                         <span class="dm-label">${label}: ${score||''}${deep ? `<span style="color:#ff6b6b">/${deep}</span>` : ''}</span>
                         <div class="dm-actions">
-                            ${score ? dbtn('结果', `showPrompt('${stockKey}','${key}','${label}')`, 'primary') : ''}
+                            ${hasPrescreening && score ? dbtn('初筛', `showPrompt('${stockKey}','${key}','${label}')`, 'primary') : ''}
+                            ${hasPrescreening && score ? dbtn('初筛词', `showPrompt('${stockKey}','${key}_score_prompt','${label}')`, 'success') : ''}
                             ${deep ? dbtn('深度', `showPrompt('${stockKey}','${key}_deep','${label}')`, 'danger') : ''}
+                            ${deep ? dbtn('深度词', `showPrompt('${stockKey}','${key}_deep_score_prompt','${label}')`, 'success') : ''}
                         </div>
                     </div>`;
                 };
