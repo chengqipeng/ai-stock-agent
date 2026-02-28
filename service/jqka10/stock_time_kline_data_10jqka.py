@@ -42,7 +42,7 @@ async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None) 
             "price":          price,
             "amount":         float(parts[2]),
             "avg_price":      float(parts[3]),
-            "volume":         int(parts[4]),
+            "volume":         int(float(parts[4])),
             "change_percent": change_pct,
         })
 
