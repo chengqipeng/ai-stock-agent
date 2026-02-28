@@ -181,6 +181,79 @@ async def create_batch_analysis(request: BatchRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/batch_canslim_prescreening/{batch_id}")
+async def execute_batch_canslim_prescreening(batch_id: int, deep_thinking: bool = Query(True)):
+    """执行CAN SLIM C/A维度初筛（SSE流式响应，默认使用深度思考模式）"""
+    async def generate_progress():
+        try:
+            stocks = db_manager.get_batch_stocks(batch_id)
+            total = len(stocks)
+            completed = 0
+
+            yield f"data: {json.dumps({'stage': 'start', 'completed': completed, 'total': total})}\n\n"
+
+            semaphore = asyncio.Semaphore(5)
+
+            async def analyze_stock(stock):
+                async with semaphore:
+                    try:
+                        stock_info = get_stock_info_by_name(stock['stock_name'])
+                        from service.can_slim.can_slim_service import CAN_SLIM_SERVICES
+                        c_service = CAN_SLIM_SERVICES['C'](stock_info)
+                        a_service = CAN_SLIM_SERVICES['A'](stock_info)
+                        c_service.data_cache = await c_service.collect_data()
+                        await c_service.process_data()
+                        c_score_prompt = c_service.build_prompt(use_score_output=True)
+                        a_service.data_cache = await a_service.collect_data()
+                        await a_service.process_data()
+                        a_score_prompt = a_service.build_prompt(use_score_output=True)
+                        c_result = await execute_can_slim_score('C', stock_info, deep_thinking)
+                        a_result = await execute_can_slim_score('A', stock_info, deep_thinking)
+                        c_score = extract_score_from_result(c_result)
+                        a_score = extract_score_from_result(a_result)
+                        db_manager.update_stock_dimension_score(stock['id'], 'c', c_score, c_result, None, c_score_prompt)
+                        db_manager.update_stock_dimension_score(stock['id'], 'a', a_score, a_result, None, a_score_prompt)
+                        db_manager.update_stock_status(stock['id'], 'completed', None, deep_thinking)
+                        return {'success': True, 'stock_name': stock['stock_name'], 'score': f'C:{c_score}, A:{a_score}'}
+                    except Exception as e:
+                        logger.error(f"CAN SLIM初筛失败 {stock['stock_name']}: {e}", exc_info=True)
+                        db_manager.update_stock_status(stock['id'], 'failed', str(e), deep_thinking)
+                        return {'success': False, 'stock_name': stock['stock_name'], 'error': str(e)}
+
+            tasks = [analyze_stock(stock) for stock in stocks]
+
+            for task in asyncio.as_completed(tasks):
+                result = await task
+                completed += 1
+                db_manager.update_batch_progress(batch_id)
+
+                if result['success']:
+                    data = json.dumps({
+                        'stage': 'progress',
+                        'completed': completed,
+                        'total': total,
+                        'stock_name': result['stock_name'],
+                        'score': result['score']
+                    })
+                    yield f"data: {data}\n\n"
+                else:
+                    data = json.dumps({
+                        'stage': 'progress',
+                        'completed': completed,
+                        'total': total,
+                        'stock_name': result['stock_name'],
+                        'error': result['error']
+                    })
+                    yield f"data: {data}\n\n"
+
+            yield f"data: {json.dumps({'stage': 'done', 'completed': total, 'total': total})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'stage': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(generate_progress(), media_type="text/event-stream")
+
+
 @app.get("/api/batch_execute/{batch_id}")
 async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(False)):
     """执行批量分析（SSE流式响应）"""

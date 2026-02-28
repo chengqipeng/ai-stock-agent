@@ -560,9 +560,10 @@
                     <button class="btn btn-primary" onclick="selectAll()">全选</button>
                     <button class="btn btn-primary" onclick="deselectAll()">取消全选</button>
                 </div>
-                <div style="margin: 2px 0; display: flex; align-items: center; gap: 2px;">
+                <div style="margin: 2px 0; display: flex; align-items: center; gap: 2px; flex-wrap: wrap;">
                     <button class="btn btn-success" onclick="startBatchAnalysis()" id="startBtn">K线初筛 (<span id="selectedCount">0</span>)</button>
                     <button class="btn" style="background:#e67e22;" onclick="openPrescreening()">涨跌初筛(<span id="prescreeningCount">0</span>)</button>
+                    <button class="btn" style="background:#5c6bc0;" onclick="startCanslimPrescreening()">CAN SLIM初筛(<span id="canslimCount">0</span>)</button>
                     <span id="progressSection" style="display: none; margin-left: 8px; padding: 5px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ddd; border-radius: 4px; font-size: 11px; font-weight: 600; vertical-align: top; margin-top: 5px;">
                         <span id="progressText" style="color: #fff;">0/0</span>
                     </span>
@@ -591,6 +592,7 @@
                     <button class="fullscreen-btn" onclick="toggleFullscreen(this.closest('.panel'))">⛶ 全屏</button>
                     <button id="batchPrescreeningBtn" class="btn" style="background:#e67e22;" disabled onclick="batchPrescreeningUpdate()">涨跌初筛 (<span id="batchPrescreeningCount">0</span>)</button>
                     <button id="batchKlineBtn" class="btn btn-success" disabled onclick="batchKlineUpdate()">K线初筛 (<span id="batchKlineCount">0</span>)</button>
+                    <button id="batchCanslimBtn" class="btn" style="background:#5c6bc0;" disabled onclick="batchCanslimPrescreening()">CAN SLIM初筛 (<span id="batchCanslimCount">0</span>)</button>
                     <button id="batchActionsBar" class="btn btn-success" disabled onclick="batchDeepAnalysis()">批量深度分析 (<span id="batchSelectedCount">0</span>)</button>
                 </div>
             </h2>
@@ -762,6 +764,7 @@
             });
             document.getElementById('selectedCount').textContent = selectedStocks.size;
             document.getElementById('prescreeningCount').textContent = selectedStocks.size;
+            document.getElementById('canslimCount').textContent = selectedStocks.size;
             document.getElementById('stockSearch').value = '';
             renderStockList();
             if (notFound.length) alert(`以下股票未找到：\n${notFound.join('、')}`);
@@ -805,6 +808,7 @@
             selectedStockKeys.forEach(key => selectedStocks.add(key));
             document.getElementById('selectedCount').textContent = selectedStocks.size;
             document.getElementById('prescreeningCount').textContent = selectedStocks.size;
+            document.getElementById('canslimCount').textContent = selectedStocks.size;
             document.getElementById('stockSearch').value = '';
             renderStockList();
         }
@@ -1478,6 +1482,8 @@
             document.getElementById('batchPrescreeningCount').textContent = count;
             document.getElementById('batchKlineBtn').disabled = count === 0;
             document.getElementById('batchKlineCount').textContent = count;
+            document.getElementById('batchCanslimBtn').disabled = count === 0;
+            document.getElementById('batchCanslimCount').textContent = count;
             
             // 更新全选框状态
             const totalCheckboxes = document.querySelectorAll('.stock-checkbox').length;
@@ -1800,6 +1806,80 @@
                 }
             } catch(e) {
                 alert('初筛失败: ' + e.message);
+            } finally {
+                hideProgressModal();
+                enableUI();
+            }
+        }
+
+        async function startCanslimPrescreening() {
+            if (selectedStocks.size === 0) {
+                alert('请至少选择一只股票');
+                return;
+            }
+            showProgressModal('正在执行CAN SLIM初筛...');
+            disableUI();
+            try {
+                const response = await fetch('/api/batch_analysis', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ stock_codes: Array.from(selectedStocks) })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    const batchId = data.data.batch_id;
+                    await executeCanslimPrescreening(batchId);
+                    loadBatchList();
+                }
+            } catch (error) {
+                alert('CAN SLIM初筛失败: ' + error.message);
+            } finally {
+                hideProgressModal();
+                enableUI();
+            }
+        }
+
+        async function executeCanslimPrescreening(batchId) {
+            return new Promise((resolve, reject) => {
+                const url = `/api/batch_canslim_prescreening/${batchId}`;
+                const eventSource = new EventSource(url);
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.stage === 'start') {
+                            updateProgressModal(data.completed, data.total, '开始CAN SLIM初筛...');
+                        } else if (data.stage === 'progress') {
+                            const info = data.error
+                                ? `❌ ${data.stock_name} 失败`
+                                : `✅ ${data.stock_name} 完成 (${data.score})`;
+                            updateProgressModal(data.completed, data.total, info);
+                        } else if (data.stage === 'done') {
+                            eventSource.close();
+                            updateProgressModal(data.completed, data.total, '✅ CAN SLIM初筛全部完成');
+                            resolve();
+                        } else if (data.stage === 'error') {
+                            eventSource.close();
+                            updateProgressModal(0, 100, '❌ 执行失败: ' + data.message);
+                            reject(new Error(data.message));
+                        }
+                    } catch (e) { console.error('解析事件失败:', e); }
+                };
+                eventSource.onerror = () => { eventSource.close(); reject(new Error('连接失败')); };
+            });
+        }
+
+        async function batchCanslimPrescreening() {
+            if (!currentBatchId || batchSelectedStockIds.size === 0) {
+                alert('请先选择批次并勾选股票');
+                return;
+            }
+            showProgressModal('正在执行CAN SLIM初筛更新...');
+            disableUI();
+            try {
+                await executeCanslimPrescreening(currentBatchId);
+                await loadBatchStocks(currentBatchId);
+            } catch(e) {
+                updateProgressModal(0, 100, '❌ 失败: ' + e.message);
             } finally {
                 hideProgressModal();
                 enableUI();
