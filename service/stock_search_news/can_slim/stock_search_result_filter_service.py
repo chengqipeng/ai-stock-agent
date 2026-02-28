@@ -115,13 +115,13 @@ if __name__ == "__main__":
         stock_info = get_stock_info_by_name("北方华创")
         result = await get_search_filter_result(stock_info)
         print("列表格式结果:")
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False))
 
         print("\n ==================== \n")
         
         result_dict = await get_search_filter_result_dict(stock_info)
         print("字典格式结果:")
-        print(json.dumps(result_dict, ensure_ascii=False, indent=2))
+        print(json.dumps(result_dict, ensure_ascii=False))
         
         print("\n通过category获取结果示例:")
         for category in result_dict.keys():

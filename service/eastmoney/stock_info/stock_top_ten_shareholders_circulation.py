@@ -189,17 +189,17 @@ if __name__ == "__main__":
         # # 测试 JSON 格式
         # result = await get_top_ten_shareholders_circulation_json(stock_info, "2024-09-30")
         # print("\n流通股前十大股东 (JSON格式):")
-        # print(json.dumps(result, ensure_ascii=False, indent=2))
+        # print(json.dumps(result, ensure_ascii=False))
         #
         # # 测试机构持股报告期
         # dates = await get_org_hold_report_dates(stock_info)
         # print("\n机构持股报告期列表:")
-        # print(json.dumps(dates, ensure_ascii=False, indent=2))
+        # print(json.dumps(dates, ensure_ascii=False))
 
         # 测试多个报告期的股东数据
         # multi_dates = await get_top_ten_shareholders_circulation_by_dates(stock_info, page_size=3, limit=3)
         # print("\n多个报告期的流通股前十大股东:")
-        # print(json.dumps(multi_dates[:10], ensure_ascii=False, indent=2))
+        # print(json.dumps(multi_dates[:10], ensure_ascii=False))
 
         # 测试指定字段
         filtered_data = await get_top_ten_shareholders_circulation_by_dates(
@@ -209,6 +209,6 @@ if __name__ == "__main__":
             fields=['report_date', 'holder_name', 'rank']
         )
         print("\n指定字段的股东数据:")
-        print(json.dumps(filtered_data, ensure_ascii=False, indent=2))
+        print(json.dumps(filtered_data, ensure_ascii=False))
 
     asyncio.run(main())

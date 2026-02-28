@@ -17,6 +17,6 @@ for _, row in sz_df.iterrows():
     stocks.append({"code": f"{code}.SZ", "name": name})
 
 with open('stocks.json', 'w', encoding='utf-8') as f:
-    json.dump(stocks, f, ensure_ascii=False, indent=2)
+    json.dump(stocks, f, ensure_ascii=False)
 
 print(f"成功转换 {len(stocks)} 只股票")

@@ -189,7 +189,7 @@ if __name__ == "__main__":
         # 测试 JSON 格式
         result = await get_fund_flow_history(stock_info)
         print("资金流向历史数据 (JSON格式):")
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())
 

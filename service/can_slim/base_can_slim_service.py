@@ -84,7 +84,7 @@ class BaseCanSlimService(ABC):
     
     def to_json(self, data: Any) -> str:
         """将数据转换为JSON字符串"""
-        return json.dumps(data, ensure_ascii=False, indent=2)
+        return json.dumps(data, ensure_ascii=False)
     
     def get_final_output_instruction(self) -> str:
         """获取最终输出指令（子类可覆盖以提供特定维度的输出要求）"""

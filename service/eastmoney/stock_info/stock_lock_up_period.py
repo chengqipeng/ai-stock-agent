@@ -115,7 +115,7 @@ if __name__ == "__main__":
 
         result = await get_stock_lock_up_period_year_range(stock_info)
         if result:
-            print(json.dumps(result, ensure_ascii=False, indent=2))
+            print(json.dumps(result, ensure_ascii=False))
         else:
             print("未查询到数据")
 

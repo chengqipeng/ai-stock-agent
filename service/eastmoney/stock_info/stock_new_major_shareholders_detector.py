@@ -87,6 +87,6 @@ if __name__ == "__main__":
         stock_info = get_stock_info_by_name(stock_name)
         
         result = await get_detect_new_major_shareholders(stock_info)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False))
     
     asyncio.run(main())

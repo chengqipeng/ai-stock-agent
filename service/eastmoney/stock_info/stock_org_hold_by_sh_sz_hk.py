@@ -169,6 +169,6 @@ if __name__ == "__main__":
         stock_info = get_stock_info_by_name("北方华创")
         result = await get_org_hold_by_sh_sz_hk_rank_cn(stock_info)
         import json
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False))
     
     asyncio.run(main())

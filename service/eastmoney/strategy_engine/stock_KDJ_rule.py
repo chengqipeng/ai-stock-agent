@@ -124,7 +124,7 @@ def _log_result(stock_name: str, df: pd.DataFrame, result: dict, n: int, s1: int
     display_df = df[['open', 'close', 'high', 'low', 'volume', 'K', 'D', 'J', 'signal']].tail(250).copy()
     display_df = display_df.reset_index().rename(columns={**cn_rename, 'date': '日期', 'signal': '信号'})
     display_df['日期'] = display_df['日期'].dt.strftime('%Y-%m-%d')
-    print(display_df.to_json(orient='records', force_ascii=False, indent=2))
+    print(display_df.to_json(orient='records', force_ascii=False))
     print("==========================================\n")
 
 
@@ -197,6 +197,6 @@ if __name__ == '__main__':
         stock_info: StockInfo = get_stock_info_by_name('生益科技')
         import json
         result = await get_kdj_rule_kdj_only(stock_info)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

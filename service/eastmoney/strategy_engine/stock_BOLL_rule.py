@@ -224,6 +224,6 @@ if __name__ == '__main__':
     async def main():
         stock_info: StockInfo = get_stock_info_by_name('北方华创')
         result = await get_boll_rule_boll_only(stock_info)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

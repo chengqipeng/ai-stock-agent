@@ -157,10 +157,10 @@ async def get_top_strongest_stocks(days: int = 120, top_n: int = 10) -> list:
 if __name__ == "__main__":
     async def main():
         #print("=== 创新高/新低统计 ===")
-        #print(json.dumps(get_new_high_low_count(), ensure_ascii=False, indent=2))
+        #print(json.dumps(get_new_high_low_count(), ensure_ascii=False))
         
         print("\n=== 最强10只股票 ===")
         result = await get_top_strongest_stocks()
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False))
     
     asyncio.run(main())

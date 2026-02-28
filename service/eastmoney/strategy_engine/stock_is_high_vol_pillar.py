@@ -73,6 +73,6 @@ if __name__ == '__main__':
         stock_info: StockInfo = get_stock_info_by_name('中国卫通')
         import json
         result = await get_high_vol_pillars(stock_info)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

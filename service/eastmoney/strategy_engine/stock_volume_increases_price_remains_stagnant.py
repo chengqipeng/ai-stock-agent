@@ -84,7 +84,7 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, re
     display_df['boll_up'] = calc_df['boll_up'].reindex(display_df.index)
     display_df = display_df.reset_index().rename(columns=cn_rename)
     display_df['日期'] = display_df['日期'].dt.strftime('%Y-%m-%d')
-    print(display_df.to_json(orient='records', force_ascii=False, indent=2))
+    print(display_df.to_json(orient='records', force_ascii=False))
     print("==========================================\n")
 
 
@@ -121,6 +121,6 @@ if __name__ == '__main__':
         stock_info: StockInfo = get_stock_info_by_name('中国卫通')
         import json
         result = await get_distribution_signal_cn(stock_info)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

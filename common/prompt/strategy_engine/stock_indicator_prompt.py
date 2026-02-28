@@ -73,10 +73,10 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 
 **以下是我为您提供的该A股最新技术数据，请开始您的分析：**
 
-* **1. MACD数据**：{json.dumps(macd_signals_macd, ensure_ascii=False, indent=2)}
-* **2. KDJ数据**：{json.dumps(kdj_rule_kdj, ensure_ascii=False, indent=2)}
-* **3. BOLL数据**：{json.dumps(boll_rule_boll, ensure_ascii=False, indent=2)}
-* **4. 近{data_num}日交易数据**：{json.dumps(stock_day_kline, ensure_ascii=False, indent=2)}
+* **1. MACD数据**：{json.dumps(macd_signals_macd, ensure_ascii=False)}
+* **2. KDJ数据**：{json.dumps(kdj_rule_kdj, ensure_ascii=False)}
+* **3. BOLL数据**：{json.dumps(boll_rule_boll, ensure_ascii=False)}
+* **4. 近{data_num}日交易数据**：{json.dumps(stock_day_kline, ensure_ascii=False)}
 
 [最终输出] 只能输出json格式数据：
 {{

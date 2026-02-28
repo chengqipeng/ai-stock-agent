@@ -145,7 +145,7 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vo
         'volume': '成交量', 'pct_change': '涨跌幅', f'ma50_volume': f'{vol_ma_window}日均量', 'boll_mb': 'BOLL中轨',
     })
     display_df['日期'] = display_df['日期'].dt.strftime('%Y-%m-%d')
-    print(display_df.to_json(orient='records', force_ascii=False, indent=2))
+    print(display_df.to_json(orient='records', force_ascii=False))
     print("==========================================\n")
 
 
@@ -211,6 +211,6 @@ if __name__ == '__main__':
         stock_info: StockInfo = get_stock_info_by_name('北方华创')
         import json
         result = await get_unlimited_increase_cn(stock_info)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

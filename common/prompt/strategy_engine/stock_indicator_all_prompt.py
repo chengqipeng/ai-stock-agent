@@ -6,11 +6,14 @@ import pandas as pd
 
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_kline_cn
+from service.eastmoney.stock_info.stock_northbound_funds import get_northbound_funds_cn
+from service.eastmoney.stock_info.stock_real_fund_flow import get_real_main_fund_flow
 from service.eastmoney.strategy_engine.stock_BOLL_rule import get_boll_rule_boll_only
 from service.eastmoney.strategy_engine.stock_KDJ_rule import get_kdj_rule_kdj_only
 from service.eastmoney.strategy_engine.stock_MACD_rule import get_macd_signals_macd_only
 from service.eastmoney.technical.stock_day_range_kline import get_moving_averages_json_cn
 from service.jqka10.stock_time_kline_data_10jqka import get_stock_time_kline_cn_10jqka
+from service.web_search.stock_news_search import search_stock_news, format_news_for_prompt
 
 
 # ──────────────────────────────────────────────
@@ -185,10 +188,16 @@ def _compute_kdj_summary(kdj_data: dict) -> dict:
         else:
             break
 
+    # K-D 差值（避免 LLM 自行做减法）
+    latest_k = kdj_data.get('K', 0) or 0
+    latest_d = kdj_data.get('D', 0) or 0
+    kd_diff = round(latest_k - latest_d, 2)
+
     return {
         '最新K': kdj_data.get('K'),
         '最新D': kdj_data.get('D'),
         '最新J': kdj_data.get('J'),
+        'K-D差值': kd_diff,
         '最新信号': kdj_data.get(f'最新信号（{kdj_data.get("最新交易日")}）'),
         '近5日曾超卖': was_oversold,
         '近5日曾超买': was_overbought,
@@ -215,12 +224,17 @@ def _compute_intraday_summary(time_data: list[dict]) -> dict:
     afternoon_2 = [d for d in time_data if '14:00' < d['时间'] <= '14:57']
     closing = [d for d in time_data if d['时间'] > '14:57']
 
+    # 预先计算全天分钟均量，供各时段倍数计算使用
+    all_volumes_pre = [d['成交量'] for d in time_data if d['成交量'] > 0]
+    avg_vol_pre = sum(all_volumes_pre) / max(len(all_volumes_pre), 1)
+
     def _segment_stats(segment, name):
         if not segment:
             return None
         prices = [d['价格'] for d in segment]
         volumes = [d['成交量'] for d in segment if d['成交量'] > 0]
         amounts = [d['成交额'] for d in segment if d['成交额'] > 0]
+        seg_avg_vol = round(sum(volumes) / max(len(volumes), 1))
         return {
             '时段': name,
             '最高价': max(prices),
@@ -229,7 +243,8 @@ def _compute_intraday_summary(time_data: list[dict]) -> dict:
             '结束价': prices[-1],
             '总成交量': sum(volumes),
             '总成交额': round(sum(amounts) / 1e8, 2),  # 亿元
-            '平均每分钟成交量': round(sum(volumes) / max(len(volumes), 1)),
+            '平均每分钟成交量': seg_avg_vol,
+            '分钟均量vs全天倍数': round(seg_avg_vol / avg_vol_pre, 2) if avg_vol_pre > 0 else 0,
         }
 
     segments = []
@@ -319,6 +334,10 @@ def _compute_kline_summary(kline_data: list[dict]) -> dict:
     lower_shadow = round(min(latest.get('收盘价', 0), latest.get('开盘价', 0)) - latest.get('最低价', 0), 2)
     body = round(abs(latest.get('收盘价', 0) - latest.get('开盘价', 0)), 2)
 
+    # 放量突破阈值（50日均量×1.5），供 BOLL 突破质量判断使用
+    vol_50_avg_rounded = round(vol_50_avg)
+    breakout_vol_threshold = round(vol_50_avg * 1.5)
+
     return {
         '120日最高价': high_120,
         '120日最高价日期': high_date,
@@ -326,7 +345,8 @@ def _compute_kline_summary(kline_data: list[dict]) -> dict:
         '120日最低价日期': low_date,
         '当前价距120日高点': f"{round((closes[0] - high_120) / high_120 * 100, 1)}%" if closes and high_120 else '',
         '当前价距120日低点': f"{round((closes[0] - low_120) / low_120 * 100, 1)}%" if closes and low_120 else '',
-        '50日均量（手）': round(vol_50_avg),
+        '50日均量（手）': vol_50_avg_rounded,
+        '放量突破阈值（手）': breakout_vol_threshold,
         '近5日均量（手）': round(sum(recent_5_vol) / len(recent_5_vol)) if recent_5_vol else 0,
         '近5日量比（vs50日）': recent_vol_ratio,
         '近5日阳线数': up_days,
@@ -396,6 +416,115 @@ def _compute_ma_summary(ma_data: dict) -> dict:
         'BIAS20': bias20,
         'BIAS60': bias60,
     }
+def _compute_macd_bar_trend(macd_data: dict) -> dict:
+    """
+    预计算 MACD 柱变化趋势（连续放大/收窄天数及方向），
+    避免 LLM 自行比较序列数据。
+    """
+    details = macd_data.get('明细数据', [])
+    if len(details) < 2:
+        return {'MACD柱趋势': '数据不足'}
+
+    # 明细数据已按日期降序（最新在前）
+    bars = [d['MACD柱'] for d in details]
+    latest_bar = bars[0]
+    bar_color = '红柱' if latest_bar > 0 else ('绿柱' if latest_bar < 0 else '零')
+
+    # 计算连续放大或收窄天数
+    # 放大：绝对值递增；收窄：绝对值递减
+    expanding_days = 0
+    shrinking_days = 0
+    for i in range(len(bars) - 1):
+        curr_abs = abs(bars[i])
+        prev_abs = abs(bars[i + 1])
+        # 只在同色柱之间比较
+        if (bars[i] > 0) != (bars[i + 1] > 0):
+            break
+        if curr_abs > prev_abs:
+            expanding_days += 1
+        else:
+            break
+    if expanding_days == 0:
+        for i in range(len(bars) - 1):
+            curr_abs = abs(bars[i])
+            prev_abs = abs(bars[i + 1])
+            if (bars[i] > 0) != (bars[i + 1] > 0):
+                break
+            if curr_abs < prev_abs:
+                shrinking_days += 1
+            else:
+                break
+
+    if expanding_days > 0:
+        trend_desc = f'{bar_color}连续放大{expanding_days}日'
+    elif shrinking_days > 0:
+        trend_desc = f'{bar_color}连续收窄{shrinking_days}日'
+    else:
+        trend_desc = f'{bar_color}，无明显连续趋势'
+
+    # 最近3日MACD柱值，供直接引用
+    recent_bars = [{'日期': details[i]['日期'], 'MACD柱': details[i]['MACD柱']} for i in range(min(3, len(details)))]
+
+    return {
+        'MACD柱趋势': trend_desc,
+        '最新MACD柱': latest_bar,
+        '柱色': bar_color,
+        '连续放大天数': expanding_days,
+        '连续收窄天数': shrinking_days,
+        '近3日MACD柱': recent_bars,
+    }
+
+
+def _compute_boll_summary(boll_data: dict, latest_close: float) -> dict:
+    """
+    预计算 BOLL 关键距离指标，避免 LLM 自行做减法和除法。
+    """
+    details = boll_data.get('明细数据', [])
+    if not details:
+        return {'状态': '无BOLL数据'}
+
+    latest = details[0]
+    mid = latest.get('BOLL', 0)
+    upper = latest.get('BOLL_UB', 0)
+    lower = latest.get('BOLL_LB', 0)
+
+    dist_mid = round(latest_close - mid, 2) if mid else 0
+    dist_mid_pct = round(dist_mid / mid * 100, 2) if mid else 0
+    dist_upper = round(upper - latest_close, 2) if upper else 0
+    dist_upper_pct = round(dist_upper / latest_close * 100, 2) if latest_close else 0
+    dist_lower = round(latest_close - lower, 2) if lower else 0
+    dist_lower_pct = round(dist_lower / latest_close * 100, 2) if latest_close else 0
+
+    # 带宽
+    bandwidth = round((upper - lower) / mid * 100, 2) if mid else 0
+
+    # 中轨方向（对比前一日）
+    mid_direction = '无法判断'
+    if len(details) >= 2:
+        prev_mid = details[1].get('BOLL', 0)
+        if mid > prev_mid:
+            mid_direction = '上倾'
+        elif mid < prev_mid:
+            mid_direction = '下倾'
+        else:
+            mid_direction = '走平'
+
+    return {
+        '收盘价': latest_close,
+        'BOLL中轨': mid,
+        'BOLL上轨': upper,
+        'BOLL下轨': lower,
+        '距中轨（元）': dist_mid,
+        '距中轨（%）': dist_mid_pct,
+        '距上轨（元）': dist_upper,
+        '距上轨（%）': dist_upper_pct,
+        '距下轨（元）': dist_lower,
+        '距下轨（%）': dist_lower_pct,
+        '带宽（%）': bandwidth,
+        '中轨方向': mid_direction,
+        '收盘价位置': '中轨上方' if dist_mid > 0 else ('中轨下方' if dist_mid < 0 else '中轨附近'),
+    }
+
 
 
 
@@ -404,6 +533,11 @@ def _trim_macd_details(macd_data: dict, keep_recent: int = 30) -> dict:
     trimmed = dict(macd_data)
     if '明细数据' in trimmed:
         trimmed['明细数据'] = trimmed['明细数据'][:keep_recent]
+    # 近期金叉/死叉只保留最近2次，剔除更早的历史记录
+    if '近期金叉（最近3次）' in trimmed:
+        trimmed['近期金叉（最近2次）'] = trimmed.pop('近期金叉（最近3次）')[:2]
+    if '近期死叉（最近3次）' in trimmed:
+        trimmed['近期死叉（最近2次）'] = trimmed.pop('近期死叉（最近3次）')[:2]
     return trimmed
 
 
@@ -442,6 +576,9 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
     kdj_rule_kdj = await get_kdj_rule_kdj_only(stock_info, data_num)
     macd_signals_macd = await get_macd_signals_macd_only(stock_info, data_num)
     stock_time_kline_10jqka = await get_stock_time_kline_cn_10jqka(stock_info, 240)
+    real_main_fund_flow = await get_real_main_fund_flow(stock_info)
+
+    northbound_funds_cn = await get_northbound_funds_cn(stock_info, ['TRADE_DATE', 'ADD_MARKET_CAP', 'ADD_SHARES_AMP', 'ADD_SHARES_AMP'])
 
     moving_averages_json = await get_moving_averages_json_cn(
         stock_info,
@@ -450,13 +587,19 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
         120
     )
 
+    # ── 百度搜索近期新闻/公告/事件 ──
+    stock_news = await search_stock_news(stock_info, days=7)
+
     # ── Python 端预计算（核心优化：把容易出错的计算从 LLM 移到代码端）──
     valid_kline = _filter_valid_trading_days(stock_day_kline)
     divergence_result = _compute_macd_divergence(macd_signals_macd, valid_kline)
+    macd_bar_trend = _compute_macd_bar_trend(macd_signals_macd)
     kdj_summary = _compute_kdj_summary(kdj_rule_kdj)
     intraday_summary = _compute_intraday_summary(stock_time_kline_10jqka)
     kline_summary = _compute_kline_summary(valid_kline)
     ma_summary = _compute_ma_summary(moving_averages_json)
+    latest_close = valid_kline[0]['收盘价'] if valid_kline else 0
+    boll_summary = _compute_boll_summary(boll_rule_boll, latest_close)
 
     # ── 精简数据（减少 token，降低幻觉概率）──
     macd_trimmed = _trim_macd_details(macd_signals_macd, keep_recent=30)
@@ -477,8 +620,8 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 
 ## ★ 重要约束（必须遵守）
 
-1. **直接引用预计算结论**：背离信号、KDJ状态摘要、分时特征摘要、K线统计摘要、均线排列状态 均已在 Python 端预计算完成，你必须直接引用这些结论，严禁自行重新推导。
-2. **禁止计算幻觉**：均线值与乖离率必须直接读取提供的数据，严禁自行计算。
+1. **直接引用预计算结论**：背离信号、MACD柱趋势、BOLL空间摘要、KDJ状态摘要、分时特征摘要、K线统计摘要、均线排列状态、近期消息面 均已在 Python 端预计算完成，你必须直接引用这些结论，严禁自行重新推导。
+2. **禁止计算幻觉**：均线值、乖离率、BOLL距离、MACD柱趋势、KDJ差值、量能倍数等必须直接读取提供的预计算数据，严禁自行做加减乘除运算。
 3. **数据已清洗**：提供的数据已过滤停牌日（成交量为0的交易日），无需再次过滤。
 4. **严禁主观臆断**：每一个结论必须紧跟数据论据，引用具体数值。
 5. **精简原始数据仅供验证**：原始数据仅保留近期关键部分，用于验证预计算结论的合理性，不要试图从中推导120日全量统计。
@@ -497,9 +640,12 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 - Rule c：背离信号 → **直接引用下方预计算结论，严禁自行推导**
 
 **★ 预计算背离结论（必须直接引用）：**
-{json.dumps(divergence_result, ensure_ascii=False, indent=2)}
+{json.dumps(divergence_result, ensure_ascii=False)}
 
-请结合MACD明细数据，分析当前多空状态、最近金叉/死叉的质量、MACD柱的变化趋势（放大/收窄），并引用上述背离结论。
+**★ 预计算MACD柱变化趋势（必须直接引用）：**
+{json.dumps(macd_bar_trend, ensure_ascii=False)}
+
+请结合MACD明细数据，分析当前多空状态、最近金叉/死叉的质量，并直接引用上述MACD柱趋势结论和背离结论。
 
 #### 2. KDJ（极限与拐点）
 
@@ -509,7 +655,7 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 - 卖出(普通)：非钝化 + 近5日曾超买(K>80,D>80,J>100) + 死叉
 
 **★ 预计算KDJ状态摘要（必须直接引用）：**
-{json.dumps(kdj_summary, ensure_ascii=False, indent=2)}
+{json.dumps(kdj_summary, ensure_ascii=False)}
 
 请基于上述摘要分析KDJ当前位置、是否存在买卖信号、拐头方向。
 
@@ -521,22 +667,32 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 - 可操作区：收盘>中轨 且 中轨向上倾斜
 - 喇叭口加速：上下轨反向张开 且 带宽单日放大超10%
 
-请结合BOLL明细数据和K线统计中的50日均量，分析当前轨道位置、突破质量、运行空间。
+**★ 预计算BOLL空间摘要（必须直接引用）：**
+{json.dumps(boll_summary, ensure_ascii=False)}
+
+请结合BOLL明细数据和K线统计中的放量突破阈值，分析当前轨道位置、突破质量、运行空间。直接引用上述距离数据，严禁自行计算。
 
 ### 二、 中期结构与均线系统（120日大局观）
 
 **★ 预计算均线状态（必须直接引用）：**
-{json.dumps(ma_summary, ensure_ascii=False, indent=2)}
+{json.dumps(ma_summary, ensure_ascii=False)}
 
 **★ 预计算K线统计摘要（必须直接引用）：**
-{json.dumps(kline_summary, ensure_ascii=False, indent=2)}
+{json.dumps(kline_summary, ensure_ascii=False)}
 
 请基于上述预计算结论，分析均线排列、乖离率风险、量价匹配、支撑压力位。严禁自行计算均线值。
 
 ### 三、 今日分时盘口深度解析（超短线博弈）
 
 **★ 预计算分时特征摘要（必须直接引用）：**
-{json.dumps(intraday_summary, ensure_ascii=False, indent=2)}
+{json.dumps(intraday_summary, ensure_ascii=False)}
+
+**★ 资金流向数据（主力净流入/流出、大单/中单/小单占比：**
+{json.dumps(real_main_fund_flow, ensure_ascii=False)}
+
+### 四、大机构数据
+** 北向资金 (Northbound Capital)近期增减持记录: 香港过来的外资，通常被视为"聪明钱"的风向标 **
+{json.dumps(northbound_funds_cn, ensure_ascii=False)}
 
 请基于上述摘要分析：
 - 黄白线格局（白线在黄线上方占比已给出）
@@ -544,12 +700,20 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 - 脉冲式放量事件的含义
 - 尾盘资金动向
 
-### 四、 多空力量博弈清单
+### 五、 近期消息面（百度搜索，近7日）
+
+**★ 以下新闻/公告/事件由百度搜索自动获取，仅供参考，请结合技术面综合判断：**
+
+{format_news_for_prompt(stock_news)}
+
+请基于上述消息面信息，判断是否存在影响股价的重大利好/利空事件，并在多空博弈清单中体现。若无重大消息则简要说明"消息面平淡"。
+
+### 六、 多空力量博弈清单
 以列表形式，客观陈述当前盘面的核心利多与利空因素：
 - **多方筹码（有利因素）**：[✅] （提炼3-5个核心数据支撑点，每条必须引用具体数值）
 - **空方筹码（不利因素）**：[❌] （提炼3-5个核心风险警示点，每条必须引用具体数值）
 
-### 五、 综合评分体系（满分100分）
+### 七、 综合评分体系（满分100分）
 
 | 评分维度 | 权重 | 核心考察点 | 得分 |
 |---------|------|----------|------|
@@ -573,7 +737,7 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 - 20-39：保持观望
 - <20：清仓离场
 
-### 六、 明日实战操作策略（Strategy）
+### 八、 明日实战操作策略（Strategy）
 
 #### 1. 操作定调
 [明确：积极买入 / 逢低建仓 / 持股待涨 / 逢高减仓 / 清仓离场 / 保持观望]
@@ -595,7 +759,7 @@ async def get_stock_indicator_prompt(stock_info: StockInfo):
 - **触发条件**：[具体量价与点位条件]
 - **操作建议**：[具体动作]
 
-### 七、 盘中关键观察哨（明日盯盘重点）
+### 九、 盘中关键观察哨（明日盯盘重点）
 
 | 监控指标 | 当前状态 | 次日健康/安全阈值 | 危险破位/预警线 |
 |--------|--------|----------------|---------------|

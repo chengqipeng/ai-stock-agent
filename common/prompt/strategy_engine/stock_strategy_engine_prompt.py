@@ -84,31 +84,31 @@ async def get_strategy_engine_prompt(stock_info: StockInfo):
 # 以下是股票行情数据：
 
 ** 新量新价出新高（看涨） **
-{json.dumps(new_high_signals, ensure_ascii=False, indent=2)}
+{json.dumps(new_high_signals, ensure_ascii=False)}
 
 ** 缩量回调不用慌（洗盘） **
-{json.dumps(volume_reduction_pullback, ensure_ascii=False, indent=2)}
+{json.dumps(volume_reduction_pullback, ensure_ascii=False)}
 
 ** 放量滞涨要当心（派发） **
-{json.dumps(distribution_signal, ensure_ascii=False, indent=2)}
+{json.dumps(distribution_signal, ensure_ascii=False)}
 
 ** 无量上涨必须跑（诱多/背离） **
-{json.dumps(unlimited_increase, ensure_ascii=False, indent=2)}
+{json.dumps(unlimited_increase, ensure_ascii=False)}
 
 ** 【底量远超顶量】威科夫吸筹信号 **
-{json.dumps(bottom_far_top_volume_indicates, ensure_ascii=False, indent=2)}
+{json.dumps(bottom_far_top_volume_indicates, ensure_ascii=False)}
 
 ** 高量柱防守线 **
-{json.dumps(high_vol_pillars, ensure_ascii=False, indent=2)}
+{json.dumps(high_vol_pillars, ensure_ascii=False)}
 
 ** MACD 多空状态、交叉信号与背离信号计算 **
-{json.dumps(macd_signals, ensure_ascii=False, indent=2)}
+{json.dumps(macd_signals, ensure_ascii=False)}
 
 ** KDJ 法则（微观动能） **
-{json.dumps(kdj_rule, ensure_ascii=False, indent=2)}
+{json.dumps(kdj_rule, ensure_ascii=False)}
 
 ** 布林线法则 (运行空间) 核心逻辑 **
-{json.dumps(boll_rule, ensure_ascii=False, indent=2)}
+{json.dumps(boll_rule, ensure_ascii=False)}
 
 
 

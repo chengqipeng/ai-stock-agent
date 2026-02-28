@@ -129,6 +129,6 @@ if __name__ == "__main__":
     async def main():
         stock_info = get_stock_info_by_name("三花智控")
         result = await get_stock_repurchase_json(stock_info)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False))
     
     asyncio.run(main())

@@ -43,7 +43,7 @@ def save_result(result):
     # 只有数据变化时才保存
     if updated:
         with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
+            json.dump(results, f, ensure_ascii=False)
 
 
 async def process_stock(stock):

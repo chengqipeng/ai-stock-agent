@@ -113,11 +113,11 @@ async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
     result = await get_stock_relative_strength_cn(stock_info)
     print("250相对强度数据:")
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps(result, ensure_ascii=False))
 
     result_1 = await get_stock_rs_stats(stock_info)
     print("20相对强度数据:")
-    print(json.dumps(result_1, ensure_ascii=False, indent=2))
+    print(json.dumps(result_1, ensure_ascii=False))
 
 
 if __name__ == "__main__":

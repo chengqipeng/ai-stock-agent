@@ -388,6 +388,6 @@ if __name__ == '__main__':
     async def main():
         stock_info: StockInfo = get_stock_info_by_name('中国卫通')
         result = await get_macd_signals_cn(stock_info)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

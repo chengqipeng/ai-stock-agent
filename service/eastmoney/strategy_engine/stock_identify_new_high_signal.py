@@ -60,7 +60,7 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, re
     display_df['ma_volume'] = calc_df['ma_volume'].reindex(display_df.index)
     display_df = display_df.reset_index().rename(columns=cn_rename)
     display_df['日期'] = display_df['日期'].dt.strftime('%Y-%m-%d')
-    print(display_df.to_json(orient='records', force_ascii=False, indent=2))
+    print(display_df.to_json(orient='records', force_ascii=False))
     print("========================================\n")
 
 
@@ -109,6 +109,6 @@ if __name__ == '__main__':
         stock_info: StockInfo = get_stock_info_by_name('易天股份')
         import json
         signals = await get_new_high_signals_cn(stock_info)
-        print(json.dumps(signals, ensure_ascii=False, indent=2))
+        print(json.dumps(signals, ensure_ascii=False))
 
     asyncio.run(main())

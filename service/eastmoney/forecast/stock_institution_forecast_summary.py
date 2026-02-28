@@ -185,15 +185,15 @@ if __name__ == "__main__":
         print("\n=== JSON格式（历年预测） ===")
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         json_historical = await get_institution_forecast_summary_historical_json(stock_info)
-        print(json.dumps(json_historical, ensure_ascii=False, indent=2))
+        print(json.dumps(json_historical, ensure_ascii=False))
         
         print("\n=== JSON格式（未来预测） ===")
         json_future = await get_institution_forecast_summary_future_json(stock_info)
-        print(json.dumps(json_future, ensure_ascii=False, indent=2))
+        print(json.dumps(json_future, ensure_ascii=False))
         
         print("\n=== JSON格式（当前年+未来一年） ===")
         json_data_recent = await get_institution_forecast_summary_current_next_year_json(stock_info)
-        print(json.dumps(json_data_recent, ensure_ascii=False, indent=2))
+        print(json.dumps(json_data_recent, ensure_ascii=False))
         
         print("\n=== Markdown格式（所有年份） ===")
         markdown = await get_institution_forecast_summary_markdown(stock_info)

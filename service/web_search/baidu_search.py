@@ -18,7 +18,8 @@ def _decode_token(encoded: str) -> str:
 
 async def baidu_search(
     query: str,
-    days: int = 30
+    days: int = 30,
+    top_k: int = 5
 ) -> dict:
     """使用百度千帆 AI Search 进行搜索"""
     url = "https://qianfan.baidubce.com/v2/ai_search/web_search"
@@ -34,7 +35,7 @@ async def baidu_search(
         "messages": [{"role": "user", "content": query}],
         "edition": "standard",
         "search_source": "baidu_search_v2",
-        "resource_type_filter": [{"type": "web", "top_k": 5}],
+        "resource_type_filter": [{"type": "web", "top_k": top_k}],
         "search_recency_filter": "year",
         "search_filter": {
             "range": {

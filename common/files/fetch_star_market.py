@@ -37,7 +37,7 @@ async def fetch_star_market_stocks():
         print(f"成功获取 {len(stocks)} 只科创板股票")
         
         with open('star_market_stocks.json', 'w', encoding='utf-8') as f:
-            json.dump(stocks, f, ensure_ascii=False, indent=2)
+            json.dump(stocks, f, ensure_ascii=False)
         
         return stocks
         

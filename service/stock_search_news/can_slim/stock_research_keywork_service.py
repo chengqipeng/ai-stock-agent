@@ -83,6 +83,6 @@ if __name__ == "__main__":
     async def main():
         stock_info = get_stock_info_by_name("北方华创")
         result = await research_stock_news(stock_info)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False))
     
     asyncio.run(main())

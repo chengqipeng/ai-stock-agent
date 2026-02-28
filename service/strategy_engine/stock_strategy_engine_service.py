@@ -19,6 +19,6 @@ if __name__ == '__main__':
         stock_info: StockInfo = get_stock_info_by_name('生益科技')
         prompt, result = await get_strategy_engine_analysis(stock_info)
         print(result)
-        #print(json.dumps(result, ensure_ascii=False, indent=2))
+        #print(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

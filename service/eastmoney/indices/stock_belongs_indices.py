@@ -173,7 +173,7 @@ async def fetch_all_indices_stocks():
     # 保存到文件
     output_file = "indices_all_data.json"
     with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(list(all_stocks.values()), f, ensure_ascii=False, indent=2)
+        json.dump(list(all_stocks.values()), f, ensure_ascii=False)
     
     print(f"\n共获取 {len(all_stocks)} 只股票，已保存到 {output_file}")
     return list(all_stocks.values())

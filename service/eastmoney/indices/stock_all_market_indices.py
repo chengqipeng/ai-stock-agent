@@ -73,7 +73,7 @@ async def main():
     result = await get_market_indices_list()
     print("市场指数列表:")
     import json
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps(result, ensure_ascii=False))
 
 
 if __name__ == "__main__":

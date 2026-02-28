@@ -254,11 +254,11 @@ if __name__ == "__main__":
         
         print("\n=== 显示历年预测数据（JSON） ===")
         json_historical = await get_institution_forecast_historical_to_json(stock_info)
-        print(json.dumps(json_historical, ensure_ascii=False, indent=2))
+        print(json.dumps(json_historical, ensure_ascii=False))
         
         print("\n=== 显示未来预测数据（JSON） ===")
         json_future = await get_institution_forecast_future_to_json(stock_info)
-        print(json.dumps(json_future, ensure_ascii=False, indent=2))
+        print(json.dumps(json_future, ensure_ascii=False))
         
         print("\n=== 只显示当前年和未来一年数据（Markdown） ===")
         markdown_filtered = await get_institution_forecast_current_next_year_to_markdown(stock_info)
@@ -266,6 +266,6 @@ if __name__ == "__main__":
         
         print("\n=== 只显示当前年和未来一年数据（JSON） ===")
         json_filtered = await get_institution_forecast_current_next_year_to_json(stock_info)
-        print(json.dumps(json_filtered, ensure_ascii=False, indent=2))
+        print(json.dumps(json_filtered, ensure_ascii=False))
     
     asyncio.run(main())

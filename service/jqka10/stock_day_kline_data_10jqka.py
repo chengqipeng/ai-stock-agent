@@ -240,6 +240,6 @@ if __name__ == "__main__":
     async def main():
         stock_info = get_stock_info_by_name("沪电股份")
         klines = await get_stock_day_kline_as_str_10jqka(stock_info, limit=400)
-        print(json.dumps(klines, ensure_ascii=False, indent=2))
+        print(json.dumps(klines, ensure_ascii=False))
 
     asyncio.run(main())
