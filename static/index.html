@@ -1165,12 +1165,12 @@
                     <td class="data-row"><div class="data-section">
                         <span class="data-section-label">📊 K线</span>
                         <div class="data-section-items">
-                            ${klineMetric('未持有', stock.kline_score, 'kline', 'kline_score_prompt')}
-                            ${klineMetric('持有', stock.kline_hold_score, 'kline_hold', 'kline_score_prompt')}
-                            ${stock.kline_total_score != null ? `<div class="data-metric" style="min-width:70px;border-left:2px solid rgba(102,126,234,0.2);padding-left:10px;">
+                            ${stock.kline_total_score != null ? `<div class="data-metric" style="min-width:70px;border-right:2px solid rgba(102,126,234,0.2);padding-right:10px;">
                                 <span class="dm-label">综合分</span>
                                 <span class="dm-value" style="color:${getScoreColor(stock.kline_total_score)};font-size:16px;">${stock.kline_total_score}</span>
                             </div>` : ''}
+                            ${klineMetric('未持有', stock.kline_score, 'kline', 'kline_score_prompt')}
+                            ${klineMetric('持有', stock.kline_hold_score, 'kline_hold', 'kline_score_prompt')}
                         </div>
                     </div></td>
                 </tr>`;
