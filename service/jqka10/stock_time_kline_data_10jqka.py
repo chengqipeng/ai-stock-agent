@@ -35,6 +35,8 @@ async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None) 
         return []
     pre_close = float(inner.get("pre", 0) or 0)
     data_str = inner.get("data", "")
+    trade_date = inner.get("date", "")  # 分时数据对应的交易日期
+    name = stock_info.stock_name
     if not pre_close:
         logger.error("[%s] 分时数据昨收价为空或为0，inner keys=%s", code, list(inner.keys()))
     if not data_str:
@@ -42,16 +44,22 @@ async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None) 
         return []
 
     result = []
-    anomaly_count = 0
     for row in data_str.split(";"):
         parts = row.split(",")
         if len(parts) < 5:
             continue
-        # 校验关键字段是否为空
-        if not parts[0] or not parts[1]:
-            logger.error("[%s] 分时数据存在空值：time=%s, price=%s, row=%s", code, parts[0], parts[1], row)
-            anomaly_count += 1
-            continue
+        # 校验关键字段是否为空（time/price/amount/volume 均不允许为空）
+        empty_fields = []
+        if not parts[0]: empty_fields.append("time")
+        if not parts[1]: empty_fields.append("price")
+        if not parts[2]: empty_fields.append("amount")
+        if not parts[4]: empty_fields.append("volume")
+        if empty_fields:
+            raise ValueError(
+                f"[{code} {name}] 分时数据存在空值字段 {empty_fields}，"
+                f"日期={trade_date}，原始行={row} "
+                f"(可能原因：集合竞价占位数据/盘中最新记录尚未填充完毕/接口数据截断)"
+            )
         price = float(parts[1])
         change_pct = round((price - pre_close) / pre_close * 100, 2) if pre_close else None
         result.append({
@@ -62,9 +70,6 @@ async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None) 
             "volume":         int(float(parts[4])),
             "change_percent": change_pct,
         })
-
-    if anomaly_count > 0:
-        logger.warning("[%s] 分时数据共 %d 条记录存在异常", code, anomaly_count)
 
     return result if limit is None else result[-limit:]
 
