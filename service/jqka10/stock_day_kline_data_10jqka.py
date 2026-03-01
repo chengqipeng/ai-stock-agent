@@ -6,12 +6,31 @@ import aiohttp
 from datetime import date, timedelta
 from chinese_calendar import is_workday
 from common.utils.stock_info_utils import StockInfo
-from common.constants.stocks_data import INDEX_CODES
-from service.jqka10.stock_realtime_10jqka import get_today_trade_data
+from common.constants.stocks_data import INDEX_CODES_FULL
 
-def _market_prefix(stock_code: str) -> str:
-    """指数用 'zs'，普通股票用 'hs'"""
-    return "zs" if stock_code in INDEX_CODES else "hs"
+def _jqka_symbol(stock_code_normalize: str) -> str:
+    """
+    根据标准化代码返回同花顺 v6/line 接口使用的标识符。
+    规则：
+      - 深圳 399xxx 指数                      → zs_{code}
+      - 深圳其他指数 (899xxx/93xxxx 等)        → 120_{code}
+      - 上证指数 000001.SH                    → 16_1A0001
+      - 其他上海指数 (000xxx.SH)               → 16_1B{后4位}
+      - 普通股票                               → hs_{code}
+    """
+    code = stock_code_normalize.split(".")[0]
+    if stock_code_normalize in INDEX_CODES_FULL:
+        suffix = stock_code_normalize.split(".")[-1]
+        if suffix == "SZ":
+            if code.startswith("399"):
+                return f"zs_{code}"
+            return f"120_{code}"
+        # 上海指数：16_1A{后4位} 或 16_1B{后4位}
+        short = code[2:]  # 000300 → 0300, 000001 → 0001
+        if code == "000001":
+            return f"16_1A{short}"
+        return f"16_1B{short}"
+    return f"hs_{code}"
 
 logger = logging.getLogger(__name__)
 
@@ -98,10 +117,30 @@ def _decode_prices(price_str: str, price_factor: int) -> list[tuple]:
 async def _fetch_raw(url: str) -> dict:
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=_HEADERS) as resp:
+            status = resp.status
             text = await resp.text()
+    if status != 200:
+        if status == 404:
+            logger.debug("[_fetch_raw] HTTP 404, url=%s", url)
+        else:
+            logger.warning("[_fetch_raw] HTTP %d, url=%s, body=%s", status, url, text[:500])
+        raise aiohttp.ClientResponseError(
+            request_info=None, history=None,
+            status=status, message=f"HTTP {status}: {text[:200]}"
+        )
+    if not text or not text.strip():
+        logger.warning("[_fetch_raw] 空响应, url=%s", url)
+        raise ValueError(f"接口返回空响应: {url}")
     json_text = re.sub(r"^\w+\(", "", text)
     json_text = re.sub(r"\);?\s*$", "", json_text)
-    return json.loads(json_text)
+    if not json_text.strip():
+        logger.warning("[_fetch_raw] JSONP解包后为空, url=%s, raw=%s", url, text[:500])
+        raise ValueError(f"JSONP解包后为空: {url}")
+    try:
+        return json.loads(json_text)
+    except json.JSONDecodeError as e:
+        logger.warning("[_fetch_raw] JSON解析失败, url=%s, error=%s, body=%s", url, e, text[:500])
+        raise
 
 
 def _build_nofq_map(year_data_list: list[dict]) -> dict[str, dict]:
@@ -127,17 +166,37 @@ def _latest_trading_day() -> date:
     return d
 
 
-async def _get_today_kline(stock_code: str) -> dict | None:
+async def _get_today_kline(stock_code_normalize: str) -> dict | None:
     """从实时数据获取最近交易日K线，若数据不完整则返回 None"""
-    from service.jqka10.stock_realtime_10jqka import _get_prev_close
-    market = _market_prefix(stock_code)
+    symbol = _jqka_symbol(stock_code_normalize)
+    stock_code = stock_code_normalize.split(".")[0]
     try:
-        raw, prev_close = await asyncio.gather(
-            get_today_trade_data(stock_code, market=market),
-            _get_prev_close(stock_code, market=market),
-        )
-        key = f"{market}_{stock_code}"
-        item = raw.get(key, {})
+        url_today = f"https://d.10jqka.com.cn/v6/line/{symbol}/01/defer/today.js"
+        url_prev  = f"https://d.10jqka.com.cn/v6/time/{symbol}/last.js"
+
+        async with aiohttp.ClientSession(headers=_HEADERS) as session:
+            resp_today, resp_prev = await asyncio.gather(
+                session.get(url_today),
+                session.get(url_prev),
+            )
+            text_today = await resp_today.text()
+            text_prev  = await resp_prev.text()
+
+        # 解析 today
+        match = re.search(r"\((\{.*\})\)", text_today, re.DOTALL)
+        if not match:
+            return None
+        today_data = json.loads(match.group(1))
+        item = today_data.get(symbol, {})
+
+        # 解析 prev_close
+        prev_close = None
+        match_prev = re.search(r"\((.+)\)", text_prev, re.DOTALL)
+        if match_prev:
+            prev_data = json.loads(match_prev.group(1))
+            pre = prev_data.get(symbol, {}).get("pre")
+            prev_close = float(pre) if pre else None
+
         trade_date = item.get("1", "")
         if len(trade_date) == 8:
             trade_date = f"{trade_date[:4]}-{trade_date[4:6]}-{trade_date[6:]}"
@@ -173,7 +232,7 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     每条记录包含：date, open_price, close_price, high_price, low_price,
                  trading_volume（手）, trading_amount, change_hand（换手率%）
     """
-    market = _market_prefix(stock_info.stock_code)
+    symbol = _jqka_symbol(stock_info.stock_code_normalize)
     code = stock_info.stock_code
 
     # 需要覆盖的年份：从 (当前年 - limit/243向上取整) 到当前年
@@ -182,9 +241,9 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     years_needed = math.ceil(limit / 243) + 1
     years = [current_year - i for i in range(years_needed)]
 
-    fetch_tasks = [_fetch_raw(f"https://d.10jqka.com.cn/v6/line/{market}_{code}/01/all.js")]
+    fetch_tasks = [_fetch_raw(f"https://d.10jqka.com.cn/v6/line/{symbol}/01/all.js")]
     for y in years:
-        fetch_tasks.append(_fetch_raw(f"https://d.10jqka.com.cn/v6/line/{market}_{code}/01/{y}.js"))
+        fetch_tasks.append(_fetch_raw(f"https://d.10jqka.com.cn/v6/line/{symbol}/01/{y}.js"))
 
     results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
     data = results[0]
@@ -240,7 +299,7 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
         logger.warning("[%s] 日K共 %d/%d 条记录存在异常数据", code, anomaly_count, len(result))
 
     latest_trading_day = _latest_trading_day().strftime("%Y-%m-%d")
-    today_kline = await _get_today_kline(stock_info.stock_code)
+    today_kline = await _get_today_kline(stock_info.stock_code_normalize)
     if today_kline and today_kline["date"] == latest_trading_day:
         if result and result[-1]["date"] == latest_trading_day:
             result[-1] = today_kline
@@ -292,7 +351,7 @@ if __name__ == "__main__":
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info = get_stock_info_by_name("飞荣达")
+        stock_info = get_stock_info_by_name("山推股份")
         klines = await get_stock_day_kline_as_str_10jqka(stock_info, limit=400)
         print(json.dumps(klines, ensure_ascii=False))
 

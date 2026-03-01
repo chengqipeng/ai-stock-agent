@@ -29,7 +29,7 @@ from chinese_calendar import is_workday
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dao.stock_kline_dao import (
-    get_db_path_for_stock, create_kline_table, batch_insert_or_update_kline_data
+    get_db_path_for_stock, create_kline_table, batch_insert_or_update_kline_data, logger
 )
 from service.jqka10.stock_day_kline_data_10jqka import get_stock_day_kline_10jqka
 from common.utils.stock_info_utils import get_stock_info_by_code
@@ -41,7 +41,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-DB_DIR = Path(__file__).parent.parent / "data_results/sql_lite"
+DB_DIR = Path(__file__).parent.parent.parent / "data_results/sql_lite"
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -242,7 +242,7 @@ async def _repair_stock(stock_code_normalize: str, db_path: Path, original_issue
 async def main():
     db_files = sorted(DB_DIR.glob("stock_*.db"))
     if not db_files:
-        log.info("未找到任何 stock_*.db 文件，路径: %s", DB_DIR)
+        log.warning("未找到任何 stock_*.db 文件，路径: %s", DB_DIR)
         return
 
     log.info("共发现 %d 个数据库文件，开始检测...", len(db_files))
@@ -264,9 +264,9 @@ async def main():
 
         GREEN = "\033[32m"
         RESET = "\033[0m"
-        if legacy_issues:
-            for iss in legacy_issues:
-                print(f"{GREEN}[LEGACY][{iss['type']}] {stock_code_normalize} 日期={iss['date']}  {iss['detail']}{RESET}")
+        # if legacy_issues:
+        #     for iss in legacy_issues:
+        #         print(f"{GREEN}[LEGACY][{iss['type']}] {stock_code_normalize} 日期={iss['date']}  {iss['detail']}{RESET}")
 
         if active_issues:
             log.info("[%s] 发现 %d 条异常：", db_path.name, len(active_issues))

@@ -9,6 +9,7 @@ from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_rang
 from service.jqka10.stock_day_kline_data_10jqka import get_stock_day_kline_as_str_10jqka
 from service.jqka10.stock_realtime_10jqka import get_today_kline_as_str
 from common.utils.stock_info_utils import get_stock_info_by_code
+from common.constants.stocks_data import MAIN_STOCK
 from dao.stock_kline_dao import (
     get_db_path_for_stock, get_missing_trading_days, get_latest_db_date,
     create_kline_table, parse_kline_data, batch_insert_or_update_kline_data, insert_suspension_day,
@@ -54,18 +55,28 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
             counter['failed'] += 1
             return
     else:
+        _RETRYABLE_KEYWORDS = ('Server disconnected', 'Connection closed abruptly',
+                               'Expecting value', '空响应', 'JSONP解包后为空',
+                               'JSON解析失败', 'ClientResponseError')
         for attempt in range(1, 11):
             try:
-                # klines = await get_stock_day_kline_as_str_10jqka(stock_info, fetch_limit)
-                klines = await get_stock_day_range_kline(stock_info, fetch_limit)
+                klines = await get_stock_day_kline_as_str_10jqka(stock_info, fetch_limit)
+                # klines = await get_stock_day_range_kline(stock_info, fetch_limit)
                 elapsed = asyncio.get_event_loop().time() - t0
                 break
             except Exception as e:
-                if ('Server disconnected' in str(e) or 'Connection closed abruptly' in str(e)) and attempt < 10:
-                    logger.warning("[总%d 成功%d 失败%d 当前:%s] 连接中断(%s)，第%d次重试，等待10秒", counter['total'], counter['success'], counter['failed'], stock_name, e.__class__.__name__, attempt)
-                    await asyncio.sleep(10)
+                err_msg = str(e)
+                is_retryable = any(kw in err_msg for kw in _RETRYABLE_KEYWORDS)
+                if is_retryable and attempt < 10:
+                    wait = min(10 * attempt, 60)
+                    logger.warning("[总%d 成功%d 失败%d 当前:%s] 请求异常(%s: %s)，第%d次重试，等待%d秒",
+                                   counter['total'], counter['success'], counter['failed'],
+                                   stock_name, e.__class__.__name__, err_msg[:200], attempt, wait)
+                    await asyncio.sleep(wait)
                 else:
-                    logger.error("[总%d 成功%d 失败%d 当前:%s] 获取K线失败: %s", counter['total'], counter['success'], counter['failed'], stock_name, e)
+                    logger.error("[总%d 成功%d 失败%d 当前:%s] 获取K线失败(重试%d次): %s",
+                                 counter['total'], counter['success'], counter['failed'],
+                                 stock_name, attempt, e)
                     counter['failed'] += 1
                     return
 
@@ -117,6 +128,8 @@ async def run_stock_klines_job(limit=800, max_concurrent=1):
     db_dir.mkdir(parents=True, exist_ok=True)
 
     stocks = load_stocks_from_score_list()
+    main_codes = {s['code'] for s in stocks}
+    stocks += [s for s in MAIN_STOCK if s['code'] not in main_codes]
     print(f"开始采集股票K线数据，共 {len(stocks)} 只股票")
     print(f"数据库目录: {db_dir}")
 

@@ -63,10 +63,10 @@ MAIN_STOCK = [
     "code": "000510.SH",
     "name": "中证A500"
   },
-  {
-    "code": "000904.SH",
-    "name": "中证200"
-  },
+  # {
+  #   "code": "000904.SH",
+  #   "name": "中证200"
+  # },
   {
     "code": "000905.SH",
     "name": "中证500"
@@ -79,10 +79,10 @@ MAIN_STOCK = [
     "code": "000852.SH",
     "name": "中证1000"
   },
-  {
-    "code": "932000.SZ",
-    "name": "中证2000"
-  },
+  # {
+  #   "code": "932000.SZ",
+  #   "name": "中证2000"
+  # },
   {
     "code": "000985.SH",
     "name": "中证全指"
@@ -103,18 +103,18 @@ MAIN_STOCK = [
     "code": "000133.SH",
     "name": "上证150"
   },
-  {
-    "code": "000003.SH",
-    "name": "Ｂ股指数"
-  },
+  # {
+  #   "code": "000003.SH",
+  #   "name": "Ｂ股指数"
+  # },
   {
     "code": "000012.SH",
     "name": "国债指数"
   },
-  {
-    "code": "000013.SH",
-    "name": "企债指数"
-  },
+  # {
+  #   "code": "000013.SH",
+  #   "name": "企债指数"
+  # },
   {
     "code": "000011.SH",
     "name": "基金指数"
@@ -131,10 +131,10 @@ MAIN_STOCK = [
     "code": "399005.SZ",
     "name": "中小100"
   },
-  {
-    "code": "399003.SZ",
-    "name": "成份Ｂ指"
-  },
+  # {
+  #   "code": "399003.SZ",
+  #   "name": "成份Ｂ指"
+  # },
   {
     "code": "399106.SZ",
     "name": "深证综指"
@@ -56097,7 +56097,9 @@ def get_stock_code(name):
 
 STOCK_INDICES_DICT = {stock['code']: stock for stock in ALL_STOCKS}
 
-# 所有大盘指数的纯数字代码集合，用于判断是否为指数
+# 所有大盘指数的完整代码集合（含后缀），用于判断是否为指数
+INDEX_CODES_FULL = {stock['code'] for stock in MAIN_STOCK}
+# 纯数字代码集合（向后兼容，注意：同一数字可能同时对应指数和个股，如 000680）
 INDEX_CODES = {stock['code'].split('.')[0] for stock in MAIN_STOCK}
 
 if __name__ == '__main__':
