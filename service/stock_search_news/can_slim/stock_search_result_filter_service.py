@@ -1,10 +1,13 @@
 import json
+import logging
 from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from common.utils.llm_utils import parse_llm_json
 from service.llm.deepseek_client import DeepSeekClient
 from service.stock_search_news.can_slim.stock_research_keywork_service import research_stock_news
+
+logger = logging.getLogger(__name__)
 
 
 async def get_search_result_filter_prompt(stock_info: StockInfo, category=None, search_results=None):
@@ -77,7 +80,7 @@ async def filter_category_results(stock_info: StockInfo, category_data, client, 
                     'search_results': filtered_results
                 }
         except (json.JSONDecodeError, KeyError, Exception) as e:
-            print(f"过滤{category_data['category']}时出错: {e}")
+            logger.error("过滤%s时出错: %s", category_data['category'], e)
         
         return None
 

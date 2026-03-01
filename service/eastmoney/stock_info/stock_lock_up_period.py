@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import requests
 from typing import Optional, List
@@ -7,6 +8,8 @@ import json
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
+
+logger = logging.getLogger(__name__)
 
 
 async def get_stock_lock_up_period(stock_info: StockInfo, page_size: int = 500, page_number: int = 1) -> Optional[dict]:
@@ -59,7 +62,7 @@ async def get_stock_lock_up_period(stock_info: StockInfo, page_size: int = 500, 
         
         return data
     except Exception as e:
-        print(f"获取限售解禁数据失败: {e}")
+        logger.error("获取限售解禁数据失败: %s", e)
         return None
 
 

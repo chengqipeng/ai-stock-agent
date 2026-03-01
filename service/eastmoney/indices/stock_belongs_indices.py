@@ -1,6 +1,10 @@
 import asyncio
+import logging
+
 from common.http.http_utils import EASTMONEY_PUSH2_API_URL, fetch_eastmoney_api
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
+
+logger = logging.getLogger(__name__)
 
 INDICES_LIST = [
     {
@@ -168,7 +172,7 @@ async def fetch_all_indices_stocks():
                     break
                 page += 1
         except Exception as e:
-            print(f"获取 {index['name']} 失败: {e}")
+            logger.error("获取 %s 失败: %s", index['indices_stock_name'], e)
     
     # 保存到文件
     output_file = "indices_all_data.json"

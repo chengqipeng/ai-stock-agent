@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import re
 from asyncio import Semaphore
 from datetime import datetime
@@ -9,6 +10,8 @@ from abc import ABC, abstractmethod
 from common.utils.stock_info_utils import get_stock_info_by_name, StockInfo
 from common.utils.llm_utils import parse_llm_json
 from service.eastmoney.stock_structure_markdown import get_stock_markdown_for_score
+
+logger = logging.getLogger(__name__)
 
 
 class BaseStockProcessor(ABC):
@@ -58,7 +61,7 @@ class BaseStockProcessor(ABC):
                     with open(file_path, 'w', encoding='utf-8') as f:
                         f.writelines(lines)
             except Exception as e:
-                print(f"\n[{index}/{total}] {stock_name} ({stock_code}) - 异常: {e}")
+                logger.error("[%d/%d] %s (%s) - 异常: %s", index, total, stock_name, stock_code, e)
     
     async def run(self):
         client = self.create_client()

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
@@ -12,6 +13,8 @@ from service.llm.deepseek_client import DeepSeekClient
 from service.llm.gemini_client import GeminiClient
 from common.prompt.stock_technical_indicator_prompt import get_technical_prompt
 from common.prompt.stock_technical_indicator_simple_prompt import get_technical_prompt_score
+
+logger = logging.getLogger(__name__)
 
 
 async def get_technical_indicators_markdown(stock_info: StockInfo):
@@ -61,6 +64,7 @@ async def get_technical_indicators_for_llm_analysis_prompt(stock_info: StockInfo
         
         return response.get("choices", [{}])[0].get("message", {}).get("content", "")
     except Exception as e:
+        logger.error("技术分析失败 [%s]: %s", stock_info.stock_name, e)
         return f"# 错误\n\n技术分析失败: {str(e)}"
 
 async def main():

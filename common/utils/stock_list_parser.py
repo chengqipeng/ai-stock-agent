@@ -1,5 +1,8 @@
+import logging
 import re
 from typing import List, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 def parse_stock_list(file_path: str) -> List[Dict]:
     """
@@ -31,7 +34,7 @@ def parse_stock_list(file_path: str) -> List[Dict]:
                     'score': score
                 })
     except Exception as e:
-        print(f"解析股票列表失败: {e}")
+        logger.error("解析股票列表失败: %s", e)
     
     return stocks
 
@@ -67,5 +70,5 @@ def update_stock_score(file_path: str, stock_name: str, stock_code: str, new_sco
             f.write(new_content)
         return True
     except Exception as e:
-        print(f"更新股票打分失败: {e}")
+        logger.error("更新股票打分失败: %s", e)
         return False

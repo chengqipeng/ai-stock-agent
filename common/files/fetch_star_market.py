@@ -1,7 +1,10 @@
 import aiohttp
 import asyncio
 import json
+import logging
 import re
+
+logger = logging.getLogger(__name__)
 
 async def fetch_star_market_stocks():
     """拉取科创板股票列表"""
@@ -42,7 +45,7 @@ async def fetch_star_market_stocks():
         return stocks
         
     except Exception as e:
-        print(f"获取科创板数据失败: {e}")
+        logger.error("获取科创板数据失败: %s", e)
         return []
 
 if __name__ == '__main__':

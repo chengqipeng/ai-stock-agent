@@ -630,6 +630,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
                 await asyncio.wait_for(queue.get(), timeout=2.0)
                 finished += 1
             except asyncio.TimeoutError:
+                logger.debug("batch progress queue timeout, continuing...")
                 pass
             yield progress_event()
 
@@ -649,12 +650,14 @@ def extract_grade_and_content(result: str):
         if clean.startswith('{'):
             try:
                 data = json.loads(clean)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                logger.debug("extract_grade_and_content 首次JSON解析失败: %s", e)
                 # 尝试修复常见的LLM输出问题：字符串值中的未转义换行符
                 sanitized = re.sub(r'(?<=:\s*")(.*?)(?=")', lambda m: m.group(0).replace('\n', '\\n'), clean, flags=re.DOTALL)
                 try:
                     data = json.loads(sanitized)
-                except (json.JSONDecodeError, ValueError):
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.warning("extract_grade_and_content JSON修复后仍解析失败: %s", e)
                     # 最后尝试用正则提取字段
                     not_hold_grade = re.search(r'"not_hold_grade"\s*:\s*"([^"]*)"', clean)
                     content = re.search(r'"content"\s*:\s*"(.*?)"', clean, re.DOTALL)
@@ -721,7 +724,7 @@ def extract_score_from_result(result: str) -> float:
         
         return 0.0
     except Exception as e:
-        print(f"Error extracting score: {e}, result: {result}")
+        logger.error("Error extracting score: %s, result: %s", e, result)
         return 0.0
 
 def extract_summary_from_result(result: str) -> str:
@@ -747,5 +750,5 @@ def extract_summary_from_result(result: str) -> str:
                 return ''
         return result[:200] + '...' if len(result) > 200 else result
     except Exception as e:
-        print(f"Error extracting summary: {e}, result: {result[:100]}")
+        logger.error("Error extracting summary: %s, result: %s", e, result[:100])
         return result[:200] + '...' if len(result) > 200 else result

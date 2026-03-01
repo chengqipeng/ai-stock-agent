@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -13,6 +14,8 @@ from dao.stock_kline_dao import (
 )
 
 _CST = ZoneInfo("Asia/Shanghai")
+
+logger = logging.getLogger(__name__)
 
 
 async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
@@ -45,7 +48,7 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
             klines = [kline_str] if kline_str else []
             elapsed = asyncio.get_event_loop().time() - t0
         except Exception as e:
-            print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 实时K线获取失败: {e}")
+            logger.error("[总%d 成功%d 失败%d 当前:%s] 实时K线获取失败: %s", counter['total'], counter['success'], counter['failed'], stock_name, e)
             counter['failed'] += 1
             return
     else:
@@ -56,10 +59,10 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
                 break
             except Exception as e:
                 if ('Server disconnected' in str(e) or 'Connection closed abruptly' in str(e)) and attempt < 10:
-                    print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 连接中断({e.__class__.__name__})，第{attempt}次重试，等待10秒")
+                    logger.warning("[总%d 成功%d 失败%d 当前:%s] 连接中断(%s)，第%d次重试，等待10秒", counter['total'], counter['success'], counter['failed'], stock_name, e.__class__.__name__, attempt)
                     await asyncio.sleep(10)
                 else:
-                    print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 获取K线失败: {e}")
+                    logger.error("[总%d 成功%d 失败%d 当前:%s] 获取K线失败: %s", counter['total'], counter['success'], counter['failed'], stock_name, e)
                     counter['failed'] += 1
                     return
 
@@ -80,7 +83,7 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
             parsed_list.append(kline_data)
             saved_dates.add(date.fromisoformat(kline_data['date']))
         except Exception as e:
-            print(f"解析K线数据失败 {stock_code}: {e}")
+            logger.error("解析K线数据失败 %s: %s", stock_code, e)
     batch_insert_or_update_kline_data(cursor, table_name, parsed_list)
     for d in missing_days:
         if d not in saved_dates:

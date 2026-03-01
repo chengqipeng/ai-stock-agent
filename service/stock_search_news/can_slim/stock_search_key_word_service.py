@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
@@ -7,6 +8,8 @@ from common.utils.llm_utils import parse_llm_json
 from service.llm.deepseek_client import DeepSeekClient
 from service.stock_search_news.can_slim.stock_global_search_category_service import get_global_search_category_result
 from service.stock_search_news.can_slim.stock_industry_service import get_industry_result
+
+logger = logging.getLogger(__name__)
 
 
 async def get_domestic_search_key_prompt(stock_info: StockInfo, search_intent= None, search_content = None):
@@ -151,7 +154,7 @@ async def get_search_key_result_single(stock_info: StockInfo, category_info):
             "search_key_time_range": data.get('search_key_time_range', 30)
         }
     except json.JSONDecodeError as e:
-        print(f"JSONDecodeError parsing search key result: {e}, content: {content[:100]}")
+        logger.error("JSONDecodeError parsing search key result: %s, content: %s", e, content[:100])
         return {
             "category": category_info['category'],
             "intent": category_info['intent'],

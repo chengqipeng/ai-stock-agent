@@ -48,7 +48,7 @@ class PDFParser:
                 return file_path
             return None
         except Exception as e:
-            print(f"PDF下载失败: {pdf_url}, 错误: {e}")
+            logger.error("PDF下载失败: %s, 错误: %s", pdf_url, e)
             return None
     
     @staticmethod
@@ -70,7 +70,7 @@ class PDFParser:
                             logger.warning("PDF页面解析失败 [%s]: %s", file_path, e)
                             continue
                 except Exception as e:
-                    print(f"PDF解析警告: {file_path}, 错误: {e}, 尝试保存已读取内容")
+                    logger.warning("PDF解析警告: %s, 错误: %s, 尝试保存已读取内容", file_path, e)
             
             if not text:
                 return None
@@ -81,7 +81,7 @@ class PDFParser:
             
             return txt_path
         except Exception as e:
-            print(f"PDF解析失败: {file_path}, 错误: {e}")
+            logger.error("PDF解析失败: %s, 错误: %s", file_path, e)
             return None
     
     @staticmethod
@@ -100,7 +100,7 @@ class PDFParser:
             try:
                 os.remove(file_path)
             except Exception as e:
-                print(f"删除文件失败: {file_path}, 错误: {e}")
+                logger.warning("删除文件失败: %s, 错误: %s", file_path, e)
             
             if txt_path:
                 return txt_path, "success"

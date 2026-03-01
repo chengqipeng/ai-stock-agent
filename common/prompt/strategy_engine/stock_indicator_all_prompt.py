@@ -1246,7 +1246,8 @@ def _compute_fund_flow_behavior(fund_flow: list[dict]) -> dict:
             val = val.replace('亿', '').replace(',', '').strip()
             try:
                 return float(val)
-            except ValueError:
+            except ValueError as e:
+                logger.debug("_parse_amount 转换失败: val=%s, %s", val, e)
                 return 0
         return 0
 
@@ -1555,7 +1556,8 @@ def _compute_sh_sz_hk_hold_summary(sh_sz_hk_data: list[dict]) -> dict:
         if isinstance(ratio, str) and ratio.endswith('%'):
             try:
                 ratio_list.append(float(ratio.replace('%', '')))
-            except ValueError:
+            except ValueError as e:
+                logger.debug("占流通股比解析失败: ratio=%s, %s", ratio, e)
                 ratio_list.append(None)
         elif isinstance(ratio, (int, float)):
             ratio_list.append(float(ratio))
@@ -1631,7 +1633,8 @@ def _parse_hold_change(change) -> float:
         cleaned = change.replace('万股', '').replace(',', '').strip()
         try:
             return float(cleaned)
-        except ValueError:
+        except ValueError as e:
+            logger.debug("_parse_hold_change 转换失败: change=%s, %s", change, e)
             return 0.0
     return 0.0
 
@@ -2010,7 +2013,8 @@ def _compute_comprehensive_score(
             cleaned = val.replace('亿', '').replace(',', '').strip()
             try:
                 return float(cleaned)
-            except ValueError:
+            except ValueError as e:
+                logger.debug("_parse_fund_amount 转换失败: val=%s, %s", val, e)
                 return 0
         return 0
 
@@ -2311,8 +2315,8 @@ def _compute_comprehensive_score(
             elif high_pct > -5:
                 rr_score -= 1
                 rr_reasons.append(f'距120日高点{dist_high}（接近前高，上方压力大）-1')
-        except ValueError:
-            pass
+        except ValueError as e:
+            logger.debug("距120日高点解析失败: dist_high=%s, %s", dist_high, e)
 
     rr_score = max(0, min(10, rr_score))
     scores['风险收益比'] = rr_score

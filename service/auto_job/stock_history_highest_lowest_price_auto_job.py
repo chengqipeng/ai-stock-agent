@@ -1,11 +1,14 @@
 import asyncio
 import json
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
 
 from common.utils.stock_info_utils import get_stock_info_by_name
 from service.jqka10.stock_week_kline_data_10jqka import get_stock_week_kline_list_10jqka
+
+logger = logging.getLogger(__name__)
 
 # 获取项目根目录
 project_root = Path(__file__).parent.parent.parent
@@ -74,7 +77,7 @@ async def process_stock(stock):
             print(
                 f"✓ {stock_name}: 最高{highest_record['最高']}({highest_record['日期']}) 最低{lowest_record['最低']}({lowest_record['日期']}) - 当前执行 {completed_count}/{total_count}")
     except Exception as e:
-        print(f"✗ {stock.get('name', '')} 失败: {str(e)}")
+        logger.error("✗ %s 失败: %s", stock.get('name', ''), e)
 
 
 async def process_batch(stocks):
