@@ -24,6 +24,9 @@ from service.jqka10.stock_week_kline_data_10jqka import get_stock_week_kline_lis
 from service.web_search.stock_news_search import search_stock_news, format_news_for_prompt
 from service.web_search.stock_block_trade_search import search_block_trade, compute_block_trade_summary
 from service.sina.stock_order_book_data import get_order_book, compute_order_book_summary
+from service.eastmoney.stock_info.stock_margin_trading import get_margin_trading_data
+from service.eastmoney.forecast.stock_institution_forecast_summary import get_institution_forecast_summary_current_next_year_json
+from service.eastmoney.stock_info.stock_industry_ranking import get_stock_industry_ranking_json
 
 
 # ──────────────────────────────────────────────
@@ -872,6 +875,361 @@ def _compute_boll_summary(boll_data: dict, latest_close: float) -> dict:
         '风险收益比': risk_reward_desc,
     }
 
+def _compute_boll_signal(boll_data: dict, kline_data: list[dict], kline_summary: dict) -> dict:
+    """
+    预计算 BOLL 突破/跌破/喇叭口信号判定，避免 LLM 自行比较昨收vs昨中轨等条件。
+
+    判定规则（与提示词中完全一致）：
+    - 强势开启：昨收<=昨中轨 且 今收>今中轨 且 量>50日均量×1.5
+    - 波段结束：昨收>=昨中轨 且 今收<今中轨
+    - 可操作区：收盘>中轨 且 中轨上倾
+    - 喇叭口加速：上下轨反向张开 且 带宽单日放大超10%
+    """
+    details = boll_data.get('明细数据', [])
+    valid = _filter_valid_trading_days(kline_data)
+    if len(details) < 2 or len(valid) < 2:
+        return {'BOLL信号': '数据不足', '信号详情': ''}
+
+    today = details[0]
+    yesterday = details[1]
+    today_close = valid[0].get('收盘价', 0)
+    yesterday_close = valid[1].get('收盘价', 0)
+    today_vol = valid[0].get('成交量（手）', 0)
+    breakout_threshold = kline_summary.get('放量突破阈值（手）', 0)
+
+    today_mid = today.get('BOLL', 0)
+    today_upper = today.get('BOLL_UB', 0)
+    today_lower = today.get('BOLL_LB', 0)
+    yesterday_mid = yesterday.get('BOLL', 0)
+    yesterday_upper = yesterday.get('BOLL_UB', 0)
+    yesterday_lower = yesterday.get('BOLL_LB', 0)
+
+    # ── 强势开启判定 ──
+    strong_start = False
+    strong_start_detail = ''
+    if yesterday_close <= yesterday_mid and today_close > today_mid and today_vol > breakout_threshold:
+        strong_start = True
+        strong_start_detail = (
+            f"昨收{yesterday_close}<=昨中轨{yesterday_mid}，今收{today_close}>今中轨{today_mid}，"
+            f"成交量{today_vol}手>放量阈值{breakout_threshold}手，确认放量突破中轨"
+        )
+    elif yesterday_close <= yesterday_mid and today_close > today_mid:
+        strong_start_detail = (
+            f"昨收{yesterday_close}<=昨中轨{yesterday_mid}，今收{today_close}>今中轨{today_mid}，"
+            f"但成交量{today_vol}手<放量阈值{breakout_threshold}手，突破缺乏量能确认"
+        )
+
+    # ── 波段结束判定 ──
+    band_end = False
+    band_end_detail = ''
+    if yesterday_close >= yesterday_mid and today_close < today_mid:
+        band_end = True
+        band_end_detail = (
+            f"昨收{yesterday_close}>=昨中轨{yesterday_mid}，今收{today_close}<今中轨{today_mid}，"
+            f"确认跌破中轨，波段结束"
+        )
+
+    # ── 可操作区判定 ──
+    mid_direction = '上倾' if today_mid > yesterday_mid else ('下倾' if today_mid < yesterday_mid else '走平')
+    in_operable_zone = today_close > today_mid and today_mid > yesterday_mid
+    operable_detail = ''
+    if in_operable_zone:
+        operable_detail = f"收盘{today_close}>中轨{today_mid}且中轨{mid_direction}，处于可操作区"
+    elif today_close > today_mid:
+        operable_detail = f"收盘{today_close}>中轨{today_mid}但中轨{mid_direction}，可操作性存疑"
+    else:
+        operable_detail = f"收盘{today_close}<中轨{today_mid}，不在可操作区"
+
+    # ── 喇叭口加速判定 ──
+    trumpet = False
+    trumpet_detail = ''
+    if yesterday_mid and today_mid:
+        today_bw = (today_upper - today_lower) / today_mid * 100 if today_mid else 0
+        yesterday_bw = (yesterday_upper - yesterday_lower) / yesterday_mid * 100 if yesterday_mid else 0
+        bw_change_pct = round((today_bw - yesterday_bw) / yesterday_bw * 100, 2) if yesterday_bw > 0 else 0
+        upper_expanding = today_upper > yesterday_upper
+        lower_shrinking = today_lower < yesterday_lower
+        if upper_expanding and lower_shrinking and bw_change_pct > 10:
+            trumpet = True
+            trumpet_detail = (
+                f"上轨{yesterday_upper}→{today_upper}（扩张），下轨{yesterday_lower}→{today_lower}（收缩），"
+                f"带宽放大{bw_change_pct}%>10%，确认喇叭口加速"
+            )
+        elif bw_change_pct > 10:
+            trumpet_detail = f"带宽放大{bw_change_pct}%>10%，但上下轨未反向张开，非标准喇叭口"
+        else:
+            trumpet_detail = f"带宽变化{bw_change_pct}%，未触发喇叭口加速条件"
+
+    # ── 综合信号 ──
+    if strong_start:
+        signal = '强势开启（放量突破中轨）'
+    elif band_end:
+        signal = '波段结束（跌破中轨）'
+    elif trumpet:
+        signal = '喇叭口加速'
+    elif in_operable_zone:
+        signal = '可操作区运行'
+    else:
+        signal = '无明确信号'
+
+    return {
+        'BOLL信号': signal,
+        '强势开启': strong_start,
+        '强势开启详情': strong_start_detail if strong_start_detail else '未触发',
+        '波段结束': band_end,
+        '波段结束详情': band_end_detail if band_end_detail else '未触发',
+        '可操作区': in_operable_zone,
+        '可操作区详情': operable_detail,
+        '喇叭口加速': trumpet,
+        '喇叭口加速详情': trumpet_detail,
+    }
+
+
+def _compute_kdj_trade_signal(kdj_data: dict, kdj_summary: dict, ma_summary: dict) -> dict:
+    """
+    预计算 KDJ 综合买卖信号判定，结合 MA5/MA20 判断钝化出局条件。
+    避免 LLM 自行组合 KDJ 信号与均线条件。
+
+    判定规则（与提示词中完全一致）：
+    - 买入：近5日曾超卖(K<20,D<20,J<0) + 金叉 + J勾头向上
+    - 卖出(钝化)：K>80连续N天 + 跌破MA5或MA20 → 钝化出局
+    - 卖出(普通)：非钝化 + 近5日曾超买(K>80,D>80,J>100) + 死叉
+    """
+    latest_signal = kdj_summary.get('最新信号', 'Hold')
+    was_oversold = kdj_summary.get('近5日曾超卖', False)
+    was_overbought = kdj_summary.get('近5日曾超买', False)
+    is_blunted = kdj_summary.get('高位钝化', False)
+    k_above_80_days = kdj_summary.get('K>80连续天数', 0)
+    latest_k = kdj_summary.get('最新K', 50) or 50
+    latest_d = kdj_summary.get('最新D', 50) or 50
+    kd_diff = kdj_summary.get('K-D差值', 0)
+    turning = kdj_summary.get('KDJ拐头状态', '')
+
+    ma5 = ma_summary.get('MA5', 0)
+    ma20 = ma_summary.get('MA20', 0)
+
+    # 获取最新收盘价（从KDJ明细中取）
+    details = kdj_summary.get('近5日明细', [])
+    latest_close = details[0].get('收盘价', 0) if details else 0
+
+    # ── 买入信号判定 ──
+    is_buy = False
+    buy_detail = ''
+    if latest_signal == 'Buy':
+        is_buy = True
+        buy_detail = f"KDJ发出Buy信号：近5日曾超卖={was_oversold}，金叉+J勾头向上"
+    elif was_oversold and kd_diff > 0 and '低位拐头向上' in turning:
+        is_buy = True
+        buy_detail = f"KDJ低位拐头向上且K>D（K-D={kd_diff}），近5日曾超卖，接近买入条件"
+
+    # ── 卖出信号判定（钝化出局）──
+    is_sell_blunted = False
+    sell_blunted_detail = ''
+    if is_blunted and latest_close and ma5 and ma20:
+        below_ma5 = latest_close < ma5
+        below_ma20 = latest_close < ma20
+        if below_ma5 or below_ma20:
+            is_sell_blunted = True
+            broken_lines = []
+            if below_ma5:
+                broken_lines.append(f"MA5({ma5})")
+            if below_ma20:
+                broken_lines.append(f"MA20({ma20})")
+            sell_blunted_detail = (
+                f"KDJ高位钝化（K>80连续{k_above_80_days}天），"
+                f"收盘价{latest_close}跌破{'和'.join(broken_lines)}，触发钝化出局"
+            )
+        else:
+            sell_blunted_detail = (
+                f"KDJ高位钝化（K>80连续{k_above_80_days}天），"
+                f"但收盘价{latest_close}仍在MA5({ma5})和MA20({ma20})上方，持股死捂"
+            )
+    elif is_blunted:
+        sell_blunted_detail = f"KDJ高位钝化（K>80连续{k_above_80_days}天），但缺少均线数据无法判断出局条件"
+
+    # ── 卖出信号判定（普通死叉）──
+    is_sell_standard = False
+    sell_standard_detail = ''
+    if 'Sell (Standard)' in str(latest_signal):
+        is_sell_standard = True
+        sell_standard_detail = f"KDJ发出Sell(Standard)信号：近5日曾超买={was_overbought}，死叉确认"
+    elif was_overbought and kd_diff < 0 and '高位拐头向下' in turning and not is_blunted:
+        is_sell_standard = True
+        sell_standard_detail = f"KDJ高位拐头向下且K<D（K-D={kd_diff}），近5日曾超买，非钝化状态，接近卖出条件"
+
+    # ── 综合信号 ──
+    if is_buy:
+        signal = '买入信号'
+    elif is_sell_blunted:
+        signal = '钝化出局信号'
+    elif is_sell_standard:
+        signal = '普通卖出信号'
+    elif is_blunted and not is_sell_blunted:
+        signal = '高位钝化持股（未破均线）'
+    else:
+        signal = '持有观望'
+
+    return {
+        'KDJ综合信号': signal,
+        '买入信号': is_buy,
+        '买入详情': buy_detail if buy_detail else '未触发买入条件',
+        '钝化出局信号': is_sell_blunted,
+        '钝化出局详情': sell_blunted_detail if sell_blunted_detail else '未触发钝化出局',
+        '普通卖出信号': is_sell_standard,
+        '普通卖出详情': sell_standard_detail if sell_standard_detail else '未触发普通卖出',
+        '原始KDJ信号': latest_signal,
+    }
+
+
+def _compute_macd_zero_axis_event(macd_data: dict) -> dict:
+    """
+    预计算 MACD 零轴穿越事件，避免 LLM 自行从明细数据中推导 DIF 是否穿越零轴。
+
+    检测近30日内 DIF 上穿/下穿零轴的事件，以及当前 DIF 距零轴的距离。
+    """
+    details = macd_data.get('明细数据', [])
+    if len(details) < 2:
+        return {'零轴事件': '数据不足'}
+
+    # 明细数据按日期降序（最新在前）
+    latest_dif = details[0].get('DIF', 0)
+    latest_dea = details[0].get('DEA', 0)
+
+    # 检测近30日DIF零轴穿越
+    cross_up_events = []  # DIF上穿零轴
+    cross_down_events = []  # DIF下穿零轴
+    check_range = min(30, len(details) - 1)
+
+    for i in range(check_range):
+        curr_dif = details[i].get('DIF', 0)
+        prev_dif = details[i + 1].get('DIF', 0)
+        curr_date = details[i].get('日期', '')
+
+        if prev_dif <= 0 and curr_dif > 0:
+            cross_up_events.append({
+                '日期': curr_date,
+                'DIF': curr_dif,
+                '描述': f"DIF于{curr_date}上穿零轴（{prev_dif}→{curr_dif}）"
+            })
+        elif prev_dif >= 0 and curr_dif < 0:
+            cross_down_events.append({
+                '日期': curr_date,
+                'DIF': curr_dif,
+                '描述': f"DIF于{curr_date}下穿零轴（{prev_dif}→{curr_dif}）"
+            })
+
+    # DIF距零轴距离
+    dif_to_zero = round(abs(latest_dif), 4)
+    dif_position = '零轴上方' if latest_dif > 0 else ('零轴下方' if latest_dif < 0 else '零轴附近')
+
+    # DEA距零轴距离
+    dea_to_zero = round(abs(latest_dea), 4)
+    dea_position = '零轴上方' if latest_dea > 0 else ('零轴下方' if latest_dea < 0 else '零轴附近')
+
+    # 综合描述
+    if cross_up_events:
+        latest_cross = cross_up_events[0]
+        event_desc = f"近30日DIF上穿零轴（{latest_cross['日期']}），当前DIF={latest_dif}在{dif_position}"
+    elif cross_down_events:
+        latest_cross = cross_down_events[0]
+        event_desc = f"近30日DIF下穿零轴（{latest_cross['日期']}），当前DIF={latest_dif}在{dif_position}"
+    else:
+        event_desc = f"近30日DIF未穿越零轴，当前DIF={latest_dif}在{dif_position}"
+
+    return {
+        '零轴事件': event_desc,
+        'DIF位置': dif_position,
+        'DIF距零轴': dif_to_zero,
+        'DEA位置': dea_position,
+        'DEA距零轴': dea_to_zero,
+        '近30日DIF上穿零轴': cross_up_events if cross_up_events else '无',
+        '近30日DIF下穿零轴': cross_down_events if cross_down_events else '无',
+        '当前DIF': latest_dif,
+        '当前DEA': latest_dea,
+    }
+
+
+def _compute_daily_weekly_resonance(ma_summary: dict, weekly_kline_summary: dict,
+                                     macd_data: dict, macd_bar_trend: dict) -> dict:
+    """
+    预计算日线与周线的趋势共振判定，避免 LLM 自行对比日线和周线趋势方向。
+
+    共振类型：
+    - 日周多头共振：日线均线多头排列 + 周线均线多头排列（强多信号）
+    - 日周空头共振：日线均线空头排列 + 周线均线空头排列（强空信号）
+    - 日周背离：日线与周线趋势方向相反（需警惕）
+    - 无共振：日线或周线趋势不明确
+    """
+    daily_alignment = ma_summary.get('均线排列状态', '')
+    weekly_alignment = weekly_kline_summary.get('周线均线排列', '')
+
+    # MACD市场状态
+    latest_macd = macd_data.get('明细数据', [{}])[0] if macd_data.get('明细数据') else {}
+    market_state = latest_macd.get('市场状态', '')
+
+    # 日线趋势方向
+    daily_bullish = '多头排列' in daily_alignment or market_state in ('强多头', '弱多头')
+    daily_bearish = '空头排列' in daily_alignment or market_state == '空头'
+
+    # 周线趋势方向
+    weekly_bullish = '多头排列' in weekly_alignment
+    weekly_bearish = '空头排列' in weekly_alignment
+
+    # 周线最新涨跌
+    weekly_latest_change = weekly_kline_summary.get('最新周涨跌幅', 0) or 0
+
+    # MACD柱方向
+    bar_color = macd_bar_trend.get('柱色', '')
+
+    # ── 共振判定 ──
+    if daily_bullish and weekly_bullish:
+        resonance = '日周多头共振'
+        resonance_detail = (
+            f"日线{daily_alignment}，周线{weekly_alignment}，"
+            f"MACD{market_state}+{bar_color}，周线最新涨跌{weekly_latest_change:+.2f}%，"
+            f"多头共振确认，趋势强度高"
+        )
+        strength = '强'
+    elif daily_bearish and weekly_bearish:
+        resonance = '日周空头共振'
+        resonance_detail = (
+            f"日线{daily_alignment}，周线{weekly_alignment}，"
+            f"MACD{market_state}+{bar_color}，周线最新涨跌{weekly_latest_change:+.2f}%，"
+            f"空头共振确认，趋势强度高（空方）"
+        )
+        strength = '强（空方）'
+    elif daily_bullish and weekly_bearish:
+        resonance = '日周背离（日多周空）'
+        resonance_detail = (
+            f"日线{daily_alignment}偏多，但周线{weekly_alignment}偏空，"
+            f"日线反弹可能受周线压制，需警惕反弹高度有限"
+        )
+        strength = '弱（日线反弹受限）'
+    elif daily_bearish and weekly_bullish:
+        resonance = '日周背离（日空周多）'
+        resonance_detail = (
+            f"日线{daily_alignment}偏空，但周线{weekly_alignment}偏多，"
+            f"日线调整可能是周线级别的回踩，关注支撑位企稳"
+        )
+        strength = '中（周线支撑）'
+    else:
+        resonance = '无明确共振'
+        resonance_detail = (
+            f"日线{daily_alignment}，周线{weekly_alignment}，"
+            f"趋势方向不明确，等待方向选择"
+        )
+        strength = '弱'
+
+    return {
+        '共振类型': resonance,
+        '共振详情': resonance_detail,
+        '趋势强度': strength,
+        '日线趋势': daily_alignment,
+        '周线趋势': weekly_alignment,
+        'MACD市场状态': market_state,
+    }
+
+
 def _compute_data_consistency_check(kline_data: list[dict], intraday_summary: dict) -> dict:
     """
     预计算日线与分时数据的一致性校验，避免 LLM 引用矛盾数据。
@@ -1089,6 +1447,12 @@ async def _fetch_market_index_summary(index_name: str, days: int = 20) -> dict:
     """
     获取大盘指数近期K线数据并预计算摘要。
     """
+    # 大盘指数收盘价合理范围（用于数据异常检测）
+    INDEX_PRICE_RANGES = {
+        '上证指数': (1000, 10000),
+        '深证成指': (3000, 30000),
+    }
+
     try:
         index_info = get_stock_info_by_name(index_name)
         if not index_info:
@@ -1102,6 +1466,20 @@ async def _fetch_market_index_summary(index_name: str, days: int = 20) -> dict:
         latest = kline_data[0]
         latest_close = latest['收盘价']
         latest_change = latest.get('涨跌幅(%)', 0)
+
+        # ── 指数价格合理性校验 ──
+        price_range = INDEX_PRICE_RANGES.get(index_name)
+        data_anomaly = ''
+        if price_range and latest_close is not None:
+            low_bound, high_bound = price_range
+            if latest_close < low_bound or latest_close > high_bound:
+                data_anomaly = (
+                    f"★数据异常：{index_name}收盘价{latest_close}不在合理范围"
+                    f"[{low_bound}, {high_bound}]内，数据源可能存在问题，"
+                    f"该指数相关分析结论可信度低"
+                )
+                logger.warning("指数价格异常 [%s]: 收盘价=%s, 合理范围=[%s, %s]",
+                               index_name, latest_close, low_bound, high_bound)
 
         closes = [d['收盘价'] for d in kline_data]
         highs = [d['最高价'] for d in kline_data]
@@ -1178,6 +1556,7 @@ async def _fetch_market_index_summary(index_name: str, days: int = 20) -> dict:
             '5日均线位置': trend_vs_ma5,
             '10日均线位置': trend_vs_ma10,
             '近5日明细': recent_5_detail,
+            '数据异常': data_anomaly if data_anomaly else '无',
         }
     except Exception as e:
         logger.warning(f"获取指数数据失败 [{index_name}]: {e}")
@@ -1640,6 +2019,467 @@ def _parse_hold_change(change) -> float:
 
 
 
+# ──────────────────────────────────────────────
+# 新增预计算函数：补齐缺失的关键指标数据
+# ──────────────────────────────────────────────
+
+
+def _compute_margin_trading_summary(margin_data: list[dict]) -> dict:
+    """预计算融资融券结构化摘要，替代从新闻文本中提取的模糊判断。
+
+    返回融资余额变化趋势、融券余额变化趋势、杠杆方向判断等，
+    确保所有模型拿到完全一致的结论。
+    """
+    if not margin_data:
+        return {
+            '状态': '未获取到融资融券数据',
+            '杠杆方向': '无数据',
+            '融资余额趋势': '无数据',
+            '融券余额趋势': '无数据',
+        }
+
+    latest = margin_data[0]
+    latest_date = latest.get('交易日期', '--')
+
+    # 融资余额（元 → 亿元）
+    def _to_yi(val):
+        if val is None:
+            return None
+        try:
+            return round(float(val) / 1e8, 4)
+        except (ValueError, TypeError):
+            return None
+
+    rz_ye_list = []  # 融资余额序列
+    rq_ye_list = []  # 融券余额序列
+    rz_jme_list = []  # 融资净买入序列
+    dates = []
+
+    for item in margin_data:
+        dates.append(item.get('交易日期', '--'))
+        rz_ye_list.append(_to_yi(item.get('融资余额(元)')))
+        rq_ye_list.append(_to_yi(item.get('融券余额(元)')))
+        rz_jme_list.append(_to_yi(item.get('融资净买入(元)')))
+
+    # 融资余额变化趋势
+    valid_rz = [v for v in rz_ye_list if v is not None]
+    if len(valid_rz) >= 2:
+        rz_change = round(valid_rz[0] - valid_rz[-1], 4)
+        if rz_change > 0:
+            rz_trend = f"融资余额从{valid_rz[-1]:.2f}亿升至{valid_rz[0]:.2f}亿（+{rz_change:.2f}亿），杠杆资金偏多"
+        elif rz_change < 0:
+            rz_trend = f"融资余额从{valid_rz[-1]:.2f}亿降至{valid_rz[0]:.2f}亿（{rz_change:.2f}亿），杠杆资金偏空"
+        else:
+            rz_trend = f"融资余额持平于{valid_rz[0]:.2f}亿"
+    else:
+        rz_trend = "数据不足"
+        rz_change = 0
+
+    # 融券余额变化趋势
+    valid_rq = [v for v in rq_ye_list if v is not None]
+    if len(valid_rq) >= 2:
+        rq_change = round(valid_rq[0] - valid_rq[-1], 4)
+        if rq_change > 0.01:
+            rq_trend = f"融券余额从{valid_rq[-1]:.4f}亿升至{valid_rq[0]:.4f}亿（+{rq_change:.4f}亿），做空力量增强"
+        elif rq_change < -0.01:
+            rq_trend = f"融券余额从{valid_rq[-1]:.4f}亿降至{valid_rq[0]:.4f}亿（{rq_change:.4f}亿），做空力量减弱"
+        else:
+            rq_trend = f"融券余额基本持平于{valid_rq[0]:.4f}亿"
+    else:
+        rq_trend = "数据不足"
+        rq_change = 0
+
+    # 连续融资净买入/净偿还天数
+    rz_net_buy_days = 0
+    rz_net_sell_days = 0
+    for val in rz_jme_list:
+        if val is None:
+            break
+        if val > 0:
+            if rz_net_sell_days == 0:
+                rz_net_buy_days += 1
+            else:
+                break
+        elif val < 0:
+            if rz_net_buy_days == 0:
+                rz_net_sell_days += 1
+            else:
+                break
+        else:
+            break
+
+    # 杠杆方向综合判断
+    rz_bullish = rz_change > 0
+    rq_bearish = rq_change > 0.01
+    if rz_bullish and not rq_bearish:
+        leverage_direction = "杠杆资金偏多（融资余额增加，融券余额未明显增加）"
+    elif not rz_bullish and rq_bearish:
+        leverage_direction = "杠杆资金偏空（融资余额未增加，融券余额增加）"
+    elif rz_bullish and rq_bearish:
+        leverage_direction = "多空混合（融资融券余额均增加）"
+    elif rz_change < 0 and rq_change < -0.01:
+        leverage_direction = "杠杆资金整体退潮（融资融券余额均下降）"
+    else:
+        leverage_direction = "杠杆方向不明"
+
+    # 逐日明细（最近5日）
+    daily_details = []
+    for i, item in enumerate(margin_data[:5]):
+        daily_details.append({
+            '交易日期': item.get('交易日期', '--'),
+            '融资余额(亿)': f"{rz_ye_list[i]:.2f}" if rz_ye_list[i] is not None else '--',
+            '融资净买入(亿)': f"{rz_jme_list[i]:.4f}" if rz_jme_list[i] is not None else '--',
+            '融券余额(亿)': f"{rq_ye_list[i]:.4f}" if rq_ye_list[i] is not None else '--',
+        })
+
+    return {
+        '最新交易日': latest_date,
+        '最新融资余额(亿)': f"{valid_rz[0]:.2f}" if valid_rz else '--',
+        '最新融券余额(亿)': f"{valid_rq[0]:.4f}" if valid_rq else '--',
+        '融资余额趋势': rz_trend,
+        '融券余额趋势': rq_trend,
+        '融资连续净买入天数': rz_net_buy_days,
+        '融资连续净偿还天数': rz_net_sell_days,
+        '杠杆方向': leverage_direction,
+        '近5日明细': daily_details,
+    }
+
+
+def _compute_sector_index_summary(sector_kline: list[dict], sector_name: str) -> dict:
+    """预计算个股所属板块/行业指数的走势摘要。
+
+    与大盘指数摘要逻辑类似，但聚焦于行业板块层面，
+    用于判断个股走势是行业共性还是个股独立行情。
+    """
+    if not sector_kline:
+        return {'状态': f'未获取到{sector_name}板块指数数据', '板块名称': sector_name}
+
+    latest = sector_kline[0]
+    latest_close = latest.get('收盘价', 0)
+    latest_change = latest.get('涨跌幅(%)', 0)
+
+    closes = [d.get('收盘价', 0) for d in sector_kline]
+    changes = [d.get('涨跌幅(%)', 0) for d in sector_kline]
+
+    # 近5日累计涨跌
+    change_5d = None
+    if len(closes) > 4:
+        change_5d = round((closes[0] - closes[4]) / closes[4] * 100, 2)
+
+    # 近5日阳线/阴线
+    up_days = sum(1 for c in changes[:5] if c and c > 0)
+    down_days = sum(1 for c in changes[:5] if c and c < 0)
+
+    # 连涨/连跌
+    streak = 0
+    streak_dir = ''
+    for c in changes:
+        if c is None:
+            break
+        if streak == 0:
+            streak_dir = '涨' if c > 0 else '跌'
+            streak = 1
+        elif (c > 0 and streak_dir == '涨') or (c < 0 and streak_dir == '跌'):
+            streak += 1
+        else:
+            break
+
+    return {
+        '板块名称': sector_name,
+        '最新收盘价': latest_close,
+        '最新涨跌幅(%)': latest_change,
+        '连续状态': f"连{streak_dir}{streak}日" if streak > 1 else f"最新日{'上涨' if latest_change and latest_change > 0 else '下跌'}{abs(latest_change) if latest_change else 0}%",
+        '近5日累计涨跌(%)': change_5d,
+        '近5日阳阴': f"{up_days}阳/{down_days}阴",
+        '近5日明细': [
+            {'日期': d.get('日期', '--'), '收盘价': d.get('收盘价', 0), '涨跌幅(%)': d.get('涨跌幅(%)', 0)}
+            for d in sector_kline[:5]
+        ],
+    }
+
+
+def _compute_consensus_vs_actual(forecast_data: list[dict], news_data: list, stock_name: str) -> dict:
+    """预计算业绩一致预期 vs 实际业绩对比。
+
+    从机构预测汇总数据中提取当年一致预期净利润/EPS，
+    从消息面中提取业绩快报/年报的实际数据，
+    计算超预期/符合预期/低于预期的结论。
+    """
+    import re
+
+    result = {
+        '状态': '无法对比',
+        '一致预期': {},
+        '实际业绩': {},
+        '对比结论': '缺少数据，无法判断业绩是否超预期',
+    }
+
+    # 提取一致预期数据
+    current_year = datetime.now().year
+    target_year = current_year - 1  # 业绩快报通常是上一年度
+
+    if forecast_data:
+        for item in forecast_data:
+            year = item.get('年份', '')
+            try:
+                if int(year) == target_year:
+                    result['一致预期'] = {
+                        '年份': str(target_year),
+                        '一致预期归母净利润': item.get('归属于母公司股东的净利润(元)', '--'),
+                        '一致预期EPS': item.get('每股收益(元)', '--'),
+                        '一致预期营收': item.get('营业总收入(元)', '--'),
+                        '预测机构数': item.get('预测机构数', '--'),
+                    }
+                    break
+            except (ValueError, TypeError):
+                continue
+
+    # 从消息面提取实际业绩数据
+    actual_profit = None
+    actual_revenue = None
+    actual_profit_growth = None
+    actual_revenue_growth = None
+    has_performance_news = False
+
+    if news_data:
+        for news in news_data:
+            if not isinstance(news, dict):
+                continue
+            title = news.get('标题', '') or ''
+            summary = news.get('摘要', '') or ''
+            text = title + summary
+
+            # 检测业绩快报/年报关键词
+            if any(kw in text for kw in ['业绩快报', '年度报告', '年报', '业绩预告']):
+                has_performance_news = True
+
+                # 提取净利润增长率
+                growth_patterns = [
+                    r'净利润[^\d]*?(\d+[\.\d]*)\s*[万亿]?元[，,]?\s*同比增长\s*(\d+[\.\d]*)%',
+                    r'同比增长\s*(\d+[\.\d]*)%',
+                    r'净利润同比[增长]*\s*(\d+[\.\d]*)%',
+                ]
+                for pattern in growth_patterns:
+                    match = re.search(pattern, text)
+                    if match:
+                        groups = match.groups()
+                        actual_profit_growth = float(groups[-1])
+                        break
+
+                # 提取营收增长率
+                rev_patterns = [
+                    r'营[业务]*收入[^\d]*?同比增长\s*(\d+[\.\d]*)%',
+                    r'营业收入\s*[\d,\.]+\s*[万亿]?元[，,]?\s*同比增长\s*(\d+[\.\d]*)%',
+                ]
+                for pattern in rev_patterns:
+                    match = re.search(pattern, text)
+                    if match:
+                        actual_revenue_growth = float(match.group(1))
+                        break
+
+    if has_performance_news:
+        result['实际业绩'] = {}
+        if actual_profit_growth is not None:
+            result['实际业绩']['净利润同比增长(%)'] = actual_profit_growth
+        if actual_revenue_growth is not None:
+            result['实际业绩']['营收同比增长(%)'] = actual_revenue_growth
+
+    # 对比结论
+    consensus_profit = result['一致预期'].get('一致预期归母净利润', '--')
+    if has_performance_news and actual_profit_growth is not None and consensus_profit != '--':
+        # 尝试从一致预期中推算预期增长率（如果有历史数据）
+        result['对比结论'] = (
+            f"业绩快报显示净利润同比增长{actual_profit_growth}%，"
+            f"机构一致预期归母净利润为{consensus_profit}。"
+            f"请结合一致预期绝对值判断是否超预期。"
+        )
+    elif has_performance_news and actual_profit_growth is not None:
+        result['对比结论'] = (
+            f"业绩快报显示净利润同比增长{actual_profit_growth}%，"
+            f"但缺少机构一致预期数据，无法判断是否超预期。"
+        )
+        result['状态'] = '仅有实际业绩，缺少一致预期'
+    elif consensus_profit != '--' and not has_performance_news:
+        result['对比结论'] = (
+            f"机构一致预期{target_year}年归母净利润为{consensus_profit}，"
+            f"近期消息面未发现业绩快报/年报数据，暂无法对比。"
+        )
+        result['状态'] = '仅有一致预期，缺少实际业绩'
+    else:
+        result['对比结论'] = '缺少一致预期和实际业绩数据，无法进行对比'
+        result['状态'] = '数据均缺失'
+
+    if has_performance_news and consensus_profit != '--':
+        result['状态'] = '可对比（需结合绝对值判断）'
+
+    return result
+
+
+def _compute_data_timeliness(northbound_summary: dict, sh_sz_hk_summary: dict,
+                              org_holder_summary: dict, margin_summary: dict,
+                              latest_trading_date: str) -> dict:
+    """预计算各数据源的时效性预警。
+
+    对比各数据源的最新日期与最新交易日，
+    标注数据滞后程度和可信度等级。
+    """
+    warnings = []
+    timeliness = {}
+
+    def _check(name: str, data_date: str, acceptable_lag_days: int = 5):
+        if not data_date or data_date == '--':
+            timeliness[name] = {'数据日期': '未知', '滞后程度': '未知', '可信度': '低'}
+            warnings.append(f"{name}：数据日期未知，可信度低")
+            return
+        try:
+            d_data = datetime.strptime(data_date[:10], '%Y-%m-%d').date()
+            d_latest = datetime.strptime(latest_trading_date[:10], '%Y-%m-%d').date()
+            lag = (d_latest - d_data).days
+            if lag <= acceptable_lag_days:
+                timeliness[name] = {'数据日期': data_date, '滞后天数': lag, '可信度': '高'}
+            elif lag <= 30:
+                timeliness[name] = {'数据日期': data_date, '滞后天数': lag, '可信度': '中'}
+                warnings.append(f"{name}：数据滞后{lag}天（截至{data_date}），结论可信度中等")
+            else:
+                timeliness[name] = {'数据日期': data_date, '滞后天数': lag, '可信度': '低'}
+                warnings.append(f"{name}：数据严重滞后{lag}天（截至{data_date}），结论可信度低，评分权重应降低")
+        except (ValueError, TypeError):
+            timeliness[name] = {'数据日期': data_date, '滞后程度': '解析失败', '可信度': '低'}
+
+    # 北向资金
+    nb_date = northbound_summary.get('最新一日', '')
+    # 从"最新交易日XXXX-XX-XX..."中提取日期
+    import re
+    nb_match = re.search(r'(\d{4}-\d{2}-\d{2})', nb_date)
+    _check('北向资金', nb_match.group(1) if nb_match else '', acceptable_lag_days=5)
+
+    # 沪深港通
+    hk_date = sh_sz_hk_summary.get('最新交易日', '')
+    _check('沪深港通持股', hk_date, acceptable_lag_days=5)
+
+    # 机构持仓（季报数据，天然滞后，放宽到90天）
+    org_date = org_holder_summary.get('报告期', '')
+    _check('机构持仓', org_date, acceptable_lag_days=90)
+
+    # 融资融券
+    margin_date = margin_summary.get('最新交易日', '')
+    _check('融资融券', margin_date, acceptable_lag_days=3)
+
+    return {
+        '各数据源时效性': timeliness,
+        '时效性预警': warnings if warnings else ['所有数据源时效性正常'],
+        '存在严重滞后': any(t.get('可信度') == '低' for t in timeliness.values()),
+    }
+
+
+def _compute_shareholder_reduction_detail(news_data: list, stock_name: str) -> dict:
+    """从消息面中提取大股东/董监高减持的具体规模信息。
+
+    提取减持股数、减持均价、减持金额、剩余计划额度等关键数据，
+    避免大模型自行猜测减持规模。
+    """
+    import re
+
+    result = {
+        '是否有减持公告': False,
+        '减持详情': [],
+        '减持影响判断': '近期无减持公告',
+    }
+
+    if not news_data:
+        return result
+
+    for news in news_data:
+        if not isinstance(news, dict):
+            continue
+        title = news.get('标题', '') or ''
+        summary = news.get('摘要', '') or ''
+        text = title + summary
+
+        if not any(kw in text for kw in ['减持', '减持股份', '减持计划', '减持结果']):
+            continue
+
+        result['是否有减持公告'] = True
+        detail = {'标题': title, '发布时间': news.get('发布时间', '--')}
+
+        # 提取减持数量
+        qty_patterns = [
+            r'减持[^\d]*?(\d+[\.\d]*)\s*万?股',
+            r'累计减持[^\d]*?(\d+[\.\d]*)\s*万?股',
+        ]
+        for pattern in qty_patterns:
+            match = re.search(pattern, text)
+            if match:
+                detail['减持数量'] = match.group(0)
+                break
+
+        # 提取减持比例
+        ratio_patterns = [
+            r'占[总公司]*股本[的]?\s*(\d+[\.\d]*)%',
+            r'减持比例[^\d]*?(\d+[\.\d]*)%',
+        ]
+        for pattern in ratio_patterns:
+            match = re.search(pattern, text)
+            if match:
+                detail['减持占比'] = f"{match.group(1)}%"
+                break
+
+        # 提取减持金额
+        amount_patterns = [
+            r'减持金额[^\d]*?(\d+[\.\d]*)\s*[万亿]?元',
+            r'套现[^\d]*?(\d+[\.\d]*)\s*[万亿]?元',
+        ]
+        for pattern in amount_patterns:
+            match = re.search(pattern, text)
+            if match:
+                detail['减持金额'] = match.group(0)
+                break
+
+        # 提取减持主体
+        subject_patterns = [
+            r'([\u4e00-\u9fa5]+(?:集团|控股|投资|资本)[\u4e00-\u9fa5]*公司)',
+            r'(董事长|总经理|副总|董事|监事|高管)\s*([\u4e00-\u9fa5]{2,4})',
+        ]
+        for pattern in subject_patterns:
+            match = re.search(pattern, text)
+            if match:
+                detail['减持主体'] = match.group(0)
+                break
+
+        result['减持详情'].append(detail)
+
+    # 影响判断
+    if result['是否有减持公告']:
+        count = len(result['减持详情'])
+        result['减持影响判断'] = f"近期有{count}条减持相关公告，存在股东/高管减持压力"
+    return result
+
+
+def _compute_stock_vs_sector(stock_change: float, sector_summary: dict) -> dict:
+    """预计算个股 vs 板块指数的强弱对比。
+
+    避免大模型自行做减法比较。
+    """
+    sector_change = sector_summary.get('最新涨跌幅(%)', 0) or 0
+    sector_name = sector_summary.get('板块名称', '所属板块')
+
+    diff = round(stock_change - sector_change, 2)
+    if diff > 2:
+        relative = f"个股明显强于{sector_name}（个股{stock_change:+.2f}% vs 板块{sector_change:+.2f}%，超额{diff:+.2f}%）"
+    elif diff > 0:
+        relative = f"个股略强于{sector_name}（个股{stock_change:+.2f}% vs 板块{sector_change:+.2f}%，超额{diff:+.2f}%）"
+    elif diff > -2:
+        relative = f"个股略弱于{sector_name}（个股{stock_change:+.2f}% vs 板块{sector_change:+.2f}%，落后{diff:+.2f}%）"
+    else:
+        relative = f"个股明显弱于{sector_name}（个股{stock_change:+.2f}% vs 板块{sector_change:+.2f}%，落后{diff:+.2f}%）"
+
+    return {
+        '个股涨跌幅(%)': stock_change,
+        '板块涨跌幅(%)': sector_change,
+        '超额收益(%)': diff,
+        '强弱判断': relative,
+    }
+
 
 # ──────────────────────────────────────────────
 # 数据精简函数
@@ -1707,6 +2547,7 @@ def _compute_comprehensive_score(
     block_trade_summary: dict,
     market_env: dict,
     news_data: list,
+    margin_summary: dict = None,
 ) -> dict:
     """
     基于行业共识规则的综合评分体系（满分100分），7个维度。
@@ -2164,25 +3005,40 @@ def _compute_comprehensive_score(
 
     # --- 融资融券杠杆方向（-2~+2分）---
     # 行业共识：融资余额增加反映杠杆资金看多，融券余额增加反映做空力量增强
-    margin_news = [n for n in news_data if isinstance(n, dict) and n.get('类别') == '融资融券'] if news_data else []
-    if margin_news:
-        margin_texts = ' '.join(n.get('标题', '') + n.get('摘要', '') for n in margin_news)
-        margin_bullish_kw = ['融资净买入', '融资余额增', '融资买入额增', '两融余额增']
-        margin_bearish_kw = ['融资净偿还', '融资余额降', '融资余额减', '融券余额增', '融券卖出增']
-        is_margin_bullish = any(kw in margin_texts for kw in margin_bullish_kw)
-        is_margin_bearish = any(kw in margin_texts for kw in margin_bearish_kw)
-        if is_margin_bullish and not is_margin_bearish:
+    # 优先使用结构化融资融券数据，回退到新闻文本解析
+    if margin_summary and margin_summary.get('杠杆方向') and margin_summary.get('杠杆方向') != '无数据':
+        leverage_dir = margin_summary.get('杠杆方向', '')
+        if '偏多' in leverage_dir:
             capital_score += 2
-            capital_reasons.append('融资融券：杠杆资金偏多+2')
-        elif is_margin_bearish and not is_margin_bullish:
+            capital_reasons.append(f'融资融券：{leverage_dir}+2')
+        elif '偏空' in leverage_dir:
             capital_score -= 2
-            capital_reasons.append('融资融券：杠杆资金偏空-2')
-        elif is_margin_bullish and is_margin_bearish:
-            capital_reasons.append('融资融券：多空信号混合+0')
+            capital_reasons.append(f'融资融券：{leverage_dir}-2')
+        elif '多空混合' in leverage_dir or '退潮' in leverage_dir:
+            capital_reasons.append(f'融资融券：{leverage_dir}+0')
         else:
-            capital_reasons.append(f'融资融券：有相关消息但方向不明+0')
+            capital_reasons.append(f'融资融券：{leverage_dir}+0')
     else:
-        capital_reasons.append('融资融券：无近期数据（中性）+0')
+        # 回退：从新闻文本中解析融资融券方向
+        margin_news = [n for n in news_data if isinstance(n, dict) and n.get('类别') == '融资融券'] if news_data else []
+        if margin_news:
+            margin_texts = ' '.join(n.get('标题', '') + n.get('摘要', '') for n in margin_news)
+            margin_bullish_kw = ['融资净买入', '融资余额增', '融资买入额增', '两融余额增']
+            margin_bearish_kw = ['融资净偿还', '融资余额降', '融资余额减', '融券余额增', '融券卖出增']
+            is_margin_bullish = any(kw in margin_texts for kw in margin_bullish_kw)
+            is_margin_bearish = any(kw in margin_texts for kw in margin_bearish_kw)
+            if is_margin_bullish and not is_margin_bearish:
+                capital_score += 2
+                capital_reasons.append('融资融券：杠杆资金偏多+2（基于新闻文本）')
+            elif is_margin_bearish and not is_margin_bullish:
+                capital_score -= 2
+                capital_reasons.append('融资融券：杠杆资金偏空-2（基于新闻文本）')
+            elif is_margin_bullish and is_margin_bearish:
+                capital_reasons.append('融资融券：多空信号混合+0（基于新闻文本）')
+            else:
+                capital_reasons.append(f'融资融券：有相关消息但方向不明+0')
+        else:
+            capital_reasons.append('融资融券：无近期数据（中性）+0')
 
     # --- 约束规则 ---
     # 机构持仓连续减持且北向资金净卖出
@@ -2423,6 +3279,23 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
     # ── 五档盘口数据（新浪实时行情） ──
     order_book_data = await get_order_book(stock_info)
 
+    # ── 融资融券数据（东方财富API） ──
+    margin_trading_data = await get_margin_trading_data(stock_info, page_size=10)
+
+    # ── 机构一致预期数据（东方财富API） ──
+    try:
+        consensus_forecast = await get_institution_forecast_summary_current_next_year_json(stock_info)
+    except Exception as e:
+        logger.warning("获取机构一致预期失败 [%s]: %s", stock_info.stock_name, e)
+        consensus_forecast = []
+
+    # ── 行业排名数据（东方财富API） ──
+    try:
+        industry_ranking = await get_stock_industry_ranking_json(stock_info)
+    except Exception as e:
+        logger.warning("获取行业排名失败 [%s]: %s", stock_info.stock_name, e)
+        industry_ranking = {}
+
     # ── Python 端预计算（核心优化：把容易出错的计算从 LLM 移到代码端）──
     # 先计算下一个交易日（供大宗交易/消息面时效性判断使用）
     next_trading_day = datetime.now().date() + timedelta(days=1)
@@ -2455,6 +3328,43 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
     block_trade_summary = compute_block_trade_summary(block_trade_records, next_trading_day.strftime('%Y-%m-%d'))
     order_book_summary = compute_order_book_summary(order_book_data)
 
+    # ── 新增预计算：补齐缺失的关键指标 ──
+    margin_summary = _compute_margin_trading_summary(margin_trading_data)
+    consensus_vs_actual = _compute_consensus_vs_actual(consensus_forecast, stock_news, stock_info.stock_name)
+    shareholder_reduction = _compute_shareholder_reduction_detail(stock_news, stock_info.stock_name)
+
+    # ── 新增预计算：BOLL信号/KDJ综合信号/MACD零轴事件/日周共振（消除LLM计算依赖）──
+    boll_signal = _compute_boll_signal(boll_rule_boll, valid_kline, kline_summary)
+    kdj_trade_signal = _compute_kdj_trade_signal(kdj_rule_kdj, kdj_summary, ma_summary)
+    macd_zero_axis = _compute_macd_zero_axis_event(macd_signals_macd)
+    daily_weekly_resonance = _compute_daily_weekly_resonance(ma_summary, weekly_kline_summary, macd_signals_macd, macd_bar_trend)
+
+    # 板块指数摘要（使用行业排名中的行业名称获取板块K线）
+    sector_name = industry_ranking.get('行业名称', '') if industry_ranking else ''
+    if sector_name:
+        try:
+            sector_info = get_stock_info_by_name(sector_name)
+            if sector_info:
+                sector_kline = await get_stock_day_kline_cn(sector_info, limit=20)
+                sector_summary = _compute_sector_index_summary(sector_kline, sector_name)
+            else:
+                sector_summary = {'状态': f'未找到{sector_name}板块指数信息', '板块名称': sector_name}
+        except Exception as e:
+            logger.warning("获取板块指数失败 [%s]: %s", sector_name, e)
+            sector_summary = {'状态': f'获取{sector_name}板块指数失败', '板块名称': sector_name}
+    else:
+        sector_summary = {'状态': '未获取到行业信息', '板块名称': '未知'}
+
+    # 个股 vs 板块强弱对比
+    latest_stock_change = valid_kline[0].get('涨跌幅(%)', 0) if valid_kline else 0
+    stock_vs_sector = _compute_stock_vs_sector(latest_stock_change, sector_summary)
+
+    # 数据时效性预警
+    latest_trading_date = valid_kline[0]['日期'] if valid_kline else datetime.now().strftime('%Y-%m-%d')
+    data_timeliness = _compute_data_timeliness(
+        northbound_summary, sh_sz_hk_summary, org_holder_summary, margin_summary, latest_trading_date
+    )
+
     # ── 大盘指数环境数据 ──
     market_env = await _compute_market_environment(stock_info)
 
@@ -2480,6 +3390,7 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
         block_trade_summary=block_trade_summary,
         market_env=market_env,
         news_data=stock_news,
+        margin_summary=margin_summary,
     )
 
     # ── 精简数据（减少 token，降低幻觉概率）──
@@ -2501,11 +3412,18 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 
 ## ★ 重要约束（必须遵守）
 
-1. **直接引用预计算结论**：背离信号、MACD柱趋势、金叉质量评估、BOLL空间摘要、KDJ状态摘要、分时特征摘要、K线统计摘要、均线排列状态、周线趋势摘要、资金流向行为特征、五档盘口摘要、北向资金增减持摘要、沪深港通持股变化摘要、机构持仓变化摘要、龙虎榜摘要、大宗交易摘要、近期消息面 均已在 Python 端预计算完成，你必须直接引用这些结论，严禁自行重新推导。
-2. **禁止计算幻觉**：均线值、乖离率、BOLL距离、MACD柱趋势、KDJ差值、量能倍数、北向资金连续增减持天数、沪深港通占流通股比变化等必须直接读取提供的预计算数据，严禁自行做加减乘除运算。
+1. **直接引用预计算结论**：背离信号、MACD柱趋势、金叉质量评估、MACD零轴穿越事件、BOLL空间摘要、BOLL信号判定（突破/跌破/喇叭口）、KDJ状态摘要、KDJ综合买卖信号、分时特征摘要、K线统计摘要、均线排列状态、日周共振判定、周线趋势摘要、资金流向行为特征、五档盘口摘要、北向资金增减持摘要、沪深港通持股变化摘要、机构持仓变化摘要、龙虎榜摘要、大宗交易摘要、融资融券结构化摘要、板块指数走势摘要、个股vs板块强弱对比、业绩一致预期vs实际业绩对比、数据时效性预警、大股东减持详情、近期消息面 均已在 Python 端预计算完成，你必须直接引用这些结论，严禁自行重新推导。
+2. **禁止计算幻觉**：均线值、乖离率、BOLL距离、BOLL突破/跌破条件（昨收vs昨中轨等比较）、MACD柱趋势、MACD零轴穿越、KDJ差值、KDJ买卖信号（含钝化出局条件）、量能倍数、日周共振判定、北向资金连续增减持天数、沪深港通占流通股比变化、融资融券余额变化、个股vs板块涨跌幅差值等必须直接读取提供的预计算数据，严禁自行做加减乘除运算或条件组合判断。
 3. **数据已清洗**：提供的数据已过滤停牌日（成交量为0的交易日），无需再次过滤。
 4. **严禁主观臆断**：每一个结论必须紧跟数据论据，引用具体数值。
 5. **精简原始数据仅供验证**：原始数据仅保留近期关键部分，用于验证预计算结论的合理性，不要试图从中推导120日全量统计。
+6. **数据异常必须反馈**：在分析过程中，若发现以下任何数据异常情况，必须在最终输出的 `data_issues` 字段中如实反馈，不得忽略或掩盖：
+   - **预计算结论与原始数据矛盾**：如预计算摘要中的数值与精简原始数据中的对应数值不一致（例如MACD柱趋势描述为"红柱放大"但明细数据显示最近MACD柱为负值）
+   - **关键数据缺失**：某个维度的预计算结论返回"数据不足"/"无数据"/"未获取到"等，导致该维度分析无法完成
+   - **数据时效性严重滞后**：数据时效性预警中标记为"可信度低"的数据源，需说明哪些分析结论受此影响
+   - **指标信号相互矛盾**：如MACD显示强多头但KDJ显示超买区死叉、资金流向显示主力大幅流出但北向资金连续增持等明显矛盾信号
+   - **数值明显异常**：如涨跌幅超过±20%（非ST股）、成交量突然放大到均量10倍以上、KDJ值超出理论范围等异常数值
+   - **预计算逻辑疑似错误**：如金叉质量评估中各分项得分之和与总分不一致、综合评分各维度得分之和与总分不一致等
 
 ---
 
@@ -2529,7 +3447,10 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 **★ 预计算金叉质量评估（必须直接引用，严禁自行推导金叉质量）：**
 {json.dumps(golden_cross_quality, ensure_ascii=False)}
 
-请结合MACD明细数据，分析当前多空状态，并直接引用上述MACD柱趋势结论、背离结论和金叉质量评估结论。
+**★ 预计算MACD零轴穿越事件（必须直接引用，严禁自行从明细中推导DIF是否穿越零轴）：**
+{json.dumps(macd_zero_axis, ensure_ascii=False)}
+
+请结合MACD明细数据，分析当前多空状态，并直接引用上述MACD柱趋势结论、背离结论、金叉质量评估结论和零轴穿越事件结论。
 
 #### 2. KDJ（极限与拐点）
 
@@ -2541,7 +3462,10 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 **★ 预计算KDJ状态摘要（必须直接引用）：**
 {json.dumps(kdj_summary, ensure_ascii=False)}
 
-请基于上述摘要分析KDJ当前位置、是否存在买卖信号、拐头方向。
+**★ 预计算KDJ综合买卖信号（必须直接引用，已结合MA5/MA20判定钝化出局条件，严禁自行组合KDJ与均线条件）：**
+{json.dumps(kdj_trade_signal, ensure_ascii=False)}
+
+请基于上述摘要和综合买卖信号分析KDJ当前位置、是否存在买卖信号、拐头方向。直接引用KDJ综合信号结论，严禁自行判断钝化出局条件。
 
 #### 3. BOLL（空间与边界）
 
@@ -2554,7 +3478,10 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 **★ 预计算BOLL空间摘要（必须直接引用）：**
 {json.dumps(boll_summary, ensure_ascii=False)}
 
-请结合BOLL明细数据和K线统计中的放量突破阈值，分析当前轨道位置、突破质量、运行空间。直接引用上述距离数据，严禁自行计算。
+**★ 预计算BOLL信号判定（必须直接引用，已完成突破/跌破/喇叭口条件判定，严禁自行比较昨收vs昨中轨等条件）：**
+{json.dumps(boll_signal, ensure_ascii=False)}
+
+请结合BOLL空间摘要和BOLL信号判定结论，分析当前轨道位置、突破质量、运行空间。直接引用上述距离数据和信号判定结论，严禁自行计算或比较。
 
 **★ 预计算数据一致性校验（日线 vs 分时）：**
 {json.dumps(data_consistency, ensure_ascii=False)}
@@ -2573,9 +3500,12 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 **★ 预计算周线趋势摘要（必须直接引用）：**
 {json.dumps(weekly_kline_summary, ensure_ascii=False)}
 
+**★ 预计算日周共振判定（必须直接引用，严禁自行对比日线和周线趋势方向）：**
+{json.dumps(daily_weekly_resonance, ensure_ascii=False)}
+
 请基于上述预计算结论，分析：
 - 日线均线排列、乖离率风险、量价匹配、量能趋势、支撑压力位（严禁自行计算均线值和量能变化）
-- 周线级别趋势方向，与日线趋势是否共振（日周共振为强信号，背离则需警惕）
+- 日周共振判定：直接引用上述"日周共振判定"结论，严禁自行对比日线和周线趋势方向
 - 周线趋势应纳入多空博弈清单和综合评分中的"趋势强度"维度
 
 ### 三、 今日分时盘口深度解析（超短线博弈）
@@ -2614,19 +3544,38 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 大宗交易发生在A股收盘后（15:00-15:30盘后撮合），属于盘后交易。请直接引用"对下一个交易日影响"字段判断其时效性。
 {json.dumps(block_trade_summary, ensure_ascii=False)}
 
+**★ 预计算融资融券结构化摘要（必须直接引用，优先于消息面中的融资融券文本）：**
+{json.dumps(margin_summary, ensure_ascii=False)}
+
+**★ 预计算大股东/高管减持详情（必须直接引用）：**
+{json.dumps(shareholder_reduction, ensure_ascii=False)}
+
 请基于上述预计算摘要分析（严禁自行计算连续天数、累计幅度等，必须直接引用摘要中的结论）：
 - 北向资金方向与力度：直接引用"方向判断"和"连续增/减持天数"，判断聪明钱态度
 - 沪深港通持股趋势：直接引用"方向判断"和"占流通股比变化趋势"，判断外资中长期态度
 - 机构持仓变化：直接引用"增持机构"/"减持机构"和"持仓变化趋势"，判断机构整体动向
 - 龙虎榜席位特征：直接引用"机构席位行为"，若近期无上榜记录则说明"近期未触发龙虎榜"
 - 大宗交易特征：直接引用"交易特征"和"机构席位情况"，并引用"对下一个交易日影响"判断时效性；若近期无记录则说明"近期无大宗交易"
-- 融资融券杠杆方向：引用消息面中【融资融券动态】板块数据，判断杠杆资金偏多/偏空方向，与北向资金、主力资金流向交叉验证（该维度已在Python端评分中纳入资金筹码维度）
-- 综合判断：基于以上六个子维度的预计算结论，判断大资金整体流入/流出方向和筹码集中/分散趋势
+- 融资融券杠杆方向：直接引用融资融券结构化摘要中的"杠杆方向"和"融资余额趋势"/"融券余额趋势"，与北向资金、主力资金流向交叉验证（该维度已在Python端评分中纳入资金筹码维度）
+- 大股东/高管减持：直接引用减持详情摘要，判断减持压力大小
+- 综合判断：基于以上七个子维度的预计算结论，判断大资金整体流入/流出方向和筹码集中/分散趋势
 
 ### 五、 外部环境（大盘系统性风险 + 消息面）
 
 **★ 预计算大盘指数走势摘要（必须直接引用）：**
 {json.dumps(market_env, ensure_ascii=False)}
+
+**★ 预计算板块/行业指数走势摘要（必须直接引用）：**
+{json.dumps(sector_summary, ensure_ascii=False)}
+
+**★ 预计算个股vs板块强弱对比（必须直接引用，严禁自行做减法比较）：**
+{json.dumps(stock_vs_sector, ensure_ascii=False)}
+
+**★ 预计算业绩一致预期vs实际业绩对比（必须直接引用）：**
+{json.dumps(consensus_vs_actual, ensure_ascii=False)}
+
+**★ 预计算数据时效性预警（必须直接引用，影响各维度结论可信度）：**
+{json.dumps(data_timeliness, ensure_ascii=False)}
 
 **★ 近期消息面（百度搜索，近7日，按融资融券与其他消息分类展示）：**
 **时效性判定规则（A股交易时段：09:30-11:30 / 13:00-15:00 北京时间）：**
@@ -2639,9 +3588,12 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 {format_news_for_prompt(stock_news, next_trading_day.strftime('%Y-%m-%d'))}
 
 请基于上述数据分析：
-- 大盘当前系统性风险水平，个股走势是跟随大盘还是独立行情
+- 大盘当前系统性风险水平
+- 板块/行业走势：直接引用板块指数摘要和个股vs板块强弱对比，判断个股走势是行业共性还是独立行情（严禁自行计算个股与板块的涨跌幅差值）
+- 业绩一致预期对比：直接引用业绩一致预期vs实际业绩对比结论，判断业绩是否超预期
+- 数据时效性：直接引用数据时效性预警，对滞后严重的数据源降低分析权重
 - 消息面时效性判断：重点关注标记为★的消息（盘后/盘前发布、市场尚未消化），这些消息对{next_trading_day.strftime('%Y-%m-%d')}开盘有直接影响；盘中已发布的消息影响已减弱，需降低权重
-- 融资融券动态分析（【融资融券动态】板块）：关注融资融券余额变化趋势，判断杠杆资金方向（融资余额增加偏多、融券余额增加偏空），与北向资金、主力资金流向交叉验证，该维度已在Python端评分中纳入"资金筹码"维度
+- 融资融券动态分析：直接引用融资融券结构化摘要（优先于消息面文本），判断杠杆资金方向
 - 其他重要消息分析（【其他重要消息】板块）：判断是否存在影响股价的重大利好/利空事件，若无重大消息则简要说明"消息面平淡"
 - 外部环境对次日操作的约束（如大盘弱势则个股反弹空间受限）
 
@@ -2756,6 +3708,22 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 | 五档买卖力量比 | | | |
 | 主力资金净流入 | | | |
 
+### 十、 数据质量反馈
+
+在分析过程中，请逐一检查以下维度的数据质量，将发现的所有问题汇总到此节，并同步写入最终输出的 `data_issues` 字段：
+
+**检查清单：**
+1. 预计算结论与原始数据是否存在矛盾（对比精简原始数据验证预计算摘要的合理性）
+2. 是否存在关键数据缺失导致某维度分析不完整
+3. 数据时效性预警中是否有"可信度低"的数据源，受影响的分析结论有哪些
+4. 各指标信号之间是否存在明显矛盾（如趋势指标与动能指标方向相反），若存在需说明矛盾点及对结论的影响
+5. 是否存在数值明显异常的情况
+6. 预计算评分各维度得分之和是否与总分一致
+
+**输出格式：**
+- 若无异常：输出"数据质量检查通过，未发现异常"
+- 若有异常：逐条列出问题，格式为 `[异常类型] 具体描述 → 对分析结论的影响`
+
 ---
 
 ## 原始数据（精简版，仅供验证预计算结论）
@@ -2780,7 +3748,8 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
   'stock_name': '<股票名称>',
   'not_hold_grade': '<未持有建议，积极买入 / 逢低建仓 / 保持观望>',
   'hold_grade': '<持有建议，持股待涨 / 逢高减仓 / 清仓离场>',
-  'content': '<深度分析关键的判断内容，输出markdown格式>'
+  'content': '<深度分析关键的判断内容，输出markdown格式>',
+  'data_issues': '<数据质量反馈，若无异常填"无"，若有异常则逐条描述问题及影响>'
 }}
 """
 
@@ -2790,7 +3759,7 @@ if __name__ == '__main__':
 
     async def main():
         stock_info = get_stock_info_by_name('生益科技')
-        prompt = await _fetch_market_index_summary("深证成指")
+        prompt = await _fetch_market_index_summary("上证指数")
         print(prompt)
 
     asyncio.run(main())

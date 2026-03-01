@@ -56097,5 +56097,8 @@ def get_stock_code(name):
 
 STOCK_INDICES_DICT = {stock['code']: stock for stock in ALL_STOCKS}
 
+# 所有大盘指数的纯数字代码集合，用于判断是否为指数
+INDEX_CODES = {stock['code'].split('.')[0] for stock in MAIN_STOCK}
+
 if __name__ == '__main__':
     print(STOCK_DICT)

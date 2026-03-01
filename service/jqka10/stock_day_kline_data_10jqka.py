@@ -6,7 +6,13 @@ import aiohttp
 from datetime import date, timedelta
 from chinese_calendar import is_workday
 from common.utils.stock_info_utils import StockInfo
+from common.constants.stocks_data import INDEX_CODES
 from service.jqka10.stock_realtime_10jqka import get_today_trade_data
+
+def _market_prefix(stock_code: str) -> str:
+    """指数用 'zs'，普通股票用 'hs'"""
+    return "zs" if stock_code in INDEX_CODES else "hs"
+
 
 _HEADERS = {
     "Accept": "*/*",
@@ -94,12 +100,14 @@ def _latest_trading_day() -> date:
 async def _get_today_kline(stock_code: str) -> dict | None:
     """从实时数据获取最近交易日K线，若数据不完整则返回 None"""
     from service.jqka10.stock_realtime_10jqka import _get_prev_close
+    market = _market_prefix(stock_code)
     try:
         raw, prev_close = await asyncio.gather(
-            get_today_trade_data(stock_code),
-            _get_prev_close(stock_code),
+            get_today_trade_data(stock_code, market=market),
+            _get_prev_close(stock_code, market=market),
         )
-        item = raw.get(f"hs_{stock_code}", {})
+        key = f"{market}_{stock_code}"
+        item = raw.get(key, {})
         trade_date = item.get("1", "")
         if len(trade_date) == 8:
             trade_date = f"{trade_date[:4]}-{trade_date[4:6]}-{trade_date[6:]}"
@@ -135,7 +143,7 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     每条记录包含：date, open_price, close_price, high_price, low_price,
                  trading_volume（手）, trading_amount, change_hand（换手率%）
     """
-    market = "hs"
+    market = _market_prefix(stock_info.stock_code)
     code = stock_info.stock_code
 
     # 需要覆盖的年份：从 (当前年 - limit/243向上取整) 到当前年

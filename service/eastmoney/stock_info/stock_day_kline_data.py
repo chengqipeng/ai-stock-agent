@@ -11,6 +11,7 @@ from service.eastmoney.stock_info.headers.stock_day_kline_headers import (
     get_kline_header_builders, kline_headers_index
 )
 from service.jqka10.stock_day_kline_data_10jqka import get_stock_day_kline_10jqka, get_stock_day_kline_as_str_10jqka
+from common.constants.stocks_data import INDEX_CODES
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +106,36 @@ def _to_float(v: str):
 
 
 async def get_stock_day_kline_cn(stock_info: StockInfo, limit=20) -> list[dict]:
-    """获取K线数据，返回中文key，可指定条数"""
+    """获取K线数据，返回中文key，可指定条数。
+    
+    指数数据使用东方财富API（同花顺不支持指数历史K线），
+    个股数据使用同花顺API。
+    """
+    is_index = stock_info.stock_code in INDEX_CODES
+
+    if is_index:
+        # 指数使用东方财富API（同花顺v6/line接口对指数返回404）
+        klines = await get_stock_day_range_kline(stock_info, limit)
+        result = []
+        for kline in klines:
+            fields = kline.split(',')
+            result.append({
+                '日期':       fields[0],
+                '开盘价':     _to_float(fields[1]),
+                '收盘价':     _to_float(fields[2]),
+                '最高价':     _to_float(fields[3]),
+                '最低价':     _to_float(fields[4]),
+                '成交量（手）': _to_float(fields[5]),
+                '成交额':     fields[6],
+                '振幅(%)':    _to_float(fields[7]),
+                '涨跌幅(%)':  _to_float(fields[8]),
+                '涨跌额':     _to_float(fields[9]),
+                '换手率(%)':  _to_float(fields[10]),
+            })
+        # 东方财富返回由旧到新，需要反转为由新到旧
+        result.reverse()
+        return result
+
     klines = await get_stock_day_kline_as_str_10jqka(stock_info, limit=limit)
     result = []
     for kline in reversed(klines):
