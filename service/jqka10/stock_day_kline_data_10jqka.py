@@ -57,6 +57,34 @@ def _validate_kline_record(record: dict, stock_code: str, label: str = "日K") -
         return False
     return True
 
+def _fix_close_price_boundary(record: dict, stock_code: str) -> None:
+    """
+    修正收盘价越界：当 close_price 略微超出 high/low 范围且误差不超过 1% 时，
+    将 close_price 钳位到 high_price 或 low_price。
+    例如：close=3476.931 > high=3476.93 → close=high
+         close=2678.66  < low=2685.04  → close=low
+    """
+    close = record.get("close_price")
+    high = record.get("high_price")
+    low = record.get("low_price")
+    if close is None or high is None or low is None:
+        return
+
+    if close > high and high != 0:
+        deviation = abs(close - high) / high
+        if deviation <= 0.01:
+            logger.debug("[%s] %s close_price %.4f > high_price %.4f (偏差%.4f%%)，修正为 high_price",
+                         stock_code, record.get("date", ""), close, high, deviation * 100)
+            record["close_price"] = high
+
+    if close < low and low != 0:
+        deviation = abs(low - close) / low
+        if deviation <= 0.01:
+            logger.debug("[%s] %s close_price %.4f < low_price %.4f (偏差%.4f%%)，修正为 low_price",
+                         stock_code, record.get("date", ""), close, low, deviation * 100)
+            record["close_price"] = low
+
+
 
 
 _HEADERS = {
@@ -291,6 +319,7 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
             "change_amount":  change_amt,
             "change_hand":    nofq.get("turnover"),
         }
+        _fix_close_price_boundary(record, code)
         if not _validate_kline_record(record, code):
             anomaly_count += 1
         result.append(record)
