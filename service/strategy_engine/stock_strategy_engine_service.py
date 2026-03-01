@@ -18,7 +18,7 @@ async def get_strategy_engine_analysis(stock_info: StockInfo) -> tuple[str, str]
 if __name__ == '__main__':
     async def main():
         stock_info: StockInfo = get_stock_info_by_name('生益科技')
-        prompt, result = await get_strategy_engine_analysis(stock_info)
+        result = await get_stock_indicator_all_prompt(stock_info)
         print(result)
         #print(json.dumps(result, ensure_ascii=False))
 

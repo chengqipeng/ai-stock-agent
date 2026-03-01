@@ -111,7 +111,7 @@ async def get_stock_day_kline_cn(stock_info: StockInfo, limit=20) -> list[dict]:
     指数数据使用东方财富API（同花顺不支持指数历史K线），
     个股数据使用同花顺API。
     """
-    is_index = stock_info.stock_code in INDEX_CODES
+    is_index = stock_info.stock_code in INDEX_CODES or stock_info.stock_code.startswith('BK')
 
     if is_index:
         # 指数使用东方财富API（同花顺v6/line接口对指数返回404）
@@ -119,13 +119,16 @@ async def get_stock_day_kline_cn(stock_info: StockInfo, limit=20) -> list[dict]:
         result = []
         for kline in klines:
             fields = kline.split(',')
+            # 东方财富原始成交量单位为"股"，需除以100转换为"手"
+            raw_vol = _to_float(fields[5])
+            vol_in_shou = round(raw_vol / 100, 2) if raw_vol is not None else None
             result.append({
                 '日期':       fields[0],
                 '开盘价':     _to_float(fields[1]),
                 '收盘价':     _to_float(fields[2]),
                 '最高价':     _to_float(fields[3]),
                 '最低价':     _to_float(fields[4]),
-                '成交量（手）': _to_float(fields[5]),
+                '成交量（手）': vol_in_shou,
                 '成交额':     fields[6],
                 '振幅(%)':    _to_float(fields[7]),
                 '涨跌幅(%)':  _to_float(fields[8]),

@@ -94,6 +94,7 @@ async def get_stock_industry_ranking_json(stock_info: StockInfo, page: int = 1):
     result = {
         "股票名称": stock_data.get('f14', '-'),
         "行业名称": industry_data.get('f14', '-'),
+        "行业板块代码": industry_data.get('f12', ''),
         "指标对比": {
             "总市值": {
                 "股票值": convert_amount_unit(stock_data.get('f20')),

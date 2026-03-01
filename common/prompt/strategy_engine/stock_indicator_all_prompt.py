@@ -3339,16 +3339,19 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
     macd_zero_axis = _compute_macd_zero_axis_event(macd_signals_macd)
     daily_weekly_resonance = _compute_daily_weekly_resonance(ma_summary, weekly_kline_summary, macd_signals_macd, macd_bar_trend)
 
-    # 板块指数摘要（使用行业排名中的行业名称获取板块K线）
+    # 板块指数摘要（使用行业排名中的行业板块代码获取板块K线）
     sector_name = industry_ranking.get('行业名称', '') if industry_ranking else ''
-    if sector_name:
+    sector_board_code = industry_ranking.get('行业板块代码', '') if industry_ranking else ''
+    if sector_name and sector_board_code:
         try:
-            sector_info = get_stock_info_by_name(sector_name)
-            if sector_info:
-                sector_kline = await get_stock_day_kline_cn(sector_info, limit=20)
-                sector_summary = _compute_sector_index_summary(sector_kline, sector_name)
-            else:
-                sector_summary = {'状态': f'未找到{sector_name}板块指数信息', '板块名称': sector_name}
+            sector_info = StockInfo(
+                secid=f"90.{sector_board_code}",
+                stock_code=sector_board_code,
+                stock_code_normalize=f"{sector_board_code}.BK",
+                stock_name=sector_name,
+            )
+            sector_kline = await get_stock_day_kline_cn(sector_info, limit=20)
+            sector_summary = _compute_sector_index_summary(sector_kline, sector_name)
         except Exception as e:
             logger.warning("获取板块指数失败 [%s]: %s", sector_name, e)
             sector_summary = {'状态': f'获取{sector_name}板块指数失败', '板块名称': sector_name}

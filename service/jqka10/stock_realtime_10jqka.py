@@ -18,19 +18,20 @@ HEADERS = {
 }
 
 
-async def get_today_trade_data(stock_code: str) -> dict:
+async def get_today_trade_data(stock_code: str, market: str = "hs") -> dict:
     """
     获取同花顺今日交易数据
     :param stock_code: 股票代码，如 '002371'
+    :param market: 市场前缀，'hs' 普通股票，'zs' 指数
     :return: 解析后的今日交易数据字典
     """
-    url = f"https://d.10jqka.com.cn/v6/line/hs_{stock_code}/01/defer/today.js"
+    url = f"https://d.10jqka.com.cn/v6/line/{market}_{stock_code}/01/defer/today.js"
     async with aiohttp.ClientSession(headers=HEADERS) as session:
         async with session.get(url) as resp:
             resp.raise_for_status()
             text = await resp.text()
 
-    # 响应格式: quotebridge_v6_line_hs_002371_01_defer_today({"data":...})
+    # 响应格式: quotebridge_v6_line_{market}_{code}_01_defer_today({"data":...})
     match = re.search(r"\((\{.*\})\)", text, re.DOTALL)
     if not match:
         raise ValueError(f"Unexpected response format: {text[:200]}")
@@ -38,9 +39,9 @@ async def get_today_trade_data(stock_code: str) -> dict:
     return json.loads(match.group(1))
 
 
-async def _get_prev_close(stock_code: str) -> float | None:
+async def _get_prev_close(stock_code: str, market: str = "hs") -> float | None:
     """从同花顺分时接口获取昨收价"""
-    url = f"https://d.10jqka.com.cn/v6/time/hs_{stock_code}/last.js"
+    url = f"https://d.10jqka.com.cn/v6/time/{market}_{stock_code}/last.js"
     async with aiohttp.ClientSession(headers=HEADERS) as session:
         async with session.get(url) as resp:
             text = await resp.text()
@@ -48,7 +49,7 @@ async def _get_prev_close(stock_code: str) -> float | None:
     if not match:
         return None
     data = json.loads(match.group(1))
-    pre = data.get(f"hs_{stock_code}", {}).get("pre")
+    pre = data.get(f"{market}_{stock_code}", {}).get("pre")
     return float(pre) if pre else None
 
 
