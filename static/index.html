@@ -626,11 +626,11 @@
                 <span>批次股票列表</span>
                 <div style="display:flex;gap:6px;align-items:center;">
                     <button id="addStockToBatchBtn" class="btn btn-primary" disabled onclick="openAddStockPanel()" style="position:relative;">+ 添加股票</button>
-                    <button class="fullscreen-btn" onclick="toggleFullscreen(this.closest('.panel'))">⛶ 全屏</button>
                     <button id="batchPrescreeningBtn" class="btn" style="background:#e67e22;" disabled onclick="batchPrescreeningUpdate()">涨跌初筛 (<span id="batchPrescreeningCount">0</span>)</button>
                     <button id="batchKlineBtn" class="btn btn-success" disabled onclick="batchKlineUpdate()">K线初筛 (<span id="batchKlineCount">0</span>)</button>
                     <button id="batchCanslimBtn" class="btn" style="background:#5c6bc0;" disabled onclick="batchCanslimPrescreening()">CAN SLIM初筛 (<span id="batchCanslimCount">0</span>)</button>
                     <button id="batchActionsBar" class="btn btn-success" disabled onclick="batchDeepAnalysis()">CAN SLIM深度分析 (<span id="batchSelectedCount">0</span>)</button>
+                    <button class="fullscreen-btn" onclick="toggleFullscreen(this.closest('.panel'))">⛶ 全屏</button>
                 </div>
             </h2>
             <div class="sort-bar" id="sortBar" style="display:none;">
