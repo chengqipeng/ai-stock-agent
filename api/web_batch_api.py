@@ -653,7 +653,7 @@ def extract_grade_and_content(result: str):
             except json.JSONDecodeError as e:
                 logger.debug("extract_grade_and_content 首次JSON解析失败: %s", e)
                 # 尝试修复常见的LLM输出问题：字符串值中的未转义换行符
-                sanitized = re.sub(r'(?<=:\s*")(.*?)(?=")', lambda m: m.group(0).replace('\n', '\\n'), clean, flags=re.DOTALL)
+                sanitized = clean.replace('\n', '\\n')
                 try:
                     data = json.loads(sanitized)
                 except (json.JSONDecodeError, ValueError) as e:
@@ -673,7 +673,7 @@ def extract_grade_and_content(result: str):
             # return (data.get('not_hold_grade', ''), data.get('not_hold_content', ''),
             #     data.get('hold_grade', ''), data.get('hold_content', ''))
     except Exception as e:
-        logger.error("Error extracting grade/content: %s", e)
+        logger.error("Error extracting grade/content: %s, content: %s", e, result[:500])
     return '', result[:200], '', ''
 
 def extract_grade_from_overall(result: str) -> str:
