@@ -639,6 +639,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
+
 def extract_grade_and_content(result: str):
     """从策略引擎大模型结果中提取 grade、content 和 data_issues"""
     try:
@@ -647,35 +648,101 @@ def extract_grade_and_content(result: str):
             clean = re.sub(r'^```(?:json)?\s*\n', '', clean)
             clean = re.sub(r'\n```\s*$', '', clean)
         clean = clean.strip()
+
+        # 如果整体不是JSON，尝试从文本中提取最后一个 JSON 块
+        if not clean.startswith('{'):
+            json_blocks = re.findall(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', clean, re.DOTALL)
+            if json_blocks:
+                clean = json_blocks[-1].strip()
+                logger.debug("extract_grade_and_content 从文本中提取到JSON块（长度%d）", len(clean))
+            else:
+                logger.warning(
+                    "extract_grade_and_content 未找到JSON块，原始结果前500字符: %s",
+                    result[:500]
+                )
+                return '', result[:200], '', '', '无'
+
         if clean.startswith('{'):
+            # 依次尝试多种解析策略
+            parse_errors = []
+
+            # 策略1: 直接解析
             try:
                 data = json.loads(clean)
+                return (data.get('not_hold_grade', ''), data.get('content', ''),
+                        data.get('hold_grade', ''), data.get('content', ''),
+                        data.get('data_issues', '无'))
             except json.JSONDecodeError as e:
-                logger.debug("extract_grade_and_content 首次JSON解析失败: %s", e)
-                # 尝试修复常见的LLM输出问题：字符串值中的未转义换行符
+                parse_errors.append(f"直接解析: {e}")
+
+            # 策略2: 单引号转双引号（LLM常见问题）
+            try:
+                fixed = clean.replace("'", '"')
+                data = json.loads(fixed)
+                logger.debug("extract_grade_and_content 单引号转双引号后解析成功")
+                return (data.get('not_hold_grade', ''), data.get('content', ''),
+                        data.get('hold_grade', ''), data.get('content', ''),
+                        data.get('data_issues', '无'))
+            except (json.JSONDecodeError, ValueError) as e:
+                parse_errors.append(f"单引号转双引号: {e}")
+
+            # 策略3: 替换未转义换行符
+            try:
                 sanitized = clean.replace('\n', '\\n')
-                try:
-                    data = json.loads(sanitized)
-                except (json.JSONDecodeError, ValueError) as e:
-                    logger.warning("extract_grade_and_content JSON修复后仍解析失败: %s", e)
-                    # 最后尝试用正则提取字段
-                    not_hold_grade = re.search(r'"not_hold_grade"\s*:\s*"([^"]*)"', clean)
-                    content = re.search(r'"content"\s*:\s*"(.*?)"', clean, re.DOTALL)
-                    hold_grade = re.search(r'"hold_grade"\s*:\s*"([^"]*)"', clean)
-                    data_issues = re.search(r'"data_issues"\s*:\s*"(.*?)"', clean, re.DOTALL)
-                    return (
-                        not_hold_grade.group(1) if not_hold_grade else '',
-                        content.group(1) if content else result[:200],
-                        hold_grade.group(1) if hold_grade else '',
-                        '',
-                        data_issues.group(1) if data_issues else '无'
-                    )
-            return (data.get('not_hold_grade', ''), data.get('content', ''),
-                    data.get('hold_grade', ''), data.get('content', ''),
-                    data.get('data_issues', '无'))
+                data = json.loads(sanitized)
+                logger.debug("extract_grade_and_content 替换换行符后解析成功")
+                return (data.get('not_hold_grade', ''), data.get('content', ''),
+                        data.get('hold_grade', ''), data.get('content', ''),
+                        data.get('data_issues', '无'))
+            except (json.JSONDecodeError, ValueError) as e:
+                parse_errors.append(f"替换换行符: {e}")
+
+            # 策略4: 单引号转双引号 + 替换换行符
+            try:
+                fixed2 = clean.replace("'", '"').replace('\n', '\\n')
+                data = json.loads(fixed2)
+                logger.debug("extract_grade_and_content 单引号+换行符修复后解析成功")
+                return (data.get('not_hold_grade', ''), data.get('content', ''),
+                        data.get('hold_grade', ''), data.get('content', ''),
+                        data.get('data_issues', '无'))
+            except (json.JSONDecodeError, ValueError) as e:
+                parse_errors.append(f"单引号+换行符: {e}")
+
+            # 所有JSON解析策略失败，记录详细错误
+            logger.warning(
+                "extract_grade_and_content 所有JSON解析策略均失败:\n%s\n待解析内容前500字符: %s",
+                "\n".join(f"  - {err}" for err in parse_errors),
+                clean[:500]
+            )
+
+            # 最后兜底：正则提取字段
+            not_hold_grade = re.search(r'''["']not_hold_grade["']\s*:\s*["']([^"']*)["']''', clean)
+            content = re.search(r'''["']content["']\s*:\s*["'](.*?)["']''', clean, re.DOTALL)
+            hold_grade = re.search(r'''["']hold_grade["']\s*:\s*["']([^"']*)["']''', clean)
+            data_issues = re.search(r'''["']data_issues["']\s*:\s*["'](.*?)["']''', clean, re.DOTALL)
+
+            regex_found = {
+                'not_hold_grade': not_hold_grade.group(1) if not_hold_grade else None,
+                'hold_grade': hold_grade.group(1) if hold_grade else None,
+                'content': bool(content),
+                'data_issues': bool(data_issues),
+            }
+            logger.info("extract_grade_and_content 正则兜底提取结果: %s", regex_found)
+
+            return (
+                not_hold_grade.group(1) if not_hold_grade else '',
+                content.group(1) if content else result[:200],
+                hold_grade.group(1) if hold_grade else '',
+                '',
+                data_issues.group(1) if data_issues else '无'
+            )
     except Exception as e:
-        logger.error("Error extracting grade/content: %s, content: %s", e, result[:500])
+        logger.error(
+            "extract_grade_and_content 未预期异常: %s\n原始结果前500字符: %s",
+            e, result[:500], exc_info=True
+        )
     return '', result[:200], '', '', '无'
+
 
 def extract_grade_from_overall(result: str) -> str:
     """从整体分析JSON结果中提取grade字段"""

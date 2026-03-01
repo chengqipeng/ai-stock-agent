@@ -69,15 +69,31 @@ def clean_jsonp_response(text):
     return json_text
 
 
-async def fetch_eastmoney_api(url, params, headers=None, referer=None):
-    """通用的东方财富API请求方法"""
-    if headers is None:
-        headers = get_dynamic_headers()
-    if referer:
-        headers = headers.copy()
-        headers["Referer"] = referer
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params, headers=headers) as response:
-            text = await response.text()
-            json_text = clean_jsonp_response(text)
-            return json.loads(json_text)
+async def fetch_eastmoney_api(url, params, headers=None, referer=None, max_retries=3):
+    """通用的东方财富API请求方法，带重试机制"""
+    import asyncio
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    for attempt in range(1, max_retries + 1):
+        if headers is None:
+            req_headers = get_dynamic_headers()
+        else:
+            req_headers = headers.copy()
+        if referer:
+            req_headers["Referer"] = referer
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params, headers=req_headers, timeout=aiohttp.ClientTimeout(total=30)) as response:
+                    text = await response.text()
+                    json_text = clean_jsonp_response(text)
+                    return json.loads(json_text)
+        except (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError, aiohttp.ClientResponseError, asyncio.TimeoutError) as e:
+            if attempt < max_retries:
+                wait = 2 ** attempt + random.uniform(0, 1)
+                logger.warning("fetch_eastmoney_api 第%d次请求失败，%0.1f秒后重试: %s", attempt, wait, e)
+                await asyncio.sleep(wait)
+            else:
+                logger.error("fetch_eastmoney_api 重试%d次后仍失败: %s", max_retries, e)
+                raise

@@ -3739,14 +3739,14 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 
 ---
 
-[最终输出] 只能输出json格式数据：
+[最终输出] 只能输出合法的JSON格式数据（必须使用双引号，不要使用单引号）：
 {{
-  'stock_code': '<股票代码>',
-  'stock_name': '<股票名称>',
-  'not_hold_grade': '<未持有建议，积极买入 / 逢低建仓 / 保持观望>',
-  'hold_grade': '<持有建议，持股待涨 / 逢高减仓 / 清仓离场>',
-  'content': '<深度分析关键的判断内容，输出markdown格式>',
-  'data_issues': '<数据质量反馈，若无异常填"无"，若有异常则逐条描述问题及影响>'
+  "stock_code": "<股票代码>",
+  "stock_name": "<股票名称>",
+  "not_hold_grade": "<未持有建议，积极买入 / 逢低建仓 / 保持观望>",
+  "hold_grade": "<持有建议，持股待涨 / 逢高减仓 / 清仓离场>",
+  "content": "<深度分析关键的判断内容，输出markdown格式>",
+  "data_issues": "<数据质量反馈，若无异常填"无"，若有异常则逐条描述问题及影响>"
 }}
 """
 
