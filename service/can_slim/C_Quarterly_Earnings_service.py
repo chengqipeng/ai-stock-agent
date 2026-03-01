@@ -1,5 +1,8 @@
+import logging
 from typing import Dict, Any
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 from common.prompt.can_slim.C_Quarterly_Earnings_prompt import C_QUARTERLY_EARNINGS_PROMPT_TEMPLATE, C_FAST_REPORT_SECTION
 from common.constants.can_slim_final_outputs import C_FINAL_OUTPUT
@@ -41,10 +44,12 @@ class CQuarterlyEarningsService(BaseCanSlimService):
                     notice_date = datetime.strptime(notice_date_str[:10], '%Y-%m-%d')
                     if notice_date >= cutoff:
                         recent.append(item)
-                except (ValueError, TypeError):
+                except (ValueError, TypeError) as e:
+                    logger.debug("业绩快报日期解析失败: notice_date_str=%s, %s", notice_date_str, e)
                     continue
             return recent if recent else None
-        except Exception:
+        except Exception as e:
+            logger.warning("_fetch_recent_fast_report 获取业绩快报失败 [%s]: %s", self.stock_info.stock_name, e)
             return None
     
     def get_prompt_template(self) -> str:

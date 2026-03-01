@@ -12,24 +12,28 @@ def calculate_cagr(eps_compare_data):
     使用第1条数据的EPSJB除以3年前EPS得到的值减1
     返回: (cagr值, 描述信息)
     """
-    if not eps_compare_data or len(eps_compare_data) < 4:
+    if not eps_compare_data or len(eps_compare_data) < 13:
         return None, None
     
-    latest_data = eps_compare_data[0]
-    three_years_ago_data = eps_compare_data[12]
-    
-    latest_eps = latest_data.get('基本每股收益(元)')
-    three_years_ago_eps = three_years_ago_data.get('基本每股收益(元)')
-    
-    if not latest_eps or not three_years_ago_eps or three_years_ago_eps <= 0:
+    try:
+        latest_data = eps_compare_data[0]
+        three_years_ago_data = eps_compare_data[12]
+        
+        latest_eps = latest_data.get('基本每股收益(元)')
+        three_years_ago_eps = three_years_ago_data.get('基本每股收益(元)')
+        
+        if latest_eps is None or three_years_ago_eps is None or three_years_ago_eps == 0:
+            return None, None
+        
+        ratio = latest_eps / three_years_ago_eps
+        # When ratio is negative (e.g. negative EPS), fractional exponent yields complex number
+        if ratio < 0:
+            cagr_value = round(-(abs(ratio) ** (1/3) - 1) * 100, 4)
+        else:
+            cagr_value = round((ratio ** (1/3) - 1) * 100, 4)
+    except (IndexError, TypeError, ZeroDivisionError) as e:
+        print(f"[calculate_cagr] 计算异常: {e}")
         return None, None
-    
-    ratio = latest_eps / three_years_ago_eps
-    # When ratio is negative (e.g. negative EPS), fractional exponent yields complex number
-    if ratio < 0:
-        cagr_value = round(-(abs(ratio) ** (1/3) - 1) * 100, 4)
-    else:
-        cagr_value = round((ratio ** (1/3) - 1) * 100, 4)
     
     latest_date = latest_data.get('报告日期', '')
     three_years_ago_date = three_years_ago_data.get('报告日期', '')

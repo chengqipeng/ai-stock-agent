@@ -2297,7 +2297,8 @@ def _compute_consensus_vs_actual(forecast_data: list[dict], news_data: list, sto
                         '预测机构数': item.get('预测机构数', '--'),
                     }
                     break
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as e:
+                logger.debug("一致预期数据年份解析失败: year=%s, %s", year, e)
                 continue
 
     # 从消息面提取实际业绩数据

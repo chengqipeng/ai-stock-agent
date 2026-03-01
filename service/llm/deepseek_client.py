@@ -69,14 +69,21 @@ class DeepSeekClient:
         }
         if max_tokens:
             payload["max_tokens"] = max_tokens
-        
-        timeout = aiohttp.ClientTimeout(total=300, connect=30)
-        
+
+        timeout = aiohttp.ClientTimeout(total=600, connect=30, sock_read=120)
+
         for attempt in range(3):
             session = None
+            accumulated = []
             try:
                 session = aiohttp.ClientSession(timeout=timeout)
                 async with session.post(url, headers=headers, json=payload) as response:
+                    if response.status != 200:
+                        body = await response.text()
+                        raise aiohttp.ClientResponseError(
+                            response.request_info, response.history,
+                            status=response.status, message=body
+                        )
                     async for line in response.content:
                         line = line.decode('utf-8').strip()
                         if line.startswith('data: '):
@@ -87,15 +94,20 @@ class DeepSeekClient:
                                 chunk = json.loads(data)
                                 content = chunk.get('choices', [{}])[0].get('delta', {}).get('content', '')
                                 if content:
+                                    accumulated.append(content)
                                     yield content
                             except json.JSONDecodeError as e:
                                 logger.debug("DeepSeekClient.chat_stream JSON解析失败: %s", e)
                                 continue
                 break
-            except (aiohttp.ClientPayloadError, aiohttp.ClientError, ConnectionResetError) as e:
+            except (aiohttp.ClientPayloadError, aiohttp.ClientError, 
+                    ConnectionResetError, asyncio.TimeoutError) as e:
                 if attempt == 2:
                     raise e
-                logger.warning("DeepSeekClient.chat_stream 请求失败 (attempt %d): %s", attempt + 1, e)
+                logger.warning(
+                    "DeepSeekClient.chat_stream 请求失败 (attempt %d, 已接收%d段): %s", 
+                    attempt + 1, len(accumulated), e
+                )
                 await asyncio.sleep(2 ** attempt)
             finally:
                 if session:

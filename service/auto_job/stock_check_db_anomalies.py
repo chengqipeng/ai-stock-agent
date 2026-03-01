@@ -73,7 +73,8 @@ def check_db(db_path: Path) -> list[dict]:
     try:
         cur.execute(f"SELECT COUNT(*) FROM {table_name}")
         count = cur.fetchone()[0]
-    except sqlite3.OperationalError:
+    except sqlite3.OperationalError as e:
+        log.warning("check_db 表不存在 [%s]: %s", stock_code, e)
         conn.close()
         return [{"stock_code": stock_code, "date": None, "type": "TABLE_MISSING", "detail": f"表 {table_name} 不存在"}]
 

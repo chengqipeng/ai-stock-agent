@@ -55,6 +55,7 @@ async def get_stock_day_range_kline(stock_info: StockInfo, limit=400, headers=No
                 last_exc = None
                 break
             except Exception as e:
+                logger.warning("get_stock_day_range_kline 请求失败 (attempt %d/%d): %s", i + 1, len(builders), e)
                 last_exc = e
         if last_exc:
             raise last_exc

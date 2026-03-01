@@ -50,6 +50,7 @@ async def get_stock_list():
         stocks = parse_stock_list(file_path)
         return {"success": True, "data": stocks}
     except Exception as e:
+        logger.error("获取股票列表失败: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/prescreening_batch")
@@ -86,6 +87,7 @@ async def create_prescreening_batch(request: BatchRequest):
         results.sort(key=lambda x: (x.get('涨跌幅(%)') is None, x.get('涨跌幅(%)', 0) or 0))
         return {"success": True, "data": {"batch_id": batch_id, "stocks": results}}
     except Exception as e:
+        logger.error("创建涨跌初筛批次失败: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/batch/{batch_id}/prescreening_update")
@@ -119,6 +121,7 @@ async def update_batch_prescreening(batch_id: int, stock_ids: List[int]):
         success_results.sort(key=lambda x: (x.get('涨跌幅(%)') is None, x.get('涨跌幅(%)', 0) or 0))
         return {"success": True, "data": {"batch_id": batch_id, "stocks": success_results, "updated_count": len(success_results)}}
     except Exception as e:
+        logger.error("初筛更新批次失败 batch_id=%s: %s", batch_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/batch/{batch_id}/kline_execute_update")
@@ -173,6 +176,7 @@ async def execute_batch_kline_update(batch_id: int, stock_ids: str = Query(...),
 
             yield f"data: {json.dumps({'stage': 'done', 'completed': total, 'total': total})}\n\n"
         except Exception as e:
+            logger.error("K线SSE流式更新异常 batch_id=%s: %s", batch_id, e, exc_info=True)
             yield f"data: {json.dumps({'stage': 'error', 'message': str(e)})}\n\n"
 
     return StreamingResponse(generate_progress(), media_type="text/event-stream")
@@ -184,6 +188,7 @@ async def create_batch_analysis(request: BatchRequest):
         batch_id = db_manager.create_batch(request.stock_codes)
         return {"success": True, "data": {"batch_id": batch_id}}
     except Exception as e:
+        logger.error("创建批量分析批次失败: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/batch_canslim_prescreening/{batch_id}")
@@ -254,6 +259,7 @@ async def execute_batch_canslim_prescreening(batch_id: int, deep_thinking: bool 
             yield f"data: {json.dumps({'stage': 'done', 'completed': total, 'total': total})}\n\n"
 
         except Exception as e:
+            logger.error("CAN SLIM初筛SSE异常 batch_id=%s: %s", batch_id, e, exc_info=True)
             yield f"data: {json.dumps({'stage': 'error', 'message': str(e)})}\n\n"
 
     return StreamingResponse(generate_progress(), media_type="text/event-stream")
@@ -368,6 +374,7 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
             yield f"data: {json.dumps({'stage': 'done', 'completed': total, 'total': total})}\n\n"
             
         except Exception as e:
+            logger.error("批量分析SSE异常 batch_id=%s: %s", batch_id, e, exc_info=True)
             yield f"data: {json.dumps({'stage': 'error', 'message': str(e)})}\n\n"
     
     return StreamingResponse(generate_progress(), media_type="text/event-stream")
@@ -379,6 +386,7 @@ async def get_batches():
         batches = db_manager.get_batches()
         return {"success": True, "data": batches}
     except Exception as e:
+        logger.error("获取批次列表失败: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/batch/{batch_id}/stocks")
@@ -403,6 +411,7 @@ async def get_batch_stocks(batch_id: int):
             stock.pop('overall_analysis', None)
         return {"success": True, "data": stocks}
     except Exception as e:
+        logger.error("获取批次股票列表失败 batch_id=%s: %s", batch_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/batch/stock/{stock_id}/prompt")
@@ -431,6 +440,7 @@ async def get_stock_prompt(stock_id: int, dim: str, type: str = "score"):
     except HTTPException:
         raise
     except Exception as e:
+        logger.error("获取股票提示词失败 stock_id=%s, dim=%s: %s", stock_id, dim, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/batch/stock/{stock_id}")
@@ -442,6 +452,7 @@ async def get_stock_detail(stock_id: int):
             raise HTTPException(status_code=404, detail="股票记录不存在")
         return {"success": True, "data": stock}
     except Exception as e:
+        logger.error("获取股票详情失败 stock_id=%s: %s", stock_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/stock/history/{stock_name}")
@@ -451,6 +462,7 @@ async def get_stock_history(stock_name: str):
         records = db_manager.get_stock_dim_analysis_history(stock_name)
         return {"success": True, "data": records}
     except Exception as e:
+        logger.error("获取股票历史记录失败 stock_name=%s: %s", stock_name, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/stock/history/{stock_name}")
@@ -460,6 +472,7 @@ async def clear_stock_history(stock_name: str):
         db_manager.clear_stock_dim_analysis_history(stock_name)
         return {"success": True}
     except Exception as e:
+        logger.error("清空股票历史记录失败 stock_name=%s: %s", stock_name, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.patch("/api/batch/{batch_id}/rename")
@@ -480,6 +493,7 @@ async def pin_batch(batch_id: int):
         is_pinned = db_manager.toggle_pin_batch(batch_id)
         return {"success": True, "is_pinned": is_pinned}
     except Exception as e:
+        logger.error("切换批次置顶状态失败 batch_id=%s: %s", batch_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/batch/{batch_id}")
@@ -489,6 +503,7 @@ async def delete_batch(batch_id: int):
         db_manager.delete_batch(batch_id)
         return {"success": True}
     except Exception as e:
+        logger.error("删除批次失败 batch_id=%s: %s", batch_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/batches/clear")
@@ -498,6 +513,7 @@ async def clear_batches():
         db_manager.clear_all_batches()
         return {"success": True}
     except Exception as e:
+        logger.error("清空所有批次失败: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/stock/deep_analysis")
