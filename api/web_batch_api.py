@@ -771,16 +771,21 @@ def extract_score_from_result(result: str) -> float:
         if clean_result.startswith('{'):
             try:
                 data = json.loads(clean_result)
-                score = data.get('score', 0)
-                if score:
-                    return round(float(score), 2)
-                return 0.0
-            except json.JSONDecodeError as e:
-                logger.error("Error parsing score JSON: %s, result: %s", e, clean_result[:200], exc_info=True)
-                m = re.search(r'"score"\s*:\s*(\d+\.?\d*)', clean_result)
-                if m:
-                    return round(float(m.group(1)), 2)
-                return 0.0
+            except json.JSONDecodeError:
+                # LLM sometimes returns single-quoted JSON; fix and retry
+                try:
+                    fixed = clean_result.replace("'", '"')
+                    data = json.loads(fixed)
+                except json.JSONDecodeError as e:
+                    logger.error("Error parsing score JSON: %s, result: %s", e, clean_result[:200], exc_info=True)
+                    m = re.search(r'["\']score["\']\s*:\s*["\']?(\d+\.?\d*)', clean_result)
+                    if m:
+                        return round(float(m.group(1)), 2)
+                    return 0.0
+            score = data.get('score', 0)
+            if score:
+                return round(float(score), 2)
+            return 0.0
         
         score_match = re.search(r'分数[：:](\d+\.?\d*)', result)
         if score_match:

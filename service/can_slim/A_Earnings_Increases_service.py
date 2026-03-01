@@ -24,7 +24,12 @@ def calculate_cagr(eps_compare_data):
     if not latest_eps or not three_years_ago_eps or three_years_ago_eps <= 0:
         return None, None
     
-    cagr_value = round(((latest_eps / three_years_ago_eps) ** (1/3) - 1) * 100, 4)
+    ratio = latest_eps / three_years_ago_eps
+    # When ratio is negative (e.g. negative EPS), fractional exponent yields complex number
+    if ratio < 0:
+        cagr_value = round(-(abs(ratio) ** (1/3) - 1) * 100, 4)
+    else:
+        cagr_value = round((ratio ** (1/3) - 1) * 100, 4)
     
     latest_date = latest_data.get('报告日期', '')
     three_years_ago_date = three_years_ago_data.get('报告日期', '')
