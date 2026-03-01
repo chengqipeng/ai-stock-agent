@@ -16,7 +16,7 @@ _HEADERS = {
 async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None) -> list[dict]:
     """
     从同花顺获取当日分时数据，返回列表（由旧到新）。
-    每条记录包含：time, price, avg_price, volume, change_percent
+    每条记录包含：time, close_price, trading_amount, avg_price, trading_volume, change_percent
     """
     code = stock_info.stock_code
     url = f"https://d.10jqka.com.cn/v6/time/hs_{code}/defer/last.js"
@@ -43,32 +43,64 @@ async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None) 
         logger.error("[%s] 分时数据 data 字段为空", code)
         return []
 
-    result = []
+    # ---- 第一遍：解析原始行，空值字段记为 None ----
+    _FIELD_KEYS = ("time", "close_price", "trading_amount", "avg_price", "trading_volume")
+    raw_rows: list[dict | None] = []
     for row in data_str.split(";"):
         parts = row.split(",")
         if len(parts) < 5:
+            raw_rows.append(None)
             continue
-        # 校验关键字段是否为空（time/price/amount/volume 均不允许为空）
-        empty_fields = []
-        if not parts[0]: empty_fields.append("time")
-        if not parts[1]: empty_fields.append("price")
-        if not parts[2]: empty_fields.append("amount")
-        if not parts[4]: empty_fields.append("volume")
-        if empty_fields:
-            raise ValueError(
-                f"[{code} {name}] 分时数据存在空值字段 {empty_fields}，"
-                f"日期={trade_date}，原始行={row} "
-                f"(可能原因：集合竞价占位数据/盘中最新记录尚未填充完毕/接口数据截断)"
+        raw_rows.append({
+            "time":            parts[0] or None,
+            "close_price":     parts[1] or None,
+            "trading_amount":  parts[2] or None,
+            "avg_price":       parts[3] or None,
+            "trading_volume":  parts[4] or None,
+        })
+
+    # ---- 第二遍：空值字段用上一条填充，没有上一条则用下一条 ----
+    for i, cur in enumerate(raw_rows):
+        if cur is None:
+            continue
+        empty_keys = [k for k in _FIELD_KEYS if cur[k] is None]
+        if not empty_keys:
+            continue
+        # 尝试从上一条有效行取值
+        prev = next((raw_rows[j] for j in range(i - 1, -1, -1) if raw_rows[j] is not None), None)
+        for k in list(empty_keys):
+            if prev and prev[k] is not None:
+                cur[k] = prev[k]
+                empty_keys.remove(k)
+        # 仍有空值则尝试从下一条有效行取值
+        if empty_keys:
+            nxt = next((raw_rows[j] for j in range(i + 1, len(raw_rows)) if raw_rows[j] is not None), None)
+            for k in list(empty_keys):
+                if nxt and nxt[k] is not None:
+                    cur[k] = nxt[k]
+                    empty_keys.remove(k)
+        # 填充后仍有空值，标记为丢弃
+        if empty_keys:
+            logger.warning(
+                "[%s %s] 分时数据字段 %s 无法填充，日期=%s，已丢弃",
+                code, name, empty_keys, trade_date,
             )
-        price = float(parts[1])
+            raw_rows[i] = None
+
+    # ---- 第三遍：转换为最终结果 ----
+    result = []
+    for r in raw_rows:
+        if r is None:
+            continue
+        price = float(r["close_price"])
         change_pct = round((price - pre_close) / pre_close * 100, 2) if pre_close else None
         result.append({
-            "time":           f"{parts[0][:2]}:{parts[0][2:]}",
-            "price":          price,
-            "amount":         float(parts[2]),
-            "avg_price":      float(parts[3]),
-            "volume":         int(float(parts[4])),
-            "change_percent": change_pct,
+            "time":            f"{r['time'][:2]}:{r['time'][2:]}",
+            "close_price":     price,
+            "trading_amount":  float(r["trading_amount"]),
+            "avg_price":       float(r["avg_price"]),
+            "trading_volume":  int(float(r["trading_volume"])),
+            "change_percent":  change_pct,
         })
 
     return result if limit is None else result[-limit:]
@@ -79,10 +111,10 @@ async def get_stock_time_kline_cn_10jqka(stock_info: StockInfo, limit: int = Non
     rows = await get_stock_time_kline_10jqka(stock_info, limit)
     return [{
         "时间":   r["time"],
-        "价格":   r["price"],
-        "成交额":  r["amount"],
+        "价格":   r["close_price"],
+        "成交额":  r["trading_amount"],
         "均价":   r["avg_price"],
-        "成交量":  r["volume"],
+        "成交量":  r["trading_volume"],
         "涨跌幅":  r["change_percent"],
     } for r in rows]
 
@@ -91,7 +123,7 @@ if __name__ == "__main__":
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info = get_stock_info_by_name("北方华创")
+        stock_info = get_stock_info_by_name("生益电子")
         klines = await get_stock_time_kline_cn_10jqka(stock_info)
         print(json.dumps(klines[:50], ensure_ascii=False))
 
