@@ -22,6 +22,7 @@ from service.eastmoney.stock_info.stock_org_hold_by_sh_sz_hk import get_org_hold
 from service.jqka10.stock_time_kline_data_10jqka import get_stock_time_kline_cn_10jqka
 from service.jqka10.stock_week_kline_data_10jqka import get_stock_week_kline_list_10jqka
 from service.web_search.stock_news_search import search_stock_news, format_news_for_prompt
+from service.eastmoney.stock_info.stock_margin_trading import get_margin_trading_json
 from service.web_search.stock_block_trade_search import search_block_trade, compute_block_trade_summary
 from service.sina.stock_order_book_data import get_order_book, compute_order_book_summary
 from service.eastmoney.forecast.stock_institution_forecast_summary import get_institution_forecast_summary_current_next_year_json
@@ -2024,14 +2025,15 @@ def _parse_hold_change(change) -> float:
 
 
 
-def _compute_margin_trading_summary(news_data: list[dict]) -> dict:
-    """从stock_news结果中的融资融券类型新闻提取融资融券结构化摘要。
+def _compute_margin_trading_summary(margin_data: list[dict]) -> dict:
+    """基于东方财富融资融券API数据（get_margin_trading_json）计算结构化摘要。
 
-    原数据源（东方财富API get_margin_trading_data）已不再维护，
-    改为从百度搜索的融资融券类新闻中提取关键信息。
+    Args:
+        margin_data: get_margin_trading_json 返回的最近5条融资融券数据（按日期降序）
 
-    返回杠杆方向判断、融资余额趋势、融券余额趋势等，
-    确保与下游 _compute_comprehensive_score 和 prompt 模板兼容。
+    Returns:
+        杠杆方向判断、融资余额趋势、融券余额趋势等结构化摘要，
+        确保与下游 _compute_comprehensive_score 和 prompt 模板兼容。
     """
     import re
 
@@ -2040,103 +2042,132 @@ def _compute_margin_trading_summary(news_data: list[dict]) -> dict:
         '杠杆方向': '无数据',
         '融资余额趋势': '无数据',
         '融券余额趋势': '无数据',
-        '数据来源': '新闻搜索',
+        '数据来源': '东方财富API',
     }
 
-    if not news_data:
+    if not margin_data or len(margin_data) == 0:
         return empty_result
 
-    # 筛选融资融券类别的新闻
-    margin_news = [n for n in news_data if isinstance(n, dict) and n.get('类别') == '融资融券']
-    if not margin_news:
-        return empty_result
+    latest = margin_data[0]
+    latest_date = latest.get('交易日期', '--')
 
-    # 合并所有融资融券新闻的标题和摘要用于关键词分析
-    all_text = ' '.join(
-        (n.get('标题', '') + ' ' + n.get('摘要', ''))
-        for n in margin_news
-    )
+    # ── 解析金额数值（支持"17.4368亿"、"9460.8103万"等格式） ──
+    def _parse_amount(val) -> float | None:
+        if val is None or val == '--':
+            return None
+        if isinstance(val, (int, float)):
+            return float(val)
+        s = str(val).strip()
+        m = re.match(r'^(-?[\d.]+)(亿|万)?$', s)
+        if not m:
+            return None
+        num = float(m.group(1))
+        unit = m.group(2)
+        if unit == '亿':
+            return num * 1e8
+        elif unit == '万':
+            return num * 1e4
+        return num
 
-    # 提取最新交易日期（从新闻发布时间或文本中提取）
-    latest_date = '--'
-    for n in margin_news:
-        pub_time = n.get('发布时间', '')
-        if pub_time:
-            date_match = re.search(r'(\d{4}-\d{2}-\d{2})', pub_time)
-            if date_match:
-                latest_date = date_match.group(1)
-                break
-    # 也尝试从文本中提取日期
-    if latest_date == '--':
-        date_match = re.search(r'(\d{4}-\d{2}-\d{2})', all_text)
-        if date_match:
-            latest_date = date_match.group(1)
+    # ── 提取融资余额序列（按日期降序，index 0 = 最新） ──
+    rz_values = []
+    rq_values = []
+    rzrq_values = []
+    dates = []
+    for item in margin_data:
+        rz = _parse_amount(item.get('融资余额(元)'))
+        rq = _parse_amount(item.get('融券余额(元)'))
+        rzrq = _parse_amount(item.get('融资融券余额(元)'))
+        rz_values.append(rz)
+        rq_values.append(rq)
+        rzrq_values.append(rzrq)
+        dates.append(item.get('交易日期', ''))
 
     # ── 融资余额趋势判断 ──
-    rz_bullish_kw = ['融资净买入', '融资余额增', '融资买入额增', '融资余额连续增']
-    rz_bearish_kw = ['融资净偿还', '融资余额降', '融资余额减', '融资余额连续降', '融资余额连续减']
-    rz_bullish = any(kw in all_text for kw in rz_bullish_kw)
-    rz_bearish = any(kw in all_text for kw in rz_bearish_kw)
+    valid_rz = [v for v in rz_values if v is not None]
+    if len(valid_rz) >= 2:
+        rz_latest = valid_rz[0]
+        rz_oldest = valid_rz[-1]
+        rz_change = rz_latest - rz_oldest
+        rz_change_pct = (rz_change / rz_oldest * 100) if rz_oldest != 0 else 0
 
-    if rz_bullish and not rz_bearish:
-        rz_trend = '融资余额呈增长趋势（基于新闻报道），杠杆资金偏多'
-    elif rz_bearish and not rz_bullish:
-        rz_trend = '融资余额呈下降趋势（基于新闻报道），杠杆资金偏空'
-    elif rz_bullish and rz_bearish:
-        rz_trend = '融资余额信号混合（基于新闻报道）'
+        # 连续增减判断
+        rz_inc_days = 0
+        rz_dec_days = 0
+        for i in range(len(valid_rz) - 1):
+            if valid_rz[i] > valid_rz[i + 1]:
+                rz_inc_days += 1
+            elif valid_rz[i] < valid_rz[i + 1]:
+                rz_dec_days += 1
+
+        if rz_change > 0:
+            rz_trend = f'融资余额近{len(valid_rz)}个交易日增加{rz_change_pct:+.2f}%（{rz_inc_days}日增/{rz_dec_days}日减），杠杆资金偏多'
+        elif rz_change < 0:
+            rz_trend = f'融资余额近{len(valid_rz)}个交易日减少{rz_change_pct:+.2f}%（{rz_inc_days}日增/{rz_dec_days}日减），杠杆资金偏空'
+        else:
+            rz_trend = '融资余额基本持平'
     else:
-        rz_trend = '融资余额方向不明（新闻中未提及明确变化）'
+        rz_trend = '融资余额数据不足'
+        rz_change = 0
 
     # ── 融券余额趋势判断 ──
-    rq_bearish_kw = ['融券余额增', '融券卖出增', '融券余量增']
-    rq_bullish_kw = ['融券余额降', '融券余额减', '融券偿还']
-    rq_bearish = any(kw in all_text for kw in rq_bearish_kw)
-    rq_bullish = any(kw in all_text for kw in rq_bullish_kw)
+    valid_rq = [v for v in rq_values if v is not None]
+    if len(valid_rq) >= 2:
+        rq_latest = valid_rq[0]
+        rq_oldest = valid_rq[-1]
+        rq_change = rq_latest - rq_oldest
+        rq_change_pct = (rq_change / rq_oldest * 100) if rq_oldest != 0 else 0
 
-    if rq_bearish and not rq_bullish:
-        rq_trend = '融券余额增加（基于新闻报道），做空力量增强'
-    elif rq_bullish and not rq_bearish:
-        rq_trend = '融券余额减少（基于新闻报道），做空力量减弱'
-    elif rq_bearish and rq_bullish:
-        rq_trend = '融券余额信号混合（基于新闻报道）'
+        if rq_change > 0:
+            rq_trend = f'融券余额近{len(valid_rq)}个交易日增加{rq_change_pct:+.2f}%，做空力量增强'
+        elif rq_change < 0:
+            rq_trend = f'融券余额近{len(valid_rq)}个交易日减少{rq_change_pct:+.2f}%，做空力量减弱'
+        else:
+            rq_trend = '融券余额基本持平'
     else:
-        rq_trend = '融券余额方向不明（新闻中未提及明确变化）'
+        rq_trend = '融券余额数据不足'
+        rq_change = 0
 
     # ── 杠杆方向综合判断 ──
-    if rz_bullish and not rz_bearish and not rq_bearish:
+    rz_bullish = rz_change > 0 if len(valid_rz) >= 2 else False
+    rz_bearish = rz_change < 0 if len(valid_rz) >= 2 else False
+    rq_bearish_signal = rq_change > 0 if len(valid_rq) >= 2 else False  # 融券增加=做空增强
+    rq_bullish_signal = rq_change < 0 if len(valid_rq) >= 2 else False
+
+    if rz_bullish and not rq_bearish_signal:
         leverage_direction = '杠杆资金偏多（融资余额增加，融券余额未明显增加）'
-    elif rz_bearish and not rz_bullish and rq_bearish:
+    elif rz_bearish and rq_bearish_signal:
         leverage_direction = '杠杆资金偏空（融资余额减少，融券余额增加）'
-    elif rz_bearish and not rz_bullish:
+    elif rz_bearish and not rq_bearish_signal:
         leverage_direction = '杠杆资金偏空（融资余额减少）'
-    elif rz_bullish and rq_bearish:
-        leverage_direction = '多空混合（融资融券余额均有变化）'
-    elif not rz_bullish and not rz_bearish and not rq_bearish and not rq_bullish:
-        leverage_direction = '杠杆方向不明（新闻中未提及明确方向性变化）'
+    elif rz_bullish and rq_bearish_signal:
+        leverage_direction = '多空混合（融资余额增加但融券余额也在增加）'
     else:
         leverage_direction = '杠杆方向不明'
-
-    # ── 尝试从文本中提取具体数值 ──
-    rz_amount_match = re.search(r'融资余额[为约]?(\d+\.?\d*)\s*亿', all_text)
-    rq_amount_match = re.search(r'融券余额[为约]?(\d+\.?\d*)\s*亿', all_text)
 
     result = {
         '最新交易日': latest_date,
         '融资余额趋势': rz_trend,
         '融券余额趋势': rq_trend,
         '杠杆方向': leverage_direction,
-        '数据来源': '新闻搜索（原东方财富API已停止维护）',
-        '新闻条数': len(margin_news),
-        '新闻摘要': [
-            {'标题': n.get('标题', ''), '发布时间': n.get('发布时间', '')}
-            for n in margin_news[:5]
+        '数据来源': '东方财富API（RPTA_WEB_RZRQ_GGMX）',
+        '数据条数': len(margin_data),
+        '最新融资余额': latest.get('融资余额(元)', '--'),
+        '最新融券余额': latest.get('融券余额(元)', '--'),
+        '最新融资融券余额': latest.get('融资融券余额(元)', '--'),
+        '最新融资净买入': latest.get('融资净买入(元)', '--'),
+        '最新融券余量': latest.get('融券余量(股)', '--'),
+        '逐日明细': [
+            {
+                '日期': item.get('交易日期', ''),
+                '融资余额': item.get('融资余额(元)', '--'),
+                '融资净买入': item.get('融资净买入(元)', '--'),
+                '融券余量': item.get('融券余量(股)', '--'),
+                '融资融券余额': item.get('融资融券余额(元)', '--'),
+            }
+            for item in margin_data
         ],
     }
-
-    if rz_amount_match:
-        result['最新融资余额(亿)'] = rz_amount_match.group(1)
-    if rq_amount_match:
-        result['最新融券余额(亿)'] = rq_amount_match.group(1)
 
     return result
 
@@ -3002,7 +3033,6 @@ def _compute_comprehensive_score(
 
     # --- 融资融券杠杆方向（-2~+2分）---
     # 行业共识：融资余额增加反映杠杆资金看多，融券余额增加反映做空力量增强
-    # 优先使用结构化融资融券数据，回退到新闻文本解析
     if margin_summary and margin_summary.get('杠杆方向') and margin_summary.get('杠杆方向') != '无数据':
         leverage_dir = margin_summary.get('杠杆方向', '')
         if '偏多' in leverage_dir:
@@ -3016,26 +3046,7 @@ def _compute_comprehensive_score(
         else:
             capital_reasons.append(f'融资融券：{leverage_dir}+0')
     else:
-        # 回退：从新闻文本中解析融资融券方向
-        margin_news = [n for n in news_data if isinstance(n, dict) and n.get('类别') == '融资融券'] if news_data else []
-        if margin_news:
-            margin_texts = ' '.join(n.get('标题', '') + n.get('摘要', '') for n in margin_news)
-            margin_bullish_kw = ['融资净买入', '融资余额增', '融资买入额增', '两融余额增']
-            margin_bearish_kw = ['融资净偿还', '融资余额降', '融资余额减', '融券余额增', '融券卖出增']
-            is_margin_bullish = any(kw in margin_texts for kw in margin_bullish_kw)
-            is_margin_bearish = any(kw in margin_texts for kw in margin_bearish_kw)
-            if is_margin_bullish and not is_margin_bearish:
-                capital_score += 2
-                capital_reasons.append('融资融券：杠杆资金偏多+2（基于新闻文本）')
-            elif is_margin_bearish and not is_margin_bullish:
-                capital_score -= 2
-                capital_reasons.append('融资融券：杠杆资金偏空-2（基于新闻文本）')
-            elif is_margin_bullish and is_margin_bearish:
-                capital_reasons.append('融资融券：多空信号混合+0（基于新闻文本）')
-            else:
-                capital_reasons.append(f'融资融券：有相关消息但方向不明+0')
-        else:
-            capital_reasons.append('融资融券：无近期数据（中性）+0')
+        capital_reasons.append('融资融券：无近期数据（中性）+0')
 
     # --- 约束规则 ---
     # 机构持仓连续减持且北向资金净卖出
@@ -3089,13 +3100,10 @@ def _compute_comprehensive_score(
         env_reasons.append('当日大盘普跌-1')
 
     # --- 消息面（-2~+2分）---
-    # 只扫描非融资融券类消息，融资融券已在资金筹码维度处理
     has_major_positive = False
     has_major_negative = False
     if news_data:
         for news in news_data:
-            if isinstance(news, dict) and news.get('类别') == '融资融券':
-                continue  # 融资融券已在维度5评分
             title = ''
             if isinstance(news, dict):
                 title = news.get('标题', '') or news.get('title', '')
@@ -3323,7 +3331,8 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
     order_book_summary = compute_order_book_summary(order_book_data)
 
     # ── 新增预计算：补齐缺失的关键指标 ──
-    margin_summary = _compute_margin_trading_summary(stock_news)
+    margin_trading_data = await get_margin_trading_json(stock_info, page_size=5)
+    margin_summary = _compute_margin_trading_summary(margin_trading_data)
     consensus_vs_actual = _compute_consensus_vs_actual(consensus_forecast, stock_news, stock_info.stock_name)
     shareholder_reduction = _compute_shareholder_reduction_detail(stock_news, stock_info.stock_name)
 
@@ -3541,7 +3550,7 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 大宗交易发生在A股收盘后（15:00-15:30盘后撮合），属于盘后交易。请直接引用"对下一个交易日影响"字段判断其时效性。
 {json.dumps(block_trade_summary, ensure_ascii=False)}
 
-**★ 预计算融资融券结构化摘要（必须直接引用，优先于消息面中的融资融券文本）：**
+**★ 预计算融资融券结构化摘要（必须直接引用，数据来源：东方财富融资融券API）：**
 {json.dumps(margin_summary, ensure_ascii=False)}
 
 **★ 预计算大股东/高管减持详情（必须直接引用）：**
@@ -3574,7 +3583,7 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 **★ 预计算数据时效性预警（必须直接引用，影响各维度结论可信度）：**
 {json.dumps(data_timeliness, ensure_ascii=False)}
 
-**★ 近期消息面（百度搜索，近7日，按融资融券与其他消息分类展示）：**
+**★ 近期消息面（百度搜索，近7日公告/新闻）：**
 **时效性判定规则（A股交易时段：09:30-11:30 / 13:00-15:00 北京时间）：**
 - 上一个交易日15:00后发布的盘后消息 → 市场尚未消化，对{next_trading_day.strftime('%Y-%m-%d')}开盘有直接影响（标记为★）
 - {next_trading_day.strftime('%Y-%m-%d')}当日09:30前发布的盘前消息 → 对当日开盘有直接影响（标记为★）
@@ -3590,8 +3599,7 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 - 业绩一致预期对比：直接引用业绩一致预期vs实际业绩对比结论，判断业绩是否超预期
 - 数据时效性：直接引用数据时效性预警，对滞后严重的数据源降低分析权重
 - 消息面时效性判断：重点关注标记为★的消息（盘后/盘前发布、市场尚未消化），这些消息对{next_trading_day.strftime('%Y-%m-%d')}开盘有直接影响；盘中已发布的消息影响已减弱，需降低权重
-- 融资融券动态分析：直接引用融资融券结构化摘要（优先于消息面文本），判断杠杆资金方向
-- 其他重要消息分析（【其他重要消息】板块）：判断是否存在影响股价的重大利好/利空事件，若无重大消息则简要说明"消息面平淡"
+- 其他重要消息分析（【重要公告消息】板块）：判断是否存在影响股价的重大利好/利空事件，若无重大消息则简要说明"消息面平淡"
 - 外部环境对次日操作的约束（如大盘弱势则个股反弹空间受限）
 
 ### 六、 多空力量博弈清单
@@ -3651,7 +3659,7 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 - 基准分2分
 - 大盘环境：偏多+2 / 偏空-2 / 震荡+0
 - 当日大盘：普涨+1 / 普跌-1
-- 消息面（仅非融资融券类消息）：重大利好+2 / 重大利空=0分
+- 消息面：重大利好+2 / 重大利空=0分
 - 约束：大盘跌破5日和10日均线上限2分 / 重大利空消息0分
 
 *风险收益比（满分10分）评分规则：*

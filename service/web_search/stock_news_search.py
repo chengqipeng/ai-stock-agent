@@ -211,19 +211,6 @@ _TRADING_DATA_RE = re.compile(
     r'行情|报价|实时|最新价|最高价|最低价)'
 )
 
-# ── 融资融券关键词 ──
-_MARGIN_KEYWORDS = [
-    '融资融券', '融资余额', '融券余额', '融资买入', '融券卖出',
-    '融资净买入', '融券净卖出', '融资偿还', '融券偿还',
-    '两融', '融资净偿还', '融券净偿还', '融资融券余额',
-    '融资融券标的', '融资融券数据', '融资融券变动',
-]
-
-def _is_margin_trading_news(title: str, content: str) -> bool:
-    """判断新闻是否属于融资融券类别。"""
-    text = (title + content).lower()
-    return any(kw in text for kw in _MARGIN_KEYWORDS)
-
 
 
 
@@ -282,7 +269,7 @@ def _build_ann_filter_prompt(stock_info: StockInfo, ann_results: list[dict]) -> 
         "5. 市场关注：机构评级调整、热点题材催化\n\n"
         "# 严格禁选\n"
         "- 股价行情、K线、技术指标、成交量、换手率、涨跌幅等交易数据\n"
-        "- 融资融券相关内容（由另一组数据单独处理）\n"
+        "- 融资融券相关内容（由独立数据接口处理）\n"
         "- 营销软文、产品介绍、泛行业讨论\n\n"
         "# 搜索结果\n"
         f"{results_json}\n\n"
@@ -292,29 +279,6 @@ def _build_ann_filter_prompt(stock_info: StockInfo, ann_results: list[dict]) -> 
     )
 
 
-def _build_margin_filter_prompt(stock_info: StockInfo, margin_results: list[dict]) -> str:
-    """构建融资融券过滤提示词"""
-    header, _ = _common_prompt_header(stock_info)
-    results_json = json.dumps(margin_results, ensure_ascii=False)
-    return (
-        header +
-        "# Task\n"
-        "从以下融资融券搜索结果中，筛选与目标公司**直接相关**且反映两融资金动向的条目。\n\n"
-        "# 保留准则（符合任一即可）\n"
-        "1. 融资余额变化：融资余额大幅增加或减少\n"
-        "2. 融券余额变化：融券余额异动\n"
-        "3. 两融数据异动：融资净买入/净偿还、融券净卖出/净偿还\n"
-        "4. 融资融券标的调整：新增或移除标的\n\n"
-        "# 严格禁选\n"
-        "- 股价行情、K线、技术指标等交易数据\n"
-        "- 与融资融券无关的公告、新闻\n"
-        "- 泛行业两融数据（非目标公司个股数据）\n\n"
-        "# 搜索结果\n"
-        f"{results_json}\n\n"
-        "# Output\n"
-        "只返回符合要求的 id 列表，JSON 数组格式，按影响面从高到低排序，最多2条最少0条。禁止输出任何解释。\n"
-        "示例：[2, 1]\n"
-    )
 
 
 async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
@@ -333,25 +297,17 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
         return cached['data']
 
     query = f"{stock_info.stock_name} 公告"
-    query_margin = f"{stock_info.stock_name} 融资融券"
     try:
-        results_ann, results_margin = await asyncio.gather(
-            baidu_search(query=query, days=days, top_k=15, preferred_domains=_FINANCE_DOMAINS),
-            baidu_search(query=query_margin, days=days, top_k=10, preferred_domains=_FINANCE_DOMAINS),
-        )
+        results_ann = await baidu_search(query=query, days=days, top_k=15, preferred_domains=_FINANCE_DOMAINS)
         results_ann = results_ann or []
-        results_margin = results_margin or []
-        if not results_ann and not results_margin:
+        if not results_ann:
             _news_cache[cache_key] = {'data': [], 'ts': now}
             return []
 
         # 并发爬取全文
-        results_ann, results_margin = await asyncio.gather(
-            asyncio.gather(*[_fetch_and_replace_content(item) for item in results_ann]),
-            asyncio.gather(*[_fetch_and_replace_content(item) for item in results_margin]),
-        )
-        results_ann = list(results_ann)
-        results_margin = list(results_margin)
+        results_ann = list(await asyncio.gather(
+            *[_fetch_and_replace_content(item) for item in results_ann]
+        ))
 
         def _to_search_items(results: list, id_start: int) -> list[dict]:
             items = []
@@ -371,13 +327,12 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
             return _dedup_by_title(items)
 
         ann_items = _to_search_items(results_ann, 1)
-        margin_items = _to_search_items(results_margin, 1000)  # id 区间隔开避免冲突
 
-        if not ann_items and not margin_items:
+        if not ann_items:
             _news_cache[cache_key] = {'data': [], 'ts': now}
             return []
 
-        # 并发调用大模型过滤
+        # 调用大模型过滤
         client = VolcengineClient()
 
         async def _filter(items: list[dict], prompt_fn) -> list[dict]:
@@ -395,10 +350,7 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
             id_map = {item['id']: item for item in items}
             return [id_map[fid] for fid in ids if fid in id_map]
 
-        filtered_ann, filtered_margin = await asyncio.gather(
-            _filter(ann_items, _build_ann_filter_prompt),
-            _filter(margin_items, _build_margin_filter_prompt),
-        )
+        filtered_ann = await _filter(ann_items, _build_ann_filter_prompt)
 
         def _to_result(item: dict, category: str) -> dict:
             return {
@@ -410,10 +362,7 @@ async def search_stock_news(stock_info: StockInfo, days: int = 7) -> list[dict]:
                 '类别': category,
             }
 
-        filtered_result = (
-            [_to_result(item, '公告') for item in filtered_ann] +
-            [_to_result(item, '融资融券') for item in filtered_margin]
-        )
+        filtered_result = [_to_result(item, '公告') for item in filtered_ann]
 
         _news_cache[cache_key] = {'data': filtered_result, 'ts': now}
         return filtered_result
@@ -472,50 +421,36 @@ def _assess_news_next_day_impact(publish_time: str, session: str, next_trading_d
 
 
 def format_news_for_prompt(news_list: list[dict], next_trading_day: str = '') -> str:
-    """将新闻列表格式化为提示词中的文本块，按融资融券和其他消息分类展示。
+    """将新闻列表格式化为提示词中的文本块。
 
     Args:
-        news_list: 新闻列表（每条含 '类别' 字段：'融资融券' 或 '其他'）
+        news_list: 新闻列表（公告/新闻条目）
         next_trading_day: 下一个交易日日期（YYYY-MM-DD），用于判断消息对次日的影响
     """
     if not news_list:
         return "未获取到近期相关新闻/公告信息。"
 
-    margin_news = [n for n in news_list if n.get('类别') == '融资融券']
-    other_news = [n for n in news_list if n.get('类别') != '融资融券']
+    lines = []
+    for i, news in enumerate(news_list, 1):
+        time_label = ''
+        publish_time = news.get('发布时间', '')
+        session = news.get('时段', '未知')
+        if publish_time:
+            time_label = f'（{publish_time} [{session}]）'
 
-    def _format_section(items: list[dict]) -> str:
-        lines = []
-        for i, news in enumerate(items, 1):
-            time_label = ''
-            publish_time = news.get('发布时间', '')
-            session = news.get('时段', '未知')
-            if publish_time:
-                time_label = f'（{publish_time} [{session}]）'
+        impact_label = ''
+        if next_trading_day:
+            impact = _assess_news_next_day_impact(publish_time, session, next_trading_day)
+            impact_label = f'\n   → 对次日影响：{impact}'
 
-            impact_label = ''
-            if next_trading_day:
-                impact = _assess_news_next_day_impact(publish_time, session, next_trading_day)
-                impact_label = f'\n   → 对次日影响：{impact}'
+        lines.append(f'{i}. {news["标题"]}{time_label}{impact_label}')
+        if news.get('摘要'):
+            lines.append(f'   摘要：{news["摘要"]}')
 
-            lines.append(f'{i}. {news["标题"]}{time_label}{impact_label}')
-            if news.get('摘要'):
-                lines.append(f'   摘要：{news["摘要"]}')
-        return '\n'.join(lines)
-
-    sections = []
-
-    if margin_news:
-        sections.append(f'【融资融券动态】\n{_format_section(margin_news)}')
+    if lines:
+        return f'【重要公告消息】\n' + '\n'.join(lines)
     else:
-        sections.append('【融资融券动态】\n无近期融资融券相关消息。')
-
-    if other_news:
-        sections.append(f'【重要公告消息】\n{_format_section(other_news)}')
-    else:
-        sections.append('【重要公告消息】\n无近期其他重要消息。')
-
-    return '\n\n'.join(sections)
+        return '【重要公告消息】\n无近期重要消息。'
 
 
 
