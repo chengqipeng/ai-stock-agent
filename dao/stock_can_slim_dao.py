@@ -140,6 +140,10 @@ class DatabaseManager:
             for col, col_type in [('change_pct', 'REAL'), ('high_price_120', 'REAL'), ('high_price_date_120', 'TEXT'), ('latest_price', 'REAL')]:
                 if col not in existing_columns:
                     cursor.execute(f"ALTER TABLE stock_analysis_detail ADD COLUMN {col} {col_type}")
+
+            # K线综合评分字段
+            if 'kline_total_score' not in existing_columns:
+                cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN kline_total_score INTEGER")
             
             # 深度分析历史记录表
             cursor.execute("""
@@ -398,6 +402,17 @@ class DatabaseManager:
                 WHERE id = ?
             """, (score, prompt, stock_id))
             
+            conn.commit()
+
+    def update_stock_kline_scores(self, stock_id: int, total_score: int):
+        """更新K线综合评分总分"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE stock_analysis_detail 
+                SET kline_total_score = ?
+                WHERE id = ?
+            """, (total_score, stock_id))
             conn.commit()
     
     def update_stock_overall_analysis(self, stock_id: int, analysis: str, prompt: str = None, grade: str = None):

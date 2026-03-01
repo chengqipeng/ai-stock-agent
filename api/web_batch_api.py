@@ -146,7 +146,10 @@ async def execute_batch_kline_update(batch_id: int, stock_ids: str = Query(...),
                         stock_info = get_stock_info_by_name(stock['stock_name'])
                         prompt, result = await get_strategy_engine_analysis(stock_info)
                         not_hold_grade, not_hold_content, hold_grade, hold_content, data_issues = extract_grade_and_content(result)
+                        kline_total_score = extract_kline_total_score(result)
                         db_manager.update_stock_dimension_score(stock_id, 'kline', not_hold_grade, not_hold_content, None, prompt)
+                        if kline_total_score is not None:
+                            db_manager.update_stock_kline_scores(stock_id, kline_total_score)
                         with __import__('sqlite3').connect(db_manager.db_path) as _conn:
                             _conn.execute(
                                 "UPDATE stock_analysis_detail SET kline_hold_score=?, kline_hold_prompt=?, data_issues=? WHERE id=?",
@@ -286,8 +289,11 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                         # 调用策略引擎分析（大模型初筛）
                         prompt, result = await get_strategy_engine_analysis(stock_info)
                         not_hold_grade, not_hold_content, hold_grade, hold_content, data_issues = extract_grade_and_content(result)
+                        kline_total_score = extract_kline_total_score(result)
 
                         db_manager.update_stock_dimension_score(stock['id'], 'kline', not_hold_grade, not_hold_content, None, prompt)
+                        if kline_total_score is not None:
+                            db_manager.update_stock_kline_scores(stock['id'], kline_total_score)
                         # 存持有建议和数据质量反馈到 kline_hold_score / kline_hold_prompt / data_issues
                         with __import__('sqlite3').connect(db_manager.db_path) as _conn:
                             _conn.execute(
@@ -789,6 +795,41 @@ def extract_grade_from_overall(result: str) -> str:
     except Exception as e:
         logger.error("Error extracting grade: %s, result: %s", e, result[:200], exc_info=True)
     return ''
+
+
+def extract_kline_total_score(result: str) -> int:
+    """从策略引擎大模型结果中提取综合评分总分"""
+    try:
+        clean = result.strip()
+        if clean.startswith('```'):
+            clean = re.sub(r'^```(?:json)?\s*\n', '', clean)
+            clean = re.sub(r'\n```\s*$', '', clean)
+        clean = clean.strip()
+
+        if clean.startswith('{'):
+            for attempt_fn in [
+                lambda s: json.loads(s),
+                lambda s: json.loads(s.replace("'", '"')),
+                lambda s: json.loads(s.replace('\n', '\\n')),
+                lambda s: json.loads(s.replace("'", '"').replace('\n', '\\n')),
+            ]:
+                try:
+                    data = attempt_fn(clean)
+                    val = data.get('score')
+                    if val is not None:
+                        return int(float(val))
+                    return None
+                except (json.JSONDecodeError, ValueError):
+                    continue
+
+        # 正则兜底
+        m = re.search(r'["\']score["\']\s*:\s*(\d+)', clean)
+        if m:
+            return int(m.group(1))
+        return None
+    except Exception as e:
+        logger.error("extract_kline_total_score 异常: %s, result: %s", e, result[:200], exc_info=True)
+        return None
 
 def extract_score_from_result(result: str) -> float:
     """从分析结果中提取分数"""
