@@ -646,7 +646,7 @@
 
     <div class="progress-modal" id="progressModal">
         <div class="progress-modal-content">
-            <div class="progress-modal-title" id="progressModalTitle">正在执行批量分析...</div>
+            <div class="progress-modal-title" id="progressModalTitle">正在执行K线批量分析...</div>
             <div class="progress-modal-bar">
                 <div class="progress-modal-fill" id="progressModalFill" style="width: 0%"></div>
                 <div class="progress-modal-text">
@@ -1340,7 +1340,7 @@
             }
         }
 
-        function showProgressModal(title = '正在执行批量分析...') {
+        function showProgressModal(title = '正在执行K线批量分析...') {
             document.getElementById('progressModalTitle').textContent = title;
             document.getElementById('deepAnalysisStockList').innerHTML = '';
             document.getElementById('progressModal').classList.add('show');
