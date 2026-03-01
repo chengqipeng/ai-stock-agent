@@ -523,7 +523,7 @@ if __name__ == "__main__":
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info = get_stock_info_by_name('生益科技')
+        stock_info = get_stock_info_by_name('中国卫通')
         news = await search_stock_news(stock_info)
         print(format_news_for_prompt(news))
 
