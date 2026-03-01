@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>批量分析 - AI Stock Agent</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
@@ -382,8 +385,8 @@
         .row-canslim { background: rgba(232,240,254,0.45); }
         .row-canslim .data-metric { min-width: 80px; padding: 5px 10px; }
         .row-canslim .data-section-items { flex-wrap: nowrap; }
-        .row-canslim .dm-label { font-size: 11px; font-weight: 600; }
-        .row-canslim .dm-value { font-size: 15px; }
+        .row-canslim .dm-label { font-size: 13px; font-weight: 600; }
+        .row-canslim .dm-value { font-size: 20px; }
         .row-canslim .dim-btn, .row-kline .dim-btn { padding: 4px 10px; font-size: 11px; }
         .sort-bar {
             display: flex;
@@ -1131,8 +1134,8 @@
                     <td class="data-row"><div class="data-section">
                         <span class="data-section-label">📈 涨跌幅</span>
                         <div class="data-section-items">
-                            <div class="data-metric"><span class="dm-label">最新价</span><span class="dm-value">${stock.latest_price ?? '-'}</span></div>
                             <div class="data-metric"><span class="dm-label">120天最高距今涨跌幅</span><span class="dm-value ${changePctClass}">${changePctVal}</span></div>
+                            <div class="data-metric"><span class="dm-label">最新价</span><span class="dm-value">${stock.latest_price ?? '-'}</span></div>
                             <div class="data-metric"><span class="dm-label">120天最高价</span><span class="dm-value">${stock.high_price_120 ?? '-'}</span></div>
                             <div class="data-metric" style="border-right:none;"><span class="dm-label">最高日期</span><span class="dm-value" style="font-size:11px;color:#48484a;">${stock.high_price_date_120 ?? '-'}</span></div>
                         </div>
@@ -2060,7 +2063,8 @@
             const val = stock[field];
             if (val == null || val === '' || val === '-') return -Infinity;
             if (field === 'kline_score' || field === 'kline_hold_score') {
-                return GRADE_SCORE_MAP[val] ?? -Infinity;
+                const trimmed = String(val).trim();
+                return GRADE_SCORE_MAP[trimmed] ?? -Infinity;
             }
             const num = parseFloat(val);
             return isNaN(num) ? -Infinity : num;
