@@ -1,8 +1,11 @@
 import re
 import json
 import asyncio
+import logging
 import aiohttp
 from common.utils.stock_info_utils import StockInfo
+
+logger = logging.getLogger(__name__)
 
 _HEADERS = {
     "Referer": "https://stockpage.10jqka.com.cn/",
@@ -27,13 +30,27 @@ async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None) 
 
     # 响应结构：{"hs_{code}": {"pre": "488.88", "data": "0930,481.12,38975531,481.120,81010;...", ...}}
     inner = data.get(f"hs_{code}", {})
+    if not inner:
+        logger.error("[%s] 分时数据响应中缺少 hs_%s，data keys=%s", code, code, list(data.keys()))
+        return []
     pre_close = float(inner.get("pre", 0) or 0)
     data_str = inner.get("data", "")
+    if not pre_close:
+        logger.error("[%s] 分时数据昨收价为空或为0，inner keys=%s", code, list(inner.keys()))
+    if not data_str:
+        logger.error("[%s] 分时数据 data 字段为空", code)
+        return []
 
     result = []
+    anomaly_count = 0
     for row in data_str.split(";"):
         parts = row.split(",")
         if len(parts) < 5:
+            continue
+        # 校验关键字段是否为空
+        if not parts[0] or not parts[1]:
+            logger.error("[%s] 分时数据存在空值：time=%s, price=%s, row=%s", code, parts[0], parts[1], row)
+            anomaly_count += 1
             continue
         price = float(parts[1])
         change_pct = round((price - pre_close) / pre_close * 100, 2) if pre_close else None
@@ -45,6 +62,9 @@ async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None) 
             "volume":         int(float(parts[4])),
             "change_percent": change_pct,
         })
+
+    if anomaly_count > 0:
+        logger.warning("[%s] 分时数据共 %d 条记录存在异常", code, anomaly_count)
 
     return result if limit is None else result[-limit:]
 

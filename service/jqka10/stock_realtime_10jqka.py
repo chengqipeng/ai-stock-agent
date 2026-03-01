@@ -1,7 +1,10 @@
 import asyncio
 import re
 import json
+import logging
 import aiohttp
+
+logger = logging.getLogger(__name__)
 
 HEADERS = {
     "Accept": "*/*",
@@ -36,7 +39,17 @@ async def get_today_trade_data(stock_code: str, market: str = "hs") -> dict:
     if not match:
         raise ValueError(f"Unexpected response format: {text[:200]}")
 
-    return json.loads(match.group(1))
+    data = json.loads(match.group(1))
+    # 校验响应数据
+    key = f"{market}_{stock_code}"
+    if not data.get(key):
+        logger.error("[%s] 实时交易数据响应中缺少 key=%s，data keys=%s", stock_code, key, list(data.keys()))
+    else:
+        item = data[key]
+        missing = [f for f in ("1", "7", "8", "9", "11", "13") if not item.get(f)]
+        if missing:
+            logger.error("[%s] 实时交易数据存在空值字段 %s，item=%s", stock_code, missing, item)
+    return data
 
 
 async def _get_prev_close(stock_code: str, market: str = "hs") -> float | None:
@@ -63,6 +76,8 @@ async def get_today_kline_as_str(stock_code: str) -> str | None:
         _get_prev_close(stock_code),
     )
     item = raw.get(f"hs_{stock_code}", {})
+    if not item:
+        logger.error("[%s] 实时K线数据为空：hs_%s 不存在于响应中", stock_code, stock_code)
     trade_date = item.get("1", "")
     if len(trade_date) == 8:
         trade_date = f"{trade_date[:4]}-{trade_date[4:6]}-{trade_date[6:]}"

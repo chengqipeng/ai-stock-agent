@@ -13,6 +13,32 @@ def _market_prefix(stock_code: str) -> str:
     """指数用 'zs'，普通股票用 'hs'"""
     return "zs" if stock_code in INDEX_CODES else "hs"
 
+logger = logging.getLogger(__name__)
+
+
+# --------------- 数据校验 ---------------
+_DAY_KLINE_REQUIRED_FIELDS = ("date", "open_price", "close_price", "high_price", "low_price", "trading_volume")
+
+
+def _validate_raw_response(data: dict, stock_code: str, label: str = "日K") -> bool:
+    """校验同花顺原始响应是否包含必要字段，异常时记录错误日志"""
+    missing = [f for f in ("priceFactor", "sortYear", "dates", "price", "volumn") if not data.get(f)]
+    if missing:
+        logger.error("[%s] %s 原始响应缺少关键字段 %s，data keys=%s", stock_code, label, missing, list(data.keys()))
+        return False
+    return True
+
+
+def _validate_kline_record(record: dict, stock_code: str, label: str = "日K") -> bool:
+    """校验单条K线记录的关键字段是否为空或 None"""
+    empty_fields = [f for f in _DAY_KLINE_REQUIRED_FIELDS if record.get(f) is None or record.get(f) == ""]
+    if empty_fields:
+        logger.error("[%s] %s 数据异常：日期=%s 存在空值字段 %s，record=%s",
+                     stock_code, label, record.get("date", "N/A"), empty_fields, record)
+        return False
+    return True
+
+
 
 _HEADERS = {
     "Accept": "*/*",
@@ -167,6 +193,10 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     year_data_list = [r for r in results[1:] if isinstance(r, dict)]
     nofq_map = _build_nofq_map(year_data_list)
 
+    if not _validate_raw_response(data, code):
+        logger.warning("[%s] 日K原始数据校验失败，返回空列表", code)
+        return []
+
     price_factor = data.get("priceFactor", 100)
     sort_year = data.get("sortYear", [])
     dates = _build_dates(data.get("start", ""), sort_year, data.get("dates", ""))
@@ -174,9 +204,13 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     volumes = [int(v) // 100 for v in data.get("volumn", "").split(",") if v]
 
     n = min(len(dates), len(prices), len(volumes))
+    if n == 0:
+        logger.error("[%s] 日K解析后数据为空：dates=%d, prices=%d, volumes=%d", code, len(dates), len(prices), len(volumes))
+        return []
     start = max(0, n - limit)
 
     result = []
+    anomaly_count = 0
     for i in range(start, n):
         open_p, close_p, high_p, low_p = prices[i]
         nofq = nofq_map.get(dates[i].replace("-", ""), {})
@@ -185,7 +219,7 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
         amplitude   = round((high_p - low_p) / prev_close * 100, 2) if prev_close else None
         change_pct  = round((actual_close - prev_close) / prev_close * 100, 2) if prev_close else None
         change_amt  = round(actual_close - prev_close, 2) if prev_close else None
-        result.append({
+        record = {
             "date":           dates[i],
             "open_price":     open_p,
             "close_price":    actual_close,
@@ -197,7 +231,13 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
             "change_percent": change_pct,
             "change_amount":  change_amt,
             "change_hand":    nofq.get("turnover"),
-        })
+        }
+        if not _validate_kline_record(record, code):
+            anomaly_count += 1
+        result.append(record)
+
+    if anomaly_count > 0:
+        logger.warning("[%s] 日K共 %d/%d 条记录存在异常数据", code, anomaly_count, len(result))
 
     latest_trading_day = _latest_trading_day().strftime("%Y-%m-%d")
     today_kline = await _get_today_kline(stock_info.stock_code)

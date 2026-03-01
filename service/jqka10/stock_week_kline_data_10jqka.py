@@ -2,12 +2,17 @@ import re
 import json
 import math
 import asyncio
+import logging
 import aiohttp
 from html import unescape
 from datetime import date
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.stock_info_utils import StockInfo
 from service.jqka10.stock_day_kline_data_10jqka import _build_dates
+
+logger = logging.getLogger(__name__)
+
+_WEEK_KLINE_REQUIRED_FIELDS = ("date", "open_price", "close_price", "high_price", "low_price", "trading_volume")
 
 _HEADERS = {
     "Accept": "*/*",
@@ -112,6 +117,15 @@ async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -
     year_data_list = [r for r in results[1:] if isinstance(r, dict)]
     nofq_map = _build_nofq_map(year_data_list)
 
+    # 校验周K原始响应
+    if not week_data:
+        logger.error("[%s] 周K原始响应为空", code)
+        return []
+    missing = [f for f in ("priceFactor", "sortYear", "dates", "price", "volumn") if not week_data.get(f)]
+    if missing:
+        logger.error("[%s] 周K原始响应缺少关键字段 %s，data keys=%s", code, missing, list(week_data.keys()))
+        return []
+
     price_factor = week_data.get("priceFactor", 100)
     dates = _build_dates(week_data.get("start", ""), week_data.get("sortYear", []), week_data.get("dates", ""))
     prices = _decode_week_prices(week_data.get("price", ""), price_factor)
@@ -121,6 +135,9 @@ async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -
     nofq_dates_sorted = sorted(nofq_map.keys())
 
     n = min(len(dates), len(prices), len(volumes))
+    if n == 0:
+        logger.error("[%s] 周K解析后数据为空：dates=%d, prices=%d, volumes=%d", code, len(dates), len(prices), len(volumes))
+        return []
     start = max(0, n - limit)
 
     # 为第一条记录计算 prev_close：取 start-1 周的收盘价
@@ -136,6 +153,7 @@ async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -
             first_prev_close = prices[prev_idx][1]
 
     result = []
+    anomaly_count = 0
     for i in range(start, n):
         week_date_raw = dates[i].replace("-", "")  # YYYYMMDD
         prev_week_date_raw = dates[i - 1].replace("-", "") if i > 0 else "00000000"
@@ -162,7 +180,7 @@ async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -
             change_amount  = round(close - prev_close, 2)
         else:
             amplitude = change_percent = change_amount = None
-        result.append({
+        record = {
             "date":           dates[i],
             "open_price":     prices[i][0],
             "close_price":    close,
@@ -174,7 +192,18 @@ async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -
             "change_percent": change_percent,
             "change_amount":  change_amount,
             "change_hand":    change_hand,
-        })
+        }
+        # 校验关键字段
+        empty_fields = [f for f in _WEEK_KLINE_REQUIRED_FIELDS if record.get(f) is None or record.get(f) == ""]
+        if empty_fields:
+            logger.error("[%s] 周K数据异常：日期=%s 存在空值字段 %s，record=%s",
+                         code, record.get("date", "N/A"), empty_fields, record)
+            anomaly_count += 1
+        result.append(record)
+
+    if anomaly_count > 0:
+        logger.warning("[%s] 周K共 %d/%d 条记录存在异常数据", code, anomaly_count, len(result))
+
     return result
 
 
