@@ -137,12 +137,12 @@ async def execute_batch_kline_update(batch_id: int, stock_ids: str = Query(...),
                             return {'success': False, 'stock_name': str(stock_id), 'error': 'not found'}
                         stock_info = get_stock_info_by_name(stock['stock_name'])
                         prompt, result = await get_strategy_engine_analysis(stock_info)
-                        not_hold_grade, not_hold_content, hold_grade, hold_content = extract_grade_and_content(result)
+                        not_hold_grade, not_hold_content, hold_grade, hold_content, data_issues = extract_grade_and_content(result)
                         db_manager.update_stock_dimension_score(stock_id, 'kline', not_hold_grade, not_hold_content, None, prompt)
                         with __import__('sqlite3').connect(db_manager.db_path) as _conn:
                             _conn.execute(
-                                "UPDATE stock_analysis_detail SET kline_hold_score=?, kline_hold_prompt=? WHERE id=?",
-                                (hold_grade, hold_content, stock_id)
+                                "UPDATE stock_analysis_detail SET kline_hold_score=?, kline_hold_prompt=?, data_issues=? WHERE id=?",
+                                (hold_grade, hold_content, data_issues, stock_id)
                             )
                         numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)
                         if numeric_score is not None:
@@ -274,14 +274,14 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
 
                         # 调用策略引擎分析（大模型初筛）
                         prompt, result = await get_strategy_engine_analysis(stock_info)
-                        not_hold_grade, not_hold_content, hold_grade, hold_content = extract_grade_and_content(result)
+                        not_hold_grade, not_hold_content, hold_grade, hold_content, data_issues = extract_grade_and_content(result)
 
                         db_manager.update_stock_dimension_score(stock['id'], 'kline', not_hold_grade, not_hold_content, None, prompt)
-                        # 存持有建议到 kline_hold_score / kline_hold_prompt
+                        # 存持有建议和数据质量反馈到 kline_hold_score / kline_hold_prompt / data_issues
                         with __import__('sqlite3').connect(db_manager.db_path) as _conn:
                             _conn.execute(
-                                "UPDATE stock_analysis_detail SET kline_hold_score=?, kline_hold_prompt=? WHERE id=?",
-                                (hold_grade, hold_content, stock['id'])
+                                "UPDATE stock_analysis_detail SET kline_hold_score=?, kline_hold_prompt=?, data_issues=? WHERE id=?",
+                                (hold_grade, hold_content, data_issues, stock['id'])
                             )
                         db_manager.update_stock_status(stock['id'], 'completed', None, deep_thinking)
 
@@ -640,7 +640,7 @@ async def execute_deep_analysis(stock_ids: List[int], deep_thinking: bool = Quer
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 def extract_grade_and_content(result: str):
-    """从策略引擎大模型结果中提取 grade 和 content"""
+    """从策略引擎大模型结果中提取 grade、content 和 data_issues"""
     try:
         clean = result.strip()
         if clean.startswith('```'):
@@ -662,19 +662,20 @@ def extract_grade_and_content(result: str):
                     not_hold_grade = re.search(r'"not_hold_grade"\s*:\s*"([^"]*)"', clean)
                     content = re.search(r'"content"\s*:\s*"(.*?)"', clean, re.DOTALL)
                     hold_grade = re.search(r'"hold_grade"\s*:\s*"([^"]*)"', clean)
+                    data_issues = re.search(r'"data_issues"\s*:\s*"(.*?)"', clean, re.DOTALL)
                     return (
                         not_hold_grade.group(1) if not_hold_grade else '',
                         content.group(1) if content else result[:200],
                         hold_grade.group(1) if hold_grade else '',
-                        ''
+                        '',
+                        data_issues.group(1) if data_issues else '无'
                     )
             return (data.get('not_hold_grade', ''), data.get('content', ''),
-                    data.get('hold_grade', ''), data.get('content', ''))
-            # return (data.get('not_hold_grade', ''), data.get('not_hold_content', ''),
-            #     data.get('hold_grade', ''), data.get('hold_content', ''))
+                    data.get('hold_grade', ''), data.get('content', ''),
+                    data.get('data_issues', '无'))
     except Exception as e:
         logger.error("Error extracting grade/content: %s, content: %s", e, result[:500])
-    return '', result[:200], '', ''
+    return '', result[:200], '', '', '无'
 
 def extract_grade_from_overall(result: str) -> str:
     """从整体分析JSON结果中提取grade字段"""

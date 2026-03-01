@@ -1007,7 +1007,7 @@
             
             tbody.innerHTML = stocks.map((stock, idx) => {
                 const stockKey = `stock_${idx}`;
-                window.stockPrompts[stockKey] = { name: stock.stock_name, stock_id: stock.id };
+                window.stockPrompts[stockKey] = { name: stock.stock_name, stock_id: stock.id, data_issues: stock.data_issues || '' };
 
                 const dbtn = (label, onclick, cls) => `<button class="dim-btn ${cls}" onclick="${onclick}">${label}</button>`;
                 const dimCell = (key, label) => {
@@ -1162,6 +1162,16 @@
                                     ${stock.kline_score ? `<span style="color: #4caf50; font-weight: 600;">(${stock.kline_score}分)</span>` : '<span style="color: #999;">(未分析)</span>'}
                                 </h4>
                                 ${stock.kline_prompt ? `<details><summary style="cursor: pointer; font-size: 11px; color: #667eea;">查看分析详情</summary><pre style="margin: 5px 0 0 0; font-size: 10px; background: rgba(255,255,255,0.5); padding: 8px; border-radius: 8px; max-height: 200px; overflow-y: auto; white-space: pre-wrap;">${stock.kline_prompt}</pre></details>` : ''}
+                            </div>
+                        `;
+                    }
+
+                    // 数据质量反馈
+                    if (stock.data_issues && stock.data_issues !== '无') {
+                        content += `
+                            <div style="border: 1px solid rgba(255,152,0,0.3); border-radius: 12px; padding: 15px; margin-bottom: 15px; background: rgba(255,248,225,0.5);">
+                                <h4 style="margin: 0 0 10px 0; color: #e65100; font-size: 14px;">⚠️ 数据质量反馈</h4>
+                                <div class="markdown-body">${marked.parse(stock.data_issues)}</div>
                             </div>
                         `;
                     }
@@ -1431,10 +1441,17 @@
                 try {
                     const jsonData = JSON.parse(jsonStr);
                     const mdContent = jsonData.content || jsonData.summary || jsonData.analysis || '';
+                    const dataIssues = jsonData.data_issues || '';
                     if (mdContent) {
-                        const formattedJson = JSON.stringify({...jsonData, content: undefined, summary: undefined, analysis: undefined}, null, 2).replace(/,?\s*"(content|summary|analysis)":\s*null/g, '');
+                        const formattedJson = JSON.stringify({...jsonData, content: undefined, summary: undefined, analysis: undefined, data_issues: undefined}, null, 2).replace(/,?\s*"(content|summary|analysis|data_issues)":\s*null/g, '');
                         content = `<pre style="background: rgba(0,0,0,0.04); padding: 10px; border-radius: 10px; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; margin-bottom:12px;">${formattedJson}</pre>`
                                 + `<div class="markdown-body">${marked.parse(mdContent)}</div>`;
+                        if (dataIssues && dataIssues !== '无') {
+                            content += `<div style="margin-top:16px; border:1px solid rgba(255,152,0,0.3); border-radius:12px; padding:15px; background:rgba(255,248,225,0.5);">
+                                <h4 style="margin:0 0 10px 0; color:#e65100; font-size:14px;">⚠️ 数据质量反馈</h4>
+                                <div class="markdown-body">${marked.parse(dataIssues)}</div>
+                            </div>`;
+                        }
                     } else {
                         const formattedJson = JSON.stringify(jsonData, null, 2);
                         content = `<pre style="background: rgba(0,0,0,0.04); padding: 15px; border-radius: 10px; overflow-x: auto; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;">${formattedJson}</pre>`;
@@ -1447,6 +1464,17 @@
                 content = `<div class="markdown-body">${marked.parse(cleanPrompt)}</div>`;
             }
             
+            // 追加数据质量反馈（仅K线结果弹窗底部）
+            if ((dimKey === 'kline' || dimKey === 'kline_hold') && !overrideType) {
+                const issuesText = promptData.data_issues;
+                if (issuesText && issuesText !== '无') {
+                    content += `<div style="margin-top:16px; border:1px solid rgba(255,152,0,0.3); border-radius:12px; padding:15px; background:rgba(255,248,225,0.5);">
+                        <h4 style="margin:0 0 10px 0; color:#e65100; font-size:14px;">⚠️ 数据质量反馈</h4>
+                        <div class="markdown-body">${marked.parse(issuesText)}</div>
+                    </div>`;
+                }
+            }
+
             document.getElementById('modalContent').innerHTML = content;
             document.getElementById('detailModal').classList.add('show');
         }

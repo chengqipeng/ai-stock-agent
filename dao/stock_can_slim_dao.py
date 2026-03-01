@@ -134,6 +134,9 @@ class DatabaseManager:
             if 'kline_hold_prompt' not in existing_columns:
                 cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN kline_hold_prompt TEXT")
 
+            if 'data_issues' not in existing_columns:
+                cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN data_issues TEXT")
+
             for col, col_type in [('change_pct', 'REAL'), ('high_price_120', 'REAL'), ('high_price_date_120', 'TEXT'), ('latest_price', 'REAL')]:
                 if col not in existing_columns:
                     cursor.execute(f"ALTER TABLE stock_analysis_detail ADD COLUMN {col} {col_type}")
