@@ -40,7 +40,7 @@ async def get_revenue_analysis(stock_info: StockInfo, report_date="2024-12-31", 
         save_cache(cache_path, result)
         return result
     else:
-        logger.warning("未获取到股票 %s 的主营业务构成数据", stock_info.stock_code_normalize)
+        logger.warning("未获取到股票 %s 的主营业务构成数据, 报告日期: %s", stock_info.stock_code_normalize, report_date)
         return []
 
 

@@ -94,7 +94,7 @@ async def get_stock_day_range_kline_by_db_cache(stock_info: StockInfo, limit=400
         return await get_stock_day_kline_as_str_10jqka(stock_info, limit)
     except Exception as e:
         logger.warning("get_stock_day_range_kline_by_db_cache 10jqka回退失败 [%s]: %s", stock_info.stock_name, e)
-        return await get_stock_day_kline_as_str_10jqka(stock_info, limit)
+        return []
 
 
 def _to_float(v: str):

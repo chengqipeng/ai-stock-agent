@@ -31,7 +31,11 @@ def _build_dates(start: str, sort_year: list, dates_str: str) -> list[str]:
             if idx >= len(mmdd_list):
                 break
             mmdd = mmdd_list[idx]
-            result.append(f"{year}-{mmdd[:2]}-{mmdd[2:]}")
+            # 同花顺周K的 dates 可能是 "MM-DD" 格式（含连字符），日K是 "MMDD"
+            if "-" in mmdd:
+                result.append(f"{year}-{mmdd}")
+            else:
+                result.append(f"{year}-{mmdd[:2]}-{mmdd[2:]}")
             idx += 1
     return result
 
@@ -158,6 +162,8 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
 
     results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
     data = results[0]
+    if isinstance(data, Exception):
+        raise data
     year_data_list = [r for r in results[1:] if isinstance(r, dict)]
     nofq_map = _build_nofq_map(year_data_list)
 
@@ -246,7 +252,7 @@ if __name__ == "__main__":
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info = get_stock_info_by_name("沪电股份")
+        stock_info = get_stock_info_by_name("飞荣达")
         klines = await get_stock_day_kline_as_str_10jqka(stock_info, limit=400)
         print(json.dumps(klines, ensure_ascii=False))
 
