@@ -414,6 +414,17 @@ async def get_batch_stocks(batch_id: int):
         logger.error("获取批次股票列表失败 batch_id=%s: %s", batch_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/batch/{batch_id}/add_stocks")
+async def add_stocks_to_batch(batch_id: int, request: BatchRequest):
+    """向已有批次中添加股票"""
+    try:
+        added = db_manager.add_stocks_to_batch(batch_id, request.stock_codes)
+        return {"success": True, "data": {"added_count": added}}
+    except Exception as e:
+        logger.error("添加股票到批次失败 batch_id=%s: %s", batch_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/batch/stock/{stock_id}/prompt")
 async def get_stock_prompt(stock_id: int, dim: str, type: str = "score"):
     """按需获取股票某维度的提示词"""

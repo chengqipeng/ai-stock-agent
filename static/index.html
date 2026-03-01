@@ -625,6 +625,7 @@
             <h2 style="font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
                 <span>批次股票列表</span>
                 <div style="display:flex;gap:6px;align-items:center;">
+                    <button id="addStockToBatchBtn" class="btn btn-primary" disabled onclick="openAddStockPanel()" style="position:relative;">+ 添加股票</button>
                     <button class="fullscreen-btn" onclick="toggleFullscreen(this.closest('.panel'))">⛶ 全屏</button>
                     <button id="batchPrescreeningBtn" class="btn" style="background:#e67e22;" disabled onclick="batchPrescreeningUpdate()">涨跌初筛 (<span id="batchPrescreeningCount">0</span>)</button>
                     <button id="batchKlineBtn" class="btn btn-success" disabled onclick="batchKlineUpdate()">K线初筛 (<span id="batchKlineCount">0</span>)</button>
@@ -688,6 +689,24 @@
             <button class="close-btn" onclick="closeModal()">×</button>
             <h2 id="modalTitle"></h2>
             <div class="markdown-body" id="modalContent"></div>
+        </div>
+    </div>
+
+    <!-- 添加股票到批次弹窗 -->
+    <div class="modal" id="addStockModal" onclick="if(event.target.id==='addStockModal')closeAddStockPanel()">
+        <div class="modal-content" onclick="event.stopPropagation()" style="width:500px;max-width:95%;padding:20px;">
+            <button class="close-btn" onclick="closeAddStockPanel()">×</button>
+            <h2 style="font-size:15px;margin-bottom:12px;">添加股票到当前批次</h2>
+            <div style="position:relative;">
+                <input type="text" id="addStockSearch" placeholder="搜索股票名称或代码（逗号/空格分隔，回车添加）..." style="width:100%;padding:8px 28px 8px 10px;border:1px solid rgba(0,0,0,0.12);border-radius:8px;font-size:13px;box-sizing:border-box;background:rgba(255,255,255,0.6);" oninput="filterAddStockList()" onkeydown="handleAddStockEnter(event)">
+                <span onclick="document.getElementById('addStockSearch').value='';filterAddStockList()" style="position:absolute;right:8px;top:8px;cursor:pointer;color:#aaa;font-size:14px;line-height:1;">&times;</span>
+            </div>
+            <div style="margin:8px 0;display:flex;gap:6px;align-items:center;">
+                <button class="btn btn-primary" onclick="addStockSelectAll()">全选</button>
+                <button class="btn btn-primary" onclick="addStockDeselectAll()">取消全选</button>
+                <button class="btn btn-success" onclick="confirmAddStocks()">确认添加 (<span id="addStockSelectedCount">0</span>)</button>
+            </div>
+            <div id="addStockList" style="max-height:350px;overflow-y:auto;border:1px solid rgba(0,0,0,0.08);border-radius:10px;padding:8px;background:rgba(255,255,255,0.45);"></div>
         </div>
     </div>
 
@@ -1017,6 +1036,7 @@
 
         async function loadBatchStocks(batchId) {
             currentBatchId = batchId;
+            document.getElementById('addStockToBatchBtn').disabled = false;
             renderBatchList(await (await fetch('/api/batches')).json().then(d => d.data));
             
             try {
@@ -1103,7 +1123,7 @@
                 const nameCell = (rowspan) => `<td class="stock-name-cell" rowspan="${rowspan}">
                     <div class="sname">${stock.stock_name.replace(/ *\(.*\)$/, '')}</div>
                     <div class="scode">${(stockList.find(s => s.name === stock.stock_name.replace(/ *\(.*\)$/, '')) || {}).code || stock.stock_code}</div>
-                    <div class="stime">${formatLocalTime(stock.completed_at)}</div>
+                    <div class="stime">${formatLocalTime(stock.completed_at || stock.created_at)}</div>
                     <button class="sbtn" onclick="showHistory('${stock.stock_name}')">CAN SLIM历史</button>
                 </td>`;
                 const checkCell = (rowspan) => `<td class="stock-check-cell" rowspan="${rowspan}">
@@ -1361,6 +1381,7 @@
                 if (data.success) {
                     alert('清空成功');
                     currentBatchId = null;
+                    document.getElementById('addStockToBatchBtn').disabled = true;
                     loadBatchList();
                     document.getElementById('stockResultTable').style.display = 'none';
                     document.getElementById('stockResultEmpty').style.display = 'block';
@@ -1448,6 +1469,7 @@
                 if (data.success) {
                     if (currentBatchId === batchId) {
                         currentBatchId = null;
+                        document.getElementById('addStockToBatchBtn').disabled = true;
                         document.getElementById('stockResultTable').style.display = 'none';
                         document.getElementById('stockResultEmpty').style.display = 'block';
                         document.getElementById('stockResultEmpty').textContent = '请选择批次查看';
@@ -2081,6 +2103,132 @@
                 });
             }
             renderBatchStocksInner(sorted);
+        }
+
+        // 添加股票到批次相关
+        let addStockSelectedKeys = new Set();
+        let currentBatchStockCodes = new Set(); // 当前批次已有的股票代码
+
+        function openAddStockPanel() {
+            if (!currentBatchId) { alert('请先选择一个批次'); return; }
+            // 收集当前批次已有的股票代码
+            currentBatchStockCodes.clear();
+            (currentBatchStocks || []).forEach(s => {
+                currentBatchStockCodes.add(s.stock_code);
+            });
+            addStockSelectedKeys.clear();
+            document.getElementById('addStockSearch').value = '';
+            document.getElementById('addStockSelectedCount').textContent = '0';
+            filterAddStockList();
+            document.getElementById('addStockModal').classList.add('show');
+            document.getElementById('addStockSearch').focus();
+        }
+
+        function closeAddStockPanel() {
+            document.getElementById('addStockModal').classList.remove('show');
+        }
+
+        function filterAddStockList() {
+            const searchTerm = (document.getElementById('addStockSearch').value || '').trim().toLowerCase();
+            const container = document.getElementById('addStockList');
+            // 过滤掉已在批次中的股票
+            let filtered = stockList.filter(s => !currentBatchStockCodes.has(s.code));
+            if (searchTerm) {
+                filtered = filtered.filter(s =>
+                    s.name.toLowerCase().includes(searchTerm) || s.code.toLowerCase().includes(searchTerm)
+                );
+            }
+            // 选中的排前面
+            filtered.sort((a, b) => {
+                const aKey = `${a.name} (${a.code})`;
+                const bKey = `${b.name} (${b.code})`;
+                const aS = addStockSelectedKeys.has(aKey);
+                const bS = addStockSelectedKeys.has(bKey);
+                if (aS && !bS) return -1;
+                if (!aS && bS) return 1;
+                return 0;
+            });
+            if (filtered.length === 0) {
+                container.innerHTML = '<p style="text-align:center;color:#999;padding:10px;">没有可添加的股票</p>';
+                return;
+            }
+            container.innerHTML = filtered.map(s => {
+                const key = `${s.name} (${s.code})`;
+                const checked = addStockSelectedKeys.has(key);
+                return `<div class="stock-item">
+                    <input type="checkbox" id="add_${s.code}" ${checked ? 'checked' : ''} onchange="updateAddStockSelection(this, '${key.replace(/'/g, "\\'")}')">
+                    <label for="add_${s.code}" style="cursor:pointer;flex:1;">${s.name} (${s.code})</label>
+                </div>`;
+            }).join('');
+        }
+
+        function updateAddStockSelection(cb, key) {
+            if (cb.checked) addStockSelectedKeys.add(key);
+            else addStockSelectedKeys.delete(key);
+            document.getElementById('addStockSelectedCount').textContent = addStockSelectedKeys.size;
+        }
+
+        function addStockSelectAll() {
+            document.querySelectorAll('#addStockList input[type="checkbox"]').forEach(cb => {
+                cb.checked = true;
+                const label = cb.nextElementSibling;
+                if (label) addStockSelectedKeys.add(label.textContent.trim());
+            });
+            document.getElementById('addStockSelectedCount').textContent = addStockSelectedKeys.size;
+        }
+
+        function addStockDeselectAll() {
+            addStockSelectedKeys.clear();
+            document.querySelectorAll('#addStockList input[type="checkbox"]').forEach(cb => cb.checked = false);
+            document.getElementById('addStockSelectedCount').textContent = '0';
+        }
+
+        function handleAddStockEnter(event) {
+            if (event.key !== 'Enter') return;
+            const raw = document.getElementById('addStockSearch').value.trim();
+            if (!raw) return;
+            const terms = raw.split(/[,，、;;。\s]+/).filter(Boolean);
+            const notFound = [];
+            terms.forEach(term => {
+                const match = fuzzyMatchStock(term);
+                if (match && !currentBatchStockCodes.has(match.code)) {
+                    addStockSelectedKeys.add(`${match.name} (${match.code})`);
+                } else if (!match) {
+                    notFound.push(term);
+                }
+            });
+            document.getElementById('addStockSearch').value = '';
+            document.getElementById('addStockSelectedCount').textContent = addStockSelectedKeys.size;
+            filterAddStockList();
+            if (notFound.length) alert(`以下股票未找到：\n${notFound.join('、')}`);
+        }
+
+        async function confirmAddStocks() {
+            if (addStockSelectedKeys.size === 0) { alert('请至少选择一只股票'); return; }
+            if (!currentBatchId) { alert('请先选择一个批次'); return; }
+            try {
+                const resp = await fetch(`/api/batch/${currentBatchId}/add_stocks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ stock_codes: Array.from(addStockSelectedKeys) })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    const total = addStockSelectedKeys.size;
+                    const added = data.data.added_count;
+                    const skipped = total - added;
+                    closeAddStockPanel();
+                    await loadBatchStocks(currentBatchId);
+                    loadBatchList();
+                    if (skipped > 0) {
+                        alert(`已添加 ${added} 只股票，${skipped} 只已存在被忽略`);
+                    }
+                } else {
+                    alert('添加失败: ' + (data.detail || '未知错误'));
+                }
+            } catch (e) {
+                alert('添加失败: ' + e.message);
+            }
         }
 
         // 初始化

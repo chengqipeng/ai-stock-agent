@@ -195,7 +195,9 @@ class DatabaseManager:
     
     def create_batch(self, stock_codes: List[str]) -> int:
         """创建新批次"""
-        batch_name = f"批次_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        now = datetime.now()
+        batch_name = f"批次_{now.strftime('%Y%m%d_%H%M%S')}"
+        now_iso = now.isoformat()
         
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -219,12 +221,47 @@ class DatabaseManager:
                     code = stock_code
                 
                 cursor.execute("""
-                    INSERT INTO stock_analysis_detail (batch_id, stock_code, stock_name)
-                    VALUES (?, ?, ?)
-                """, (batch_id, code, stock_name))
+                    INSERT INTO stock_analysis_detail (batch_id, stock_code, stock_name, created_at)
+                    VALUES (?, ?, ?, ?)
+                """, (batch_id, code, stock_name, now_iso))
             
             conn.commit()
             return batch_id
+
+    def add_stocks_to_batch(self, batch_id: int, stock_codes: List[str]) -> int:
+        """向已有批次中添加股票，返回实际新增数量"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # 获取批次中已有的股票代码
+            cursor.execute("SELECT stock_code FROM stock_analysis_detail WHERE batch_id = ?", (batch_id,))
+            existing_codes = {row[0] for row in cursor.fetchall()}
+
+            added = 0
+            now = datetime.now().isoformat()
+            for stock_code in stock_codes:
+                if " (" in stock_code and stock_code.endswith(")"):
+                    stock_name = stock_code.split(" (")[0]
+                    code = stock_code.split(" (")[1].rstrip(")")
+                else:
+                    stock_name = stock_code
+                    code = stock_code
+
+                if code in existing_codes:
+                    continue
+
+                cursor.execute("""
+                    INSERT INTO stock_analysis_detail (batch_id, stock_code, stock_name, created_at)
+                    VALUES (?, ?, ?, ?)
+                """, (batch_id, code, stock_name, now))
+                existing_codes.add(code)
+                added += 1
+
+            if added > 0:
+                cursor.execute("UPDATE batch_info SET total_count = total_count + ? WHERE id = ?", (added, batch_id))
+
+            conn.commit()
+            return added
+
     
     def get_batches(self) -> List[Dict[str, Any]]:
         """获取所有批次，置顶优先，再按创建时间倒序"""
