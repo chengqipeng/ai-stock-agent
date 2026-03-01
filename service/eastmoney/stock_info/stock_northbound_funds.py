@@ -1,7 +1,11 @@
+import logging
+
 from common.http.http_utils import fetch_eastmoney_api
 from common.utils.stock_info_utils import StockInfo
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.amount_utils import convert_amount_org_holder
+
+logger = logging.getLogger(__name__)
 
 
 async def get_northbound_funds(stock_info: StockInfo, page_size: int = 4):
@@ -37,11 +41,11 @@ async def get_northbound_funds(stock_info: StockInfo, page_size: int = 4):
     
     if data.get("result") and data["result"].get("data"):
         result = data["result"]["data"]
-        # 保存缓存
         save_cache(cache_path, result)
         return result
     else:
-        raise Exception(f"未获取到股票 {stock_info.stock_name} 的北向资金持股数据")
+        logger.warning("未获取到股票 %s 的北向资金持股数据", stock_info.stock_name)
+        return []
 
 
 async def get_northbound_funds_cn(stock_info: StockInfo, fields=None, page_size: int = 4):

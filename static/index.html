@@ -385,6 +385,34 @@
         .row-canslim .dm-label { font-size: 11px; font-weight: 600; }
         .row-canslim .dm-value { font-size: 15px; }
         .row-canslim .dim-btn, .row-kline .dim-btn { padding: 4px 10px; font-size: 11px; }
+        .sort-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin: 8px 0;
+            align-items: center;
+        }
+        .sort-bar-label {
+            font-size: 11px;
+            color: #636366;
+            font-weight: 600;
+            margin-right: 4px;
+        }
+        .sort-btn {
+            padding: 3px 10px;
+            border: 1px solid rgba(102,126,234,0.25);
+            border-radius: 6px;
+            background: rgba(255,255,255,0.6);
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            color: #48484a;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .sort-btn:hover { border-color: rgba(102,126,234,0.5); background: rgba(102,126,234,0.06); }
+        .sort-btn.active { border-color: rgba(102,126,234,0.6); background: rgba(102,126,234,0.12); color: #667eea; font-weight: 600; }
+        .sort-btn .sort-arrow { margin-left: 3px; font-size: 10px; }
         .modal {
             display: none;
             position: fixed;
@@ -601,6 +629,22 @@
                     <button id="batchActionsBar" class="btn btn-success" disabled onclick="batchDeepAnalysis()">CAN SLIM深度分析 (<span id="batchSelectedCount">0</span>)</button>
                 </div>
             </h2>
+            <div class="sort-bar" id="sortBar" style="display:none;">
+                <span class="sort-bar-label">排序：</span>
+                <button class="sort-btn" onclick="toggleSort('change_pct')">涨跌幅<span class="sort-arrow"></span></button>
+                <button class="sort-btn" onclick="toggleSort('kline_score')">K线(未持有)<span class="sort-arrow"></span></button>
+                <button class="sort-btn" onclick="toggleSort('kline_hold_score')">K线(持有)<span class="sort-arrow"></span></button>
+                <span class="sort-bar-label" style="margin-left:6px;">CAN SLIM：</span>
+                <button class="sort-btn" onclick="toggleSort('c_score')">C<span class="sort-arrow"></span></button>
+                <button class="sort-btn" onclick="toggleSort('a_score')">A<span class="sort-arrow"></span></button>
+                <button class="sort-btn" onclick="toggleSort('n_score')">N<span class="sort-arrow"></span></button>
+                <button class="sort-btn" onclick="toggleSort('s_score')">S<span class="sort-arrow"></span></button>
+                <button class="sort-btn" onclick="toggleSort('l_score')">L<span class="sort-arrow"></span></button>
+                <button class="sort-btn" onclick="toggleSort('i_score')">I<span class="sort-arrow"></span></button>
+                <button class="sort-btn" onclick="toggleSort('m_score')">M<span class="sort-arrow"></span></button>
+                <button class="sort-btn" onclick="toggleSort('canslim_total')">综合<span class="sort-arrow"></span></button>
+                <button class="sort-btn" onclick="clearSort()" style="color:#ff6b6b;border-color:rgba(255,107,107,0.3);">✕ 重置</button>
+            </div>
             <div style="overflow-x: auto; max-height: 600px;">
                 <table id="stockResultTable" style="min-width: 900px; display: none; font-size: 11px;">
                     <thead>
@@ -987,16 +1031,39 @@
             const table = document.getElementById('stockResultTable');
             const tbody = document.getElementById('stockResultList');
             const empty = document.getElementById('stockResultEmpty');
+            const sortBar = document.getElementById('sortBar');
             
             if (stocks.length === 0) {
                 table.style.display = 'none';
                 empty.style.display = 'block';
                 empty.textContent = '暂无股票记录';
+                sortBar.style.display = 'none';
+                currentBatchStocks = [];
                 return;
             }
             
             table.style.display = 'table';
             empty.style.display = 'none';
+            sortBar.style.display = 'flex';
+            
+            currentBatchStocks = stocks;
+            
+            // 如果有排序状态，应用排序
+            if (currentSortField && currentSortOrder) {
+                let sorted = [...stocks];
+                sorted.sort((a, b) => {
+                    const va = getSortValue(a, currentSortField);
+                    const vb = getSortValue(b, currentSortField);
+                    return currentSortOrder === 'asc' ? va - vb : vb - va;
+                });
+                renderBatchStocksInner(sorted);
+            } else {
+                renderBatchStocksInner(stocks);
+            }
+        }
+
+        function renderBatchStocksInner(stocks) {
+            const tbody = document.getElementById('stockResultList');
             
             window.stockPrompts = {};
             
@@ -1929,6 +1996,79 @@
             const collapsed = container.classList.toggle('sidebar-collapsed');
             btn.textContent = collapsed ? '▶' : '◀';
             btn.title = collapsed ? '展开侧栏' : '折叠侧栏';
+        }
+
+        // 排序相关
+        let currentSortField = null;
+        let currentSortOrder = null; // 'asc' or 'desc'
+        let currentBatchStocks = []; // 保存当前批次股票数据
+
+        function toggleSort(field) {
+            if (currentSortField === field) {
+                currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortField = field;
+                currentSortOrder = 'desc'; // 默认降序（高分在前）
+            }
+            updateSortButtons();
+            applySortAndRender();
+        }
+
+        function clearSort() {
+            currentSortField = null;
+            currentSortOrder = null;
+            updateSortButtons();
+            applySortAndRender();
+        }
+
+        function updateSortButtons() {
+            document.querySelectorAll('.sort-btn').forEach(btn => {
+                const onclick = btn.getAttribute('onclick');
+                if (!onclick || onclick.includes('clearSort')) return;
+                const match = onclick.match(/toggleSort\('(.+?)'\)/);
+                if (!match) return;
+                const field = match[1];
+                const arrow = btn.querySelector('.sort-arrow');
+                if (field === currentSortField) {
+                    btn.classList.add('active');
+                    arrow.textContent = currentSortOrder === 'asc' ? '↑' : '↓';
+                } else {
+                    btn.classList.remove('active');
+                    arrow.textContent = '';
+                }
+            });
+        }
+
+        function getCanslimTotal(stock) {
+            let sum = 0;
+            ['c','a','n','s','l','i','m'].forEach(k => {
+                const v = parseFloat(stock[`${k}_score`]);
+                if (!isNaN(v)) sum += v;
+                const dv = parseFloat(stock[`${k}_deep_score`]);
+                if (!isNaN(dv)) sum += dv;
+            });
+            return sum;
+        }
+
+        function getSortValue(stock, field) {
+            if (field === 'canslim_total') return getCanslimTotal(stock);
+            const val = stock[field];
+            if (val == null || val === '' || val === '-') return -Infinity;
+            const num = parseFloat(val);
+            return isNaN(num) ? -Infinity : num;
+        }
+
+        function applySortAndRender() {
+            if (!currentBatchStocks.length) return;
+            let sorted = [...currentBatchStocks];
+            if (currentSortField && currentSortOrder) {
+                sorted.sort((a, b) => {
+                    const va = getSortValue(a, currentSortField);
+                    const vb = getSortValue(b, currentSortField);
+                    return currentSortOrder === 'asc' ? va - vb : vb - va;
+                });
+            }
+            renderBatchStocksInner(sorted);
         }
 
         // 初始化

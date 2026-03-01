@@ -1,5 +1,16 @@
 """C季度盈利分析提示词模板"""
 
+C_FAST_REPORT_SECTION = """
+## 4. 业绩快报明细
+   指标定义：公司最新发布的业绩快报数据，包含营业总收入、净利润、每股收益、净资产收益率等核心指标及其同比变化。
+   分析要点：
+     关注营收同比增长(%)和净利润同比增长(%)是否延续加速趋势。
+     结合上述第1、2点的历史季度数据，判断业绩快报是否印证或超越此前趋势。
+   分析使用的数据源：
+   <业绩快报明细（最近半年）>
+   {fast_report_json}
+"""
+
 C_QUARTERLY_EARNINGS_PROMPT_TEMPLATE = """
 当前系统时间：{system_time}
 
@@ -57,4 +68,6 @@ C_QUARTERLY_EARNINGS_PROMPT_TEMPLATE = """
    
    <机构未来预测数据（财务指标）>
    {future_forecast_summary}
+   {fast_report_section}
+   
 """

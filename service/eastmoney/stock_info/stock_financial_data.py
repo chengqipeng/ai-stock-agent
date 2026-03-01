@@ -42,23 +42,66 @@ async def get_financial_report(stock_info: StockInfo, page_size=5, page_number=1
         raise Exception(f"未获取到股票 {stock_info.stock_code} 的财务报表数据")
 
 
-# async def get_financial_fast_report(stock_info: StockInfo, page_size=15, page_number=1):
-#     """获取业绩预告数据"""
-#     params = {
-#         "sortColumns": "REPORT_DATE",
-#         "sortTypes": "-1",
-#         "pageSize": str(page_size),
-#         "pageNumber": str(page_number),
-#         "columns": "ALL",
-#         "filter": f"(SECURITY_CODE=\"{stock_info.stock_code}\")",
-#         "reportName": "RPT_FCI_PERFORMANCEE"
-#     }
-#
-#     data = await fetch_eastmoney_api(EASTMONEY_API_URL, params)
-#     if data.get("result") and data["result"].get("data"):
-#         return data["result"]["data"]
-#     else:
-#         raise Exception(f"未获取到股票 {stock_info.stock_code} 的业绩预告数据")
+async def get_financial_fast_report(stock_info: StockInfo, page_size=15, page_number=1):
+    """获取业绩预告数据"""
+    params = {
+        "sortColumns": "REPORT_DATE",
+        "sortTypes": "-1",
+        "pageSize": str(page_size),
+        "pageNumber": str(page_number),
+        "columns": "ALL",
+        "filter": f"(SECURITY_CODE=\"{stock_info.stock_code}\")",
+        "reportName": "RPT_FCI_PERFORMANCEE"
+    }
+
+    data = await fetch_eastmoney_api(EASTMONEY_API_URL, params)
+    if data.get("result") and data["result"].get("data"):
+        return data["result"]["data"]
+    else:
+        raise Exception(f"未获取到股票 {stock_info.stock_code} 的业绩预告数据")
+
+async def get_financial_fast_report_cn(stock_info: StockInfo, page_size=15, page_number=1):
+    """获取业绩快报数据（中文key）"""
+    raw_data = await get_financial_fast_report(stock_info, page_size, page_number)
+
+    key_mapping = {
+        "SECURITY_CODE": "证券代码",
+        "SECURITY_NAME_ABBR": "证券简称",
+        "REPORT_DATE": "报告日期",
+        "BASIC_EPS": "每股收益(元)",
+        "TOTAL_OPERATE_INCOME": "营业总收入(元)",
+        "TOTAL_OPERATE_INCOME_SQ": "营业总收入去年同期(元)",
+        "PARENT_NETPROFIT": "净利润(元)",
+        "PARENT_NETPROFIT_SQ": "净利润去年同期(元)",
+        "PARENT_BVPS": "每股净资产(元)",
+        "WEIGHTAVG_ROE": "净资产收益率(%)",
+        "YSTZ": "营收同比增长(%)",
+        "DJDYSHZ": "营收季度环比增长(%)",
+        "JLRTBZCL": "净利润同比增长(%)",
+        "DJDJLHZ": "净利润季度环比增长(%)",
+        "NOTICE_DATE": "公告日期",
+        "ORG_CODE": "机构代码",
+        "TRADE_MARKET_CODE": "交易市场代码",
+        "ISNEW": "是否最新",
+        "QDATE": "季度日期",
+        "NDate": "日期",
+        "DATATYPE": "数据类型",
+        "DATAYEAR": "数据年份",
+        "DATEMMF": "数据月份",
+        "EITIME": "入库时间",
+        "SECUCODE": "证券全代码",
+    }
+
+    result = []
+    for item in raw_data:
+        cn_item = {}
+        for key, value in item.items():
+            cn_key = key_mapping.get(key, key)
+            cn_item[cn_key] = value
+        result.append(cn_item)
+
+    return result
+
 
 
 # async def get_performance_forecast(stock_info: StockInfo , page_size=15, page_number=1):
@@ -201,11 +244,11 @@ if __name__ == "__main__":
     import asyncio
     
     async def main():
-        stock_info: StockInfo = get_stock_info_by_name("北方华创")
+        stock_info: StockInfo = get_stock_info_by_name("生益科技")
         
         print("=== 业绩报表明细 ===")
-        # result1 = await get_financial_report_markdown(stock_info)
-        # print(result1)
+        result1 = await get_financial_fast_report_cn(stock_info)
+        print(result1)
 
         # result2 = await get_performance_forecast(stock_info)
         # print(result2)
