@@ -2050,10 +2050,18 @@
             return sum;
         }
 
+        const GRADE_SCORE_MAP = {
+            '积极买入': 95, '逢低建仓': 75, '持股待涨': 60,
+            '逢高减仓': 40, '清仓离场': 20, '保持观望': 50
+        };
+
         function getSortValue(stock, field) {
             if (field === 'canslim_total') return getCanslimTotal(stock);
             const val = stock[field];
             if (val == null || val === '' || val === '-') return -Infinity;
+            if (field === 'kline_score' || field === 'kline_hold_score') {
+                return GRADE_SCORE_MAP[val] ?? -Infinity;
+            }
             const num = parseFloat(val);
             return isNaN(num) ? -Infinity : num;
         }
