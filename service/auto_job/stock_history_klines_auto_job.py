@@ -4,6 +4,8 @@ from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 import re
+
+from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline
 from service.jqka10.stock_day_kline_data_10jqka import get_stock_day_kline_as_str_10jqka
 from service.jqka10.stock_realtime_10jqka import get_today_kline_as_str
 from common.utils.stock_info_utils import get_stock_info_by_code
@@ -54,7 +56,8 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
     else:
         for attempt in range(1, 11):
             try:
-                klines = await get_stock_day_kline_as_str_10jqka(stock_info, fetch_limit)
+                # klines = await get_stock_day_kline_as_str_10jqka(stock_info, fetch_limit)
+                klines = await get_stock_day_range_kline(stock_info, fetch_limit)
                 elapsed = asyncio.get_event_loop().time() - t0
                 break
             except Exception as e:

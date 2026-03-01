@@ -960,6 +960,40 @@ def _compute_boll_signal(boll_data: dict, kline_data: list[dict], kline_summary:
         else:
             trumpet_detail = f"带宽变化{bw_change_pct}%，未触发喇叭口加速条件"
 
+    # ── 开口紧缩（横盘蓄势 Squeeze）判定 ──
+    # 计算过去60日的带宽(BW)序列，判断当前BW是否降至极低水平
+    squeeze = False
+    squeeze_detail = ''
+    lookback = 60
+    if len(details) >= 2:
+        bw_list = []
+        for d in details[:lookback]:
+            d_mid = d.get('BOLL', 0)
+            d_upper = d.get('BOLL_UB', 0)
+            d_lower = d.get('BOLL_LB', 0)
+            if d_mid and d_mid > 0:
+                bw_list.append((d_upper - d_lower) / d_mid * 100)
+        if len(bw_list) >= 2:
+            today_bw_val = bw_list[0]
+            min_bw_60 = min(bw_list)
+            squeeze_threshold = round(min_bw_60 * 1.1, 4)
+            if today_bw_val <= squeeze_threshold:
+                squeeze = True
+                squeeze_detail = (
+                    f"当前带宽{round(today_bw_val, 2)}% <= 过去{len(bw_list)}日最小带宽"
+                    f"{round(min_bw_60, 2)}%×1.1={round(squeeze_threshold, 2)}%，"
+                    f"布林线收口至极窄状态，横盘蓄势，即将面临方向选择"
+                )
+            else:
+                squeeze_detail = (
+                    f"当前带宽{round(today_bw_val, 2)}%，过去{len(bw_list)}日最小带宽"
+                    f"{round(min_bw_60, 2)}%（阈值{round(squeeze_threshold, 2)}%），未触发开口紧缩"
+                )
+        else:
+            squeeze_detail = '带宽数据不足，无法判定开口紧缩'
+    else:
+        squeeze_detail = 'BOLL明细数据不足，无法判定开口紧缩'
+
     # ── 综合信号 ──
     if strong_start:
         signal = '强势开启（放量突破中轨）'
@@ -967,6 +1001,8 @@ def _compute_boll_signal(boll_data: dict, kline_data: list[dict], kline_summary:
         signal = '波段结束（跌破中轨）'
     elif trumpet:
         signal = '喇叭口加速'
+    elif squeeze:
+        signal = '开口紧缩（横盘蓄势）'
     elif in_operable_zone:
         signal = '可操作区运行'
     else:
@@ -982,6 +1018,8 @@ def _compute_boll_signal(boll_data: dict, kline_data: list[dict], kline_summary:
         '可操作区详情': operable_detail,
         '喇叭口加速': trumpet,
         '喇叭口加速详情': trumpet_detail,
+        '开口紧缩': squeeze,
+        '开口紧缩详情': squeeze_detail,
     }
 
 
@@ -3242,6 +3280,19 @@ def _compute_comprehensive_score(
     }
 
 
+def _build_news_prompt_block(stock_news: list, next_trading_day_str: str) -> str:
+    """消息面提示词块：有消息时输出时效性规则+消息内容，无消息时仅输出一行说明。"""
+    if not stock_news:
+        return "**★ 近期消息面：** 近7日无相关新闻/公告，消息面平淡。"
+
+    news_content = format_news_for_prompt(stock_news, next_trading_day_str)
+    return (
+        f"**★ 近期消息面（近7日公告/新闻）：**\n"
+        f"时效性规则：盘后/盘前消息（标记★）市场尚未消化，对{next_trading_day_str}开盘有直接影响；"
+        f"盘中消息影响已减弱；更早消息影响逐步衰减。每条消息的\u201c\u2192 对次日影响\u201d已预判断，请直接引用。\n\n"
+        f"{news_content}"
+    )
+
 
 # ──────────────────────────────────────────────
 # 主函数
@@ -3480,6 +3531,7 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 - 波段结束：跌破中轨（昨收>=昨中轨 且 今收<今中轨）
 - 可操作区：收盘>中轨 且 中轨向上倾斜
 - 喇叭口加速：上下轨反向张开 且 带宽单日放大超10%
+- 开口紧缩（横盘蓄势Squeeze）：当前带宽(BW)降至过去60日BW最小值×1.1以内，布林线收口至极窄状态，意味着波动率压缩到极致，即将面临方向选择（突破或跌破）
 
 **★ 预计算BOLL空间摘要（必须直接引用）：**
 {json.dumps(boll_summary, ensure_ascii=False)}
@@ -3583,23 +3635,14 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 **★ 预计算数据时效性预警（必须直接引用，影响各维度结论可信度）：**
 {json.dumps(data_timeliness, ensure_ascii=False)}
 
-**★ 近期消息面（百度搜索，近7日公告/新闻）：**
-**时效性判定规则（A股交易时段：09:30-11:30 / 13:00-15:00 北京时间）：**
-- 上一个交易日15:00后发布的盘后消息 → 市场尚未消化，对{next_trading_day.strftime('%Y-%m-%d')}开盘有直接影响（标记为★）
-- {next_trading_day.strftime('%Y-%m-%d')}当日09:30前发布的盘前消息 → 对当日开盘有直接影响（标记为★）
-- 盘中发布的消息 → 已被部分消化，对次日影响减弱
-- 更早的消息 → 影响逐步衰减
-- 每条消息后的"→ 对次日影响"已根据上述规则预判断，请直接引用
-
-{format_news_for_prompt(stock_news, next_trading_day.strftime('%Y-%m-%d'))}
+{_build_news_prompt_block(stock_news, next_trading_day.strftime('%Y-%m-%d'))}
 
 请基于上述数据分析：
 - 大盘当前系统性风险水平
 - 板块/行业走势：直接引用板块指数摘要和个股vs板块强弱对比，判断个股走势是行业共性还是独立行情（严禁自行计算个股与板块的涨跌幅差值）
 - 业绩一致预期对比：直接引用业绩一致预期vs实际业绩对比结论，判断业绩是否超预期
 - 数据时效性：直接引用数据时效性预警，对滞后严重的数据源降低分析权重
-- 消息面时效性判断：重点关注标记为★的消息（盘后/盘前发布、市场尚未消化），这些消息对{next_trading_day.strftime('%Y-%m-%d')}开盘有直接影响；盘中已发布的消息影响已减弱，需降低权重
-- 其他重要消息分析（【重要公告消息】板块）：判断是否存在影响股价的重大利好/利空事件，若无重大消息则简要说明"消息面平淡"
+- 消息面：若有消息，重点关注标记为★的盘后/盘前消息（市场尚未消化），盘中消息影响已减弱；若无消息则说明"消息面平淡"
 - 外部环境对次日操作的约束（如大盘弱势则个股反弹空间受限）
 
 ### 六、 多空力量博弈清单
