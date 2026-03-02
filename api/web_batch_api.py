@@ -155,14 +155,14 @@ async def execute_batch_kline_update(batch_id: int, stock_ids: str = Query(...),
                                 "UPDATE stock_analysis_detail SET kline_hold_score=?, kline_hold_prompt=?, data_issues=? WHERE id=?",
                                 (hold_grade, hold_content, data_issues, stock_id)
                             )
-                        numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)
-                        if numeric_score is not None:
-                            update_stock_score(
-                                "data_results/stock_to_score_list/stock_score_list.md",
-                                stock_info.stock_name,
-                                stock_info.stock_code_normalize,
-                                numeric_score
-                            )
+                        # numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)
+                        # if numeric_score is not None:
+                        #     update_stock_score(
+                        #         "data_results/stock_to_score_list/stock_score_list.md",
+                        #         stock_info.stock_name,
+                        #         stock_info.stock_code_normalize,
+                        #         numeric_score
+                        #     )
                         return {'success': True, 'stock_name': stock['stock_name'], 'score': not_hold_grade}
                     except Exception as e:
                         logger.error(f"K线更新失败 {stock_id}: {e}", exc_info=True)
@@ -302,14 +302,14 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                             )
                         db_manager.update_stock_status(stock['id'], 'completed', None, deep_thinking)
 
-                        numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)
-                        if numeric_score is not None:
-                            update_stock_score(
-                                "data_results/stock_to_score_list/stock_score_list.md",
-                                stock_info.stock_name,
-                                stock_info.stock_code_normalize,
-                                numeric_score
-                            )
+                        # numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)
+                        # if numeric_score is not None:
+                        #     update_stock_score(
+                        #         "data_results/stock_to_score_list/stock_score_list.md",
+                        #         stock_info.stock_name,
+                        #         stock_info.stock_code_normalize,
+                        #         numeric_score
+                        #     )
 
                         return {
                             'success': True,
