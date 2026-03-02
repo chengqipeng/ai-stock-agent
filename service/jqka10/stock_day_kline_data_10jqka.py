@@ -180,7 +180,7 @@ def _build_nofq_map(year_data_list: list[dict]) -> dict[str, dict]:
             if len(parts) >= 8 and parts[4]:
                 result[parts[0]] = {
                     "close":    float(parts[4]),
-                    "amount":   float(parts[6]),
+                    "amount":   float(parts[6]) if parts[6] else None,
                     "turnover": float(parts[7]) if parts[7] else None,
                 }
     return result
@@ -320,6 +320,13 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
             "change_hand":    nofq.get("turnover"),
         }
         _fix_close_price_boundary(record, code)
+        # 2024年前的历史数据，数值类字段为空则补0
+        if dates[i] < "2024":
+            for _fk in ("open_price", "close_price", "high_price", "low_price",
+                         "trading_volume", "trading_amount", "amplitude",
+                         "change_percent", "change_amount", "change_hand"):
+                if record.get(_fk) is None:
+                    record[_fk] = 0
         if not _validate_kline_record(record, code):
             anomaly_count += 1
         result.append(record)
@@ -380,8 +387,8 @@ if __name__ == "__main__":
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info = get_stock_info_by_name("山推股份")
-        klines = await get_stock_day_kline_as_str_10jqka(stock_info, limit=400)
+        stock_info = get_stock_info_by_name("三孚股份")
+        klines = await get_stock_day_kline_as_str_10jqka(stock_info, limit=800)
         print(json.dumps(klines, ensure_ascii=False))
 
     asyncio.run(main())

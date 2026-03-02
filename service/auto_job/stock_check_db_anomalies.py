@@ -20,16 +20,13 @@
 import sys
 import asyncio
 import logging
-import sqlite3
-import re
-from datetime import date, timedelta
 from pathlib import Path
-from chinese_calendar import is_workday
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dao.stock_kline_dao import (
-    get_db_path_for_stock, create_kline_table, batch_insert_or_update_kline_data, logger
+    get_db_path_for_stock, create_kline_table, batch_insert_or_update_kline_data,
+    check_db, kline_to_dao_record, save_kline_to_db, logger
 )
 from service.jqka10.stock_day_kline_data_10jqka import get_stock_day_kline_10jqka
 from common.utils.stock_info_utils import get_stock_info_by_code
@@ -42,169 +39,6 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 DB_DIR = Path(__file__).parent.parent.parent / "data_results/sql_lite"
-DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-
-
-def _is_trading_day(d: date) -> bool:
-    try:
-        return d.weekday() < 5 and is_workday(d)
-    except Exception as e:
-        logger.warning("_is_trading_day 判断失败 [%s]: %s", d, e)
-        return True  # 无法判断时保守处理，不删除
-
-
-def check_db(db_path: Path) -> list[dict]:
-    stock_code = db_path.stem.removeprefix("stock_").replace("_", ".")
-    table_name = f"kline_{db_path.stem.removeprefix('stock_')}"
-    issues = []
-
-    def issue(row_date, anomaly_type, detail):
-        issues.append({"stock_code": stock_code, "date": row_date, "type": anomaly_type, "detail": detail,
-                       "legacy": bool(row_date and str(row_date) < "2025-07-01")})
-
-    try:
-        conn = sqlite3.connect(db_path)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-    except Exception as e:
-        return [{"stock_code": stock_code, "date": None, "type": "DB_OPEN_ERROR", "detail": str(e)}]
-
-    try:
-        cur.execute(f"SELECT COUNT(*) FROM {table_name}")
-        count = cur.fetchone()[0]
-    except sqlite3.OperationalError as e:
-        log.warning("check_db 表不存在 [%s]: %s", stock_code, e)
-        conn.close()
-        return [{"stock_code": stock_code, "date": None, "type": "TABLE_MISSING", "detail": f"表 {table_name} 不存在"}]
-
-    if count == 0:
-        conn.close()
-        return [{"stock_code": stock_code, "date": None, "type": "TABLE_EMPTY", "detail": "表为空，无任何数据"}]
-
-    cur.execute(
-        f"SELECT date, open_price, close_price, high_price, low_price, "
-        f"trading_volume, trading_amount, change_percent FROM {table_name} ORDER BY date ASC"
-    )
-    rows = cur.fetchall()
-
-    seen_dates = {}
-    prev_date = None
-
-    for row in rows:
-        d = row["date"]
-        op, cp, hp, lp = row["open_price"], row["close_price"], row["high_price"], row["low_price"]
-        vol, amt, chg = row["trading_volume"], row["trading_amount"], row["change_percent"]
-
-        # 1. 日期格式
-        if not DATE_RE.match(str(d)):
-            issue(d, "INVALID_DATE_FORMAT", f"日期格式异常: {d}")
-            continue
-
-        # 非交易日数据：立即删除
-        try:
-            row_date = date.fromisoformat(d)
-            if not _is_trading_day(row_date):
-                cur.execute(f"DELETE FROM {table_name} WHERE date = ?", (d,))
-                conn.commit()
-                log.warning("[%s] 删除非交易日数据: date=%s", stock_code, d)
-                continue
-        except ValueError as e:
-            log.debug("[%s] 日期解析失败: date=%s, %s", stock_code, d, e)
-
-        # 2. 日期重复
-            issue(d, "DUPLICATE_DATE", f"日期重复出现")
-        seen_dates[d] = True
-
-        is_suspension = (cp == 0 and op == 0 and hp == 0 and lp == 0 and vol == 0 and amt == 0)
-
-        if is_suspension:
-            # 8. 停牌占位记录中存在非零字段
-            if chg != 0:
-                issue(d, "SUSPENSION_NONZERO_FIELD", f"停牌占位记录中 change_percent={chg} 非零")
-        else:
-            # 1. 价格 <= 0
-            for field, val in [("close_price", cp), ("open_price", op), ("high_price", hp), ("low_price", lp)]:
-                if val is not None and val <= 0:
-                    issue(d, "PRICE_NON_POSITIVE", f"{field}={val} 不合法（应 > 0）")
-
-            # 2. 价格关系
-            if hp is not None and lp is not None and hp < lp:
-                issue(d, "PRICE_HIGH_LESS_THAN_LOW", f"high_price={hp} < low_price={lp}")
-            if cp is not None and hp is not None and cp > hp:
-                issue(d, "PRICE_CLOSE_ABOVE_HIGH", f"close_price={cp} > high_price={hp}")
-            if cp is not None and lp is not None and cp < lp:
-                issue(d, "PRICE_CLOSE_BELOW_LOW", f"close_price={cp} < low_price={lp}")
-            if op is not None and hp is not None and op > hp:
-                issue(d, "PRICE_OPEN_ABOVE_HIGH", f"open_price={op} > high_price={hp}")
-            if op is not None and lp is not None and op < lp:
-                issue(d, "PRICE_OPEN_BELOW_LOW", f"open_price={op} < low_price={lp}")
-
-            # 3. 交易量/金额
-            if vol is not None and vol < 0:
-                issue(d, "NEGATIVE_VOLUME", f"trading_volume={vol} < 0")
-            if amt is not None and amt < 0:
-                issue(d, "NEGATIVE_AMOUNT", f"trading_amount={amt} < 0")
-
-            # 4. 涨跌幅异常（超过±21%视为可疑，新股首日除外无法判断）
-            if chg is not None and abs(chg) > 21:
-                issue(d, "ABNORMAL_CHANGE_PERCENT", f"change_percent={chg}% 超过±21%")
-
-        # 7. 缺失交易日：统计相邻两条记录之间应有的交易日数，若 > 1 则报告缺失
-        if prev_date is not None:
-            try:
-                d0 = date.fromisoformat(prev_date)
-                d1 = date.fromisoformat(d)
-                gap_days = (d1 - d0).days
-                if gap_days > 1:
-                    missing_days = [
-                        (d0 + timedelta(days=i)).isoformat()
-                        for i in range(1, gap_days)
-                        if (d0 + timedelta(days=i)).weekday() < 5
-                        and is_workday(d0 + timedelta(days=i))
-                    ]
-                    if missing_days:
-                        issue(d, "MISSING_TRADING_DAYS",
-                              f"缺失 {len(missing_days)} 个交易日: {', '.join(missing_days)}")
-            except (ValueError, Exception) as e:
-                log.debug("[%s] 缺失交易日检测异常: %s", stock_code, e)
-        prev_date = d
-
-    conn.close()
-    return issues
-
-
-def _kline_to_dao_record(k: dict) -> dict:
-    """将 get_stock_day_kline_10jqka 返回的记录转换为 dao 层所需格式"""
-    return {
-        "date":           k["date"],
-        "open_price":     k["open_price"],
-        "close_price":    k["close_price"],
-        "high_price":     k["high_price"],
-        "low_price":      k["low_price"],
-        "trading_volume": k["trading_volume"],
-        "trading_amount": k.get("trading_amount") or 0.0,
-        "amplitude":      0.0,
-        "change_percent": 0.0,
-        "change_amount":  0.0,
-        "change_hand":    k.get("change_hand") or 0.0,
-    }
-
-
-def _save_kline_to_db(stock_code_normalize: str, klines: list[dict]) -> None:
-    """将重新拉取的 K 线数据覆盖写入数据库"""
-    db_path = get_db_path_for_stock(stock_code_normalize)
-    table_name = f"kline_{stock_code_normalize.replace('.', '_')}"
-    records = [_kline_to_dao_record(k) for k in klines]
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA journal_mode=WAL")
-    try:
-        cur = conn.cursor()
-        create_kline_table(cur, table_name)
-        batch_insert_or_update_kline_data(cur, table_name, records)
-        conn.commit()
-    finally:
-        conn.close()
 
 
 async def _repair_stock(stock_code_normalize: str, db_path: Path, original_issues: list[dict]) -> None:
@@ -226,7 +60,24 @@ async def _repair_stock(stock_code_normalize: str, db_path: Path, original_issue
         log.error("[%s] 拉取到空数据，跳过", stock_code_normalize)
         return
 
-    _save_kline_to_db(stock_code_normalize, klines)
+    # 校验每条K线所有字段不能为空，过滤掉有空值的记录
+    _ALL_FIELDS = ("date", "open_price", "close_price", "high_price", "low_price",
+                   "trading_volume", "trading_amount", "amplitude", "change_percent",
+                   "change_amount", "change_hand")
+    clean_klines = []
+    for k in klines:
+        empty_fields = [f for f in _ALL_FIELDS if k.get(f) is None or k.get(f) == ""]
+        if empty_fields:
+            log.error("[%s] K线数据存在空字段，date=%s, 空字段=%s，该条数据不存入数据库",
+                      stock_code_normalize, k.get("date"), empty_fields)
+        else:
+            clean_klines.append(k)
+
+    if not clean_klines:
+        log.error("[%s] 过滤空字段后无有效数据，跳过写入", stock_code_normalize)
+        return
+
+    save_kline_to_db(stock_code_normalize, clean_klines)
 
     re_issues = check_db(db_path)
     if not re_issues:

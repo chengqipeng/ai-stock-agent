@@ -84,6 +84,21 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
         counter['failed'] += 1
         return
 
+    # 校验每条K线核心字段不能为空（date, open, close, high, low, volume）
+    _REQUIRED_FIELD_NAMES = ("date", "open_price", "close_price", "high_price", "low_price", "trading_volume")
+    _REQUIRED_FIELD_INDICES = (0, 1, 2, 3, 4, 5)
+    bad_lines = []
+    for idx, kline_str in enumerate(klines):
+        fields = kline_str.split(",")
+        for fi, fname in zip(_REQUIRED_FIELD_INDICES, _REQUIRED_FIELD_NAMES):
+            if fi >= len(fields) or not fields[fi] or fields[fi].strip() == "" or fields[fi] == "None":
+                bad_lines.append(f"第{idx+1}条 字段[{fname}]为空: {kline_str[:120]}")
+    if bad_lines:
+        err_detail = "; ".join(bad_lines[:5])
+        logger.error("[%s %s] K线数据存在空值，共%d条异常: %s", stock_code, stock_name, len(bad_lines), err_detail)
+        counter['failed'] += 1
+        return
+
     conn = _open_conn(db_path)
     cursor = conn.cursor()
     t_db_start = asyncio.get_event_loop().time()
