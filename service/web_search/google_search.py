@@ -3,6 +3,7 @@ import asyncio
 import base64
 import json
 import logging
+import random
 from typing import List, Dict
 from datetime import datetime
 from pathlib import Path
@@ -76,7 +77,7 @@ def _is_mobile_url(url: str) -> bool:
 async def google_search(
     query: str,
     num_results: int = 20,
-    days = 90
+    days = 3
 ) -> List[Dict[str, any]]:
     """使用SerpAPI进行Google搜索，失败时自动切换到百度搜索"""
     url = "https://serpapi.com/search.json"
@@ -90,7 +91,7 @@ async def google_search(
 
         try:
             params = {
-                "engine": "google",
+                "engine": "google_news_light",
                 "q": query,
                 "device": "desktop",
                 "location": "United States",
@@ -107,6 +108,13 @@ async def google_search(
                     response.raise_for_status()
                     result = await response.json()
 
+                    # 打印 top_stories
+                    top_stories = result.get('top_stories', [])
+                    if top_stories:
+                        logger.info("=== Top Stories (%d) ===", len(top_stories))
+                        for story in top_stories:
+                            logger.info("  [%s] %s - %s", story.get('source'), story.get('title'), story.get('link'))
+
                     items = result.get('news_results') or result.get('organic_results', [])
                     results =  [{
                         'id': item.get('position'),
@@ -115,19 +123,20 @@ async def google_search(
                         'content': item.get('snippet')
                     } for item in items if not _is_mobile_url(item.get('link', ''))]
 
-                    # semaphore = asyncio.Semaphore(len(results))
-                    #
-                    # async def fetch_content(item):
-                    #     async with semaphore:
-                    #         try:
-                    #             text = await extract_main_content(item['url'], timeout=BUSINESS_TIMEOUT)
-                    #             if text and len(text[:800]) > len(item.get('content') or ''):
-                    #                 item['content'] = text[:800]
-                    #         except Exception as e:
-                    #             logger.warning(f"fetch_content error for {item['url']}: {e}")
-                    #     return item
-                    #
-                    # results = await asyncio.gather(*[fetch_content(r) for r in results])
+                    semaphore = asyncio.Semaphore(5)
+
+                    async def fetch_content(item):
+                        async with semaphore:
+                            await asyncio.sleep(random.uniform(0.5, 2.0))
+                            try:
+                                text = await extract_main_content(item['url'], timeout=BUSINESS_TIMEOUT)
+                                if text and len(text[:800]) > len(item.get('content') or ''):
+                                    item['content'] = text
+                            except Exception as e:
+                                logger.warning(f"fetch_content error for {item['url']}: {e}")
+                        return item
+
+                    results = await asyncio.gather(*[fetch_content(r) for r in results])
                     return results
         except Exception as e:
             if "Too Many Requests" in str(e):
@@ -144,7 +153,7 @@ async def google_search(
 if __name__ == "__main__":
     async def main():
         result = await google_search(
-            query="TSMC capital expenditure forecast"
+            query="钨矿"
         )
         for item in result:
             print(f"ID: {item['id']}")

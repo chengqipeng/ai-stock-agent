@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 from common.utils.stock_list_parser import parse_stock_list, update_stock_score
 from common.utils.stock_info_utils import get_stock_info_by_name
 from service.can_slim.can_slim_service import execute_can_slim_score
-from service.strategy_engine.stock_strategy_engine_service import get_strategy_engine_analysis
+from service.k_strategy.stock_k_strategy_service import get_k_strategy_analysis
 from service.eastmoney.stock_info.stock_day_kline_data import get_120day_high_to_latest_change
 from dao.stock_can_slim_dao import db_manager
 
@@ -144,7 +144,7 @@ async def execute_batch_kline_update(batch_id: int, stock_ids: str = Query(...),
                         if not stock or stock['batch_id'] != batch_id:
                             return {'success': False, 'stock_name': str(stock_id), 'error': 'not found'}
                         stock_info = get_stock_info_by_name(stock['stock_name'])
-                        prompt, result = await get_strategy_engine_analysis(stock_info)
+                        prompt, result = await get_k_strategy_analysis(stock_info)
                         not_hold_grade, not_hold_content, hold_grade, hold_content, data_issues = extract_grade_and_content(result)
                         kline_total_score = extract_kline_total_score(result)
                         db_manager.update_stock_dimension_score(stock_id, 'kline', not_hold_grade, not_hold_content, None, prompt)
@@ -287,7 +287,7 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                         stock_info = get_stock_info_by_name(stock['stock_name'])
 
                         # 调用策略引擎分析（大模型初筛）
-                        prompt, result = await get_strategy_engine_analysis(stock_info)
+                        prompt, result = await get_k_strategy_analysis(stock_info)
                         not_hold_grade, not_hold_content, hold_grade, hold_content, data_issues = extract_grade_and_content(result)
                         kline_total_score = extract_kline_total_score(result)
 

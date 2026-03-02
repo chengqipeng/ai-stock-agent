@@ -5,8 +5,10 @@
 
 import asyncio
 import logging
+import random
 import re
 from typing import List
+from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 from curl_cffi.requests import AsyncSession
@@ -18,20 +20,52 @@ logger = logging.getLogger(__name__)
 DEFAULT_TIMEOUT = 30
 BUSINESS_TIMEOUT = 60
 CLASHX_PROXY = "http://127.0.0.1:7890"
-IMPERSONATE = "chrome120"
-BROWSER_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Cache-Control": "no-cache",
-    "Pragma": "no-cache",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
-    "Upgrade-Insecure-Requests": "1",
+IMPERSONATE = "chrome131"
+
+# 已知付费墙 / 强反爬网站域名，直接跳过抓取以节省时间
+_SKIP_DOMAINS = {
+    "barrons.com", "wsj.com", "ft.com", "nytimes.com",
+    "bloomberg.com", "economist.com", "theathletic.com",
+    "washingtonpost.com", "telegraph.co.uk", "thetimes.co.uk",
 }
+
+# 多组 UA，随机选取降低指纹一致性
+_USER_AGENTS = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+]
+
+def _build_headers() -> dict:
+    """构建随机化的请求头。"""
+    return {
+        "User-Agent": random.choice(_USER_AGENTS),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": random.choice(["en-US,en;q=0.9", "en-US,en;q=0.9,zh-CN;q=0.8", "en;q=0.9"]),
+        "Accept-Encoding": "gzip, deflate, br",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "Referer": "https://www.google.com/",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "cross-site",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+    }
+
+
+def _is_skip_domain(url: str) -> bool:
+    """判断 URL 是否属于应跳过的付费墙/强反爬域名。"""
+    try:
+        host = urlparse(url).hostname or ""
+        return any(host == d or host.endswith("." + d) for d in _SKIP_DOMAINS)
+    except Exception:
+        return False
+
+
+
 
 
 async def extract_main_content(url: str, use_proxy: bool = False, timeout: int = DEFAULT_TIMEOUT) -> str:
@@ -45,15 +79,45 @@ async def extract_main_content(url: str, use_proxy: bool = False, timeout: int =
     Returns:
         str: 网页正文内容
     """
+    if _is_skip_domain(url):
+        logger.info("extract_main_content 跳过付费墙/强反爬网站: %s", url)
+        return ""
+
+    text = await _fetch_html(url, use_proxy=use_proxy, timeout=timeout)
+    if not text and not use_proxy:
+        logger.info("extract_main_content 直连失败，尝试代理重试: %s", url)
+        text = await _fetch_html(url, use_proxy=True, timeout=timeout)
+    if not text:
+        return ""
+
+    try:
+        return _parse_html_content(text)
+    except Exception as e:
+        logger.error("extract_main_content 解析失败 [%s]: %s", url, e)
+        return ""
+
+
+
+
+async def _fetch_html(url: str, use_proxy: bool = False, timeout: int = DEFAULT_TIMEOUT) -> str:
+    """请求网页并返回 HTML 文本，失败返回空字符串。"""
     proxy = CLASHX_PROXY if use_proxy else None
+    try:
+        async with AsyncSession(impersonate=IMPERSONATE) as session:
+            response = await session.get(url, proxy=proxy, timeout=timeout, headers=_build_headers())
+            if response.status_code in (401, 403):
+                logger.warning("extract_main_content %d: %s (proxy=%s)", response.status_code, url, use_proxy)
+                return ""
+            response.raise_for_status()
+            return response.text
+    except Exception as e:
+        logger.error("extract_main_content 请求失败 [%s] (proxy=%s): %s", url, use_proxy, e)
+        return ""
 
-    async with AsyncSession(impersonate=IMPERSONATE) as session:
-        response = await session.get(url, proxy=proxy, timeout=timeout, headers=BROWSER_HEADERS)
-        if response.status_code == 403:
-            return ""
-        response.raise_for_status()
-        text = response.text
 
+
+def _parse_html_content(text: str) -> str:
+    """从 HTML 文本中提取正文内容。"""
     soup = BeautifulSoup(text, "html.parser")
 
     # 移除不需要的标签
@@ -100,6 +164,8 @@ async def extract_main_content(url: str, use_proxy: bool = False, timeout: int =
         filtered_lines.append(line)
 
     return "\n".join(filtered_lines)
+
+
 
 # ── 常见中文日期时间正则 ──
 _DATETIME_PATTERNS = [
@@ -186,7 +252,7 @@ async def extract_titles(url: str, tag: str = "h2", use_proxy: bool = True) -> L
     proxy = CLASHX_PROXY if use_proxy else None
 
     async with AsyncSession(impersonate=IMPERSONATE) as session:
-        response = await session.get(url, proxy=proxy, timeout=DEFAULT_TIMEOUT, headers=BROWSER_HEADERS)
+        response = await session.get(url, proxy=proxy, timeout=DEFAULT_TIMEOUT, headers=_build_headers())
         response.raise_for_status()
         text = response.text
 
@@ -205,7 +271,7 @@ async def extract_content_with_datetime(url: str, use_proxy: bool = False, timeo
     proxy = CLASHX_PROXY if use_proxy else None
 
     async with AsyncSession(impersonate=IMPERSONATE) as session:
-        response = await session.get(url, proxy=proxy, timeout=timeout, headers=BROWSER_HEADERS)
+        response = await session.get(url, proxy=proxy, timeout=timeout, headers=_build_headers())
         if response.status_code == 403:
             return {'content': '', 'publish_time': None}
         response.raise_for_status()
