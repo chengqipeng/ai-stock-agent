@@ -3,7 +3,7 @@
 批量技术面打分：遍历 stock_score_list.md 中的股票，
 使用 get_stock_day_range_kline_by_db_cache 获取日线数据，
 通过 MACD、KDJ、交易量等维度综合打分，输出 ≥50 分的股票清单。
-第二轮分析：综合评分 ≥30 的股票进入布林线下轨反弹、中轨反弹筛选。
+第二轮分析：所有股票进入布林线下轨反弹、中轨反弹筛选。
 """
 import asyncio
 import re
@@ -1073,16 +1073,15 @@ async def analyze_stock(name: str, code: str, idx: int, total: int) -> dict | No
 
 # ─── 输出结果 ───
 def write_result(results: list[dict], path: Path):
-    # 第二轮筛选：综合评分≥30 的股票进入布林反弹分析
-    round2_pool = [r for r in results if r['total'] >= 30]
-    mid_bounce_stocks = [r for r in round2_pool if r.get('mid_bounce_signal')]
-    bounce_stocks = [r for r in round2_pool if r.get('boll_signal')]
+    # 第二轮筛选：所有股票进入布林反弹分析
+    mid_bounce_stocks = [r for r in results if r.get('mid_bounce_signal')]
+    bounce_stocks = [r for r in results if r.get('boll_signal')]
 
     lines = [
         f"# 技术面打分与布林线反弹信号筛选结果",
         f"",
         f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"分析股票数: {len(results)}，第二轮池(综合≥30): {len(round2_pool)}，"
+        f"分析股票数: {len(results)}，"
         f"中轨反弹信号: {len(mid_bounce_stocks)}，下轨反弹信号: {len(bounce_stocks)}",
         f"",
         f"---",
@@ -1112,7 +1111,7 @@ def write_result(results: list[dict], path: Path):
         f"- 均线排列: MA5>MA20>MA60多头排列+10, MA5<MA20<MA60空头排列-5",
         f"- 价格位置: 站上MA5(含0.1%容差)+5, 跌破MA20(含0.1%容差)-5",
         f"",
-        f"### 第二轮: 布林线反弹评分 (综合≥30进入)",
+        f"### 第二轮: 布林线反弹评分 (全量)",
         f"",
         f"#### 中轨反弹 (满分100) — 趋势延续型二级买点",
         f"",
@@ -1147,7 +1146,7 @@ def write_result(results: list[dict], path: Path):
 
     # ─── 中轨反弹信号（排在前面） ───
     lines.append(f"## 📈 中轨反弹信号（趋势延续 — 二级买点）\n")
-    lines.append(f"筛选条件: 综合评分≥30 且 中轨反弹评分≥40 且 %b在0.4~0.65 且 中轨上行 且 有反弹动作\n")
+    lines.append(f"筛选条件: 中轨反弹评分≥40 且 %b在0.4~0.65 且 中轨上行 且 有反弹动作\n")
     if mid_bounce_stocks:
         mid_sorted = sorted(mid_bounce_stocks, key=lambda x: -x['mid_bounce_score'])
         lines.append(f"| 排名 | 股票名称 | 代码 | 综合分 | 中轨反弹分 | %b | 收盘价 | 中轨 | 日期 |")
@@ -1170,7 +1169,7 @@ def write_result(results: list[dict], path: Path):
 
     # ─── 下轨反弹信号 ───
     lines.append(f"## 🔻 下轨反弹信号（超跌反弹）\n")
-    lines.append(f"筛选条件: 综合评分≥30 且 布林下轨反弹评分≥40 且 近期触及下轨\n")
+    lines.append(f"筛选条件: 布林下轨反弹评分≥40 且 近期触及下轨\n")
     if bounce_stocks:
         bounce_sorted = sorted(bounce_stocks, key=lambda x: -x['boll_score'])
         lines.append(f"| 排名 | 股票名称 | 代码 | 综合分 | 反弹分 | %b | 收盘价 | 下轨 | 中轨 | 日期 |")
@@ -1226,11 +1225,10 @@ async def main():
     print(f"打分结果已保存到数据库")
 
     qualified = [r for r in results if r['total'] >= 50]
-    round2_pool = [r for r in results if r['total'] >= 30]
-    mid_bounce_signals = [r for r in round2_pool if r.get('mid_bounce_signal')]
-    bounce_signals = [r for r in round2_pool if r.get('boll_signal')]
+    mid_bounce_signals = [r for r in results if r.get('mid_bounce_signal')]
+    bounce_signals = [r for r in results if r.get('boll_signal')]
     print(f"\n{'='*60}")
-    print(f"分析完成: 共 {len(results)} 只有效股票，第二轮池(≥30): {len(round2_pool)} 只")
+    print(f"分析完成: 共 {len(results)} 只有效股票")
     if mid_bounce_signals:
         print(f"📈 中轨反弹信号: {len(mid_bounce_signals)} 只")
         for r in sorted(mid_bounce_signals, key=lambda x: -x['mid_bounce_score']):
