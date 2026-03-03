@@ -921,6 +921,14 @@ def score_boll_mid_bounce(df: pd.DataFrame, period: int = 20, num_std: float = 2
             score -= 5
             details.append(f'布林Squeeze({bandwidth:.3f})-5')
 
+    # 长上影线警示：突破中轨当天出现较长上影线，说明上方抛压较重
+    hl_range = latest['high'] - latest['low']
+    upper_shadow = latest['high'] - max(latest['open'], latest['close'])
+    if hl_range > 0 and upper_shadow / hl_range > 0.5:
+        details.append(f'\n  ⚠ 突破中轨长上影线({upper_shadow / hl_range:.0%}),可能需要1-2天再确认')
+    elif hl_range > 0 and upper_shadow / hl_range > 0.3:
+        details.append(f'\n  ⚠ 突破中轨上影线偏长({upper_shadow / hl_range:.0%}),建议观察1-2天确认')
+
     # 无反弹动作扣分：今日收阴且跌幅为负，缺乏反弹力度
     if not has_bounce_action:
         score -= 5
