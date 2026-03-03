@@ -296,6 +296,20 @@ def technical_score(df: pd.DataFrame) -> dict:
         'trend_score': trend_s, 'trend_detail': trend_d,
     }
 
+def calc_high120_drop(df: pd.DataFrame) -> dict:
+    """计算近120个交易日最高价及其与最新收盘价的涨跌幅"""
+    recent = df.tail(120)
+    high120 = recent['high'].max()
+    high120_date = recent['high'].idxmax().strftime('%Y-%m-%d')
+    latest_close = df.iloc[-1]['close']
+    drop_pct = round((latest_close - high120) / high120 * 100, 2)
+    return {
+        'high120': round(high120, 2),
+        'high120_date': high120_date,
+        'high120_drop_pct': drop_pct,
+    }
+
+
 
 # ─── 单只股票分析 ───
 async def analyze_stock(name: str, code: str, idx: int, total: int) -> dict | None:
@@ -307,13 +321,16 @@ async def analyze_stock(name: str, code: str, idx: int, total: int) -> dict | No
             return None
         df = build_df(klines)
         result = technical_score(df)
+        high120_info = calc_high120_drop(df)
         latest = df.iloc[-1]
         result.update({'name': name, 'code': code, 'close': round(latest['close'], 2),
-                       'date': df.index[-1].strftime('%Y-%m-%d')})
+                       'date': df.index[-1].strftime('%Y-%m-%d'),
+                       **high120_info})
         tag = '✅' if result['total'] >= 50 else '  '
         print(f"[{idx}/{total}] {tag} {name:<8} {code:<12} 总分:{result['total']:>3} "
               f"MACD:{result['macd_score']:>2} KDJ:{result['kdj_score']:>2} "
-              f"量能:{result['vol_score']:>2} 趋势:{result['trend_score']:>2}")
+              f"量能:{result['vol_score']:>2} 趋势:{result['trend_score']:>2} "
+              f"120日高:{result['high120']} 跌幅:{result['high120_drop_pct']}%")
         return result
     except Exception as e:
         print(f"[{idx}/{total}] {name}({code}) - 错误: {e}")
@@ -331,13 +348,14 @@ def write_result(results: list[dict], path: Path):
         f"",
         f"评分维度: MACD(35分) + KDJ(30分) + 成交量(20分) + 趋势(15分) = 满分100分",
         f"",
-        f"| 排名 | 股票名称 | 代码 | 总分 | MACD | KDJ | 量能 | 趋势 | 收盘价 | 日期 |",
-        f"|------|----------|------|------|------|-----|------|------|--------|------|",
+        f"| 排名 | 股票名称 | 代码 | 总分 | MACD | KDJ | 量能 | 趋势 | 收盘价 | 120日最高 | 距高点跌幅 | 日期 |",
+        f"|------|----------|------|------|------|-----|------|------|--------|-----------|-----------|------|",
     ]
     for i, r in enumerate(qualified, 1):
         lines.append(
             f"| {i} | {r['name']} | {r['code']} | {r['total']} | {r['macd_score']} | "
-            f"{r['kdj_score']} | {r['vol_score']} | {r['trend_score']} | {r['close']} | {r['date']} |"
+            f"{r['kdj_score']} | {r['vol_score']} | {r['trend_score']} | {r['close']} | "
+            f"{r.get('high120', '-')} | {r.get('high120_drop_pct', '-')}% | {r['date']} |"
         )
 
     lines.append(f"\n## 评分细则\n")
