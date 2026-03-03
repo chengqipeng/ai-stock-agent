@@ -922,12 +922,18 @@ def score_boll_mid_bounce(df: pd.DataFrame, period: int = 20, num_std: float = 2
             details.append(f'布林Squeeze({bandwidth:.3f})-5')
 
     # 长上影线警示：突破中轨当天出现较长上影线，说明上方抛压较重
-    hl_range = latest['high'] - latest['low']
+    # 判断标准：(最高价 - 实体高点) / 实体高度 > 2
     upper_shadow = latest['high'] - max(latest['open'], latest['close'])
-    if hl_range > 0 and upper_shadow / hl_range > 0.5:
-        details.append(f'\n  ⚠ 突破中轨长上影线({upper_shadow / hl_range:.0%}),可能需要1-2天再确认')
-    elif hl_range > 0 and upper_shadow / hl_range > 0.3:
-        details.append(f'\n  ⚠ 突破中轨上影线偏长({upper_shadow / hl_range:.0%}),建议观察1-2天确认')
+    body = abs(latest['close'] - latest['open'])
+    if body > 0:
+        shadow_body_ratio = upper_shadow / body
+        if shadow_body_ratio > 2:
+            details.append(f'\n  ⚠ 突破中轨长上影线(上影/实体={shadow_body_ratio:.1f}),可能需要1-2天再确认')
+        elif shadow_body_ratio > 1.5:
+            details.append(f'\n  ⚠ 突破中轨上影线偏长(上影/实体={shadow_body_ratio:.1f}),建议观察1-2天确认')
+    elif upper_shadow > 0:
+        # 实体为0（十字星），有上影线即视为长上影
+        details.append(f'\n  ⚠ 突破中轨十字星长上影线,可能需要1-2天再确认')
 
     # 无反弹动作扣分：今日收阴且跌幅为负，缺乏反弹力度
     if not has_bounce_action:
