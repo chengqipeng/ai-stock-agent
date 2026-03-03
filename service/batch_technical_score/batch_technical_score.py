@@ -3,6 +3,7 @@
 批量技术面打分：遍历 stock_score_list.md 中的股票，
 使用 get_stock_day_range_kline_by_db_cache 获取日线数据，
 通过 MACD、KDJ、交易量等维度综合打分，输出 ≥50 分的股票清单。
+第二轮分析：综合评分 ≥30 的股票进入布林线下轨反弹、中轨反弹筛选。
 """
 import asyncio
 import re
@@ -299,13 +300,70 @@ def technical_score(df: pd.DataFrame) -> dict:
 # ─── 布林线下轨反弹打分 (满分 100) ───
 def score_boll_lower_bounce(df: pd.DataFrame, period: int = 20, num_std: float = 2.0) -> dict:
     """
-    布林线下轨反弹可靠性评分，从四个维度量化：
-    1. 价格位置 %b 指标 (满分 30)
-    2. 量能配合 (满分 25)
-    3. K线形态 (满分 25)
-    4. 站稳判定 (满分 20)
+    布林线下轨反弹可靠性评分 — 超跌反弹场景。
 
-    返回 dict: {boll_score, boll_detail, boll_signal, upper, mid, lower, pct_b}
+    为了量化布林线下轨反弹的可靠性，从价格位置（%b）、量能强弱、K线形态
+    以及辅助指标四个维度设定具体的衡量指标，帮助客观判断这究竟是
+    "超跌反弹"还是"破位下跌的开始"。
+
+    ══════════════════════════════════════════════════════════════
+    维度1: 价格位置指标 %b (满分 30)
+    ══════════════════════════════════════════════════════════════
+    %b 是布林线最直接的量化工具，衡量股价在波段中的相对位置。
+    计算公式: %b = (现价 - 下轨线) / (上轨线 - 下轨线)
+
+    - 1a. 超卖确认 (+10): %b < 0 表示股价已跌破下轨。
+          近5日内 %b 曾 < 0 即触发。
+    - 1b. 反弹触发 (+10): 当 %b 从 0 以下重新回到 0 以上，
+          即股价由轨外收回到轨内，是第一买入参考点。
+    - 1c. 底背离 (+10): 股价第二次探底时 %b 明显高于第一次
+          （即使股价新低），这是极强的反转指标。
+          在近20日内寻找 %b < 0.1 的低点进行比较。
+
+    ══════════════════════════════════════════════════════════════
+    维度2: 量能配合指标 (满分 25)
+    ══════════════════════════════════════════════════════════════
+    量能是验证反弹真伪的核心，利用"量比"和"相对成交量"来衡量。
+
+    - 2a. 抛压枯竭/缩量 (+8): 成交量 < 5日均量的 0.6倍。
+          通常出现在连续阴线下跌后的极度缩量，暗示抛压枯竭。
+    - 2b. 确认反弹/放量 (+10/+5):
+          反弹阳线的成交量 > 5日均量的 1.5倍 得10分；
+          > 1.2倍 得5分。量比(Volume Ratio) > 1.2 代表主动买盘介入。
+    - 2c. OBV量价背离 (+7): 股价在下轨附近震荡（%b < 0.3），
+          但 OBV（能量潮）指标率先调头向上（近5日OBV上行而价格未涨）。
+
+    ══════════════════════════════════════════════════════════════
+    维度3: K线形态衡量 — 反转力度 (满分 25)
+    ══════════════════════════════════════════════════════════════
+    通过 K 线实体的比例来衡量多头反击的强度。
+
+    - 3a. 长下影线 (+10): (最低价 - 收盘价) / (收盘价 - 开盘价) > 2。
+          长下影线代表在下轨处有强力资金介入。
+    - 3b. 阳包阴/反包 (+10): 阳线实体完全覆盖前一日阴线实体的 100% 以上。
+          条件: 昨日阴线(prev_c < prev_o) + 今日阳线(c > o)
+          + 今开<=昨收 + 今收>=昨开。
+    - 3c. 锤子线/十字星 (+5): 实体极小(< 振幅15%) + 下影线长(> 实体2倍)。
+
+    ══════════════════════════════════════════════════════════════
+    维度4: 站稳判定 (满分 20)
+    ══════════════════════════════════════════════════════════════
+    - 4a. 连续站稳 (+10): 股价收盘价连续 2 个交易日站稳在布林线下轨之上。
+    - 4b. 趋势反转确认 (+10): 收盘价从下轨下方回到下轨上方，
+          近5日内出现由下轨下→上轨上的转换过程。
+
+    ══════════════════════════════════════════════════════════════
+    信号触发条件
+    ══════════════════════════════════════════════════════════════
+    boll_signal = True 当且仅当: 综合评分 >= 40 且 近期确实触及下轨(%b曾<0)
+
+    Args:
+        df: 包含 open/close/high/low/volume/pct_change 的日线 DataFrame
+        period: 布林线周期，默认20
+        num_std: 标准差倍数，默认2.0
+
+    Returns:
+        dict: {boll_score, boll_detail, boll_signal, upper, mid, lower, pct_b}
     """
     data = df.copy()
     data['mid'] = data['close'].rolling(period).mean()
@@ -498,13 +556,103 @@ def score_boll_lower_bounce(df: pd.DataFrame, period: int = 20, num_std: float =
 def score_boll_mid_bounce(df: pd.DataFrame, period: int = 20, num_std: float = 2.0) -> dict:
     """
     布林线中轨（MA20）回踩反弹评分 — 趋势延续型二级买点。
-    四个维度量化：
-    1. 趋势背景 (满分 25) — 中轨斜率向上 + 价格未有效跌破中轨
-    2. 回调缩量 (满分 25) — 回调量能萎缩 + 波幅压缩
-    3. 反弹放量 (满分 30) — 量比确认 + 放量倍率 + 吞没形态
-    4. 动能与资金 (满分 20) — ADX趋势强度 + MFM资金流量
 
-    返回 dict: {mid_bounce_score, mid_bounce_detail, mid_bounce_signal, ...}
+    相比于布林线下轨的"超跌反弹"，中轨（通常是 20 日均线）的反弹更多属于
+    趋势延续（Trend Following）的范畴。在威科夫理论和 CAN SLIM 法则中，
+    这通常被视为"上升途中的回踩确认"或"二级买点"。
+    在中轨形成有效反弹，其量价配合的衡量指标应聚焦于"回调缩量"与"启动放量"
+    的对比，而非单纯的超卖修复。
+
+    可将中轨反弹视为 CAN SLIM 中的 "底中底（Base on Base）" 或
+    "手柄区（Handle）" 的低吸点。
+
+    ══════════════════════════════════════════════════════════════
+    维度1: 趋势背景指标 — 斜率与方向 (满分 25)
+    ══════════════════════════════════════════════════════════════
+    中轨（MB）本质上是股价的生命线。只有在中轨向上的背景下，
+    回踩中轨才具有支撑意义。
+
+    - 1a. 中轨斜率 (+10/+5): MA(20) 的导数需为正。
+          最近5个交易日的中轨（MA20）重心稳步上移。
+          斜率 > 0.3% 得10分，> 0 得5分。
+          中轨走平或向下时扣5分（不具备支撑力，仅是震荡中枢）。
+    - 1b. 价格站稳 (+10/-5): 股价回踩中轨时，收盘价不应连续2天
+          有效跌破中轨。即使盘中有刺穿，收盘也需拉回。
+          未连续跌破得10分，连续跌破扣5分。
+    - 1c. %b 精准回踩 (+5): 0.45 < %b < 0.55 确认股价精准回踩中轨区域。
+
+    ══════════════════════════════════════════════════════════════
+    维度2: 回调期量化特征 — Testing Supply 测试供应 (满分 25)
+    ══════════════════════════════════════════════════════════════
+    当股价从中轨上方回落至中轨附近时，必须看到卖压的消失。
+
+    - 2a. 量能萎缩比 (+12/+8/+4):
+          回调至中轨时的平均成交量应小于前期上涨波段平均成交量的 50%-60%。
+          以近10日最高收盘价为分界，划分上涨波段与回调波段。
+          萎缩比 < 50% 得12分，< 60% 得8分，< 80% 得4分。
+    - 2b. 波幅压缩 (+8/+4): K线的实体变短。
+          回调期K线实体均值 / 上涨期K线实体均值 < 50% 得8分，< 70% 得4分。
+          如果回踩中轨时仍是大阴线伴随放量，这往往是趋势转弱的信号。
+    - 2c. 回调无放量大阴 (+5/-5): 近3日内无跌幅>3%且放量>1.5倍均量的大阴线。
+          出现则扣5分（假反弹警示），未出现加5分。
+
+    ══════════════════════════════════════════════════════════════
+    维度3: 反弹期确认指标 — Demand Entry 需求介入 (满分 30)
+    ══════════════════════════════════════════════════════════════
+    当股价触碰中轨并开始调头向上时，需要"力量"的确认。
+
+    - 3a. 量比 (+10/+5): 反弹当日的量比建议 > 1.5（得10分）或 > 1.2（得5分）。
+          代表主动性买盘在 20 日均线位置产生了共识。
+    - 3b. 放量倍率 (+10): 反弹阳线的成交量 > 前一日缩量阴线的 1.5 倍以上。
+    - 3c. 吞没形态 (+10/+5):
+          最好出现"阳包阴"或"曙光初现"形态，且阳线的收盘价需收在 5 日均线之上。
+          完整阳包阴+站上MA5 得10分；仅阳线站上MA5 得5分。
+
+    ══════════════════════════════════════════════════════════════
+    维度4: 动能与资金 (满分 20)
+    ══════════════════════════════════════════════════════════════
+    - 4a. ADX(14) (+10/+5): ADX > 25 确保个股处于强势趋势中而非横盘震荡（得10分）。
+          ADX > 20 中等趋势（得5分）。ADX < 20 弱趋势（0分）。
+    - 4b. MFM 资金流量 (+10/-3):
+          MFM = [(Close-Low) - (High-Close)] / (High-Low)
+          回踩中轨时 MFM 近5日均值维持在 0 轴上方（得10分），
+          代表机构大单并未因调整而大规模流出。负向扣3分。
+
+    ══════════════════════════════════════════════════════════════
+    假反弹警示
+    ══════════════════════════════════════════════════════════════
+    - 布林线开口极度收缩（Squeeze）: bandwidth < 0.04 时扣5分。
+      如果布林线上下轨极度缩口，股价在中轨的震荡可能是在酝酿变盘，
+      此时需等待突破方向确认。
+    - 中轨走平或向下: 此时的中轨不具备支撑力（维度1已处理）。
+    - 无量反弹: 股价虽然在中轨止跌，但后续反弹成交量无法放大，
+      通常会演变成"L型"盘整或二次下探（维度3未得分即体现）。
+
+    ══════════════════════════════════════════════════════════════
+    前置校验（硬性排除条件）
+    ══════════════════════════════════════════════════════════════
+    中轨反弹的核心定义：价格从中轨下方反弹到中轨上方。
+    - 回踩历史验证: 近15日内至少3天收盘价在中轨上方（证明之前在上方运行）。
+    - 触及中轨验证: 近5日内至少1天收盘价在中轨附近或下方（容差0.5%），
+      证明确实回踩到了中轨。未触及中轨则不是中轨反弹。
+    - 站回中轨验证: 今日收盘价必须站回中轨上方，证明反弹成功。
+      收盘价仍在中轨下方 = 反弹未确认，直接返回0分。
+    - 连续跌破排除: 连续3天以上收盘价跌破中轨 = 破位，不是回踩。
+    - 反弹动作确认: 今日需收阳或涨幅>0，否则扣5分。
+
+    ══════════════════════════════════════════════════════════════
+    信号触发条件
+    ══════════════════════════════════════════════════════════════
+    mid_bounce_signal = True 当且仅当:
+      评分 >= 40 且 %b 在中轨附近(0.4~0.65) 且 中轨斜率向上 且 有反弹动作
+
+    Args:
+        df: 包含 open/close/high/low/volume/pct_change 的日线 DataFrame
+        period: 布林线周期，默认20
+        num_std: 标准差倍数，默认2.0
+
+    Returns:
+        dict: {mid_bounce_score, mid_bounce_detail, mid_bounce_signal, mid_val, mid_pct_b}
     """
     data = df.copy()
     data['mid'] = data['close'].rolling(period).mean()
@@ -529,6 +677,84 @@ def score_boll_mid_bounce(df: pd.DataFrame, period: int = 20, num_std: float = 2
     pct_b_now = latest['pct_b']
 
     # ═══════════════════════════════════════════
+    # 前置校验: 回踩模式验证（硬性条件）
+    # ═══════════════════════════════════════════
+    # 中轨反弹的核心定义：价格从中轨下方反弹到中轨上方
+    # 必须同时满足：
+    #   1) 近5日内至少有1天收盘价在中轨下方或触及中轨（证明曾回踩到中轨）
+    #   2) 今日收盘价站回中轨上方（证明反弹成功）
+    #   3) 近15日内至少有3天收盘价在中轨上方（证明之前在上方运行，是回踩而非长期弱势）
+
+    recent_15 = data.tail(15)
+    days_above_mid = (recent_15['close'] > recent_15['mid']).sum()
+    has_prior_above = days_above_mid >= 3
+
+    # 近5日是否有跌到中轨下方或触及中轨的记录（%b <= 0.55 视为触及中轨区域）
+    tail5 = data.tail(5)
+    had_touch_mid = False
+    for i in range(len(tail5)):
+        row = tail5.iloc[i]
+        if row['close'] <= row['mid'] * 1.005:  # 收盘价在中轨附近或下方（容差0.5%）
+            had_touch_mid = True
+            break
+
+    # 今日收盘价必须站回中轨上方
+    close_above_mid = latest['close'] > mid_now
+
+    if not has_prior_above:
+        details.append(f'近15日仅{days_above_mid}日在中轨上方(需≥3),非回踩模式')
+        return {
+            'mid_bounce_score': 0,
+            'mid_bounce_detail': ','.join(details),
+            'mid_bounce_signal': False,
+            'mid_val': round(mid_now, 2),
+            'mid_pct_b': round(pct_b_now, 3) if pd.notna(pct_b_now) else None,
+        }
+
+    if not had_touch_mid:
+        details.append('近5日未回踩中轨,非中轨反弹模式')
+        return {
+            'mid_bounce_score': 0,
+            'mid_bounce_detail': ','.join(details),
+            'mid_bounce_signal': False,
+            'mid_val': round(mid_now, 2),
+            'mid_pct_b': round(pct_b_now, 3) if pd.notna(pct_b_now) else None,
+        }
+
+    if not close_above_mid:
+        details.append(f'收盘({latest["close"]:.2f})未站回中轨({mid_now:.2f})上方,反弹未确认')
+        return {
+            'mid_bounce_score': 0,
+            'mid_bounce_detail': ','.join(details),
+            'mid_bounce_signal': False,
+            'mid_val': round(mid_now, 2),
+            'mid_pct_b': round(pct_b_now, 3) if pd.notna(pct_b_now) else None,
+        }
+
+    # 连续跌破中轨天数检测（硬性排除）
+    close_below_mid = tail5['close'] < tail5['mid']
+    consecutive_below = 0
+    for below in close_below_mid.values:
+        if below:
+            consecutive_below += 1
+        else:
+            consecutive_below = 0
+
+    # 连续3天以上跌破中轨 = 破位，不是回踩
+    if consecutive_below >= 3:
+        details.append(f'连续{consecutive_below}日跌破中轨,已破位')
+        return {
+            'mid_bounce_score': 0,
+            'mid_bounce_detail': ','.join(details),
+            'mid_bounce_signal': False,
+            'mid_val': round(mid_now, 2),
+            'mid_pct_b': round(pct_b_now, 3) if pd.notna(pct_b_now) else None,
+        }
+
+    # 反弹确认：今日需有正向动能（收阳或涨幅>0）
+    has_bounce_action = latest['pct_change'] > 0 or latest['close'] > latest['open']
+
+    # ═══════════════════════════════════════════
     # 维度1: 趋势背景 (满分 25)
     # ═══════════════════════════════════════════
 
@@ -548,14 +774,6 @@ def score_boll_mid_bounce(df: pd.DataFrame, period: int = 20, num_std: float = 2
         details.append('中轨走平/下行-5')
 
     # 1b. 价格未连续2天有效跌破中轨
-    tail5 = data.tail(5)
-    close_below_mid = tail5['close'] < tail5['mid']
-    consecutive_below = 0
-    for below in close_below_mid.values:
-        if below:
-            consecutive_below += 1
-        else:
-            consecutive_below = 0
     if consecutive_below < 2:
         score += 10
         details.append('未连续跌破中轨+10')
@@ -635,8 +853,8 @@ def score_boll_mid_bounce(df: pd.DataFrame, period: int = 20, num_std: float = 2
     vol_ma5 = latest['vol_ma5']
     vol_now = latest['volume']
 
-    # 3a. 量比 > 1.5（反弹当日）
-    if vol_ma5 > 0 and latest['pct_change'] > 0:
+    # 3a. 量比 > 1.5（反弹当日）— 必须是阳线才算反弹
+    if vol_ma5 > 0 and has_bounce_action:
         vol_ratio = vol_now / vol_ma5
         if vol_ratio > 1.5:
             score += 10
@@ -646,7 +864,7 @@ def score_boll_mid_bounce(df: pd.DataFrame, period: int = 20, num_std: float = 2
             details.append(f'反弹温和放量({vol_ratio:.1f})+5')
 
     # 3b. 放量倍率：反弹阳线量 > 前一日缩量阴线的 1.5 倍
-    if (latest['pct_change'] > 0 and prev['pct_change'] < 0
+    if (has_bounce_action and prev['pct_change'] < 0
             and prev['volume'] > 0):
         vol_amplify = vol_now / prev['volume']
         if vol_amplify > 1.5:
@@ -703,11 +921,17 @@ def score_boll_mid_bounce(df: pd.DataFrame, period: int = 20, num_std: float = 2
             score -= 5
             details.append(f'布林Squeeze({bandwidth:.3f})-5')
 
+    # 无反弹动作扣分：今日收阴且跌幅为负，缺乏反弹力度
+    if not has_bounce_action:
+        score -= 5
+        details.append('今日无反弹动作-5')
+
     # 判断是否触发中轨反弹信号
-    # 条件：评分>=40 且 %b在中轨附近(0.3~0.7) 且 中轨向上
+    # 条件：评分>=40 且 %b在中轨附近(0.4~0.65) 且 中轨向上 且 有反弹动作
     mid_slope_up = len(mid_5) == 5 and mid_5[-1] > mid_5[0]
-    near_mid = 0.3 <= pct_b_now <= 0.7 if pd.notna(pct_b_now) else False
-    is_signal = score >= 40 and near_mid and mid_slope_up
+    near_mid = 0.4 <= pct_b_now <= 0.65 if pd.notna(pct_b_now) else False
+    is_signal = (score >= 40 and near_mid and mid_slope_up
+                 and has_bounce_action)
 
     return {
         'mid_bounce_score': max(score, 0),
@@ -719,7 +943,28 @@ def score_boll_mid_bounce(df: pd.DataFrame, period: int = 20, num_std: float = 2
 
 
 def _calc_adx(data: pd.DataFrame, n: int = 14) -> float | None:
-    """计算 ADX(n)，返回最新值"""
+    """
+    计算 ADX (Average Directional Index) 指标，返回最新值。
+
+    ADX 用于衡量趋势的强度（不区分方向）：
+    - ADX > 25: 强趋势，中轨回踩具有支撑意义
+    - ADX 20~25: 中等趋势
+    - ADX < 20: 弱趋势或横盘震荡，中轨不具备可靠支撑
+
+    计算步骤:
+    1. +DM / -DM: 方向运动指标
+    2. TR (True Range): 真实波幅
+    3. +DI / -DI: 方向指标 = 平滑后的 DM / ATR * 100
+    4. DX = |+DI - -DI| / (+DI + -DI) * 100
+    5. ADX = DX 的 EMA 平滑
+
+    Args:
+        data: 包含 high/low/close 的 DataFrame
+        n: ADX 周期，默认14
+
+    Returns:
+        float | None: ADX 最新值，数据不足时返回 None
+    """
     if len(data) < n * 2 + 1:
         return None
     high = data['high']
@@ -750,7 +995,22 @@ def _calc_adx(data: pd.DataFrame, n: int = 14) -> float | None:
 def _calc_mfm(data: pd.DataFrame, n: int = 5) -> float | None:
     """
     计算资金流量乘数 MFM (Money Flow Multiplier) 的近 n 日均值。
-    MFM = [(Close - Low) - (High - Close)] / (High - Low)
+
+    MFM 用于衡量每日资金流入/流出的倾向：
+    公式: MFM = [(Close - Low) - (High - Close)] / (High - Low)
+    取值范围: [-1, 1]
+    - MFM > 0: 收盘价偏向当日高点，代表买方力量占优，资金净流入
+    - MFM < 0: 收盘价偏向当日低点，代表卖方力量占优，资金净流出
+
+    在中轨反弹场景中，回踩中轨时 MFM 维持在 0 轴上方，
+    代表机构大单并未因调整而大规模流出，是趋势延续的积极信号。
+
+    Args:
+        data: 包含 high/low/close 的 DataFrame
+        n: 计算均值的天数，默认5
+
+    Returns:
+        float | None: MFM 近 n 日均值，数据不足时返回 None
     """
     hl = data['high'] - data['low']
     mfm = ((data['close'] - data['low']) - (data['high'] - data['close'])) / hl.replace(0, np.nan)
@@ -805,38 +1065,50 @@ async def analyze_stock(name: str, code: str, idx: int, total: int) -> dict | No
 
 # ─── 输出结果 ───
 def write_result(results: list[dict], path: Path):
-    qualified = sorted([r for r in results if r['total'] >= 50], key=lambda x: -x['total'])
-    # 筛选下轨反弹信号股票
-    bounce_stocks = [r for r in qualified if r.get('boll_signal')]
-    # 筛选中轨反弹信号股票
-    mid_bounce_stocks = [r for r in qualified if r.get('mid_bounce_signal')]
+    # 第二轮筛选：综合评分≥30 的股票进入布林反弹分析
+    round2_pool = [r for r in results if r['total'] >= 30]
+    mid_bounce_stocks = [r for r in round2_pool if r.get('mid_bounce_signal')]
+    bounce_stocks = [r for r in round2_pool if r.get('boll_signal')]
 
     lines = [
-        f"# 技术面打分结果（≥50分）",
+        f"# 布林线反弹信号筛选结果",
         f"",
         f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"分析股票数: {len(results)}，达标股票数: {len(qualified)}，"
-        f"下轨反弹信号: {len(bounce_stocks)}，中轨反弹信号: {len(mid_bounce_stocks)}",
+        f"分析股票数: {len(results)}，第二轮池(综合≥30): {len(round2_pool)}，"
+        f"中轨反弹信号: {len(mid_bounce_stocks)}，下轨反弹信号: {len(bounce_stocks)}",
         f"",
-        f"评分维度: MACD(35分) + KDJ(30分) + 成交量(20分) + 趋势(15分) = 满分100分",
-        f"",
-        f"| 排名 | 股票名称 | 代码 | 总分 | MACD | KDJ | 量能 | 趋势 | 收盘价 | 布林下轨 | 120日最高 | 距高点跌幅 | 日期 |",
-        f"|------|----------|------|------|------|-----|------|------|--------|----------|-----------|-----------|------|",
     ]
-    for i, r in enumerate(qualified, 1):
-        lines.append(
-            f"| {i} | {r['name']} | {r['code']} | {r['total']} | {r['macd_score']} | "
-            f"{r['kdj_score']} | {r['vol_score']} | {r['trend_score']} | {r['close']} | "
-            f"{r.get('lower', '-')} | "
-            f"{r.get('high120', '-')} | {r.get('high120_drop_pct', '-')}% | {r['date']} |"
-        )
 
-    # ─── 下轨反弹信号专区 ───
+    # ─── 中轨反弹信号（排在前面） ───
+    lines.append(f"## 📈 中轨反弹信号（趋势延续 — 二级买点）\n")
+    lines.append(f"筛选条件: 综合评分≥30 且 中轨反弹评分≥40 且 %b在0.4~0.65 且 中轨上行 且 有反弹动作")
+    lines.append(f"评分维度: 趋势背景(25分) + 回调缩量(25分) + 反弹放量(30分) + 动能资金(20分) = 满分100分\n")
+    if mid_bounce_stocks:
+        mid_sorted = sorted(mid_bounce_stocks, key=lambda x: -x['mid_bounce_score'])
+        lines.append(f"| 排名 | 股票名称 | 代码 | 综合分 | 中轨反弹分 | %b | 收盘价 | 中轨 | 日期 |")
+        lines.append(f"|------|----------|------|--------|-----------|------|--------|------|------|")
+        for i, r in enumerate(mid_sorted, 1):
+            lines.append(
+                f"| {i} | {r['name']} | {r['code']} | {r['total']} | {r['mid_bounce_score']} | "
+                f"{r.get('mid_pct_b', '-')} | {r['close']} | {r.get('mid_val', '-')} | {r['date']} |"
+            )
+        lines.append(f"\n### 中轨反弹评分细则\n")
+        for r in mid_sorted:
+            lines.append(f"#### {r['name']}({r['code']}) - 中轨反弹分 {r['mid_bounce_score']}")
+            lines.append(f"- 综合技术分: {r['total']} (MACD:{r['macd_score']} KDJ:{r['kdj_score']} 量能:{r['vol_score']} 趋势:{r['trend_score']})")
+            lines.append(f"- 最新收盘价: {r['close']} | 120日高价: {r.get('high120', '-')} | 跌幅: {r.get('high120_drop_pct', '-')}%")
+            lines.append(f"- 中轨反弹({r['mid_bounce_score']}): {r['mid_bounce_detail']}")
+            lines.append(f"- %b={r.get('mid_pct_b', '-')} 中轨={r.get('mid_val', '-')}")
+            lines.append("")
+    else:
+        lines.append("暂无中轨反弹信号\n")
+
+    # ─── 下轨反弹信号 ───
+    lines.append(f"## 🔻 下轨反弹信号（超跌反弹）\n")
+    lines.append(f"筛选条件: 综合评分≥30 且 布林下轨反弹评分≥40 且 近期触及下轨")
+    lines.append(f"评分维度: 价格%b(30分) + 量能配合(25分) + K线形态(25分) + 站稳判定(20分) = 满分100分\n")
     if bounce_stocks:
         bounce_sorted = sorted(bounce_stocks, key=lambda x: -x['boll_score'])
-        lines.append(f"\n## 🔻 下轨反弹信号（第二轮筛选）\n")
-        lines.append(f"筛选条件: 综合评分≥50 且 布林下轨反弹评分≥40 且 近期触及下轨")
-        lines.append(f"反弹评分维度: 价格%b(30分) + 量能配合(25分) + K线形态(25分) + 站稳判定(20分) = 满分100分\n")
         lines.append(f"| 排名 | 股票名称 | 代码 | 综合分 | 反弹分 | %b | 收盘价 | 下轨 | 中轨 | 日期 |")
         lines.append(f"|------|----------|------|--------|--------|------|--------|------|------|------|")
         for i, r in enumerate(bounce_sorted, 1):
@@ -849,43 +1121,25 @@ def write_result(results: list[dict], path: Path):
         for r in bounce_sorted:
             lines.append(f"#### {r['name']}({r['code']}) - 反弹分 {r['boll_score']}")
             lines.append(f"- 综合技术分: {r['total']} (MACD:{r['macd_score']} KDJ:{r['kdj_score']} 量能:{r['vol_score']} 趋势:{r['trend_score']})")
+            lines.append(f"- 最新收盘价: {r['close']} | 120日高价: {r.get('high120', '-')} | 跌幅: {r.get('high120_drop_pct', '-')}%")
             lines.append(f"- 下轨反弹({r['boll_score']}): {r['boll_detail']}")
             lines.append(f"- %b={r.get('pct_b', '-')} 下轨={r.get('lower', '-')} 中轨={r.get('mid', '-')} 上轨={r.get('upper', '-')}")
             lines.append("")
+    else:
+        lines.append("暂无下轨反弹信号\n")
 
-    # ─── 中轨反弹信号专区 ───
-    if mid_bounce_stocks:
-        mid_sorted = sorted(mid_bounce_stocks, key=lambda x: -x['mid_bounce_score'])
-        lines.append(f"\n## 📈 中轨反弹信号（第二轮筛选 — 趋势延续）\n")
-        lines.append(f"筛选条件: 综合评分≥50 且 中轨反弹评分≥40 且 %b在0.3~0.7 且 中轨上行")
-        lines.append(f"反弹评分维度: 趋势背景(25分) + 回调缩量(25分) + 反弹放量(30分) + 动能资金(20分) = 满分100分\n")
-        lines.append(f"| 排名 | 股票名称 | 代码 | 综合分 | 中轨反弹分 | %b | 收盘价 | 中轨 | 日期 |")
-        lines.append(f"|------|----------|------|--------|-----------|------|--------|------|------|")
-        for i, r in enumerate(mid_sorted, 1):
-            lines.append(
-                f"| {i} | {r['name']} | {r['code']} | {r['total']} | {r['mid_bounce_score']} | "
-                f"{r.get('mid_pct_b', '-')} | {r['close']} | {r.get('mid_val', '-')} | {r['date']} |"
-            )
-        lines.append(f"\n### 中轨反弹评分细则\n")
-        for r in mid_sorted:
-            lines.append(f"#### {r['name']}({r['code']}) - 中轨反弹分 {r['mid_bounce_score']}")
-            lines.append(f"- 综合技术分: {r['total']} (MACD:{r['macd_score']} KDJ:{r['kdj_score']} 量能:{r['vol_score']} 趋势:{r['trend_score']})")
-            lines.append(f"- 中轨反弹({r['mid_bounce_score']}): {r['mid_bounce_detail']}")
-            lines.append(f"- %b={r.get('mid_pct_b', '-')} 中轨={r.get('mid_val', '-')}")
-            lines.append("")
-
-    lines.append(f"\n## 评分细则\n")
-    for r in qualified:
-        lines.append(f"### {r['name']}({r['code']}) - 总分 {r['total']}")
-        lines.append(f"- MACD({r['macd_score']}): {r['macd_detail']}")
-        lines.append(f"- KDJ({r['kdj_score']}): {r['kdj_detail']}")
-        lines.append(f"- 量能({r['vol_score']}): {r['vol_detail']}")
-        lines.append(f"- 趋势({r['trend_score']}): {r['trend_detail']}")
-        if r.get('boll_score', 0) > 0:
-            lines.append(f"- 下轨反弹({r['boll_score']}): {r['boll_detail']}")
-        if r.get('mid_bounce_score', 0) > 0:
-            lines.append(f"- 中轨反弹({r['mid_bounce_score']}): {r['mid_bounce_detail']}")
-        lines.append("")
+    # ─── 整体技术面打分结果 ───
+    lines.append(f"## 📊 整体技术面打分结果\n")
+    sorted_all = sorted(results, key=lambda x: -x['total'])
+    lines.append(f"| 排名 | 股票名称 | 代码 | 总分 | MACD | KDJ | 量能 | 趋势 | 收盘价 | 120日高 | 跌幅 | 日期 |")
+    lines.append(f"|------|----------|------|------|------|-----|------|------|--------|---------|------|------|")
+    for i, r in enumerate(sorted_all, 1):
+        lines.append(
+            f"| {i} | {r['name']} | {r['code']} | {r['total']} | "
+            f"{r['macd_score']} | {r['kdj_score']} | {r['vol_score']} | {r['trend_score']} | "
+            f"{r['close']} | {r.get('high120', '-')} | {r.get('high120_drop_pct', '-')}% | {r['date']} |"
+        )
+    lines.append("")
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text('\n'.join(lines), encoding='utf-8')
@@ -908,24 +1162,25 @@ async def main():
     print(f"打分结果已保存到数据库")
 
     qualified = [r for r in results if r['total'] >= 50]
-    bounce_signals = [r for r in qualified if r.get('boll_signal')]
-    mid_bounce_signals = [r for r in qualified if r.get('mid_bounce_signal')]
+    round2_pool = [r for r in results if r['total'] >= 30]
+    mid_bounce_signals = [r for r in round2_pool if r.get('mid_bounce_signal')]
+    bounce_signals = [r for r in round2_pool if r.get('boll_signal')]
     print(f"\n{'='*60}")
-    print(f"分析完成: 共 {len(results)} 只有效股票，{len(qualified)} 只达到50分以上")
-    if bounce_signals:
-        print(f"第二轮筛选(下轨反弹): {len(bounce_signals)} 只")
-        for r in sorted(bounce_signals, key=lambda x: -x['boll_score']):
-            print(f"  🔻 {r['name']:<8} {r['code']:<12} 综合:{r['total']:>3} "
-                  f"反弹:{r['boll_score']:>3} %b={r.get('pct_b', '-')}")
-    else:
-        print(f"第二轮筛选(下轨反弹): 暂无信号")
+    print(f"分析完成: 共 {len(results)} 只有效股票，第二轮池(≥30): {len(round2_pool)} 只")
     if mid_bounce_signals:
-        print(f"第二轮筛选(中轨反弹): {len(mid_bounce_signals)} 只")
+        print(f"📈 中轨反弹信号: {len(mid_bounce_signals)} 只")
         for r in sorted(mid_bounce_signals, key=lambda x: -x['mid_bounce_score']):
-            print(f"  📈 {r['name']:<8} {r['code']:<12} 综合:{r['total']:>3} "
+            print(f"    {r['name']:<8} {r['code']:<12} 综合:{r['total']:>3} "
                   f"中轨反弹:{r['mid_bounce_score']:>3} %b={r.get('mid_pct_b', '-')}")
     else:
-        print(f"第二轮筛选(中轨反弹): 暂无信号")
+        print(f"📈 中轨反弹信号: 暂无")
+    if bounce_signals:
+        print(f"🔻 下轨反弹信号: {len(bounce_signals)} 只")
+        for r in sorted(bounce_signals, key=lambda x: -x['boll_score']):
+            print(f"    {r['name']:<8} {r['code']:<12} 综合:{r['total']:>3} "
+                  f"反弹:{r['boll_score']:>3} %b={r.get('pct_b', '-')}")
+    else:
+        print(f"🔻 下轨反弹信号: 暂无")
     print(f"{'='*60}")
 
 
