@@ -362,7 +362,7 @@ def score_boll_lower_bounce(df: pd.DataFrame, period: int = 20, num_std: float =
     ══════════════════════════════════════════════════════════════
     信号触发条件
     ══════════════════════════════════════════════════════════════
-    boll_signal = True 当且仅当: 综合评分 >= 40 且 近期确实触及下轨(%b曾<0)
+    boll_signal = True 当且仅当: 综合评分 >= 45 且 近期确实触及下轨(%b曾<0)
 
     Args:
         df: 包含 open/close/high/low/volume/pct_change 的日线 DataFrame
@@ -600,8 +600,8 @@ def score_boll_lower_bounce(df: pd.DataFrame, period: int = 20, num_std: float =
     elif upper_shadow > 0:
         details.append(f'\n  ⚠ 十字星长上影线,反弹力度存疑')
 
-    # 判断是否触发下轨反弹信号（综合分 >= 40 且近期确实触及下轨）
-    is_signal = score >= 40 and touched_lower
+    # 判断是否触发下轨反弹信号（综合分 >= 45 且近期确实触及下轨）
+    is_signal = score >= 45 and touched_lower
 
     return {
         'boll_score': score,
@@ -706,7 +706,7 @@ def score_boll_mid_bounce(df: pd.DataFrame, period: int = 20, num_std: float = 2
     信号触发条件
     ══════════════════════════════════════════════════════════════
     mid_bounce_signal = True 当且仅当:
-      评分 >= 40 且 %b 在中轨附近(0.4~0.65) 且 中轨斜率向上 且 有反弹动作
+      评分 >= 60 且 %b 在中轨附近(0.4~0.65) 且 中轨斜率向上 且 有反弹动作
 
     Args:
         df: 包含 open/close/high/low/volume/pct_change 的日线 DataFrame
@@ -1006,7 +1006,7 @@ def score_boll_mid_bounce(df: pd.DataFrame, period: int = 20, num_std: float = 2
     # 条件：评分>=40 且 %b在中轨附近(0.4~0.65) 且 中轨向上 且 有反弹动作
     mid_slope_up = len(mid_5) == 5 and mid_5[-1] > mid_5[0]
     near_mid = 0.4 <= pct_b_now <= 0.65 if pd.notna(pct_b_now) else False
-    is_signal = (score >= 40 and near_mid and mid_slope_up
+    is_signal = (score >= 60 and near_mid and mid_slope_up
                  and has_bounce_action)
 
     return {
