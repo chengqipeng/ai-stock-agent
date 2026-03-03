@@ -313,9 +313,9 @@ def score_boll_lower_bounce(df: pd.DataFrame, period: int = 20, num_std: float =
     计算公式: %b = (现价 - 下轨线) / (上轨线 - 下轨线)
 
     - 1a. 超卖确认 (+10): %b < 0 表示股价已跌破下轨。
-          近5日内 %b 曾 < 0 即触发。
+          近2日内 %b 曾 < 0 即触发（只捕捉最近1-2天的下轨反弹）。
     - 1b. 反弹触发 (+10): 当 %b 从 0 以下重新回到 0 以上，
-          即股价由轨外收回到轨内，是第一买入参考点。
+          即股价由轨外收回到轨内，近2日窗口内发生。
     - 1c. 底背离 (+10): 股价第二次探底时 %b 明显高于第一次
           （即使股价新低），这是极强的反转指标。
           在近20日内寻找 %b < 0.1 的低点进行比较。
@@ -351,6 +351,13 @@ def score_boll_lower_bounce(df: pd.DataFrame, period: int = 20, num_std: float =
     - 4a. 连续站稳 (+10): 股价收盘价连续 2 个交易日站稳在布林线下轨之上。
     - 4b. 趋势反转确认 (+10): 收盘价从下轨下方回到下轨上方，
           近5日内出现由下轨下→上轨上的转换过程。
+
+    ══════════════════════════════════════════════════════════════
+    趋势确认与警示
+    ══════════════════════════════════════════════════════════════
+    - 短期趋势向上 (+5/-5): MA5近3日拐头向上得5分，仍向下扣5分。
+    - 长上影线警示: 与中轨反弹一致，(最高价-实体高点)/实体高度 > 2
+      为长上影线，> 1.5 为偏长，提示上方抛压。
 
     ══════════════════════════════════════════════════════════════
     信号触发条件
@@ -395,29 +402,71 @@ def score_boll_lower_bounce(df: pd.DataFrame, period: int = 20, num_std: float =
 
     latest = data.iloc[-1]
     prev = data.iloc[-2]
-    score = 0
-    details = []
 
     pct_b_now = latest['pct_b']
     lower_now = round(latest['lower'], 2)
     mid_now = round(latest['mid'], 2)
     upper_now = round(latest['upper'], 2)
 
+    _zero_result = {'boll_score': 0, 'boll_signal': False,
+                    'upper': upper_now, 'mid': mid_now,
+                    'lower': lower_now,
+                    'pct_b': round(pct_b_now, 3) if pd.notna(pct_b_now) else None}
+
+    # ═══════════════════════════════════════════
+    # 前置校验（硬性排除条件）
+    # ═══════════════════════════════════════════
+    # 下轨反弹的核心定义：股价近期跌至下轨附近后反弹回来。
+    # 必须同时满足：
+    #   1) 最新收盘价和成交量有效（排除停牌/全0数据）
+    #   2) 布林线下轨为正数（下轨为负说明数据被停牌0值污染）
+    #   3) 当前 %b 不能太高（%b > 0.5 说明股价已远离下轨，不是下轨反弹场景）
+    #   4) 最近几日走势必须向上（近3日收盘价上升或近2日有阳线）
+
+    # 校验1: 排除停牌/无效数据
+    if latest['close'] <= 0 or latest['volume'] <= 0:
+        return {**_zero_result, 'boll_detail': '停牌或无效数据'}
+
+    # 校验2: 布林线下轨必须为正数
+    if latest['lower'] <= 0:
+        return {**_zero_result, 'boll_detail': '下轨异常(停牌数据污染)'}
+
+    # 校验3: %b 不能太高，超过0.5说明股价已在中轨附近或以上，不属于下轨反弹
+    if pd.notna(pct_b_now) and pct_b_now > 0.5:
+        return {**_zero_result, 'boll_detail': f'%b={pct_b_now:.3f}远离下轨,非下轨反弹场景'}
+
+    # 校验4: 最近走势必须向上（硬性条件）
+    # 近3日收盘价必须呈现上升趋势：最新收盘价 > 3日前收盘价，
+    # 或近2日至少有1日收阳线，证明有反弹动作。
+    # 如果近几日仍在持续下跌，则不是"反弹"而是"继续下跌"。
+    recent_3_close = data['close'].tail(3).values
+    if len(recent_3_close) == 3:
+        price_rising = recent_3_close[-1] > recent_3_close[0]
+        recent_2_has_yang = any(
+            data.iloc[i]['close'] > data.iloc[i]['open']
+            for i in range(-2, 0)
+        )
+        if not price_rising and not recent_2_has_yang:
+            return {**_zero_result,
+                    'boll_detail': f'近期走势仍向下(近3日收盘{recent_3_close[0]:.2f}→{recent_3_close[-1]:.2f}),未出现反弹'}
+
+    score = 0
+    details = []
+
     # ═══════════════════════════════════════════
     # 维度1: 价格位置 %b 指标 (满分 30)
     # ═══════════════════════════════════════════
 
-    # 1a. 超卖确认：近5日内 %b 曾 < 0（跌破下轨）
-    recent_5 = data.tail(5)
-    touched_lower = (recent_5['pct_b'] < 0).any()
+    # 1a. 超卖确认：近2日内 %b 曾 < 0（跌破下轨）— 只捕捉最近1-2天的下轨反弹
+    recent_2 = data.tail(2)
+    touched_lower = (recent_2['pct_b'] < 0).any()
     if touched_lower:
         score += 10
-        details.append('%b曾<0(触及下轨)+10')
+        details.append('%b曾<0(近2日触及下轨)+10')
 
-    # 1b. 反弹触发：%b 从 <0 回到 >=0（收回轨内）
+    # 1b. 反弹触发：%b 从 <0 回到 >=0（收回轨内）— 近2日窗口
     if pct_b_now >= 0:
-        # 检查近5日是否有从轨外收回的过程
-        pct_b_vals = recent_5['pct_b'].values
+        pct_b_vals = recent_2['pct_b'].values
         was_below = False
         recovered = False
         for v in pct_b_vals:
@@ -450,9 +499,10 @@ def score_boll_lower_bounce(df: pd.DataFrame, period: int = 20, num_std: float =
     vol_ma5 = latest['vol_ma5']
     vol_now = latest['volume']
 
-    # 2a. 抛压枯竭（缩量）：近5日内出现成交量 < 5日均量 * 0.6
-    recent_vols = recent_5['volume'].values
-    recent_vol_ma5 = recent_5['vol_ma5'].values
+    # 2a. 抛压枯竭（缩量）：近3日内出现成交量 < 5日均量 * 0.6
+    recent_3_vol = data.tail(3)
+    recent_vols = recent_3_vol['volume'].values
+    recent_vol_ma5 = recent_3_vol['vol_ma5'].values
     shrink_found = False
     for v, ma in zip(recent_vols, recent_vol_ma5):
         if ma > 0 and v < ma * 0.6:
@@ -537,6 +587,18 @@ def score_boll_lower_bounce(df: pd.DataFrame, period: int = 20, num_std: float =
     if back_above:
         score += 10
         details.append('收盘回到下轨上方+10')
+
+    # ─── 长上影线警示 ───
+    # 与中轨反弹保持一致：(最高价 - 实体高点) / 实体高度 > 2
+    upper_shadow = latest['high'] - max(latest['open'], latest['close'])
+    if body > 0:
+        shadow_body_ratio = upper_shadow / body
+        if shadow_body_ratio > 2:
+            details.append(f'\n  ⚠ 反弹长上影线(上影/实体={shadow_body_ratio:.1f}),上方抛压较重,需观察确认')
+        elif shadow_body_ratio > 1.5:
+            details.append(f'\n  ⚠ 反弹上影线偏长(上影/实体={shadow_body_ratio:.1f}),建议观察1-2天确认')
+    elif upper_shadow > 0:
+        details.append(f'\n  ⚠ 十字星长上影线,反弹力度存疑')
 
     # 判断是否触发下轨反弹信号（综合分 >= 40 且近期确实触及下轨）
     is_signal = score >= 40 and touched_lower
