@@ -15,6 +15,7 @@ from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
+from service.jqka10.stock_finance_data_10jqka import get_financial_data_from_db
 from dao.stock_technical_score_dao import save_score_results
 
 logging.basicConfig(level=logging.WARNING)
@@ -1124,6 +1125,97 @@ def calc_high120_drop(df: pd.DataFrame) -> dict:
         'high120_drop_pct': drop_pct,
     }
 
+def analyze_finance_growth(stock_info: StockInfo) -> dict:
+    """
+    分析近三个季度的财报数据，判断营收和利润是否持续增长及增长幅度。
+
+    Returns:
+        dict 包含:
+        - finance_growth: bool, 是否持续增长
+        - finance_summary: str, 增长概要描述
+        - finance_details: list[dict], 每个季度的关键指标
+    """
+    records = get_financial_data_from_db(stock_info, limit=3)
+    if not records or len(records) < 3:
+        return {
+            'finance_growth': None,
+            'finance_summary': '财报数据不足(不足3个季度)',
+            'finance_details': [],
+        }
+
+    # records 按报告期倒序，反转为时间正序便于判断趋势
+    quarters = list(reversed(records))
+
+    details = []
+    for q in quarters:
+        details.append({
+            'period': q.get('报告期', ''),
+            'revenue': q.get('营业总收入(元)', None),
+            'parent_net_profit': q.get('归母净利润(元)', None),
+            'deducted_net_profit': q.get('扣非净利润(元)', None),
+            'revenue_yoy': q.get('营业总收入同比增长(%)', None),
+            'profit_yoy': q.get('归属净利润同比增长(%)', None),
+            'deducted_yoy': q.get('扣非净利润同比增长(%)', None),
+        })
+
+    # 判断持续增长：营收和归母净利润连续3个季度同比正增长
+    revenue_yoys = [d['revenue_yoy'] for d in details]
+    profit_yoys = [d['profit_yoy'] for d in details]
+    deducted_yoys = [d['deducted_yoy'] for d in details]
+
+    def _all_positive(vals):
+        return all(v is not None and float(v) > 0 for v in vals)
+
+    def _is_accelerating(vals):
+        """判断增速是否加速（后一个季度增速 > 前一个季度）"""
+        nums = [float(v) for v in vals if v is not None]
+        if len(nums) < 2:
+            return False
+        return all(nums[i + 1] > nums[i] for i in range(len(nums) - 1))
+
+    revenue_growing = _all_positive(revenue_yoys)
+    profit_growing = _all_positive(profit_yoys)
+    deducted_growing = _all_positive(deducted_yoys)
+    all_growing = revenue_growing and profit_growing
+
+    revenue_accel = _is_accelerating(revenue_yoys)
+    profit_accel = _is_accelerating(profit_yoys)
+
+    # 构建概要
+    parts = []
+    if all_growing:
+        parts.append('营收+利润连续3季正增长')
+        if revenue_accel:
+            parts.append('营收增速加速')
+        if profit_accel:
+            parts.append('利润增速加速')
+    else:
+        if revenue_growing:
+            parts.append('营收连续正增长')
+        else:
+            parts.append('营收增长不连续')
+        if profit_growing:
+            parts.append('利润连续正增长')
+        else:
+            parts.append('利润增长不连续')
+
+    if deducted_growing:
+        parts.append('扣非净利润连续正增长')
+
+    # 附加最新季度增速
+    latest = details[-1]
+    if latest['revenue_yoy'] is not None:
+        parts.append(f"最新营收同比{latest['revenue_yoy']}%")
+    if latest['profit_yoy'] is not None:
+        parts.append(f"最新利润同比{latest['profit_yoy']}%")
+
+    return {
+        'finance_growth': all_growing,
+        'finance_summary': '；'.join(parts),
+        'finance_details': details,
+    }
+
+
 
 
 # ─── 单只股票分析 ───
@@ -1143,6 +1235,12 @@ async def analyze_stock(name: str, code: str, idx: int, total: int) -> dict | No
         result.update({'name': name, 'code': code, 'close': round(latest['close'], 2),
                        'date': df.index[-1].strftime('%Y-%m-%d'),
                        **high120_info, **boll_info, **mid_info})
+
+        # 对中轨反弹或下轨反弹信号的股票，分析近三个季度财报增长情况
+        if result.get('mid_bounce_signal') or result.get('boll_signal'):
+            finance_info = analyze_finance_growth(stock_info)
+            result.update(finance_info)
+
         tag = '✅' if result['total'] >= 50 else '  '
         print(f"[{idx}/{total}] {tag} {name:<8} {code:<12} 总分:{result['total']:>3} "
               f"MACD:{result['macd_score']:>2} KDJ:{result['kdj_score']:>2} "
@@ -1246,6 +1344,7 @@ def write_result(results: list[dict], path: Path):
             lines.append(f"- 最新收盘价: {r['close']} | 120日高价: {r.get('high120', '-')} | 跌幅: {r.get('high120_drop_pct', '-')}%")
             lines.append(f"- 中轨反弹({r['mid_bounce_score']}): {r['mid_bounce_detail']}")
             lines.append(f"- %b={r.get('mid_pct_b', '-')} 中轨={r.get('mid_val', '-')}")
+            _append_finance_lines(lines, r)
             lines.append("")
     else:
         lines.append("暂无中轨反弹信号\n")
@@ -1270,6 +1369,7 @@ def write_result(results: list[dict], path: Path):
             lines.append(f"- 最新收盘价: {r['close']} | 120日高价: {r.get('high120', '-')} | 跌幅: {r.get('high120_drop_pct', '-')}%")
             lines.append(f"- 下轨反弹({r['boll_score']}): {r['boll_detail']}")
             lines.append(f"- %b={r.get('pct_b', '-')} 下轨={r.get('lower', '-')} 中轨={r.get('mid', '-')} 上轨={r.get('upper', '-')}")
+            _append_finance_lines(lines, r)
             lines.append("")
     else:
         lines.append("暂无下轨反弹信号\n")
@@ -1290,6 +1390,45 @@ def write_result(results: list[dict], path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text('\n'.join(lines), encoding='utf-8')
     print(f"\n结果已写入: {path}")
+
+def _format_amount(val) -> str:
+    """将金额格式化为亿/万单位"""
+    if val is None:
+        return '-'
+    try:
+        v = float(val)
+    except (ValueError, TypeError):
+        return str(val)
+    if abs(v) >= 1e8:
+        return f"{v / 1e8:.2f}亿"
+    if abs(v) >= 1e4:
+        return f"{v / 1e4:.2f}万"
+    return f"{v:.2f}"
+
+
+def _append_finance_lines(lines: list[str], r: dict):
+    """向输出行列表追加财报增长分析内容"""
+    summary = r.get('finance_summary')
+    if not summary:
+        return
+    growth = r.get('finance_growth')
+    icon = '📈' if growth else ('⚠️' if growth is None else '📉')
+    lines.append(f"- {icon} 财报分析: {summary}")
+    details = r.get('finance_details', [])
+    if details:
+        lines.append(f"  - 近三季度数据:")
+        for d in details:
+            rev = _format_amount(d.get('revenue'))
+            profit = _format_amount(d.get('parent_net_profit'))
+            rev_yoy = d.get('revenue_yoy')
+            profit_yoy = d.get('profit_yoy')
+            rev_yoy_str = f"{rev_yoy}%" if rev_yoy is not None else '-'
+            profit_yoy_str = f"{profit_yoy}%" if profit_yoy is not None else '-'
+            lines.append(
+                f"    - {d['period']}: 营收{rev}(同比{rev_yoy_str}) | "
+                f"归母净利润{profit}(同比{profit_yoy_str})"
+            )
+
 
 
 async def main():
