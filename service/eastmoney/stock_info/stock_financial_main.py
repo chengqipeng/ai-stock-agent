@@ -98,6 +98,57 @@ async def get_financial_data_to_json(stock_info: StockInfo, indicator_keys=None)
     
     return result
 
+async def get_financial_raw_data(stock_info: StockInfo, indicator_keys=None) -> list[dict]:
+    """
+    获取原始财务数据，字段用英文命名，数值保持原始精度（不做单位转换）。
+
+    返回的每条记录包含:
+      - REPORT_DATE_NAME: 报告期名称（如 "2024年报"）
+      - REPORT_DATE: 报告日期（如 "2024-12-31"）
+      - 以及 FINANCIAL_INDICATORS 中定义的各英文字段
+
+    Args:
+        stock_info: 股票信息对象
+        indicator_keys: 需要的指标英文 key 列表，None 表示全部
+
+    Returns:
+        list[dict]: 英文字段名的原始数值数据列表
+    """
+    data_list = await get_main_financial_data(stock_info)
+    if not data_list:
+        return []
+
+    recent_data = data_list[:MAX_RECENT_PERIODS]
+    _calculate_single_quarter_revenue(recent_data)
+    _calculate_single_quarter_parentnetprofit(recent_data)
+    _calculate_single_quarter_kcfjcxsyjlr(recent_data)
+    _calculate_single_quarter_yoy_growth(recent_data)
+    _calculate_epskcjb(recent_data)
+    _calculate_roe_kcjq(recent_data)
+
+    indicators = FINANCIAL_INDICATORS if indicator_keys is None else [(n, k) for n, k in FINANCIAL_INDICATORS if k in indicator_keys]
+
+    result = []
+    for d in recent_data:
+        record = {
+            "REPORT_DATE_NAME": d.get('REPORT_DATE_NAME', ''),
+            "REPORT_DATE": d.get('REPORT_DATE', ''),
+        }
+        for _name, key in indicators:
+            val = d.get(key)
+            if val is None:
+                record[key] = None
+            elif isinstance(val, (int, float)):
+                record[key] = round(val, 4)
+            else:
+                val_str = str(val)
+                record[key] = val_str[:10] if val_str else None
+        result.append(record)
+
+    return result
+
+
+
 
 async def get_financial_data_to_markdown(stock_info: StockInfo, indicator_keys=None):
     """将财务数据转换为Markdown格式"""
