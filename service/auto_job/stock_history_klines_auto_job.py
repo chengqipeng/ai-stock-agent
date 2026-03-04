@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import threading
 from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -18,6 +19,7 @@ from dao.stock_kline_dao import (
 )
 from dao.stock_finance_dao import (
     get_finance_table_name, create_finance_table, batch_upsert_finance_data,
+    get_finance_latest_updated_at,
 )
 
 _CST = ZoneInfo("Asia/Shanghai")
@@ -25,56 +27,10 @@ _CST = ZoneInfo("Asia/Shanghai")
 logger = logging.getLogger(__name__)
 
 
-async def _fetch_klines(stock_info, stock_code, stock_name, missing_days, fetch_limit, counter):
-    """拉取K线数据，返回 (klines, elapsed) 或 None"""
-    today_cst = datetime.now(_CST).date()
-    t0 = asyncio.get_event_loop().time()
+# ─────────────────── K线采集流水线 ───────────────────
 
-    # 仅缺最新一天时，直接从同花顺实时接口获取
-    if len(missing_days) == 1 and missing_days[0] == today_cst:
-        try:
-            pure_code = stock_code.split('.')[0]
-            kline_str = await get_today_kline_as_str(pure_code)
-            klines = [kline_str] if kline_str else []
-            return klines, asyncio.get_event_loop().time() - t0
-        except Exception as e:
-            logger.error("[%s] 实时K线获取失败: %s", stock_name, e)
-            return None, 0
-
-    _RETRYABLE_KEYWORDS = ('Server disconnected', 'Connection closed abruptly',
-                           'Expecting value', '空响应', 'JSONP解包后为空',
-                           'JSON解析失败', 'ClientResponseError')
-    for attempt in range(1, 11):
-        try:
-            klines = await get_stock_day_kline_as_str_10jqka(stock_info, fetch_limit)
-            return klines, asyncio.get_event_loop().time() - t0
-        except Exception as e:
-            err_msg = str(e)
-            is_retryable = any(kw in err_msg for kw in _RETRYABLE_KEYWORDS)
-            if is_retryable and attempt < 10:
-                wait = min(10 * attempt, 60)
-                logger.warning("[%s] K线请求异常(%s)，第%d次重试，等待%d秒",
-                               stock_name, err_msg[:200], attempt, wait)
-                await asyncio.sleep(wait)
-            else:
-                logger.error("[%s] 获取K线失败(重试%d次): %s", stock_name, attempt, e)
-                return None, 0
-    return None, 0
-
-
-async def _fetch_finance(stock_info, stock_name):
-    """拉取财报数据，返回 (records, elapsed) 或 (None, 0)"""
-    t0 = asyncio.get_event_loop().time()
-    try:
-        records = await get_finance_data(stock_info)
-        return records, asyncio.get_event_loop().time() - t0
-    except Exception as e:
-        logger.warning("[%s] 财报数据获取失败: %s", stock_name, e)
-        return None, asyncio.get_event_loop().time() - t0
-
-
-async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
-    """处理单个股票的K线数据和财报数据（并行拉取）"""
+async def _process_single_kline(stock_code, stock_name, db_path, limit, counter):
+    """处理单只股票的K线数据拉取和存储"""
     stock_info = get_stock_info_by_code(stock_code)
     if not stock_info:
         counter['failed'] += 1
@@ -86,18 +42,8 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
     t_dao = asyncio.get_event_loop().time()
 
     if not missing_days:
-        # K线无需更新，但仍需拉取财报数据
-        finance_records, finance_elapsed = await _fetch_finance(stock_info, stock_name)
-        if finance_records:
-            conn = _open_conn(db_path)
-            cursor = conn.cursor()
-            fin_table = get_finance_table_name(stock_code)
-            create_finance_table(cursor, fin_table)
-            batch_upsert_finance_data(cursor, fin_table, finance_records)
-            conn.commit()
-            conn.close()
-        fin_info = f" 财报{len(finance_records or [])}条/{finance_elapsed:.2f}s"
-        print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 最新数据日期是{latest_db_date}，无需拉取K线{fin_info} dao耗时{t_dao-t_start:.2f}s")
+        print(f"[K线 总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] "
+              f"最新数据日期是{latest_db_date}，无需拉取 dao耗时{t_dao-t_start:.2f}s")
         counter['success'] += 1
         return
 
@@ -105,17 +51,47 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
     today_cst = datetime.now(_CST).date()
     fetch_limit = (today_cst - earliest_missing).days + 5 if latest_db_date else limit
 
-    # 并行拉取K线和财报数据
-    (klines, kline_elapsed), (finance_records, finance_elapsed) = await asyncio.gather(
-        _fetch_klines(stock_info, stock_code, stock_name, missing_days, fetch_limit, counter),
-        _fetch_finance(stock_info, stock_name),
-    )
+    klines = None
+    t0 = asyncio.get_event_loop().time()
+
+    # 仅缺最新一天时，直接从同花顺实时接口获取
+    if len(missing_days) == 1 and missing_days[0] == today_cst:
+        try:
+            pure_code = stock_code.split('.')[0]
+            kline_str = await get_today_kline_as_str(pure_code)
+            klines = [kline_str] if kline_str else []
+            elapsed = asyncio.get_event_loop().time() - t0
+        except Exception as e:
+            logger.error("[K线 %s] 实时K线获取失败: %s", stock_name, e)
+            counter['failed'] += 1
+            return
+    else:
+        _RETRYABLE_KEYWORDS = ('Server disconnected', 'Connection closed abruptly',
+                               'Expecting value', '空响应', 'JSONP解包后为空',
+                               'JSON解析失败', 'ClientResponseError')
+        for attempt in range(1, 11):
+            try:
+                klines = await get_stock_day_kline_as_str_10jqka(stock_info, fetch_limit)
+                elapsed = asyncio.get_event_loop().time() - t0
+                break
+            except Exception as e:
+                err_msg = str(e)
+                is_retryable = any(kw in err_msg for kw in _RETRYABLE_KEYWORDS)
+                if is_retryable and attempt < 10:
+                    wait = min(10 * attempt, 60)
+                    logger.warning("[K线 %s] 请求异常(%s)，第%d次重试，等待%d秒",
+                                   stock_name, err_msg[:200], attempt, wait)
+                    await asyncio.sleep(wait)
+                else:
+                    logger.error("[K线 %s] 获取失败(重试%d次): %s", stock_name, attempt, e)
+                    counter['failed'] += 1
+                    return
 
     if klines is None:
         counter['failed'] += 1
         return
 
-    # 校验每条K线核心字段不能为空（date, open, close, high, low, volume）
+    # 校验K线核心字段
     _REQUIRED_FIELD_NAMES = ("date", "open_price", "close_price", "high_price", "low_price", "trading_volume")
     _REQUIRED_FIELD_INDICES = (0, 1, 2, 3, 4, 5)
     bad_lines = []
@@ -126,16 +102,14 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
                 bad_lines.append(f"第{idx+1}条 字段[{fname}]为空: {kline_str[:120]}")
     if bad_lines:
         err_detail = "; ".join(bad_lines[:5])
-        logger.error("[%s %s] K线数据存在空值，共%d条异常: %s", stock_code, stock_name, len(bad_lines), err_detail)
+        logger.error("[K线 %s %s] 数据存在空值，共%d条异常: %s", stock_code, stock_name, len(bad_lines), err_detail)
         counter['failed'] += 1
         return
 
-    # 写入数据库：K线 + 财报
+    # 写入数据库
     conn = _open_conn(db_path)
     cursor = conn.cursor()
     t_db_start = asyncio.get_event_loop().time()
-
-    # 写K线
     table_name = f"kline_{stock_code.replace('.', '_')}"
     create_kline_table(cursor, table_name)
     saved_dates = set()
@@ -151,22 +125,64 @@ async def process_stock_klines(stock_code, stock_name, db_path, limit, counter):
     for d in missing_days:
         if d not in saved_dates:
             insert_suspension_day(cursor, table_name, d)
-
-    # 写财报
-    fin_count = 0
-    if finance_records:
-        fin_table = get_finance_table_name(stock_code)
-        create_finance_table(cursor, fin_table)
-        batch_upsert_finance_data(cursor, fin_table, finance_records)
-        fin_count = len(finance_records)
-
     conn.commit()
     conn.close()
     t_db_end = asyncio.get_event_loop().time()
 
     counter['success'] += 1
-    print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] 完成，K线{len(klines)}条/{kline_elapsed:.2f}s 财报{fin_count}条/{finance_elapsed:.2f}s dao{t_dao-t_start:.2f}s 写db{t_db_end-t_db_start:.2f}s")
+    print(f"[K线 总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] "
+          f"完成，{len(klines)}条 网络{elapsed:.2f}s dao{t_dao-t_start:.2f}s 写db{t_db_end-t_db_start:.2f}s")
 
+
+# ─────────────────── 财报采集流水线 ───────────────────
+
+async def _process_single_finance(stock_code, stock_name, db_path, counter):
+    """处理单只股票的财报数据拉取和存储"""
+    stock_info = get_stock_info_by_code(stock_code)
+    if not stock_info:
+        counter['failed'] += 1
+        return
+
+    # 今天已拉取过则跳过
+    today_str = datetime.now(_CST).strftime("%Y-%m-%d")
+    latest_updated = get_finance_latest_updated_at(stock_code, db_path)
+    if latest_updated and latest_updated[:10] >= today_str:
+        counter['success'] += 1
+        print(f"[财报 总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] "
+              f"今日已更新({latest_updated})，跳过")
+        return
+
+    t0 = asyncio.get_event_loop().time()
+    try:
+        records = await get_finance_data(stock_info)
+    except Exception as e:
+        logger.warning("[财报 %s] 获取失败: %s", stock_name, e)
+        counter['failed'] += 1
+        return
+    elapsed = asyncio.get_event_loop().time() - t0
+
+    if not records:
+        logger.warning("[财报 %s] 返回空数据", stock_name)
+        counter['failed'] += 1
+        return
+
+    # 写入数据库
+    t_db = asyncio.get_event_loop().time()
+    conn = _open_conn(db_path)
+    cursor = conn.cursor()
+    fin_table = get_finance_table_name(stock_code)
+    create_finance_table(cursor, fin_table)
+    batch_upsert_finance_data(cursor, fin_table, records)
+    conn.commit()
+    conn.close()
+    t_db_end = asyncio.get_event_loop().time()
+
+    counter['success'] += 1
+    print(f"[财报 总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] "
+          f"完成，{len(records)}条 网络{elapsed:.2f}s 写db{t_db_end-t_db:.2f}s")
+
+
+# ─────────────────── 公共工具 ───────────────────
 
 def load_stocks_from_score_list() -> list[dict]:
     score_list_path = Path(__file__).parent.parent.parent / "data_results/stock_to_score_list/stock_score_list.md"
@@ -179,29 +195,105 @@ def load_stocks_from_score_list() -> list[dict]:
     return stocks
 
 
-async def run_stock_klines_job(limit=800, max_concurrent=1):
-    """运行股票K线数据采集任务"""
-    db_dir = Path(__file__).parent.parent.parent / "data_results/sql_lite"
-    db_dir.mkdir(parents=True, exist_ok=True)
-
+def _build_stock_list() -> list[dict]:
+    """构建完整的股票列表（score_list + MAIN_STOCK 去重）"""
     stocks = load_stocks_from_score_list()
     main_codes = {s['code'] for s in stocks}
     stocks += [s for s in MAIN_STOCK if s['code'] not in main_codes]
-    print(f"开始采集股票K线数据，共 {len(stocks)} 只股票")
-    print(f"数据库目录: {db_dir}")
+    return stocks
+
+
+# ─────────────────── 独立运行入口 ───────────────────
+
+async def run_kline_job(limit=800, max_concurrent=1):
+    """独立运行K线采集任务"""
+    db_dir = Path(__file__).parent.parent.parent / "data_results/sql_lite"
+    db_dir.mkdir(parents=True, exist_ok=True)
+
+    stocks = _build_stock_list()
+    print(f"[K线] 开始采集，共 {len(stocks)} 只股票")
 
     semaphore = asyncio.Semaphore(max_concurrent)
     counter = {'total': len(stocks), 'success': 0, 'failed': 0}
 
-    async def process_with_semaphore(stock):
+    async def task(stock):
         async with semaphore:
-            db_path = get_db_path_for_stock(stock['code'], db_dir)
-            print(f"[总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock['name']}] 开始查询")
-            await process_stock_klines(stock['code'], stock['name'], str(db_path), limit, counter)
+            db_path = str(get_db_path_for_stock(stock['code'], db_dir))
+            await _process_single_kline(stock['code'], stock['name'], db_path, limit, counter)
 
-    await asyncio.gather(*[process_with_semaphore(stock) for stock in stocks], return_exceptions=True)
-    print(f"采集完成，总{counter['total']} 成功{counter['success']} 失败{counter['failed']}")
+    await asyncio.gather(*[task(s) for s in stocks], return_exceptions=True)
+    print(f"[K线] 采集完成，总{counter['total']} 成功{counter['success']} 失败{counter['failed']}")
+    return counter
+
+
+async def run_finance_job(max_concurrent=3):
+    """独立运行财报采集任务"""
+    db_dir = Path(__file__).parent.parent.parent / "data_results/sql_lite"
+    db_dir.mkdir(parents=True, exist_ok=True)
+
+    stocks = _build_stock_list()
+    print(f"[财报] 开始采集，共 {len(stocks)} 只股票")
+
+    semaphore = asyncio.Semaphore(max_concurrent)
+    counter = {'total': len(stocks), 'success': 0, 'failed': 0}
+
+    async def task(stock):
+        async with semaphore:
+            db_path = str(get_db_path_for_stock(stock['code'], db_dir))
+            await _process_single_finance(stock['code'], stock['name'], db_path, counter)
+
+    await asyncio.gather(*[task(s) for s in stocks], return_exceptions=True)
+    print(f"[财报] 采集完成，总{counter['total']} 成功{counter['success']} 失败{counter['failed']}")
+    return counter
+
+
+def run_stock_klines_job(limit=800, max_concurrent=1):
+    """
+    在两个独立线程中分别运行K线和财报采集流水线。
+
+    每条流水线拥有独立的线程、事件循环、计数器、信号量和错误处理，
+    任何一条流水线的异常或阻塞都不会影响另一条。
+    K线默认串行（max_concurrent=1），财报默认3并发。
+    """
+    print("=" * 60)
+    print("  启动数据采集（K线 + 财报 独立线程）")
+    print("=" * 60)
+
+    results = {}
+
+    def _run_kline():
+        try:
+            results['kline'] = asyncio.run(run_kline_job(limit=limit, max_concurrent=max_concurrent))
+        except Exception as e:
+            logger.error("[K线线程] 异常退出: %s", e)
+            results['kline'] = {'total': 0, 'success': 0, 'failed': 0, 'error': str(e)}
+
+    def _run_finance():
+        try:
+            results['finance'] = asyncio.run(run_finance_job(max_concurrent=3))
+        except Exception as e:
+            logger.error("[财报线程] 异常退出: %s", e)
+            results['finance'] = {'total': 0, 'success': 0, 'failed': 0, 'error': str(e)}
+
+    t_kline = threading.Thread(target=_run_kline, name="Thread-Kline", daemon=True)
+    t_finance = threading.Thread(target=_run_finance, name="Thread-Finance", daemon=True)
+
+    t_kline.start()
+    t_finance.start()
+
+    t_kline.join()
+    t_finance.join()
+
+    kline_counter = results.get('kline', {})
+    finance_counter = results.get('finance', {})
+
+    print(f"\n{'=' * 60}")
+    print(f"  全部完成")
+    print(f"  K线: 总{kline_counter.get('total',0)} 成功{kline_counter.get('success',0)} 失败{kline_counter.get('failed',0)}")
+    print(f"  财报: 总{finance_counter.get('total',0)} 成功{finance_counter.get('success',0)} 失败{finance_counter.get('failed',0)}")
+    print(f"{'=' * 60}")
+    return kline_counter, finance_counter
 
 
 if __name__ == "__main__":
-    asyncio.run(run_stock_klines_job())
+    run_stock_klines_job()
