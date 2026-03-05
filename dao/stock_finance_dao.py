@@ -1,66 +1,75 @@
 """
-财报数据 DAO
-
-将 get_financial_data_to_json 返回的财报数据存储到每只股票的 SQLite 数据库中。
-表名: finance_{stock_code}  (如 finance_600519_SH)
-每条记录对应一个报告期，以 report_date 为唯一键。
+财报数据 DAO — MySQL 单表版，所有股票共用 stock_finance 表
 """
 import json
 import logging
-import sqlite3
 from datetime import datetime
-from pathlib import Path
 from zoneinfo import ZoneInfo
+
+from dao import get_connection
 
 logger = logging.getLogger(__name__)
 
 _CST = ZoneInfo("Asia/Shanghai")
-_DB_DIR = Path(__file__).parent.parent / "data_results/sql_lite"
 
-
-def _open_conn(db_path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    return conn
+TABLE_NAME = "stock_finance"
 
 
 def get_finance_table_name(stock_code: str) -> str:
-    return f"finance_{stock_code.replace('.', '_')}"
+    """兼容旧调用，统一返回单表名"""
+    return TABLE_NAME
 
 
-def create_finance_table(cursor: sqlite3.Cursor, table_name: str):
-    """创建财报数据表"""
-    cursor.execute(f"""
-        CREATE TABLE IF NOT EXISTS {table_name} (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            report_date TEXT NOT NULL,
-            report_period_name TEXT,
-            data_json TEXT NOT NULL,
+def create_finance_table(cursor=None, table_name: str = None):
+    """创建统一财报表（幂等），table_name 参数仅为兼容旧调用，实际忽略"""
+    ddl = f"""
+        CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            stock_code VARCHAR(20) NOT NULL,
+            report_date VARCHAR(20) NOT NULL,
+            report_period_name VARCHAR(50),
+            data_json LONGTEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(report_date)
-        )
-    """)
-    cursor.execute(
-        f"CREATE INDEX IF NOT EXISTS idx_{table_name}_report_date ON {table_name}(report_date)"
-    )
-
-
-def batch_upsert_finance_data(
-    cursor: sqlite3.Cursor,
-    table_name: str,
-    records: list[dict],
-):
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_code_report (stock_code, report_date),
+            INDEX idx_stock_code (stock_code),
+            INDEX idx_report_date (report_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """
-    批量插入或更新财报数据。
+    own = cursor is None
+    if own:
+        conn = get_connection()
+        cursor = conn.cursor()
+    cursor.execute(ddl)
+    if own:
+        conn.commit()
+        cursor.close()
+        conn.close()
 
-    Args:
-        cursor: 数据库游标
-        table_name: 表名
-        records: get_financial_data_to_json 返回的 list[dict]，
-                 每条包含 "报告期"、"报告日期" 及各指标字段。
+
+# ─────────────────── 写入 ───────────────────
+
+_UPSERT_SQL = f"""
+    INSERT INTO {TABLE_NAME}
+    (stock_code, report_date, report_period_name, data_json, updated_at)
+    VALUES (%s, %s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE
+        report_period_name = VALUES(report_period_name),
+        data_json = VALUES(data_json),
+        updated_at = VALUES(updated_at)
+"""
+
+
+def batch_upsert_finance_data(cursor, stock_code: str, records: list[dict]):
+    """批量插入或更新财报数据。stock_code 为股票代码（如 600519.SH）。
+    兼容旧调用：如果 stock_code 看起来像表名（finance_xxx），自动提取真实代码。
     """
+    # 兼容旧调用方传入 table_name 的情况
+    if stock_code.startswith("finance_"):
+        code = stock_code.removeprefix("finance_")
+        parts = code.rsplit("_", 1)
+        stock_code = f"{parts[0]}.{parts[1]}" if len(parts) == 2 else code
+
     now_cst = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
     rows = []
     for rec in records:
@@ -68,102 +77,68 @@ def batch_upsert_finance_data(
         if not report_date:
             continue
         report_name = rec.get("报告期", "")
-        rows.append((report_date, report_name, json.dumps(rec, ensure_ascii=False), now_cst))
+        rows.append((stock_code, report_date, report_name,
+                      json.dumps(rec, ensure_ascii=False), now_cst))
 
     if not rows:
         return
 
-    cursor.executemany(
-        f"""
-        INSERT OR REPLACE INTO {table_name}
-        (report_date, report_period_name, data_json, updated_at)
-        VALUES (?, ?, ?, ?)
-        """,
-        rows,
-    )
+    cursor.executemany(_UPSERT_SQL, rows)
 
 
-def save_finance_to_db(stock_code: str, records: list[dict], db_path: str | None = None):
-    """
-    将财报数据保存到股票对应的 SQLite 数据库。
-
-    Args:
-        stock_code: 标准化股票代码（如 "600519.SH"）
-        records: get_financial_data_to_json 返回的数据
-        db_path: 数据库路径，None 则使用默认路径
-    """
+def save_finance_to_db(stock_code: str, records: list[dict]):
+    """将财报数据保存到 MySQL。"""
     if not records:
         return
-
-    if db_path is None:
-        safe_code = stock_code.replace(".", "_")
-        db_path = str(_DB_DIR / f"stock_{safe_code}.db")
-
-    table_name = get_finance_table_name(stock_code)
-    conn = _open_conn(db_path)
+    conn = get_connection()
     cursor = conn.cursor()
     try:
-        create_finance_table(cursor, table_name)
-        batch_upsert_finance_data(cursor, table_name, records)
+        create_finance_table(cursor)
+        batch_upsert_finance_data(cursor, stock_code, records)
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
+        cursor.close()
         conn.close()
 
 
-def get_finance_from_db(
-    stock_code: str,
-    db_path: str | None = None,
-    limit: int | None = None,
-) -> list[dict]:
-    """
-    从数据库读取财报数据。
+# ─────────────────── 查询 ───────────────────
 
-    Returns:
-        list[dict]: 按 report_date 倒序排列的财报记录
-    """
-    if db_path is None:
-        safe_code = stock_code.replace(".", "_")
-        db_path = str(_DB_DIR / f"stock_{safe_code}.db")
-
-    table_name = get_finance_table_name(stock_code)
-    conn = _open_conn(db_path)
+def get_finance_from_db(stock_code: str, limit: int | None = None) -> list[dict]:
+    """从数据库读取财报数据，按 report_date 倒序。"""
+    conn = get_connection()
+    cursor = conn.cursor()
     try:
-        cursor = conn.cursor()
-        sql = f"SELECT data_json FROM {table_name} ORDER BY report_date DESC"
+        sql = f"SELECT data_json FROM {TABLE_NAME} WHERE stock_code = %s ORDER BY report_date DESC"
+        params: list = [stock_code]
         if limit:
-            sql += f" LIMIT {limit}"
-        cursor.execute(sql)
+            sql += " LIMIT %s"
+            params.append(limit)
+        cursor.execute(sql, params)
         rows = cursor.fetchall()
         return [json.loads(row[0]) for row in rows]
-    except sqlite3.OperationalError:
+    except Exception:
         return []
     finally:
+        cursor.close()
         conn.close()
 
-def get_finance_latest_updated_at(
-    stock_code: str,
-    db_path: str | None = None,
-) -> str | None:
-    """
-    获取财报表中最新的 updated_at 时间戳。
 
-    Returns:
-        如 "2025-07-15 10:30:00"，表不存在或无数据返回 None
-    """
-    if db_path is None:
-        safe_code = stock_code.replace(".", "_")
-        db_path = str(_DB_DIR / f"stock_{safe_code}.db")
-
-    table_name = get_finance_table_name(stock_code)
-    conn = _open_conn(db_path)
+def get_finance_latest_updated_at(stock_code: str) -> str | None:
+    """获取该股票财报数据中最新的 updated_at 时间戳。"""
+    conn = get_connection()
+    cursor = conn.cursor()
     try:
-        cursor = conn.cursor()
-        cursor.execute(f"SELECT MAX(updated_at) FROM {table_name}")
+        cursor.execute(
+            f"SELECT MAX(updated_at) FROM {TABLE_NAME} WHERE stock_code = %s",
+            (stock_code,),
+        )
         row = cursor.fetchone()
-        return row[0] if row and row[0] else None
-    except sqlite3.OperationalError:
+        return str(row[0]) if row and row[0] else None
+    except Exception:
         return None
     finally:
+        cursor.close()
         conn.close()
-
-

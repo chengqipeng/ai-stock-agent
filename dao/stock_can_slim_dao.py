@@ -1,243 +1,182 @@
-"""数据库模型定义"""
-import sqlite3
-import os
+"""数据库模型定义 — MySQL 版"""
+import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-import json
+
+from dao import get_connection
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseManager:
-    def __init__(self, db_path: str = "data_results/sql_lite/batch_analysis.db"):
-        # 确保目录存在
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        self.db_path = db_path
+    def __init__(self):
         self.init_database()
-    
+
     def init_database(self):
         """初始化数据库表"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
             # 批次信息表
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS batch_info (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    batch_name TEXT NOT NULL,
-                    total_count INTEGER NOT NULL,
-                    success_count INTEGER DEFAULT 0,
-                    completed_count INTEGER DEFAULT 0,
-                    status TEXT DEFAULT 'pending',
+                CREATE TABLE IF NOT EXISTS stock_batch_list_info (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    batch_name VARCHAR(255) NOT NULL,
+                    total_count INT NOT NULL,
+                    success_count INT DEFAULT 0,
+                    completed_count INT DEFAULT 0,
+                    status VARCHAR(50) DEFAULT 'pending',
+                    is_pinned TINYINT DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
-            
+
             # 明细信息表
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS stock_analysis_detail (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    batch_id INTEGER NOT NULL,
-                    stock_code TEXT NOT NULL,
-                    stock_name TEXT NOT NULL,
-                    
-                    -- CAN SLIM各维度打分
-                    c_score INTEGER,
-                    c_prompt TEXT,
-                    c_summary TEXT,
-                    c_score_prompt TEXT,
-                    
-                    a_score INTEGER,
-                    a_prompt TEXT,
-                    a_summary TEXT,
-                    a_score_prompt TEXT,
-                    
-                    n_score INTEGER,
-                    n_prompt TEXT,
-                    n_summary TEXT,
-                    n_score_prompt TEXT,
-                    
-                    s_score INTEGER,
-                    s_prompt TEXT,
-                    s_summary TEXT,
-                    s_score_prompt TEXT,
-                    
-                    l_score INTEGER,
-                    l_prompt TEXT,
-                    l_summary TEXT,
-                    l_score_prompt TEXT,
-                    
-                    i_score INTEGER,
-                    i_prompt TEXT,
-                    i_summary TEXT,
-                    i_score_prompt TEXT,
-                    
-                    m_score INTEGER,
-                    m_prompt TEXT,
-                    m_summary TEXT,
-                    m_score_prompt TEXT,
-                    
-                    -- 整体分析
-                    overall_analysis TEXT,
-                    
-                    -- K线分析
-                    kline_score TEXT,
-                    kline_prompt TEXT,
-                    kline_score_prompt TEXT,
-                    
-                    -- 状态信息
-                    status TEXT DEFAULT 'pending',
-                    error_message TEXT,
-                    is_deep_thinking INTEGER DEFAULT 0,
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    batch_id INT NOT NULL,
+                    stock_code VARCHAR(20) NOT NULL,
+                    stock_name VARCHAR(100) NOT NULL,
+
+                    c_score INT, c_prompt LONGTEXT, c_summary LONGTEXT, c_score_prompt LONGTEXT,
+                    a_score INT, a_prompt LONGTEXT, a_summary LONGTEXT, a_score_prompt LONGTEXT,
+                    n_score INT, n_prompt LONGTEXT, n_summary LONGTEXT, n_score_prompt LONGTEXT,
+                    s_score INT, s_prompt LONGTEXT, s_summary LONGTEXT, s_score_prompt LONGTEXT,
+                    l_score INT, l_prompt LONGTEXT, l_summary LONGTEXT, l_score_prompt LONGTEXT,
+                    i_score INT, i_prompt LONGTEXT, i_summary LONGTEXT, i_score_prompt LONGTEXT,
+                    m_score INT, m_prompt LONGTEXT, m_summary LONGTEXT, m_score_prompt LONGTEXT,
+
+                    overall_analysis LONGTEXT,
+                    overall_prompt LONGTEXT,
+                    overall_grade VARCHAR(20),
+
+                    kline_score VARCHAR(50),
+                    kline_prompt LONGTEXT,
+                    kline_score_prompt LONGTEXT,
+                    kline_summary LONGTEXT,
+                    kline_hold_score VARCHAR(50),
+                    kline_hold_prompt LONGTEXT,
+                    kline_total_score INT,
+
+                    c_deep_score DOUBLE, c_deep_prompt LONGTEXT, c_deep_summary LONGTEXT, c_deep_score_prompt LONGTEXT,
+                    a_deep_score DOUBLE, a_deep_prompt LONGTEXT, a_deep_summary LONGTEXT, a_deep_score_prompt LONGTEXT,
+                    n_deep_score DOUBLE, n_deep_prompt LONGTEXT, n_deep_summary LONGTEXT, n_deep_score_prompt LONGTEXT,
+                    s_deep_score DOUBLE, s_deep_prompt LONGTEXT, s_deep_summary LONGTEXT, s_deep_score_prompt LONGTEXT,
+                    l_deep_score DOUBLE, l_deep_prompt LONGTEXT, l_deep_summary LONGTEXT, l_deep_score_prompt LONGTEXT,
+                    i_deep_score DOUBLE, i_deep_prompt LONGTEXT, i_deep_summary LONGTEXT, i_deep_score_prompt LONGTEXT,
+                    m_deep_score DOUBLE, m_deep_prompt LONGTEXT, m_deep_summary LONGTEXT, m_deep_score_prompt LONGTEXT,
+
+                    data_issues LONGTEXT,
+                    change_pct DOUBLE,
+                    high_price_120 DOUBLE,
+                    high_price_date_120 VARCHAR(20),
+                    latest_price DOUBLE,
+
+                    status VARCHAR(50) DEFAULT 'pending',
+                    error_message LONGTEXT,
+                    is_deep_thinking TINYINT DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    completed_at TIMESTAMP,
-                    
-                    FOREIGN KEY (batch_id) REFERENCES batch_info (id)
-                )
+                    completed_at TIMESTAMP NULL,
+
+                    INDEX idx_batch_id (batch_id),
+                    FOREIGN KEY (batch_id) REFERENCES stock_batch_list_info (id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
-            
-            # 检查并添加 is_pinned 字段到 batch_info
-            cursor.execute("PRAGMA table_info(batch_info)")
-            batch_cols = {row[1] for row in cursor.fetchall()}
-            if 'is_pinned' not in batch_cols:
-                cursor.execute("ALTER TABLE batch_info ADD COLUMN is_pinned INTEGER DEFAULT 0")
 
-            # 检查并添加深度分析字段
-            cursor.execute("PRAGMA table_info(stock_analysis_detail)")
-            existing_columns = {row[1] for row in cursor.fetchall()}
-            
-            deep_columns = [
-                'c_deep_score', 'c_deep_prompt', 'c_deep_summary', 'c_deep_score_prompt',
-                'a_deep_score', 'a_deep_prompt', 'a_deep_summary', 'a_deep_score_prompt',
-                'n_deep_score', 'n_deep_prompt', 'n_deep_summary', 'n_deep_score_prompt',
-                's_deep_score', 's_deep_prompt', 's_deep_summary', 's_deep_score_prompt',
-                'l_deep_score', 'l_deep_prompt', 'l_deep_summary', 'l_deep_score_prompt',
-                'i_deep_score', 'i_deep_prompt', 'i_deep_summary', 'i_deep_score_prompt',
-                'm_deep_score', 'm_deep_prompt', 'm_deep_summary', 'm_deep_score_prompt'
-            ]
-            
-            for col in deep_columns:
-                if col not in existing_columns:
-                    col_type = 'REAL' if col.endswith('_score') else 'TEXT'
-                    cursor.execute(f"ALTER TABLE stock_analysis_detail ADD COLUMN {col} {col_type}")
-            
-            if 'overall_prompt' not in existing_columns:
-                cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN overall_prompt TEXT")
-            
-            if 'overall_grade' not in existing_columns:
-                cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN overall_grade TEXT")
-
-            if 'kline_summary' not in existing_columns:
-                cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN kline_summary TEXT")
-
-            if 'kline_hold_score' not in existing_columns:
-                cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN kline_hold_score TEXT")
-            if 'kline_hold_prompt' not in existing_columns:
-                cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN kline_hold_prompt TEXT")
-
-            if 'data_issues' not in existing_columns:
-                cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN data_issues TEXT")
-
-            for col, col_type in [('change_pct', 'REAL'), ('high_price_120', 'REAL'), ('high_price_date_120', 'TEXT'), ('latest_price', 'REAL')]:
-                if col not in existing_columns:
-                    cursor.execute(f"ALTER TABLE stock_analysis_detail ADD COLUMN {col} {col_type}")
-
-            # K线综合评分字段
-            if 'kline_total_score' not in existing_columns:
-                cursor.execute("ALTER TABLE stock_analysis_detail ADD COLUMN kline_total_score INTEGER")
-            
             # 深度分析历史记录表
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS stock_deep_analysis_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    batch_id INTEGER NOT NULL,
-                    stock_id INTEGER NOT NULL,
-                    stock_name TEXT NOT NULL,
-                    stock_code TEXT NOT NULL,
-                    is_deep_thinking INTEGER DEFAULT 0,
-                    c_score REAL, c_result TEXT, c_summary TEXT,
-                    a_score REAL, a_result TEXT, a_summary TEXT,
-                    n_score REAL, n_result TEXT, n_summary TEXT,
-                    s_score REAL, s_result TEXT, s_summary TEXT,
-                    l_score REAL, l_result TEXT, l_summary TEXT,
-                    i_score REAL, i_result TEXT, i_summary TEXT,
-                    m_score REAL, m_result TEXT, m_summary TEXT,
-                    overall_analysis TEXT,
-                    overall_prompt TEXT,
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    batch_id INT NOT NULL,
+                    stock_id INT NOT NULL,
+                    stock_name VARCHAR(100) NOT NULL,
+                    stock_code VARCHAR(20) NOT NULL,
+                    is_deep_thinking TINYINT DEFAULT 0,
+                    c_score DOUBLE, c_result LONGTEXT, c_summary LONGTEXT,
+                    a_score DOUBLE, a_result LONGTEXT, a_summary LONGTEXT,
+                    n_score DOUBLE, n_result LONGTEXT, n_summary LONGTEXT,
+                    s_score DOUBLE, s_result LONGTEXT, s_summary LONGTEXT,
+                    l_score DOUBLE, l_result LONGTEXT, l_summary LONGTEXT,
+                    i_score DOUBLE, i_result LONGTEXT, i_summary LONGTEXT,
+                    m_score DOUBLE, m_result LONGTEXT, m_summary LONGTEXT,
+                    overall_analysis LONGTEXT,
+                    overall_prompt LONGTEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
 
             # 维度级历史记录表
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS stock_dim_analysis_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    execution_id TEXT NOT NULL,
-                    batch_id INTEGER NOT NULL,
-                    stock_id INTEGER NOT NULL,
-                    stock_name TEXT NOT NULL,
-                    stock_code TEXT NOT NULL,
-                    dimension TEXT NOT NULL,
-                    is_deep_thinking INTEGER DEFAULT 0,
-                    score REAL,
-                    result TEXT,
-                    summary TEXT,
-                    status TEXT DEFAULT 'done',
-                    error_message TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    execution_id VARCHAR(100),
+                    batch_id INT NOT NULL,
+                    stock_id INT NOT NULL,
+                    stock_name VARCHAR(100) NOT NULL,
+                    stock_code VARCHAR(20) NOT NULL,
+                    dimension VARCHAR(10) NOT NULL,
+                    is_deep_thinking TINYINT DEFAULT 0,
+                    score DOUBLE,
+                    result LONGTEXT,
+                    summary LONGTEXT,
+                    overall_grade VARCHAR(20),
+                    status VARCHAR(50) DEFAULT 'done',
+                    error_message LONGTEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_stock_name (stock_name),
+                    INDEX idx_execution_id (execution_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
 
-            # 检查并补充字段
-            cursor.execute("PRAGMA table_info(stock_dim_analysis_history)")
-            dim_hist_cols = {row[1] for row in cursor.fetchall()}
-            if 'execution_id' not in dim_hist_cols:
-                cursor.execute("ALTER TABLE stock_dim_analysis_history ADD COLUMN execution_id TEXT")
-            if 'overall_grade' not in dim_hist_cols:
-                cursor.execute("ALTER TABLE stock_dim_analysis_history ADD COLUMN overall_grade TEXT")
-
             conn.commit()
-    
+        finally:
+            cursor.close()
+            conn.close()
+
     def create_batch(self, stock_codes: List[str]) -> int:
         """创建新批次"""
         now = datetime.now()
         batch_name = f"批次_{now.strftime('%Y%m%d_%H%M%S')}"
         now_iso = now.isoformat()
-        
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # 创建批次记录
-            cursor.execute("""
-                INSERT INTO batch_info (batch_name, total_count)
-                VALUES (?, ?)
-            """, (batch_name, len(stock_codes)))
-            
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO stock_batch_list_info (batch_name, total_count) VALUES (%s, %s)",
+                (batch_name, len(stock_codes)),
+            )
             batch_id = cursor.lastrowid
-            
-            # 创建股票明细记录
+
             for stock_code in stock_codes:
-                # 解析股票代码和名称
                 if " (" in stock_code and stock_code.endswith(")"):
                     stock_name = stock_code.split(" (")[0]
                     code = stock_code.split(" (")[1].rstrip(")")
                 else:
                     stock_name = stock_code
                     code = stock_code
-                
-                cursor.execute("""
-                    INSERT INTO stock_analysis_detail (batch_id, stock_code, stock_name, created_at)
-                    VALUES (?, ?, ?, ?)
-                """, (batch_id, code, stock_name, now_iso))
-            
+                cursor.execute(
+                    "INSERT INTO stock_analysis_detail (batch_id, stock_code, stock_name, created_at) VALUES (%s, %s, %s, %s)",
+                    (batch_id, code, stock_name, now_iso),
+                )
+
             conn.commit()
             return batch_id
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
 
     def add_stocks_to_batch(self, batch_id: int, stock_codes: List[str]) -> int:
         """向已有批次中添加股票，返回实际新增数量"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            # 获取批次中已有的股票代码
-            cursor.execute("SELECT stock_code FROM stock_analysis_detail WHERE batch_id = ?", (batch_id,))
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT stock_code FROM stock_analysis_detail WHERE batch_id = %s", (batch_id,))
             existing_codes = {row[0] for row in cursor.fetchall()}
 
             added = 0
@@ -253,304 +192,347 @@ class DatabaseManager:
                 if code in existing_codes:
                     continue
 
-                cursor.execute("""
-                    INSERT INTO stock_analysis_detail (batch_id, stock_code, stock_name, created_at)
-                    VALUES (?, ?, ?, ?)
-                """, (batch_id, code, stock_name, now))
+                cursor.execute(
+                    "INSERT INTO stock_analysis_detail (batch_id, stock_code, stock_name, created_at) VALUES (%s, %s, %s, %s)",
+                    (batch_id, code, stock_name, now),
+                )
                 existing_codes.add(code)
                 added += 1
 
             if added > 0:
-                cursor.execute("UPDATE batch_info SET total_count = total_count + ? WHERE id = ?", (added, batch_id))
+                cursor.execute("UPDATE stock_batch_list_info SET total_count = total_count + %s WHERE id = %s", (added, batch_id))
 
             conn.commit()
             return added
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
 
-    
     def get_batches(self) -> List[Dict[str, Any]]:
         """获取所有批次，置顶优先，再按创建时间倒序"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT * FROM batch_info 
-                ORDER BY is_pinned DESC, created_at DESC
-            """)
-            return [dict(row) for row in cursor.fetchall()]
+        conn = get_connection(use_dict_cursor=True)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT * FROM stock_batch_list_info ORDER BY is_pinned DESC, created_at DESC")
+            return list(cursor.fetchall())
+        finally:
+            cursor.close()
+            conn.close()
 
     def rename_batch(self, batch_id: int, new_name: str) -> bool:
         """重命名批次，名称不能重复"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT id FROM batch_info WHERE batch_name = ? AND id != ?", (new_name, batch_id))
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT id FROM stock_batch_list_info WHERE batch_name = %s AND id != %s", (new_name, batch_id))
             if cursor.fetchone():
                 return False
-            cursor.execute("UPDATE batch_info SET batch_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_name, batch_id))
+            cursor.execute("UPDATE stock_batch_list_info SET batch_name = %s WHERE id = %s", (new_name, batch_id))
             conn.commit()
             return True
+        finally:
+            cursor.close()
+            conn.close()
 
     def toggle_pin_batch(self, batch_id: int) -> bool:
         """切换批次置顶状态，返回新的置顶状态"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT is_pinned FROM batch_info WHERE id = ?", (batch_id,))
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT is_pinned FROM stock_batch_list_info WHERE id = %s", (batch_id,))
             row = cursor.fetchone()
             if not row:
                 return False
             new_val = 0 if row[0] else 1
-            cursor.execute("UPDATE batch_info SET is_pinned = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_val, batch_id))
+            cursor.execute("UPDATE stock_batch_list_info SET is_pinned = %s WHERE id = %s", (new_val, batch_id))
             conn.commit()
             return bool(new_val)
-    
+        finally:
+            cursor.close()
+            conn.close()
+
     def get_batch_stocks(self, batch_id: int) -> List[Dict[str, Any]]:
         """获取批次中的股票列表，有深度分析的优先，按最新深度分析时间倒序"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            
+        conn = get_connection(use_dict_cursor=True)
+        cursor = conn.cursor()
+        try:
             cursor.execute("""
                 SELECT s.*,
                     MAX(h.created_at) as last_deep_at
                 FROM stock_analysis_detail s
                 LEFT JOIN stock_dim_analysis_history h ON h.stock_id = s.id
-                WHERE s.batch_id = ?
+                WHERE s.batch_id = %s
                 GROUP BY s.id
-                ORDER BY last_deep_at DESC NULLS LAST, s.id ASC
+                ORDER BY last_deep_at IS NULL, last_deep_at DESC, s.id ASC
             """, (batch_id,))
-            
-            return [dict(row) for row in cursor.fetchall()]
-    
+            return list(cursor.fetchall())
+        finally:
+            cursor.close()
+            conn.close()
+
     def get_stock_detail(self, stock_id: int) -> Optional[Dict[str, Any]]:
         """获取股票详细信息"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT * FROM stock_analysis_detail 
-                WHERE id = ?
-            """, (stock_id,))
-            
-            row = cursor.fetchone()
-            return dict(row) if row else None
-    
-    def update_stock_dimension_score(self, stock_id: int, dimension: str, 
-                                   score: int, prompt: str, summary: str = None, score_prompt: str = None):
+        conn = get_connection(use_dict_cursor=True)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT * FROM stock_analysis_detail WHERE id = %s", (stock_id,))
+            return cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
+
+    def update_stock_dimension_score(self, stock_id: int, dimension: str,
+                                     score: int, prompt: str, summary: str = None, score_prompt: str = None):
         """更新股票维度打分"""
         dimension = dimension.lower()
-        
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
             if score_prompt:
                 cursor.execute(f"""
-                    UPDATE stock_analysis_detail 
-                    SET {dimension}_score = ?, {dimension}_prompt = ?, {dimension}_summary = ?, {dimension}_score_prompt = ?
-                    WHERE id = ?
+                    UPDATE stock_analysis_detail
+                    SET {dimension}_score = %s, {dimension}_prompt = %s, {dimension}_summary = %s, {dimension}_score_prompt = %s
+                    WHERE id = %s
                 """, (score, prompt, summary, score_prompt, stock_id))
             else:
                 cursor.execute(f"""
-                    UPDATE stock_analysis_detail 
-                    SET {dimension}_score = ?, {dimension}_prompt = ?, {dimension}_summary = ?
-                    WHERE id = ?
+                    UPDATE stock_analysis_detail
+                    SET {dimension}_score = %s, {dimension}_prompt = %s, {dimension}_summary = %s
+                    WHERE id = %s
                 """, (score, prompt, summary, stock_id))
-            
             conn.commit()
-    
-    def update_stock_dimension_deep_analysis(self, stock_id: int, dimension: str, 
-                                            score: float, prompt: str, summary: str = None, score_prompt: str = None):
+        finally:
+            cursor.close()
+            conn.close()
+
+    def update_stock_dimension_deep_analysis(self, stock_id: int, dimension: str,
+                                              score: float, prompt: str, summary: str = None, score_prompt: str = None):
         """更新股票维度深度分析"""
         dimension = dimension.lower()
-        
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
             if score_prompt:
                 cursor.execute(f"""
-                    UPDATE stock_analysis_detail 
-                    SET {dimension}_deep_score = ?, {dimension}_deep_prompt = ?, {dimension}_deep_summary = ?, {dimension}_deep_score_prompt = ?
-                    WHERE id = ?
+                    UPDATE stock_analysis_detail
+                    SET {dimension}_deep_score = %s, {dimension}_deep_prompt = %s, {dimension}_deep_summary = %s, {dimension}_deep_score_prompt = %s
+                    WHERE id = %s
                 """, (score, prompt, summary, score_prompt, stock_id))
             else:
                 cursor.execute(f"""
-                    UPDATE stock_analysis_detail 
-                    SET {dimension}_deep_score = ?, {dimension}_deep_prompt = ?, {dimension}_deep_summary = ?
-                    WHERE id = ?
+                    UPDATE stock_analysis_detail
+                    SET {dimension}_deep_score = %s, {dimension}_deep_prompt = %s, {dimension}_deep_summary = %s
+                    WHERE id = %s
                 """, (score, prompt, summary, stock_id))
-            
             conn.commit()
-    
+        finally:
+            cursor.close()
+            conn.close()
+
     def update_stock_prescreening_data(self, stock_id: int, change_pct: float, high_price: float, high_price_date: str, latest_price: float = None):
         """更新涨跌初筛数据"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
             cursor.execute("""
                 UPDATE stock_analysis_detail
-                SET change_pct = ?, high_price_120 = ?, high_price_date_120 = ?, latest_price = ?
-                WHERE id = ?
+                SET change_pct = %s, high_price_120 = %s, high_price_date_120 = %s, latest_price = %s
+                WHERE id = %s
             """, (change_pct, high_price, high_price_date, latest_price, stock_id))
             conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
 
     def update_stock_kline(self, stock_id: int, score: int, prompt: str):
         """更新K线分析"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
             cursor.execute("""
-                UPDATE stock_analysis_detail 
-                SET kline_score = ?, kline_prompt = ?
-                WHERE id = ?
+                UPDATE stock_analysis_detail SET kline_score = %s, kline_prompt = %s WHERE id = %s
             """, (score, prompt, stock_id))
-            
             conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
 
     def update_stock_kline_scores(self, stock_id: int, total_score: int):
         """更新K线综合评分总分"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE stock_analysis_detail 
-                SET kline_total_score = ?
-                WHERE id = ?
-            """, (total_score, stock_id))
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("UPDATE stock_analysis_detail SET kline_total_score = %s WHERE id = %s", (total_score, stock_id))
             conn.commit()
-    
+        finally:
+            cursor.close()
+            conn.close()
+
     def update_stock_overall_analysis(self, stock_id: int, analysis: str, prompt: str = None, grade: str = None):
         """更新整体分析"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
             if prompt is not None:
                 cursor.execute("""
-                    UPDATE stock_analysis_detail 
-                    SET overall_analysis = ?, overall_prompt = ?, overall_grade = ?
-                    WHERE id = ?
+                    UPDATE stock_analysis_detail
+                    SET overall_analysis = %s, overall_prompt = %s, overall_grade = %s
+                    WHERE id = %s
                 """, (analysis, prompt, grade, stock_id))
             else:
                 cursor.execute("""
-                    UPDATE stock_analysis_detail 
-                    SET overall_analysis = ?, overall_grade = ?
-                    WHERE id = ?
+                    UPDATE stock_analysis_detail SET overall_analysis = %s, overall_grade = %s WHERE id = %s
                 """, (analysis, grade, stock_id))
             conn.commit()
-    
-    def update_stock_status(self, stock_id: int, status: str, 
-                          error_message: str = None, is_deep_thinking: bool = False):
+        finally:
+            cursor.close()
+            conn.close()
+
+    def update_stock_status(self, stock_id: int, status: str,
+                            error_message: str = None, is_deep_thinking: bool = False):
         """更新股票状态"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
             completed_at = datetime.now().isoformat() if status == 'completed' else None
-            
             cursor.execute("""
-                UPDATE stock_analysis_detail 
-                SET status = ?, error_message = ?, is_deep_thinking = ?, completed_at = ?
-                WHERE id = ?
+                UPDATE stock_analysis_detail
+                SET status = %s, error_message = %s, is_deep_thinking = %s, completed_at = %s
+                WHERE id = %s
             """, (status, error_message, 1 if is_deep_thinking else 0, completed_at, stock_id))
-            
             conn.commit()
-    
+        finally:
+            cursor.close()
+            conn.close()
+
     def update_batch_progress(self, batch_id: int):
         """更新批次进度"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # 统计完成情况
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
             cursor.execute("""
-                SELECT 
+                SELECT
                     COUNT(*) as total,
                     SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success,
                     SUM(CASE WHEN status IN ('completed', 'failed') THEN 1 ELSE 0 END) as completed
-                FROM stock_analysis_detail 
-                WHERE batch_id = ?
+                FROM stock_analysis_detail
+                WHERE batch_id = %s
             """, (batch_id,))
-            
             result = cursor.fetchone()
             total, success, completed = result
-            
-            # 更新批次状态
             batch_status = 'completed' if completed == total else 'processing'
-            
             cursor.execute("""
-                UPDATE batch_info 
-                SET success_count = ?, completed_count = ?, status = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
+                UPDATE stock_batch_list_info
+                SET success_count = %s, completed_count = %s, status = %s
+                WHERE id = %s
             """, (success, completed, batch_status, batch_id))
-            
             conn.commit()
-    
+        finally:
+            cursor.close()
+            conn.close()
+
     def delete_batch(self, batch_id: int):
         """删除批次及其所有明细"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            cursor.execute("DELETE FROM stock_analysis_detail WHERE batch_id = ?", (batch_id,))
-            cursor.execute("DELETE FROM batch_info WHERE id = ?", (batch_id,))
-            
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("DELETE FROM stock_analysis_detail WHERE batch_id = %s", (batch_id,))
+            cursor.execute("DELETE FROM stock_batch_list_info WHERE id = %s", (batch_id,))
             conn.commit()
-    
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
+
     def clear_all_batches(self):
         """清空所有批次数据"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
             cursor.execute("DELETE FROM stock_analysis_detail")
-            cursor.execute("DELETE FROM batch_info")
-            
+            cursor.execute("DELETE FROM stock_batch_list_info")
             conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
 
     def add_dim_analysis_history(self, batch_id: int, stock_id: int, stock_name: str, stock_code: str,
-                                   dimension: str, is_deep_thinking: bool, execution_id: str = None,
-                                   score: float = None, result: str = None, summary: str = None,
-                                   status: str = 'done', error_message: str = None):
+                                 dimension: str, is_deep_thinking: bool, execution_id: str = None,
+                                 score: float = None, result: str = None, summary: str = None,
+                                 status: str = 'done', error_message: str = None):
         """写入单个维度历史记录"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
             cursor.execute("""
                 INSERT INTO stock_dim_analysis_history
                 (execution_id, batch_id, stock_id, stock_name, stock_code, dimension, is_deep_thinking,
                  score, result, summary, status, error_message)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (execution_id, batch_id, stock_id, stock_name, stock_code, dimension.upper(),
                   1 if is_deep_thinking else 0, score, result, summary, status, error_message))
             conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
 
     def update_dim_history_overall_grade(self, execution_id: str, overall_grade: str):
         """按 execution_id 更新整体评级"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
             cursor.execute(
-                "UPDATE stock_dim_analysis_history SET overall_grade = ? WHERE execution_id = ?",
-                (overall_grade, execution_id)
+                "UPDATE stock_dim_analysis_history SET overall_grade = %s WHERE execution_id = %s",
+                (overall_grade, execution_id),
             )
             conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
 
     def get_stock_dim_analysis_history(self, stock_name: str) -> List[Dict[str, Any]]:
-        """按股票名称查询维度历史记录，按execution_id分组，按时间倒序"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+        """按股票名称查询维度历史记录，按时间倒序"""
+        conn = get_connection(use_dict_cursor=True)
+        cursor = conn.cursor()
+        try:
             cursor.execute("""
                 SELECT id, execution_id, batch_id, stock_id, stock_name, stock_code, dimension,
                     is_deep_thinking, score, summary, status, error_message, overall_grade, created_at
                 FROM stock_dim_analysis_history
-                WHERE stock_name = ?
+                WHERE stock_name = %s
                 ORDER BY created_at DESC
             """, (stock_name,))
-            return [dict(row) for row in cursor.fetchall()]
+            return list(cursor.fetchall())
+        finally:
+            cursor.close()
+            conn.close()
 
     def clear_stock_dim_analysis_history(self, stock_name: str):
         """清空指定股票的维度历史记录"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM stock_dim_analysis_history WHERE stock_name = ?", (stock_name,))
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("DELETE FROM stock_dim_analysis_history WHERE stock_name = %s", (stock_name,))
             conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
 
     def add_deep_analysis_history(self, batch_id: int, stock_id: int, stock_name: str, stock_code: str,
                                    is_deep_thinking: bool, dim_results: dict, overall_analysis: str, overall_prompt: str):
         """写入一条深度分析历史记录"""
         dims = ['c', 'a', 'n', 's', 'l', 'i', 'm']
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
             cursor.execute("""
                 INSERT INTO stock_deep_analysis_history
                 (batch_id, stock_id, stock_name, stock_code, is_deep_thinking,
@@ -558,28 +540,34 @@ class DatabaseManager:
                  n_score, n_result, n_summary, s_score, s_result, s_summary,
                  l_score, l_result, l_summary, i_score, i_result, i_summary,
                  m_score, m_result, m_summary, overall_analysis, overall_prompt)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (
                 batch_id, stock_id, stock_name, stock_code, 1 if is_deep_thinking else 0,
                 *[v for d in dims for v in (dim_results.get(d, {}).get('score'), dim_results.get(d, {}).get('result'), dim_results.get(d, {}).get('summary'))],
-                overall_analysis, overall_prompt
+                overall_analysis, overall_prompt,
             ))
             conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
 
     def get_stock_deep_analysis_history(self, stock_name: str) -> List[Dict[str, Any]]:
         """按股票名称查询历史深度分析记录，按时间倒序"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+        conn = get_connection(use_dict_cursor=True)
+        cursor = conn.cursor()
+        try:
             cursor.execute("""
                 SELECT id, batch_id, stock_id, stock_name, stock_code, is_deep_thinking,
                     c_score, a_score, n_score, s_score, l_score, i_score, m_score,
                     overall_analysis, created_at
                 FROM stock_deep_analysis_history
-                WHERE stock_name = ?
+                WHERE stock_name = %s
                 ORDER BY created_at DESC
             """, (stock_name,))
-            return [dict(row) for row in cursor.fetchall()]
+            return list(cursor.fetchall())
+        finally:
+            cursor.close()
+            conn.close()
 
 
 # 全局数据库管理器实例

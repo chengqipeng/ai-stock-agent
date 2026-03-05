@@ -1,51 +1,68 @@
+"""K线数据 DAO — MySQL 单表版，所有股票共用 stock_kline 表"""
 import logging
 import re
-import sqlite3
 from datetime import date, timedelta, datetime, time as dtime
-from pathlib import Path
 from zoneinfo import ZoneInfo
 from chinese_calendar import is_workday
+
+from dao import get_connection
 
 logger = logging.getLogger(__name__)
 
 _CST = ZoneInfo("Asia/Shanghai")
-_DB_DIR = Path(__file__).parent.parent / "data_results/sql_lite"
+
+TABLE_NAME = "stock_kline"
 
 
-def get_db_path_for_stock(stock_code: str, db_dir: Path = None) -> Path:
-    db_dir = db_dir or _DB_DIR
-    safe_code = stock_code.replace('.', '_')
-    return db_dir / f'stock_{safe_code}.db'
+
+def _get_table_name(stock_code: str) -> str:
+    """兼容旧调用，统一返回单表名"""
+    return TABLE_NAME
 
 
-def create_kline_table(cursor, table_name):
-    cursor.execute(f'''
-        CREATE TABLE IF NOT EXISTS {table_name} (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            open_price REAL,
-            close_price REAL,
-            high_price REAL,
-            low_price REAL,
-            trading_volume REAL,
-            trading_amount REAL,
-            amplitude REAL,
-            change_percent REAL,
-            change_amount REAL,
-            change_hand REAL,
+def create_kline_table(cursor=None, table_name: str = None):
+    """创建统一K线表（幂等），table_name 参数仅为兼容旧调用，实际忽略"""
+    ddl = f"""
+        CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            stock_code VARCHAR(20) NOT NULL,
+            `date` VARCHAR(20) NOT NULL,
+            open_price DOUBLE,
+            close_price DOUBLE,
+            high_price DOUBLE,
+            low_price DOUBLE,
+            trading_volume DOUBLE,
+            trading_amount DOUBLE,
+            amplitude DOUBLE,
+            change_percent DOUBLE,
+            change_amount DOUBLE,
+            change_hand DOUBLE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(date)
-        )
-    ''')
-    cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_{table_name}_date ON {table_name}(date)')
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_code_date (stock_code, `date`),
+            INDEX idx_stock_code (stock_code),
+            INDEX idx_date (`date`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    own = cursor is None
+    if own:
+        conn = get_connection()
+        cursor = conn.cursor()
+    cursor.execute(ddl)
+    if own:
+        conn.commit()
+        cursor.close()
+        conn.close()
 
+
+
+# ─────────────────── 解析工具 ───────────────────
 
 def _to_float(v):
     return float(v) if v and v != 'None' else 0.0
 
 
-def parse_kline_data(kline_str):
+def parse_kline_data(kline_str: str) -> dict:
     fields = kline_str.split(',')
     return {
         'date': fields[0],
@@ -58,309 +75,8 @@ def parse_kline_data(kline_str):
         'amplitude': _to_float(fields[7]),
         'change_percent': _to_float(fields[8]),
         'change_amount': _to_float(fields[9]),
-        'change_hand': _to_float(fields[10])
+        'change_hand': _to_float(fields[10]),
     }
-
-
-def insert_or_update_kline_data(cursor, table_name, kline_data):
-    now_cst = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute(f'''
-        INSERT OR REPLACE INTO {table_name} 
-        (date, open_price, close_price, high_price, low_price, trading_volume, 
-         trading_amount, amplitude, change_percent, change_amount, change_hand, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        kline_data['date'],
-        kline_data['open_price'],
-        kline_data['close_price'],
-        kline_data['high_price'],
-        kline_data['low_price'],
-        kline_data['trading_volume'],
-        kline_data['trading_amount'],
-        kline_data['amplitude'],
-        kline_data['change_percent'],
-        kline_data['change_amount'],
-        kline_data['change_hand'],
-        now_cst
-    ))
-
-
-def batch_insert_or_update_kline_data(cursor, table_name, kline_data_list):
-    now_cst = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
-    cursor.executemany(f'''
-        INSERT OR REPLACE INTO {table_name}
-        (date, open_price, close_price, high_price, low_price, trading_volume,
-         trading_amount, amplitude, change_percent, change_amount, change_hand, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', [
-        (d['date'], d['open_price'], d['close_price'], d['high_price'], d['low_price'],
-         d['trading_volume'], d['trading_amount'], d['amplitude'], d['change_percent'],
-         d['change_amount'], d['change_hand'], now_cst)
-        for d in kline_data_list
-    ])
-
-
-def insert_suspension_day(cursor, table_name, d: date):
-    """插入停牌日占位记录"""
-    cursor.execute(f'''
-        INSERT OR IGNORE INTO {table_name}
-        (date, open_price, close_price, high_price, low_price, trading_volume,
-         trading_amount, amplitude, change_percent, change_amount, change_hand)
-        VALUES (?, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    ''', (d.isoformat(),))
-
-
-def _open_conn(db_path):
-    conn = sqlite3.connect(db_path)
-    conn.execute('PRAGMA journal_mode=WAL')
-    conn.execute('PRAGMA synchronous=NORMAL')
-    return conn
-
-
-def get_latest_db_date(db_path, stock_code):
-    """获取数据库中该股票最新K线日期"""
-    table_name = f"kline_{stock_code.replace('.', '_')}"
-    try:
-        conn = _open_conn(db_path)
-        cursor = conn.cursor()
-        cursor.execute(f"SELECT MAX(date) FROM {table_name}")
-        row = cursor.fetchone()
-        conn.close()
-        if row and row[0]:
-            return date.fromisoformat(row[0])
-    except sqlite3.OperationalError as e:
-        logger.warning("get_latest_db_date 查询失败 [%s]: %s", stock_code, e)
-    return None
-
-
-def get_missing_trading_days(db_path, stock_code, n=20):
-    """
-    返回过去n天内需要拉取K线数据的交易日列表。
-
-    今天的处理逻辑（今天必须是A股交易日）：
-      - 盘前（< 09:30）：不拉取今天，今天数据尚未产生
-      - 盘中（09:30 ~ 15:00）：强制拉取今天，即使数据库已有今天记录也覆盖更新（实时数据持续变化）
-      - 收盘后（> 15:00）：今天已在数据库则跳过，不在则拉取
-
-    历史交易日：数据库中缺失的交易日均纳入拉取列表。
-
-    返回值按日期降序排列（最新日期在前）。
-    """
-    now_cst = datetime.now(_CST)
-    today = now_cst.date()
-    now = now_cst.time()
-    in_trading = dtime(9, 30) <= now <= dtime(15, 0)
-    after_close = now > dtime(15, 0)
-
-    trading_days = set()
-    for i in range(n):
-        d = today - timedelta(days=i)
-        if d.weekday() < 5 and is_workday(d):
-            trading_days.add(d)
-
-    if not trading_days:
-        return []
-
-    table_name = f"kline_{stock_code.replace('.', '_')}"
-    start = min(trading_days).isoformat()
-    today_iso = today.isoformat()
-    try:
-        conn = _open_conn(db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            f"SELECT date, updated_at FROM {table_name} WHERE date >= ?", (start,)
-        )
-        rows = cursor.fetchall()
-        conn.close()
-        existing = {date.fromisoformat(r[0]) for r in rows}
-        today_updated_at = next((r[1] for r in rows if r[0] == today_iso), None)
-    except sqlite3.OperationalError as e:
-        logger.warning("get_missing_trading_days 查询失败 [%s]: %s", stock_code, e)
-        existing = set()
-        today_updated_at = None
-
-    missing = trading_days - existing
-    if today in trading_days and (in_trading or after_close):
-        if in_trading:
-            missing.add(today)
-        elif after_close and today not in missing:
-            if today_updated_at and today_updated_at < f"{today_iso} 15:00:00":
-                missing.add(today)
-    if not in_trading and not after_close:
-        missing.discard(today)
-
-    return sorted(missing, reverse=True)
-
-
-def get_kline_data(stock_code: str, start_date: str = None, end_date: str = None, limit: int = None) -> list[dict]:
-    """
-    查询股票K线数据
-
-    Args:
-        stock_code: 股票代码，如 "300812.SZ"
-        start_date: 开始日期，如 "2024-01-01"（可选）
-        end_date: 结束日期，如 "2024-12-31"（可选）
-        limit: 返回条数限制（可选）
-
-    Returns:
-        list[dict]: K线数据列表，按日期升序排列
-    """
-    table_name = f"kline_{stock_code.replace('.', '_')}"
-    db_path = get_db_path_for_stock(stock_code)
-    conn = _open_conn(db_path)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    sql = f"SELECT date, open_price, close_price, high_price, low_price, trading_volume, trading_amount, amplitude, change_percent, change_amount, change_hand FROM {table_name} WHERE 1=1"
-    params = []
-
-    if start_date:
-        sql += " AND date >= ?"
-        params.append(start_date)
-    if end_date:
-        sql += " AND date <= ?"
-        params.append(end_date)
-
-    sql += " ORDER BY date DESC"
-
-    if limit:
-        sql += " LIMIT ?"
-        params.append(limit)
-
-    try:
-        cursor.execute(sql, params)
-        rows = [dict(row) for row in cursor.fetchall()]
-        rows.reverse()
-    except sqlite3.OperationalError as e:
-        logger.warning("get_kline_data 查询失败 [%s]: %s", stock_code, e)
-        rows = []
-    finally:
-        conn.close()
-
-    return rows
-
-
-_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-
-
-def _is_trading_day(d: date) -> bool:
-    try:
-        return d.weekday() < 5 and is_workday(d)
-    except Exception as e:
-        logger.warning("_is_trading_day 判断失败 [%s]: %s", d, e)
-        return True
-
-
-def check_db(db_path: Path) -> list[dict]:
-    """
-    检测 stock_*.db 数据异常，返回异常列表。
-    同时会删除非交易日数据。
-    """
-    stock_code = db_path.stem.removeprefix("stock_").replace("_", ".")
-    table_name = f"kline_{db_path.stem.removeprefix('stock_')}"
-    issues = []
-
-    def issue(row_date, anomaly_type, detail):
-        issues.append({"stock_code": stock_code, "date": row_date, "type": anomaly_type, "detail": detail,
-                       "legacy": bool(row_date and str(row_date) < "2025-07-01")})
-
-    try:
-        conn = sqlite3.connect(db_path)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-    except Exception as e:
-        return [{"stock_code": stock_code, "date": None, "type": "DB_OPEN_ERROR", "detail": str(e)}]
-
-    try:
-        cur.execute(f"SELECT COUNT(*) FROM {table_name}")
-        count = cur.fetchone()[0]
-    except sqlite3.OperationalError as e:
-        logger.warning("check_db 表不存在 [%s]: %s", stock_code, e)
-        conn.close()
-        return [{"stock_code": stock_code, "date": None, "type": "TABLE_MISSING", "detail": f"表 {table_name} 不存在"}]
-
-    if count == 0:
-        conn.close()
-        return [{"stock_code": stock_code, "date": None, "type": "TABLE_EMPTY", "detail": "表为空，无任何数据"}]
-
-    cur.execute(
-        f"SELECT date, open_price, close_price, high_price, low_price, "
-        f"trading_volume, trading_amount, change_percent FROM {table_name} ORDER BY date ASC"
-    )
-    rows = cur.fetchall()
-
-    seen_dates = {}
-    prev_date = None
-
-    for row in rows:
-        d = row["date"]
-        op, cp, hp, lp = row["open_price"], row["close_price"], row["high_price"], row["low_price"]
-        vol, amt, chg = row["trading_volume"], row["trading_amount"], row["change_percent"]
-
-        # 1. 日期格式
-        if not _DATE_RE.match(str(d)):
-            issue(d, "INVALID_DATE_FORMAT", f"日期格式异常: {d}")
-            continue
-
-        # 非交易日数据：立即删除
-        try:
-            row_date = date.fromisoformat(d)
-            if not _is_trading_day(row_date):
-                cur.execute(f"DELETE FROM {table_name} WHERE date = ?", (d,))
-                conn.commit()
-                logger.warning("[%s] 删除非交易日数据: date=%s", stock_code, d)
-                continue
-        except ValueError as e:
-            logger.debug("[%s] 日期解析失败: date=%s, %s", stock_code, d, e)
-
-        # 2. 日期重复
-        if d in seen_dates:
-            issue(d, "DUPLICATE_DATE", "日期重复出现")
-        seen_dates[d] = True
-
-        is_suspension = (cp == 0 and op == 0 and hp == 0 and lp == 0 and vol == 0 and amt == 0)
-
-        if is_suspension:
-            if chg != 0:
-                issue(d, "SUSPENSION_NONZERO_FIELD", f"停牌占位记录中 change_percent={chg} 非零")
-        else:
-            for field, val in [("close_price", cp), ("open_price", op), ("high_price", hp), ("low_price", lp)]:
-                if val is not None and val <= 0:
-                    issue(d, "PRICE_NON_POSITIVE", f"{field}={val} 不合法（应 > 0）")
-
-            if hp is not None and lp is not None and hp < lp:
-                issue(d, "PRICE_HIGH_LESS_THAN_LOW", f"high_price={hp} < low_price={lp}")
-            if cp is not None and hp is not None and cp > hp:
-                issue(d, "PRICE_CLOSE_ABOVE_HIGH", f"close_price={cp} > high_price={hp}")
-            if cp is not None and lp is not None and cp < lp:
-                issue(d, "PRICE_CLOSE_BELOW_LOW", f"close_price={cp} < low_price={lp}")
-            if op is not None and hp is not None and op > hp:
-                issue(d, "PRICE_OPEN_ABOVE_HIGH", f"open_price={op} > high_price={hp}")
-            if op is not None and lp is not None and op < lp:
-                issue(d, "PRICE_OPEN_BELOW_LOW", f"open_price={op} < low_price={lp}")
-
-            if vol is not None and vol < 0:
-                issue(d, "NEGATIVE_VOLUME", f"trading_volume={vol} < 0")
-            if amt is not None and amt < 0:
-                issue(d, "NEGATIVE_AMOUNT", f"trading_amount={amt} < 0")
-
-            if chg is not None and abs(chg) > 21:
-                issue(d, "ABNORMAL_CHANGE_PERCENT", f"change_percent={chg}% 超过±21%")
-
-        if prev_date is not None:
-            try:
-                d0 = date.fromisoformat(prev_date)
-                d1 = date.fromisoformat(d)
-                gap_days = (d1 - d0).days
-                if gap_days > 1:
-                    pass  # 缺失交易日检测（当前仅预留）
-            except (ValueError, Exception) as e:
-                logger.debug("[%s] 缺失交易日检测异常: %s", stock_code, e)
-        prev_date = d
-
-    conn.close()
-    return issues
 
 
 def kline_to_dao_record(k: dict) -> dict:
@@ -380,28 +96,262 @@ def kline_to_dao_record(k: dict) -> dict:
     }
 
 
-def save_kline_to_db(stock_code_normalize: str, klines: list[dict]) -> None:
-    """将重新拉取的 K 线数据覆盖写入数据库"""
-    db_path = get_db_path_for_stock(stock_code_normalize)
-    table_name = f"kline_{stock_code_normalize.replace('.', '_')}"
-    records = [kline_to_dao_record(k) for k in klines]
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA journal_mode=WAL")
+# ─────────────────── 写入 ───────────────────
+
+_UPSERT_SQL = f"""
+    INSERT INTO {TABLE_NAME}
+    (stock_code, `date`, open_price, close_price, high_price, low_price,
+     trading_volume, trading_amount, amplitude, change_percent, change_amount, change_hand, updated_at)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE
+        open_price=VALUES(open_price), close_price=VALUES(close_price),
+        high_price=VALUES(high_price), low_price=VALUES(low_price),
+        trading_volume=VALUES(trading_volume), trading_amount=VALUES(trading_amount),
+        amplitude=VALUES(amplitude), change_percent=VALUES(change_percent),
+        change_amount=VALUES(change_amount), change_hand=VALUES(change_hand),
+        updated_at=VALUES(updated_at)
+"""
+
+
+def insert_or_update_kline_data(cursor, stock_code: str, kline_data: dict):
+    now_cst = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute(_UPSERT_SQL, (
+        stock_code,
+        kline_data['date'], kline_data['open_price'], kline_data['close_price'],
+        kline_data['high_price'], kline_data['low_price'], kline_data['trading_volume'],
+        kline_data['trading_amount'], kline_data['amplitude'], kline_data['change_percent'],
+        kline_data['change_amount'], kline_data['change_hand'], now_cst,
+    ))
+
+
+def batch_insert_or_update_kline_data(cursor, stock_code: str, kline_data_list: list[dict]):
+    now_cst = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
+    cursor.executemany(_UPSERT_SQL, [
+        (stock_code,
+         d['date'], d['open_price'], d['close_price'], d['high_price'], d['low_price'],
+         d['trading_volume'], d['trading_amount'], d['amplitude'], d['change_percent'],
+         d['change_amount'], d['change_hand'], now_cst)
+        for d in kline_data_list
+    ])
+
+
+def insert_suspension_day(cursor, stock_code: str, d: date):
+    """插入停牌日占位记录"""
+    cursor.execute(f"""
+        INSERT IGNORE INTO {TABLE_NAME}
+        (stock_code, `date`, open_price, close_price, high_price, low_price,
+         trading_volume, trading_amount, amplitude, change_percent, change_amount, change_hand)
+        VALUES (%s, %s, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    """, (stock_code, d.isoformat()))
+
+
+# ─────────────────── 查询 ───────────────────
+
+def get_latest_db_date(stock_code: str) -> date | None:
+    """获取数据库中该股票最新K线日期"""
+    conn = get_connection()
+    cursor = conn.cursor()
     try:
-        cur = conn.cursor()
-        create_kline_table(cur, table_name)
-        batch_insert_or_update_kline_data(cur, table_name, records)
-        conn.commit()
+        cursor.execute(
+            f"SELECT MAX(`date`) FROM {TABLE_NAME} WHERE stock_code = %s", (stock_code,)
+        )
+        row = cursor.fetchone()
+        if row and row[0]:
+            return date.fromisoformat(str(row[0]))
+    except Exception as e:
+        logger.warning("get_latest_db_date 查询失败 [%s]: %s", stock_code, e)
     finally:
+        cursor.close()
+        conn.close()
+    return None
+
+
+def get_missing_trading_days(stock_code: str, n: int = 20) -> list[date]:
+    """
+    返回过去n天内需要拉取K线数据的交易日列表。
+
+    今天的处理逻辑（今天必须是A股交易日）：
+      - 盘前（< 09:30）：不拉取今天
+      - 盘中（09:30 ~ 15:00）：强制拉取今天
+      - 收盘后（> 15:00）：今天已在数据库则跳过，不在则拉取
+
+    返回值按日期降序排列。
+    """
+    now_cst = datetime.now(_CST)
+    today = now_cst.date()
+    now = now_cst.time()
+    in_trading = dtime(9, 30) <= now <= dtime(15, 0)
+    after_close = now > dtime(15, 0)
+
+    trading_days = set()
+    for i in range(n):
+        d = today - timedelta(days=i)
+        if d.weekday() < 5 and is_workday(d):
+            trading_days.add(d)
+
+    if not trading_days:
+        return []
+
+    start = min(trading_days).isoformat()
+    today_iso = today.isoformat()
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            f"SELECT `date`, updated_at FROM {TABLE_NAME} WHERE stock_code = %s AND `date` >= %s",
+            (stock_code, start),
+        )
+        rows = cursor.fetchall()
+        existing = {date.fromisoformat(str(r[0])) for r in rows}
+        today_updated_at = next((str(r[1]) for r in rows if str(r[0]) == today_iso), None)
+    except Exception as e:
+        logger.warning("get_missing_trading_days 查询失败 [%s]: %s", stock_code, e)
+        existing = set()
+        today_updated_at = None
+    finally:
+        cursor.close()
+        conn.close()
+
+    missing = trading_days - existing
+    if today in trading_days and (in_trading or after_close):
+        if in_trading:
+            missing.add(today)
+        elif after_close and today not in missing:
+            if today_updated_at and today_updated_at < f"{today_iso} 15:00:00":
+                missing.add(today)
+    if not in_trading and not after_close:
+        missing.discard(today)
+
+    return sorted(missing, reverse=True)
+
+
+def get_kline_data(stock_code: str, start_date: str = None, end_date: str = None, limit: int = None) -> list[dict]:
+    """查询股票K线数据，按日期升序。"""
+    conn = get_connection(use_dict_cursor=True)
+    cursor = conn.cursor()
+
+    sql = (f"SELECT `date`, open_price, close_price, high_price, low_price, "
+           f"trading_volume, trading_amount, amplitude, change_percent, change_amount, change_hand "
+           f"FROM {TABLE_NAME} WHERE stock_code = %s")
+    params: list = [stock_code]
+
+    if start_date:
+        sql += " AND `date` >= %s"
+        params.append(start_date)
+    if end_date:
+        sql += " AND `date` <= %s"
+        params.append(end_date)
+
+    sql += " ORDER BY `date` DESC"
+
+    if limit:
+        sql += " LIMIT %s"
+        params.append(limit)
+
+    try:
+        cursor.execute(sql, params)
+        rows = list(cursor.fetchall())
+        rows.reverse()
+    except Exception as e:
+        logger.warning("get_kline_data 查询失败 [%s]: %s", stock_code, e)
+        rows = []
+    finally:
+        cursor.close()
+        conn.close()
+
+    return rows
+
+
+# ─────────────────── 所有股票代码 ───────────────────
+
+def get_all_stock_codes() -> list[str]:
+    """从 stock_kline 表中查询所有不同的 stock_code"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(f"SELECT DISTINCT stock_code FROM {TABLE_NAME}")
+        return [row[0] for row in cursor.fetchall()]
+    finally:
+        cursor.close()
         conn.close()
 
 
-if __name__ == '__main__':
-    stock_code = '600183.SH'
-    db_path = get_db_path_for_stock(stock_code)
-    print('DB path:', db_path)
-    print('Latest date:', get_latest_db_date(db_path, stock_code))
-    print('Missing trading days:', get_missing_trading_days(db_path, stock_code))
-    rows = get_kline_data(stock_code, limit=5)
-    for row in rows:
-        print(row)
+# ─────────────────── 数据检测 & 修复 ───────────────────
+
+def check_db(stock_code: str) -> list[dict]:
+    """
+    检测指定股票在 stock_kline 表中的数据异常，返回异常列表。
+    每条异常: {"type": str, "date": str, "detail": str, "legacy": bool}
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    issues: list[dict] = []
+    try:
+        cursor.execute(
+            f"SELECT `date`, open_price, close_price, high_price, low_price, "
+            f"trading_volume, trading_amount, amplitude, change_percent, change_amount, change_hand "
+            f"FROM {TABLE_NAME} WHERE stock_code = %s ORDER BY `date`",
+            (stock_code,),
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            issues.append({"type": "empty", "date": "-", "detail": "该股票无K线数据", "legacy": False})
+            return issues
+
+        seen_dates: set[str] = set()
+        for r in rows:
+            d, op, cp, hp, lp, vol, amt = r[0], r[1], r[2], r[3], r[4], r[5], r[6]
+            chg_pct = r[8]
+            d_str = str(d)
+
+            # 日期重复
+            if d_str in seen_dates:
+                issues.append({"type": "dup_date", "date": d_str, "detail": "日期重复", "legacy": False})
+            seen_dates.add(d_str)
+
+            # 停牌占位记录跳过价格检测
+            if op == 0 and cp == 0 and hp == 0 and lp == 0 and vol == 0:
+                continue
+
+            # 价格 <= 0
+            for name, val in [("open", op), ("close", cp), ("high", hp), ("low", lp)]:
+                if val is not None and val <= 0:
+                    issues.append({"type": "price_le0", "date": d_str,
+                                   "detail": f"{name}_price={val}", "legacy": False})
+
+            # 价格关系
+            if hp is not None and lp is not None and hp < lp:
+                issues.append({"type": "high_lt_low", "date": d_str,
+                               "detail": f"high={hp} < low={lp}", "legacy": False})
+
+            # 涨跌幅 > 21%
+            if chg_pct is not None and abs(chg_pct) > 21:
+                issues.append({"type": "chg_pct", "date": d_str,
+                               "detail": f"change_percent={chg_pct}", "legacy": False})
+
+            # 成交量/金额 < 0
+            if vol is not None and vol < 0:
+                issues.append({"type": "neg_vol", "date": d_str,
+                               "detail": f"trading_volume={vol}", "legacy": False})
+            if amt is not None and amt < 0:
+                issues.append({"type": "neg_amt", "date": d_str,
+                               "detail": f"trading_amount={amt}", "legacy": False})
+    finally:
+        cursor.close()
+        conn.close()
+    return issues
+
+
+def save_kline_to_db(stock_code: str, kline_list: list[dict]):
+    """将K线数据列表写入数据库（upsert），用于修复场景"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        create_kline_table(cursor)
+        records = [kline_to_dao_record(k) for k in kline_list]
+        batch_insert_or_update_kline_data(cursor, stock_code, records)
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()

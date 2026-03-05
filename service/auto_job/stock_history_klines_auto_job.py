@@ -12,13 +12,13 @@ from service.jqka10.stock_realtime_10jqka import get_today_kline_as_str
 from service.jqka10.stock_finance_data_10jqka import get_financial_data_to_json as get_finance_data
 from common.utils.stock_info_utils import get_stock_info_by_code
 from common.constants.stocks_data import MAIN_STOCK
+from dao import get_connection
 from dao.stock_kline_dao import (
-    get_db_path_for_stock, get_missing_trading_days, get_latest_db_date,
+    get_missing_trading_days, get_latest_db_date,
     create_kline_table, parse_kline_data, batch_insert_or_update_kline_data, insert_suspension_day,
-    _open_conn
 )
 from dao.stock_finance_dao import (
-    get_finance_table_name, create_finance_table, batch_upsert_finance_data,
+    create_finance_table, batch_upsert_finance_data,
     get_finance_latest_updated_at,
 )
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 # ─────────────────── K线采集流水线 ───────────────────
 
-async def _process_single_kline(stock_code, stock_name, db_path, limit, counter):
+async def _process_single_kline(stock_code, stock_name, limit, counter):
     """处理单只股票的K线数据拉取和存储"""
     stock_info = get_stock_info_by_code(stock_code)
     if not stock_info:
@@ -37,8 +37,8 @@ async def _process_single_kline(stock_code, stock_name, db_path, limit, counter)
         return
 
     t_start = asyncio.get_event_loop().time()
-    missing_days = get_missing_trading_days(db_path, stock_code)
-    latest_db_date = get_latest_db_date(db_path, stock_code)
+    missing_days = get_missing_trading_days(stock_code)
+    latest_db_date = get_latest_db_date(stock_code)
     t_dao = asyncio.get_event_loop().time()
 
     if not missing_days:
@@ -107,11 +107,10 @@ async def _process_single_kline(stock_code, stock_name, db_path, limit, counter)
         return
 
     # 写入数据库
-    conn = _open_conn(db_path)
+    conn = get_connection()
     cursor = conn.cursor()
     t_db_start = asyncio.get_event_loop().time()
-    table_name = f"kline_{stock_code.replace('.', '_')}"
-    create_kline_table(cursor, table_name)
+    create_kline_table(cursor)
     saved_dates = set()
     parsed_list = []
     for kline_str in klines:
@@ -121,11 +120,12 @@ async def _process_single_kline(stock_code, stock_name, db_path, limit, counter)
             saved_dates.add(date.fromisoformat(kline_data['date']))
         except Exception as e:
             logger.error("解析K线数据失败 %s: %s", stock_code, e)
-    batch_insert_or_update_kline_data(cursor, table_name, parsed_list)
+    batch_insert_or_update_kline_data(cursor, stock_code, parsed_list)
     for d in missing_days:
         if d not in saved_dates:
-            insert_suspension_day(cursor, table_name, d)
+            insert_suspension_day(cursor, stock_code, d)
     conn.commit()
+    cursor.close()
     conn.close()
     t_db_end = asyncio.get_event_loop().time()
 
@@ -136,7 +136,7 @@ async def _process_single_kline(stock_code, stock_name, db_path, limit, counter)
 
 # ─────────────────── 财报采集流水线 ───────────────────
 
-async def _process_single_finance(stock_code, stock_name, db_path, counter):
+async def _process_single_finance(stock_code, stock_name, counter):
     """处理单只股票的财报数据拉取和存储"""
     stock_info = get_stock_info_by_code(stock_code)
     if not stock_info:
@@ -145,7 +145,7 @@ async def _process_single_finance(stock_code, stock_name, db_path, counter):
 
     # 今天已拉取过则跳过
     today_str = datetime.now(_CST).strftime("%Y-%m-%d")
-    latest_updated = get_finance_latest_updated_at(stock_code, db_path)
+    latest_updated = get_finance_latest_updated_at(stock_code)
     if latest_updated and latest_updated[:10] >= today_str:
         counter['success'] += 1
         print(f"[财报 总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] "
@@ -168,12 +168,12 @@ async def _process_single_finance(stock_code, stock_name, db_path, counter):
 
     # 写入数据库
     t_db = asyncio.get_event_loop().time()
-    conn = _open_conn(db_path)
+    conn = get_connection()
     cursor = conn.cursor()
-    fin_table = get_finance_table_name(stock_code)
-    create_finance_table(cursor, fin_table)
-    batch_upsert_finance_data(cursor, fin_table, records)
+    create_finance_table(cursor)
+    batch_upsert_finance_data(cursor, stock_code, records)
     conn.commit()
+    cursor.close()
     conn.close()
     t_db_end = asyncio.get_event_loop().time()
 
@@ -207,9 +207,6 @@ def _build_stock_list() -> list[dict]:
 
 async def run_kline_job(limit=800, max_concurrent=1):
     """独立运行K线采集任务"""
-    db_dir = Path(__file__).parent.parent.parent / "data_results/sql_lite"
-    db_dir.mkdir(parents=True, exist_ok=True)
-
     stocks = _build_stock_list()
     print(f"[K线] 开始采集，共 {len(stocks)} 只股票")
 
@@ -218,8 +215,7 @@ async def run_kline_job(limit=800, max_concurrent=1):
 
     async def task(stock):
         async with semaphore:
-            db_path = str(get_db_path_for_stock(stock['code'], db_dir))
-            await _process_single_kline(stock['code'], stock['name'], db_path, limit, counter)
+            await _process_single_kline(stock['code'], stock['name'], limit, counter)
 
     await asyncio.gather(*[task(s) for s in stocks], return_exceptions=True)
     print(f"[K线] 采集完成，总{counter['total']} 成功{counter['success']} 失败{counter['failed']}")
@@ -228,9 +224,6 @@ async def run_kline_job(limit=800, max_concurrent=1):
 
 async def run_finance_job(max_concurrent=3):
     """独立运行财报采集任务"""
-    db_dir = Path(__file__).parent.parent.parent / "data_results/sql_lite"
-    db_dir.mkdir(parents=True, exist_ok=True)
-
     stocks = _build_stock_list()
     print(f"[财报] 开始采集，共 {len(stocks)} 只股票")
 
@@ -239,8 +232,7 @@ async def run_finance_job(max_concurrent=3):
 
     async def task(stock):
         async with semaphore:
-            db_path = str(get_db_path_for_stock(stock['code'], db_dir))
-            await _process_single_finance(stock['code'], stock['name'], db_path, counter)
+            await _process_single_finance(stock['code'], stock['name'], counter)
 
     await asyncio.gather(*[task(s) for s in stocks], return_exceptions=True)
     print(f"[财报] 采集完成，总{counter['total']} 成功{counter['success']} 失败{counter['failed']}")

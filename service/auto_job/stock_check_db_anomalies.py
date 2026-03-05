@@ -25,8 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dao.stock_kline_dao import (
-    get_db_path_for_stock, create_kline_table, batch_insert_or_update_kline_data,
-    check_db, kline_to_dao_record, save_kline_to_db, logger
+    check_db, save_kline_to_db, get_all_stock_codes, logger
 )
 from service.jqka10.stock_day_kline_data_10jqka import get_stock_day_kline_10jqka
 from common.utils.stock_info_utils import get_stock_info_by_code
@@ -41,7 +40,12 @@ log = logging.getLogger(__name__)
 DB_DIR = Path(__file__).parent.parent.parent / "data_results/sql_lite"
 
 
-async def _repair_stock(stock_code_normalize: str, db_path: Path, original_issues: list[dict]) -> None:
+def _get_all_kline_stock_codes() -> list[str]:
+    """从 stock_kline 单表中查询所有不同的股票代码"""
+    return get_all_stock_codes()
+
+
+async def _repair_stock(stock_code_normalize: str, original_issues: list[dict]) -> None:
     """拉取最新数据，重新检测，通过则保存，否则记录日志"""
     log.info("[%s] 发现 %d 条异常，开始重新拉取数据...", stock_code_normalize, len(original_issues))
     try:
@@ -79,7 +83,7 @@ async def _repair_stock(stock_code_normalize: str, db_path: Path, original_issue
 
     save_kline_to_db(stock_code_normalize, clean_klines)
 
-    re_issues = check_db(db_path)
+    re_issues = check_db(stock_code_normalize)
     if not re_issues:
         log.info("[%s] 重新拉取后检测通过，数据已更新 ✓", stock_code_normalize)
     else:
@@ -92,43 +96,36 @@ async def _repair_stock(stock_code_normalize: str, db_path: Path, original_issue
 
 
 async def main():
-    db_files = sorted(DB_DIR.glob("stock_*.db"))
-    if not db_files:
-        log.warning("未找到任何 stock_*.db 文件，路径: %s", DB_DIR)
+    stock_codes = _get_all_kline_stock_codes()
+    if not stock_codes:
+        log.warning("未找到任何 kline 表")
         return
 
-    log.info("共发现 %d 个数据库文件，开始检测...", len(db_files))
+    log.info("共发现 %d 只股票的K线表，开始检测...", len(stock_codes))
 
     total_issues = 0
     stocks_with_issues = 0
 
-    for db_path in db_files:
-        issues = check_db(db_path)
+    for stock_code in stock_codes:
+        issues = check_db(stock_code)
         if not issues:
             continue
 
         stocks_with_issues += 1
         total_issues += len(issues)
-        stock_code_normalize = db_path.stem.removeprefix("stock_").replace("_", ".")
 
         legacy_issues = [i for i in issues if i.get("legacy")]
         active_issues = [i for i in issues if not i.get("legacy")]
 
-        GREEN = "\033[32m"
-        RESET = "\033[0m"
-        # if legacy_issues:
-        #     for iss in legacy_issues:
-        #         print(f"{GREEN}[LEGACY][{iss['type']}] {stock_code_normalize} 日期={iss['date']}  {iss['detail']}{RESET}")
-
         if active_issues:
-            log.info("[%s] 发现 %d 条异常：", db_path.name, len(active_issues))
+            log.info("[%s] 发现 %d 条异常：", stock_code, len(active_issues))
             for iss in active_issues:
                 log.info("  [%s] 日期=%s  %s", iss["type"], iss["date"], iss["detail"])
-            await _repair_stock(stock_code_normalize, db_path, active_issues)
+            await _repair_stock(stock_code, active_issues)
 
     log.info(
         "检测完成：共 %d 只股票，%d 只有异常，共 %d 条异常记录",
-        len(db_files), stocks_with_issues, total_issues
+        len(stock_codes), stocks_with_issues, total_issues
     )
 
 
