@@ -40,7 +40,7 @@ class BaseStockProcessor(ABC):
                 result = parse_llm_json(content)
                 
                 score = result.get('score', '0')
-                print(f"\n[{index}/{total}] {stock_name} ({stock_code}) - score:{score}")
+                logger.info("[%d/%d] %s (%s) - score:%s", index, total, stock_name, stock_code, score)
                 
                 async with lock:
                     lines = []

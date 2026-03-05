@@ -1,6 +1,10 @@
 import asyncio
+import logging
+
 from common.http.http_utils import EASTMONEY_PUSH2_API_URL, fetch_eastmoney_api
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
+
+logger = logging.getLogger(__name__)
 
 
 async def get_all_market_indices(market_code="b:MK0010", page=1, page_size=50):
@@ -71,9 +75,9 @@ async def get_market_indices_list(market_code="b:MK0010", page=1, page_size=50):
 
 async def main():
     result = await get_market_indices_list()
-    print("市场指数列表:")
+    logger.info("市场指数列表:")
     import json
-    print(json.dumps(result, ensure_ascii=False))
+    logger.info(json.dumps(result, ensure_ascii=False))
 
 
 if __name__ == "__main__":

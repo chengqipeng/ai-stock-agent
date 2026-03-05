@@ -37,7 +37,7 @@ async def fetch_star_market_stocks():
                     if code and name:
                         stocks.append({"code": f"{code}.SH", "name": name})
         
-        print(f"成功获取 {len(stocks)} 只科创板股票")
+        logger.info("成功获取 %d 只科创板股票", len(stocks))
         
         with open('star_market_stocks.json', 'w', encoding='utf-8') as f:
             json.dump(stocks, f, ensure_ascii=False)

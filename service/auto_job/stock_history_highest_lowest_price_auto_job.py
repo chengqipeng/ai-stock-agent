@@ -74,8 +74,9 @@ async def process_stock(stock):
                 save_result(result)
                 completed_count += 1
 
-            print(
-                f"✓ {stock_name}: 最高{highest_record['最高']}({highest_record['日期']}) 最低{lowest_record['最低']}({lowest_record['日期']}) - 当前执行 {completed_count}/{total_count}")
+            logger.info("✓ %s: 最高%s(%s) 最低%s(%s) - 当前执行 %d/%d",
+                        stock_name, highest_record['最高'], highest_record['日期'],
+                        lowest_record['最低'], lowest_record['日期'], completed_count, total_count)
     except Exception as e:
         logger.error("✗ %s 失败: %s", stock.get('name', ''), e)
 
@@ -117,10 +118,10 @@ async def main():
     total_count = len(remaining_stocks)
     completed_count = 0
 
-    print(f"开始处理 {total_count} 只股票（今日已完成 {len(processed_codes)} 只）...")
+    logger.info("开始处理 %d 只股票（今日已完成 %d 只）...", total_count, len(processed_codes))
 
     if not remaining_stocks:
-        print("所有股票已处理完成！")
+        logger.info("所有股票已处理完成！")
         return
 
     # 将股票分成5批
@@ -131,7 +132,7 @@ async def main():
     tasks = [process_batch(batch) for batch in batches]
     await asyncio.gather(*tasks)
 
-    print(f"\n处理完成！结果已保存到: {output_file}")
+    logger.info("处理完成！结果已保存到: %s", output_file)
 
 
 if __name__ == "__main__":

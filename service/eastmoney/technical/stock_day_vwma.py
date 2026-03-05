@@ -1,6 +1,9 @@
 import asyncio
+import logging
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+
+logger = logging.getLogger(__name__)
 from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, INDICATOR_CONFIG
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline
 
@@ -38,7 +41,7 @@ async def get_vwma_markdown(stock_info: StockInfo):
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
     result = await get_vwma_markdown(stock_info)
-    print(result)
+    logger.info(result)
 
 if __name__ == "__main__":
     asyncio.run(main())

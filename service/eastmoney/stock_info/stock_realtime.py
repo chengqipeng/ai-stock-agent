@@ -1,6 +1,10 @@
+import logging
+
 from common.utils.amount_utils import convert_amount_unit
 from common.http.http_utils import EASTMONEY_PUSH_API_URL, fetch_eastmoney_api
 from common.utils.stock_info_utils import StockInfo
+
+logger = logging.getLogger(__name__)
 
 async def get_stock_realtime(stock_info: StockInfo):
     """获取股票实时数据"""
@@ -69,6 +73,6 @@ if __name__ == "__main__":
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         result = await get_stock_realtime_json(stock_info, ['stock_name', 'stock_code', 'volume'])
-        print(result)
+        logger.info("%s", result)
     
     asyncio.run(main())

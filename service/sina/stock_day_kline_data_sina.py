@@ -148,20 +148,21 @@ if __name__ == "__main__":
 
     async def main():
         stock_info = get_stock_info_by_name("生益科技")
-        print(f"=== {stock_info.stock_name}（{stock_info.stock_code_normalize}）新浪日K线 ===\n")
+        logger.info("=== %s（%s）新浪日K线 ===\n", stock_info.stock_name, stock_info.stock_code_normalize)
 
         # 标准化格式
         klines = await get_stock_day_kline_sina(stock_info, limit=10)
-        print(f"最近 {len(klines)} 条日K线：")
+        logger.info("最近 %d 条日K线：", len(klines))
         for k in klines:
-            print(f"  {k['date']}  开:{k['open_price']}  收:{k['close_price']}  "
-                  f"高:{k['high_price']}  低:{k['low_price']}  量:{k['trading_volume']}手"
-                  f"  涨跌:{k['change_percent']}%")
+            logger.info("  %s  开:%s  收:%s  高:%s  低:%s  量:%s手  涨跌:%s%%",
+                        k['date'], k['open_price'], k['close_price'],
+                        k['high_price'], k['low_price'], k['trading_volume'],
+                        k['change_percent'])
 
         # 字符串格式
-        print("\n字符串格式：")
+        logger.info("\n字符串格式：")
         str_klines = await get_stock_day_kline_as_str_sina(stock_info, limit=5)
         for s in str_klines:
-            print(f"  {s}")
+            logger.info("  %s", s)
 
     asyncio.run(main())

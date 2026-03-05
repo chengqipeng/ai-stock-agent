@@ -1,5 +1,8 @@
 import asyncio
+import logging
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache as get_stock_day_range_kline
 from service.eastmoney.technical.stock_day_volume_avg import get_volume_avg
 from service.eastmoney.technical.stock_day_boll import calculate_bollinger_bands
@@ -78,14 +81,15 @@ _CN_COLUMNS = {
 
 
 def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vol_shrink_ratio: float, vol_ma_window: int, high_pos_ratio: float) -> None:
-    print("\n========== 无量上涨诱多/背离信号日志 ==========")
-    print(f"""【策略逻辑说明】
-股票：{stock_name}
-策略：识别「无量上涨必须跑」诱多/背离形态，满足以下任一条件即触发警示，输出最新成交日是否满足和历史满足的前三个交易日：
-  条件A+B+C（高位无量上涨）：收盘价 > BOLL中轨×{high_pos_ratio} 且 涨跌幅>0 且 成交量 < {vol_ma_window}日均量×{vol_shrink_ratio}
-  条件D（阶梯缩量）：连续3日价涨，且成交量依次递减
-  条件E（结构背离）：创20日新高，但成交量 < 上一个20日新高日的成交量""")
-    print("\n【原始K线数据（最近250日）】")
+    logger.info("\n========== 无量上涨诱多/背离信号日志 ==========")
+    logger.info("【策略逻辑说明】\n"
+                "股票：%s\n"
+                "策略：识别「无量上涨必须跑」诱多/背离形态，满足以下任一条件即触发警示，输出最新成交日是否满足和历史满足的前三个交易日：\n"
+                "  条件A+B+C（高位无量上涨）：收盘价 > BOLL中轨×%s 且 涨跌幅>0 且 成交量 < %s日均量×%s\n"
+                "  条件D（阶梯缩量）：连续3日价涨，且成交量依次递减\n"
+                "  条件E（结构背离）：创20日新高，但成交量 < 上一个20日新高日的成交量",
+                stock_name, high_pos_ratio, vol_ma_window, vol_shrink_ratio)
+    logger.info("\n【原始K线数据（最近250日）】")
     display_df = raw_df.tail(250).copy()
     display_df['ma50_volume'] = calc_df['ma50_volume'].reindex(display_df.index)
     display_df['boll_mb'] = calc_df['boll_mb'].reindex(display_df.index)
@@ -94,8 +98,8 @@ def _log_result(stock_name: str, raw_df: pd.DataFrame, calc_df: pd.DataFrame, vo
         'volume': '成交量', 'pct_change': '涨跌幅', f'ma50_volume': f'{vol_ma_window}日均量', 'boll_mb': 'BOLL中轨',
     })
     display_df['日期'] = display_df['日期'].dt.strftime('%Y-%m-%d')
-    print(display_df.to_json(orient='records', force_ascii=False))
-    print("==========================================\n")
+    logger.info(display_df.to_json(orient='records', force_ascii=False))
+    logger.info("==========================================\n")
 
 
 async def get_unlimited_increase(stock_info: StockInfo, limit=400, vol_ma_window=50, high_pos_ratio=1.15, vol_shrink_ratio=0.8) -> tuple:
@@ -152,6 +156,6 @@ if __name__ == '__main__':
         stock_info: StockInfo = get_stock_info_by_name('三花智控')
         import json
         result = await get_unlimited_increase_cn(stock_info)
-        print(json.dumps(result, ensure_ascii=False))
+        logger.info(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

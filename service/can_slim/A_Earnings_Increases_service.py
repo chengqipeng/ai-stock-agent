@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, Any
 
 from common.prompt.can_slim.A_Earnings_Increases_prompt import A_EARNINGS_INCREASES_PROMPT_TEMPLATE
@@ -5,6 +6,8 @@ from common.constants.can_slim_final_outputs import A_FINAL_OUTPUT
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.stock_info.stock_financial_main import get_financial_data_to_json
 from service.can_slim.base_can_slim_service import BaseCanSlimService
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_cagr(eps_compare_data):
@@ -32,7 +35,7 @@ def calculate_cagr(eps_compare_data):
         else:
             cagr_value = round((ratio ** (1/3) - 1) * 100, 4)
     except (IndexError, TypeError, ZeroDivisionError) as e:
-        print(f"[calculate_cagr] 计算异常: {e}")
+        logger.warning("[calculate_cagr] 计算异常: %s", e)
         return None, None
     
     latest_date = latest_data.get('报告日期', '')
@@ -152,7 +155,7 @@ if __name__ == '__main__':
         stock_info = get_stock_info_by_name("中国卫通")
         eps_compare_data = await get_financial_data_to_json(stock_info, indicator_keys=['REPORT_DATE', 'EPSJB'])
         cagr_value, description = calculate_cagr(eps_compare_data)
-        print(f"CAGR值: {cagr_value}")
-        print(f"描述: {description}")
+        logger.info("CAGR值: %s", cagr_value)
+        logger.info("描述: %s", description)
 
     asyncio.run(main())

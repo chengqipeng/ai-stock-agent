@@ -191,24 +191,24 @@ if __name__ == "__main__":
     async def main():
         stock_info = get_stock_info_by_name("闰土股份")
         if not stock_info:
-            print("未找到股票")
+            logger.info("未找到股票")
             return
 
-        print(f"=== {stock_info.stock_name}({stock_info.stock_code_normalize}) 当日分时主力资金 ===\n")
+        logger.info(f"=== {stock_info.stock_name}({stock_info.stock_code_normalize}) 当日分时主力资金 ===\n")
 
         rows = await get_realtime_fund_flow_minute(stock_info)
         if not rows:
-            print("无数据（可能非交易时间）")
+            logger.info("无数据（可能非交易时间）")
             return
 
         # 打印最近10条
-        print("最近10条分时数据：")
+        logger.info("最近10条分时数据：")
         for r in rows[-10:]:
-            print(f"  {r['time']}  主力:{r['main_net_str']}  超大单:{r['super_net_str']}  "
-                  f"大单:{r['big_net_str']}  中单:{r['mid_net_str']}  小单:{r['small_net_str']}")
+            logger.info(f"  {r['time']}  主力:{r['main_net_str']}  超大单:{r['super_net_str']}  "
+                       f"大单:{r['big_net_str']}  中单:{r['mid_net_str']}  小单:{r['small_net_str']}")
 
-        print("\n--- 资金行为分析 ---")
+        logger.info("\n--- 资金行为分析 ---")
         analysis = analyze_minute_fund_flow(rows)
-        print(json.dumps(analysis, ensure_ascii=False, indent=2))
+        logger.info(json.dumps(analysis, ensure_ascii=False, indent=2))
 
     asyncio.run(main())

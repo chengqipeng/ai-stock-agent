@@ -4,11 +4,14 @@
 """
 import json
 import asyncio
+import logging
 
 from common.http.http_utils import fetch_eastmoney_api, EASTMONEY_API_URL
 from common.utils.amount_utils import convert_amount_unit
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.stock_info_utils import StockInfo
+
+logger = logging.getLogger(__name__)
 
 
 async def get_billboard_records(stock_info: StockInfo, days: int = 30, page_size: int = 50) -> list[dict]:
@@ -242,10 +245,10 @@ if __name__ == "__main__":
 
     async def main():
         stock_info = get_stock_info_by_name("生益科技")
-        print(f"=== {stock_info.stock_name}（{stock_info.stock_code_normalize}）龙虎榜数据 ===\n")
+        logger.info("=== %s（%s）龙虎榜数据 ===\n", stock_info.stock_name, stock_info.stock_code_normalize)
 
         # 1. 测试上榜记录
-        print("【1】近30日上榜记录：")
+        logger.info("【1】近30日上榜记录：")
         records = await get_billboard_records(stock_info, days=30)
         if records:
             for r in records:
@@ -253,18 +256,18 @@ if __name__ == "__main__":
                 reason = r.get("EXPLANATION", r.get("EXPLAIN", ""))
                 change = r.get("CHANGE_RATE", 0) or 0
                 net = r.get("BILLBOARD_NET_AMT", 0) or 0
-                print(f"  {date} | 涨跌幅:{change:+.2f}% | 净买额:{convert_amount_unit(net)} | 原因:{reason}")
+                logger.info("  %s | 涨跌幅:%+.2f%% | 净买额:%s | 原因:%s", date, change, convert_amount_unit(net), reason)
         else:
-            print("  近30日无龙虎榜记录")
+            logger.info("  近30日无龙虎榜记录")
 
-        print()
+        logger.info("")
 
         # 2. 测试完整数据（含席位）
-        print("【2】完整龙虎榜数据（含买卖席位）：")
+        logger.info("【2】完整龙虎榜数据（含买卖席位）：")
         full_data = await get_billboard_json(stock_info, days=30)
         if full_data:
-            print(json.dumps(full_data, ensure_ascii=False, indent=2))
+            logger.info(json.dumps(full_data, ensure_ascii=False, indent=2))
         else:
-            print("  近30日无龙虎榜记录")
+            logger.info("  近30日无龙虎榜记录")
 
     asyncio.run(main())

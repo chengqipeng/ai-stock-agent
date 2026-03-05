@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime
 
 from common.utils.stock_info_utils import StockInfo
@@ -6,6 +7,8 @@ from service.eastmoney.strategy_engine.stock_MACD_rule import get_macd_signals_m
     calculate_macd_signals, _build_dataframe
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_kline_cn, \
     get_stock_day_range_kline_by_db_cache
+
+logger = logging.getLogger(__name__)
 
 
 def _pre_compute_risk_metrics(stock_day_kline: list[dict], macd_detail: list[dict]) -> dict:
@@ -391,6 +394,6 @@ if __name__ == '__main__':
     async def main():
         stock_info = get_stock_info_by_name('生益科技')
         prompt = await get_stock_indicator_macd_prompt(stock_info)
-        print(prompt)
+        logger.info(prompt)
 
     asyncio.run(main())

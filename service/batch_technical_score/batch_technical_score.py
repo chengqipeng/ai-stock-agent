@@ -18,7 +18,6 @@ from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_rang
 from service.jqka10.stock_finance_data_10jqka import get_financial_data_from_db
 from dao.stock_technical_score_dao import save_score_results
 
-logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 SCORE_LIST_PATH = Path(__file__).parent.parent.parent / "data_results/stock_to_score_list/stock_score_list.md"
@@ -1224,7 +1223,7 @@ async def analyze_stock(name: str, code: str, idx: int, total: int) -> dict | No
     try:
         klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=200)
         if not klines or len(klines) < 60:
-            print(f"[{idx}/{total}] {name}({code}) - 数据不足，跳过")
+            logger.info("[%d/%d] %s(%s) - 数据不足，跳过", idx, total, name, code)
             return None
         df = build_df(klines)
         result = technical_score(df)
@@ -1242,13 +1241,14 @@ async def analyze_stock(name: str, code: str, idx: int, total: int) -> dict | No
             result.update(finance_info)
 
         tag = '✅' if result['total'] >= 50 else '  '
-        print(f"[{idx}/{total}] {tag} {name:<8} {code:<12} 总分:{result['total']:>3} "
-              f"MACD:{result['macd_score']:>2} KDJ:{result['kdj_score']:>2} "
-              f"量能:{result['vol_score']:>2} 趋势:{result['trend_score']:>2} "
-              f"120日高:{result['high120']} 跌幅:{result['high120_drop_pct']}%")
+        logger.info("[%d/%d] %s %s %s 总分:%3d MACD:%2d KDJ:%2d 量能:%2d 趋势:%2d 120日高:%s 跌幅:%s%%",
+                    idx, total, tag, name, code, result['total'],
+                    result['macd_score'], result['kdj_score'],
+                    result['vol_score'], result['trend_score'],
+                    result['high120'], result['high120_drop_pct'])
         return result
     except Exception as e:
-        print(f"[{idx}/{total}] {name}({code}) - 错误: {e}")
+        logger.error("[%d/%d] %s(%s) - 错误: %s", idx, total, name, code, e)
         return None
 
 
@@ -1389,7 +1389,7 @@ def write_result(results: list[dict], path: Path):
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text('\n'.join(lines), encoding='utf-8')
-    print(f"\n结果已写入: {path}")
+    logger.info("结果已写入: %s", path)
 
 def _format_amount(val) -> str:
     """将金额格式化为亿/万单位"""
@@ -1433,7 +1433,7 @@ def _append_finance_lines(lines: list[str], r: dict):
 
 async def main():
     stocks = parse_stock_list(SCORE_LIST_PATH)
-    print(f"共解析到 {len(stocks)} 只股票，开始技术面打分...\n")
+    logger.info("共解析到 %d 只股票，开始技术面打分...", len(stocks))
 
     results = []
     total = len(stocks)
@@ -1444,28 +1444,28 @@ async def main():
 
     write_result(results, OUTPUT_PATH)
     save_score_results(results)
-    print(f"打分结果已保存到数据库")
+    logger.info("打分结果已保存到数据库")
 
     qualified = [r for r in results if r['total'] >= 50]
     mid_bounce_signals = [r for r in results if r.get('mid_bounce_signal')]
     bounce_signals = [r for r in results if r.get('boll_signal')]
-    print(f"\n{'='*60}")
-    print(f"分析完成: 共 {len(results)} 只有效股票")
+    logger.info("=" * 60)
+    logger.info("分析完成: 共 %d 只有效股票", len(results))
     if mid_bounce_signals:
-        print(f"📈 中轨反弹信号: {len(mid_bounce_signals)} 只")
+        logger.info("📈 中轨反弹信号: %d 只", len(mid_bounce_signals))
         for r in sorted(mid_bounce_signals, key=lambda x: -x['mid_bounce_score']):
-            print(f"    {r['name']:<8} {r['code']:<12} 综合:{r['total']:>3} "
-                  f"中轨反弹:{r['mid_bounce_score']:>3} %b={r.get('mid_pct_b', '-')}")
+            logger.info("    %s %s 综合:%3d 中轨反弹:%3d %%b=%s",
+                        r['name'], r['code'], r['total'], r['mid_bounce_score'], r.get('mid_pct_b', '-'))
     else:
-        print(f"📈 中轨反弹信号: 暂无")
+        logger.info("📈 中轨反弹信号: 暂无")
     if bounce_signals:
-        print(f"🔻 下轨反弹信号: {len(bounce_signals)} 只")
+        logger.info("🔻 下轨反弹信号: %d 只", len(bounce_signals))
         for r in sorted(bounce_signals, key=lambda x: -x['boll_score']):
-            print(f"    {r['name']:<8} {r['code']:<12} 综合:{r['total']:>3} "
-                  f"反弹:{r['boll_score']:>3} %b={r.get('pct_b', '-')}")
+            logger.info("    %s %s 综合:%3d 反弹:%3d %%b=%s",
+                        r['name'], r['code'], r['total'], r['boll_score'], r.get('pct_b', '-'))
     else:
-        print(f"🔻 下轨反弹信号: 暂无")
-    print(f"{'='*60}")
+        logger.info("🔻 下轨反弹信号: 暂无")
+    logger.info("=" * 60)
 
 
 if __name__ == '__main__':

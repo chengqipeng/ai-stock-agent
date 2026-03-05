@@ -156,10 +156,10 @@ if __name__ == "__main__":
             query="钨矿"
         )
         for item in result:
-            print(f"ID: {item['id']}")
-            print(f"Title: {item['title']}")
-            print(f"URL: {item['url']}")
-            print(f"Content: {item['content']}")
-            print("-" * 80)
+            logger.info("ID: %s", item['id'])
+            logger.info("Title: %s", item['title'])
+            logger.info("URL: %s", item['url'])
+            logger.info("Content: %s", item['content'])
+            logger.info("-" * 80)
     
     asyncio.run(main())

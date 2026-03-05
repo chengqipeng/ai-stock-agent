@@ -1,8 +1,12 @@
+import logging
 import aiohttp
 import asyncio
 from common.utils.amount_utils import convert_amount_unit
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+
+
+logger = logging.getLogger(__name__)
 
 # 最近期数配置
 MAX_RECENT_PERIODS = 20
@@ -423,9 +427,9 @@ if __name__ == "__main__":
     async def main():
         stock_info: StockInfo = get_stock_info_by_name("北方华创")
         markdown = await get_financial_data_to_markdown(stock_info)
-        print(markdown)
+        logger.info(markdown)
 
         json = await get_financial_data_to_json(stock_info)
-        print(json)
+        logger.info(json)
     
     asyncio.run(main())

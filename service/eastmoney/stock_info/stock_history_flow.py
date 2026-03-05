@@ -1,3 +1,4 @@
+import logging
 from common.utils.amount_utils import convert_amount_unit
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.http.http_utils import fetch_eastmoney_api, EASTMONEY_PUSH2HIS_API_URL
@@ -142,6 +143,8 @@ from service.eastmoney.technical.stock_day_volume_avg import (
     get_20day_volume_avg, get_5day_volume_avg, get_20day_volume_avg_cn
 )
 
+logger = logging.getLogger(__name__)
+
 # async def get_fund_flow_history_markdown(stock_info: StockInfo, page_size = 120):
 #     """获取资金流向历史数据并转换为markdown"""
 #     klines = await get_fund_flow_history(stock_info)
@@ -188,8 +191,8 @@ if __name__ == "__main__":
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         # 测试 JSON 格式
         result = await get_fund_flow_history(stock_info)
-        print("资金流向历史数据 (JSON格式):")
-        print(json.dumps(result, ensure_ascii=False))
+        logger.info("资金流向历史数据 (JSON格式):")
+        logger.info(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())
 

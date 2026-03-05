@@ -125,6 +125,6 @@ if __name__ == "__main__":
     async def main():
         stock_info = get_stock_info_by_name("生益电子")
         klines = await get_stock_time_kline_cn_10jqka(stock_info)
-        print(json.dumps(klines[:50], ensure_ascii=False))
+        logger.info(json.dumps(klines[:50], ensure_ascii=False))
 
     asyncio.run(main())

@@ -532,7 +532,7 @@ if __name__ == "__main__":
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         # 测试股东人数数据
         result = await get_org_holder_json(stock_info)
-        print("股东人数数据 (JSON格式):")
-        print(json.dumps(result, ensure_ascii=False))
+        logger.info("股东人数数据 (JSON格式):")
+        logger.info(json.dumps(result, ensure_ascii=False))
     
     asyncio.run(main())

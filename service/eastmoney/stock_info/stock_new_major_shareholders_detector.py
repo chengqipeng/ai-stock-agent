@@ -1,6 +1,10 @@
+import logging
 from service.eastmoney.stock_info.stock_top_ten_shareholders_circulation import get_top_ten_shareholders_circulation_by_dates
 from common.utils.stock_info_utils import StockInfo
 
+
+
+logger = logging.getLogger(__name__)
 
 async def get_detect_new_major_shareholders(stock_info: StockInfo):
     """检测近两个季度是否有新进大股东
@@ -87,6 +91,6 @@ if __name__ == "__main__":
         stock_info = get_stock_info_by_name(stock_name)
         
         result = await get_detect_new_major_shareholders(stock_info)
-        print(json.dumps(result, ensure_ascii=False))
+        logger.info(json.dumps(result, ensure_ascii=False))
     
     asyncio.run(main())

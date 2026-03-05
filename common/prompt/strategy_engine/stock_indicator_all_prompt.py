@@ -3810,6 +3810,6 @@ if __name__ == '__main__':
     async def main():
         stock_info = get_stock_info_by_name('生益科技')
         prompt = await _fetch_market_index_summary("上证指数")
-        print(prompt)
+        logger.info(prompt)
 
     asyncio.run(main())

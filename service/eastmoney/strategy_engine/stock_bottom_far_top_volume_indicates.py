@@ -1,5 +1,8 @@
 import asyncio
+import logging
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
 from service.eastmoney.technical.stock_day_boll import calculate_bollinger_bands
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
@@ -116,19 +119,20 @@ def _detect_wyckoff_accumulation(df: pd.DataFrame, lookback_top=250, lookback_bo
 
 
 def _log_result(stock_name: str, raw_df: pd.DataFrame, matches: list, lookback_top: int, lookback_bot: int, window: int) -> None:
-    print("\n========== 底量远超顶量信号日志 ==========")
-    print(f"""【策略逻辑说明】
-股票：{stock_name}
-策略：识别「底量远超顶量预示主力长期建仓」威科夫吸筹信号，需同时满足以下3个条件：
-  条件A（空间跌幅）：底部均价 < 顶部均价 × 70%（跌幅超30%）
-  条件B（量能对比）：底部最大量 > 顶部最大量 × 1.3 倍
-  条件C（右侧企稳）：当前收盘价 >= MA20，且 > 底区最低价
-  条件D（量价协同）：底量当天收大阳线（涨幅>2%）或长下影线（下影>实体1.5倍）
-  条件E（缩量回踩）：底量后出现 ≥3 天缩量（<底量50%）且不破底的测试
-  条件F（时间维度）：底量到当前 ≥20 天，筹码换手充分
-顶部回溯：{lookback_top} 天，底部回溯：{lookback_bot} 天，区间延伸：前后各 {window} 天
-共找到匹配信号：{len(matches)} 个""")
-    print("==========================================\n")
+    logger.info("\n========== 底量远超顶量信号日志 ==========")
+    logger.info("【策略逻辑说明】\n"
+                "股票：%s\n"
+                "策略：识别「底量远超顶量预示主力长期建仓」威科夫吸筹信号，需同时满足以下3个条件：\n"
+                "  条件A（空间跌幅）：底部均价 < 顶部均价 × 70%%（跌幅超30%%）\n"
+                "  条件B（量能对比）：底部最大量 > 顶部最大量 × 1.3 倍\n"
+                "  条件C（右侧企稳）：当前收盘价 >= MA20，且 > 底区最低价\n"
+                "  条件D（量价协同）：底量当天收大阳线（涨幅>2%%）或长下影线（下影>实体1.5倍）\n"
+                "  条件E（缩量回踩）：底量后出现 ≥3 天缩量（<底量50%%）且不破底的测试\n"
+                "  条件F（时间维度）：底量到当前 ≥20 天，筹码换手充分\n"
+                "顶部回溯：%s 天，底部回溯：%s 天，区间延伸：前后各 %s 天\n"
+                "共找到匹配信号：%s 个",
+                stock_name, lookback_top, lookback_bot, window, len(matches))
+    logger.info("==========================================")
 
 
 def _build_result(df: pd.DataFrame, signal: bool, details: dict) -> dict:
@@ -205,6 +209,6 @@ if __name__ == '__main__':
         import json
         stock_info: StockInfo = get_stock_info_by_name('中国卫通')
         result = await get_bottom_far_top_volume_indicates_cn(stock_info)
-        print(json.dumps(result, ensure_ascii=False))
+        logger.info(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

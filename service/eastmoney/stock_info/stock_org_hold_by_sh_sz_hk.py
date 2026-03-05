@@ -1,8 +1,12 @@
+import logging
 from common.http.http_utils import fetch_eastmoney_api
 from common.utils.stock_info_utils import StockInfo
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.amount_utils import convert_amount_org_holder_1, convert_amount_org_holder_2
 
+
+
+logger = logging.getLogger(__name__)
 
 async def get_org_hold_by_sh_sz_hk_rank(stock_info: StockInfo, page_size: int = 4):
     """获取沪深港通持股排名数据"""
@@ -169,6 +173,6 @@ if __name__ == "__main__":
         stock_info = get_stock_info_by_name("北方华创")
         result = await get_org_hold_by_sh_sz_hk_rank_cn(stock_info)
         import json
-        print(json.dumps(result, ensure_ascii=False))
+        logger.info(json.dumps(result, ensure_ascii=False))
     
     asyncio.run(main())

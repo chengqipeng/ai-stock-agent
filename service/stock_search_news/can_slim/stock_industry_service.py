@@ -1,9 +1,12 @@
 import asyncio
+import logging
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.stock_info.stock_busi_desc import get_stock_board_type
 from service.llm.deepseek_client import DeepSeekClient
 from common.prompt.stock_industry_prompt import get_industry_prompt
+
+logger = logging.getLogger(__name__)
 
 async def get_industry_result(stock_info: StockInfo) -> str:
     """调用DeepSeek大模型并返回content结果"""
@@ -20,4 +23,4 @@ async def get_industry_result(stock_info: StockInfo) -> str:
 if __name__ == '__main__':
     stock_info = get_stock_info_by_name("北方华创")
     result = asyncio.run(get_industry_result(stock_info))
-    print(result)
+    logger.info("%s", result)

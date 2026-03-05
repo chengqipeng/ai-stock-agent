@@ -1,8 +1,12 @@
+import logging
 import aiohttp
 import asyncio
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
+
+
+logger = logging.getLogger(__name__)
 
 MAX_RECENT_PERIODS = 24
 SHARE_FIELDS = ['TOTAL_SHARES', 'LIMITED_SHARES', 'UNLIMITED_SHARES', 'LISTED_A_SHARES', 'FREE_SHARES', 'LIMITED_A_SHARES']
@@ -124,10 +128,10 @@ if __name__ == "__main__":
     async def main():
         stock_info: StockInfo = get_stock_info_by_name("北方华创")
         markdown = await get_equity_data_to_markdown(stock_info)
-        print(markdown)
-        print("\n" + "="*50 + "\n")
+        logger.info(markdown)
+        logger.info("\n" + "="*50 + "\n")
 
         json_data = await get_equity_data_to_json(stock_info, ['END_DATE', 'TOTAL_SHARES'])
-        print(json_data)
+        logger.info(json_data)
     
     asyncio.run(main())

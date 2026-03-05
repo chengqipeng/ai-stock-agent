@@ -764,20 +764,20 @@ if __name__ == "__main__":
     async def main():
         stock_info = get_stock_info_by_name("贵州茅台")
         if not stock_info:
-            print("未找到股票信息")
+            logger.info("未找到股票信息")
             return
 
-        print(f"=== {stock_info.stock_name} ({stock_info.stock_code_normalize}) ===\n")
+        logger.info(f"=== {stock_info.stock_name} ({stock_info.stock_code_normalize}) ===\n")
 
         # 标准 JSON 格式输出（与 stock_financial_main 一致）
         json_data = await get_financial_data_to_json(stock_info)
-        print("【标准JSON格式（前3期）】")
+        logger.info("【标准JSON格式（前3期）】")
         for item in json_data[:3]:
-            print(json.dumps(item, ensure_ascii=False, indent=2))
+            logger.info(json.dumps(item, ensure_ascii=False, indent=2))
 
         # 标准 Markdown 格式输出
-        print("\n【标准Markdown格式】")
+        logger.info("\n【标准Markdown格式】")
         md = await get_financial_data_to_markdown(stock_info)
-        print(md)
+        logger.info(md)
 
     asyncio.run(main())

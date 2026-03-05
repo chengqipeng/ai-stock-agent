@@ -30,11 +30,6 @@ from dao.stock_kline_dao import (
 from service.jqka10.stock_day_kline_data_10jqka import get_stock_day_kline_10jqka
 from common.utils.stock_info_utils import get_stock_info_by_code
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.StreamHandler()],
-)
 log = logging.getLogger(__name__)
 
 DB_DIR = Path(__file__).parent.parent.parent / "data_results/sql_lite"

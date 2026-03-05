@@ -1,6 +1,10 @@
+import logging
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.http.http_utils import EASTMONEY_DATA_API_URL, fetch_eastmoney_api
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+
+
+logger = logging.getLogger(__name__)
 
 async def get_top_ten_shareholders_circulation(stock_info: StockInfo, end_date: str = None):
     """获取流通股前十大股东数据
@@ -208,7 +212,7 @@ if __name__ == "__main__":
             limit=4,
             fields=['report_date', 'holder_name', 'rank']
         )
-        print("\n指定字段的股东数据:")
-        print(json.dumps(filtered_data, ensure_ascii=False))
+        logger.info("\n指定字段的股东数据:")
+        logger.info(json.dumps(filtered_data, ensure_ascii=False))
 
     asyncio.run(main())

@@ -232,16 +232,16 @@ if __name__ == "__main__":
 
     async def main():
         stock_info = get_stock_info_by_name('生益科技')
-        print(f"=== {stock_info.stock_name}（{stock_info.stock_code_normalize}）大宗交易数据 ===\n")
+        logger.info(f"=== {stock_info.stock_name}（{stock_info.stock_code_normalize}）大宗交易数据 ===\n")
 
         records = await _search_block_trade_via_baidu(stock_info, days=7)
         if records:
-            print(f"找到 {len(records)} 条大宗交易记录：")
-            print(json.dumps(records, ensure_ascii=False, indent=2))
-            print("\n--- 预计算摘要 ---")
+            logger.info(f"找到 {len(records)} 条大宗交易记录：")
+            logger.info(json.dumps(records, ensure_ascii=False, indent=2))
+            logger.info("\n--- 预计算摘要 ---")
             summary = compute_block_trade_summary(records)
-            print(json.dumps(summary, ensure_ascii=False, indent=2))
+            logger.info(json.dumps(summary, ensure_ascii=False, indent=2))
         else:
-            print("近期无大宗交易记录")
+            logger.info("近期无大宗交易记录")
 
     asyncio.run(main())

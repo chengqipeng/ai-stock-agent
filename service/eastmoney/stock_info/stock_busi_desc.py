@@ -1,7 +1,11 @@
+import logging
 import asyncio
 from common.http.http_utils import fetch_eastmoney_api
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+
+
+logger = logging.getLogger(__name__)
 
 async def get_stock_board_type(stock_info: StockInfo):
     """获取股票板块类型"""
@@ -42,4 +46,4 @@ async def get_stock_board_type(stock_info: StockInfo):
 if __name__ == "__main__":
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
     result = asyncio.run(get_stock_board_type(stock_info))
-    print(result)
+    logger.info(result)

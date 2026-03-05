@@ -1,8 +1,11 @@
 import requests
 import asyncio
+import logging
 from typing import Dict, List, Tuple
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+
+logger = logging.getLogger(__name__)
 
 # 指标配置：(字段名, 计数字段名, 显示名称, 格式化函数)
 METRICS_CONFIG = [
@@ -180,27 +183,27 @@ if __name__ == "__main__":
     
     async def main():
         stock_name = "北方华创"
-        print(f"正在获取 {stock_name} 的机构预测统计汇总数据...\n")
+        logger.info("正在获取 %s 的机构预测统计汇总数据...\n", stock_name)
         
-        print("\n=== JSON格式（历年预测） ===")
+        logger.info("\n=== JSON格式（历年预测） ===")
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         json_historical = await get_institution_forecast_summary_historical_json(stock_info)
-        print(json.dumps(json_historical, ensure_ascii=False))
+        logger.info(json.dumps(json_historical, ensure_ascii=False))
         
-        print("\n=== JSON格式（未来预测） ===")
+        logger.info("\n=== JSON格式（未来预测） ===")
         json_future = await get_institution_forecast_summary_future_json(stock_info)
-        print(json.dumps(json_future, ensure_ascii=False))
+        logger.info(json.dumps(json_future, ensure_ascii=False))
         
-        print("\n=== JSON格式（当前年+未来一年） ===")
+        logger.info("\n=== JSON格式（当前年+未来一年） ===")
         json_data_recent = await get_institution_forecast_summary_current_next_year_json(stock_info)
-        print(json.dumps(json_data_recent, ensure_ascii=False))
+        logger.info(json.dumps(json_data_recent, ensure_ascii=False))
         
-        print("\n=== Markdown格式（所有年份） ===")
+        logger.info("\n=== Markdown格式（所有年份） ===")
         markdown = await get_institution_forecast_summary_markdown(stock_info)
-        print(markdown)
+        logger.info(markdown)
         
-        print("\n=== Markdown格式（当前年+未来一年） ===")
+        logger.info("\n=== Markdown格式（当前年+未来一年） ===")
         markdown_recent = await get_institution_forecast_summary_current_next_year_markdown(stock_info)
-        print(markdown_recent)
+        logger.info(markdown_recent)
     
     asyncio.run(main())

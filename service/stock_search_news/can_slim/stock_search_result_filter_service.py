@@ -117,17 +117,17 @@ if __name__ == "__main__":
     async def main():
         stock_info = get_stock_info_by_name("北方华创")
         result = await get_search_filter_result(stock_info)
-        print("列表格式结果:")
-        print(json.dumps(result, ensure_ascii=False))
+        logger.info("列表格式结果:")
+        logger.info(json.dumps(result, ensure_ascii=False))
 
-        print("\n ==================== \n")
+        logger.info("\n ==================== \n")
         
         result_dict = await get_search_filter_result_dict(stock_info)
-        print("字典格式结果:")
-        print(json.dumps(result_dict, ensure_ascii=False))
+        logger.info("字典格式结果:")
+        logger.info(json.dumps(result_dict, ensure_ascii=False))
         
-        print("\n通过category获取结果示例:")
+        logger.info("\n通过category获取结果示例:")
         for category in result_dict.keys():
-            print(f"\n{category}: {len(result_dict[category])}条结果")
+            logger.info("\n%s: %d条结果", category, len(result_dict[category]))
     
     asyncio.run(main())

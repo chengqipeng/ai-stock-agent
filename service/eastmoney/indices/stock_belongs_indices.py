@@ -145,7 +145,7 @@ async def fetch_all_indices_stocks():
     all_stocks = {}
     
     for index in INDICES_LIST:
-        print(f"正在获取 {index['indices_stock_name']} 的成分股...")
+        logger.info("正在获取 %s 的成分股...", index['indices_stock_name'])
         try:
             page = 1
             while True:
@@ -166,7 +166,7 @@ async def fetch_all_indices_stocks():
                         if index['indices_stock_code'] not in all_stocks[stock_key]['indices_stock_codes']:
                             all_stocks[stock_key]['indices_stock_codes'].append(index['indices_stock_code'])
                             all_stocks[stock_key]['indices_stock_names'].append(index['indices_stock_name'])
-                            print(f"发现重复股票: {stock_key} ({stock['name']}) - 已存在于 {all_stocks[stock_key]['indices_stock_names'][0]}, 当前在 {index['indices_stock_name']}")
+                            logger.info("发现重复股票: %s (%s) - 已存在于 %s, 当前在 %s", stock_key, stock['name'], all_stocks[stock_key]['indices_stock_names'][0], index['indices_stock_name'])
                 
                 if len(stocks) < 100:
                     break
@@ -179,7 +179,7 @@ async def fetch_all_indices_stocks():
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(list(all_stocks.values()), f, ensure_ascii=False)
     
-    print(f"\n共获取 {len(all_stocks)} 只股票，已保存到 {output_file}")
+    logger.info("\n共获取 %s 只股票，已保存到 %s", len(all_stocks), output_file)
     return list(all_stocks.values())
 
 

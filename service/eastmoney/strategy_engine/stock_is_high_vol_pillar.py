@@ -1,8 +1,12 @@
 import asyncio
+import logging
+
 import pandas as pd
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
 from service.eastmoney.technical.stock_day_volume_avg import get_volume_avg
 from common.utils.stock_info_utils import StockInfo
+
+logger = logging.getLogger(__name__)
 
 
 def build_dataframe(klines: list) -> pd.DataFrame:
@@ -73,6 +77,6 @@ if __name__ == '__main__':
         stock_info: StockInfo = get_stock_info_by_name('中国卫通')
         import json
         result = await get_high_vol_pillars(stock_info)
-        print(json.dumps(result, ensure_ascii=False))
+        logger.info(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

@@ -1,8 +1,12 @@
+import logging
 from datetime import datetime, timedelta
 from common.http.http_utils import fetch_eastmoney_api
 from common.utils.stock_info_utils import StockInfo
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 
+
+
+logger = logging.getLogger(__name__)
 
 def _get_cache_date() -> str:
     today = datetime.now()
@@ -93,10 +97,10 @@ if __name__ == "__main__":
         stock_name = "北方华创"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         result = await get_stock_week_kline_list(stock_info)
-        print(f"获取到 {len(result)} 条周K线数据")
+        logger.info(f"获取到 {len(result)} 条周K线数据")
         if result:
-            print("最近3条数据:")
+            logger.info("最近3条数据:")
             for item in result:
-                print(item)
+                logger.info(item)
     
     asyncio.run(main())

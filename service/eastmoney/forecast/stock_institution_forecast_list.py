@@ -1,9 +1,13 @@
+import logging
 import requests
 import asyncio
 from datetime import datetime
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
+
+
+logger = logging.getLogger(__name__)
 
 async def get_institution_forecast(stock_info: StockInfo) -> dict:
     """
@@ -245,27 +249,27 @@ if __name__ == "__main__":
     
     async def main():
         stock_name = "北方华创"
-        print(f"正在获取 {stock_name} 的机构预测数据...\n")
+        logger.info(f"正在获取 {stock_name} 的机构预测数据...\n")
         
-        print("=== 显示所有年份数据（Markdown） ===")
+        logger.info("=== 显示所有年份数据（Markdown） ===")
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         markdown = await get_institution_forecast_to_markdown(stock_info)
-        print(markdown)
+        logger.info(markdown)
         
-        print("\n=== 显示历年预测数据（JSON） ===")
+        logger.info("\n=== 显示历年预测数据（JSON） ===")
         json_historical = await get_institution_forecast_historical_to_json(stock_info)
-        print(json.dumps(json_historical, ensure_ascii=False))
+        logger.info(json.dumps(json_historical, ensure_ascii=False))
         
-        print("\n=== 显示未来预测数据（JSON） ===")
+        logger.info("\n=== 显示未来预测数据（JSON） ===")
         json_future = await get_institution_forecast_future_to_json(stock_info)
-        print(json.dumps(json_future, ensure_ascii=False))
+        logger.info(json.dumps(json_future, ensure_ascii=False))
         
-        print("\n=== 只显示当前年和未来一年数据（Markdown） ===")
+        logger.info("\n=== 只显示当前年和未来一年数据（Markdown） ===")
         markdown_filtered = await get_institution_forecast_current_next_year_to_markdown(stock_info)
-        print(markdown_filtered)
+        logger.info(markdown_filtered)
         
-        print("\n=== 只显示当前年和未来一年数据（JSON） ===")
+        logger.info("\n=== 只显示当前年和未来一年数据（JSON） ===")
         json_filtered = await get_institution_forecast_current_next_year_to_json(stock_info)
-        print(json.dumps(json_filtered, ensure_ascii=False))
+        logger.info(json.dumps(json_filtered, ensure_ascii=False))
     
     asyncio.run(main())

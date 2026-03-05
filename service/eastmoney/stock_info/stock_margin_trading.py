@@ -148,20 +148,21 @@ if __name__ == "__main__":
             stock_name="生益科技",
         )
 
-        print(f"=== {stock_info.stock_name}（{stock_info.stock_code}）融资融券数据 ===")
-        print(f"对比页面: https://data.eastmoney.com/rzrq/stock/600183.html\n")
+        logger.info("=== %s（%s）融资融券数据 ===", stock_info.stock_name, stock_info.stock_code)
+        logger.info("对比页面: https://data.eastmoney.com/rzrq/stock/600183.html\n")
 
         # 获取原始数据（未格式化），用于精确数值对比
         raw_data = await get_margin_trading_data(stock_info, page_size=5)
         if not raw_data:
-            print("未获取到数据")
+            logger.info("未获取到数据")
             return
 
         # 打印表头
-        print(f"{'交易日期':<12} {'融资余额':>16} {'融资买入额':>14} {'融资偿还额':>14} "
-              f"{'融资净买入':>14} {'融券余量(股)':>12} {'融券卖出量':>10} {'融券偿还量':>10} "
-              f"{'融资融券余额':>16}")
-        print("-" * 140)
+        logger.info("%s %s %s %s %s %s %s %s %s",
+                    '交易日期'.ljust(12), '融资余额'.rjust(16), '融资买入额'.rjust(14), '融资偿还额'.rjust(14),
+                    '融资净买入'.rjust(14), '融券余量(股)'.rjust(12), '融券卖出量'.rjust(10), '融券偿还量'.rjust(10),
+                    '融资融券余额'.rjust(16))
+        logger.info("-" * 140)
 
         for item in raw_data:
             rzye = item.get("融资余额(元)")
@@ -177,23 +178,24 @@ if __name__ == "__main__":
                 s = convert_amount_unit(v) if v is not None else "--"
                 return str(s).rjust(width)
 
-            print(f"{str(item.get('交易日期', '') or ''):12} "
-                  f"{_fmt(rzye, 16)} "
-                  f"{_fmt(rzmre, 14)} "
-                  f"{_fmt(rzche, 14)} "
-                  f"{_fmt(rzjme, 14)} "
-                  f"{str(rqyl if rqyl is not None else '--').rjust(12)} "
-                  f"{str(rqmcl if rqmcl is not None else '--').rjust(10)} "
-                  f"{str(rqchl if rqchl is not None else '--').rjust(10)} "
-                  f"{_fmt(rzrqye, 16)}")
+            logger.info("%s %s %s %s %s %s %s %s %s",
+                        str(item.get('交易日期', '') or '').ljust(12),
+                        _fmt(rzye, 16),
+                        _fmt(rzmre, 14),
+                        _fmt(rzche, 14),
+                        _fmt(rzjme, 14),
+                        str(rqyl if rqyl is not None else '--').rjust(12),
+                        str(rqmcl if rqmcl is not None else '--').rjust(10),
+                        str(rqchl if rqchl is not None else '--').rjust(10),
+                        _fmt(rzrqye, 16))
 
-        print(f"\n共获取 {len(raw_data)} 条记录")
-        print("\n请对比以上数据与东方财富网页 https://data.eastmoney.com/rzrq/stock/600183.html 中的表格是否一致")
-        print("重点核对：交易日期、融资余额、融资买入额、融券余量、融资融券余额\n")
+        logger.info("共获取 %d 条记录", len(raw_data))
+        logger.info("\n请对比以上数据与东方财富网页 https://data.eastmoney.com/rzrq/stock/600183.html 中的表格是否一致")
+        logger.info("重点核对：交易日期、融资余额、融资买入额、融券余量、融资融券余额\n")
 
         # 同时输出JSON格式方便详细对比
         formatted_data = await get_margin_trading_json(stock_info, page_size=5)
-        print("=== JSON格式（前5条） ===")
-        print(json.dumps(formatted_data, ensure_ascii=False, indent=2))
+        logger.info("=== JSON格式（前5条） ===")
+        logger.info(json.dumps(formatted_data, ensure_ascii=False, indent=2))
 
     asyncio.run(main())

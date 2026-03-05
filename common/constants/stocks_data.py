@@ -56103,4 +56103,6 @@ INDEX_CODES_FULL = {stock['code'] for stock in MAIN_STOCK}
 INDEX_CODES = {stock['code'].split('.')[0] for stock in MAIN_STOCK}
 
 if __name__ == '__main__':
-    print(STOCK_DICT)
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("%s", STOCK_DICT)

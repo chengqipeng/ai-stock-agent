@@ -335,6 +335,6 @@ if __name__ == "__main__":
         url_3 = "https://electronics360.globalspec.com/article/23198/semi-chip-manufacturing-equipment-to-hit-record-high-in-2025"
         url = "https://www.bitget.com/news/detail/12560605204670"
         content = await extract_main_content(url_3)
-        print(content)
+        logger.info(content)
 
     asyncio.run(main())

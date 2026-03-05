@@ -1,3 +1,4 @@
+import logging
 import asyncio
 import pandas as pd
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
@@ -5,6 +6,9 @@ from service.eastmoney.technical.stock_day_volume_avg import get_volume_avg
 from service.eastmoney.technical.stock_day_boll import calculate_bollinger_bands
 from common.utils.stock_info_utils import StockInfo
 
+
+
+logger = logging.getLogger(__name__)
 
 def _build_dataframe(klines: list) -> pd.DataFrame:
     rows = []
@@ -100,16 +104,16 @@ async def get_boll_rule(stock_info: StockInfo, limit=400, vol_ma_window=50) -> p
 
 
 def _log_result(stock_name: str, df: pd.DataFrame, vol_ma_window: int) -> None:
-    print("\n========== 布林线法则信号日志 ==========")
-    print(f"""【策略逻辑说明】
-股票：{stock_name}
-策略：布林线法则（运行空间），识别以下信号：
-  超强势开启：昨收 <= 昨中轨 且 今收 > 今中轨 且 量 > {vol_ma_window}日均量×1.5倍 且 中轨向上
-  强势开启：昨收 <= 昨中轨 且 今收 > 今中轨 且 量 > {vol_ma_window}日均量×1.5倍
-  波段结束：昨收 > 昨中轨 且 今收 < 今中轨
-  可操作区：收盘 > 中轨 且 中轨向上倾斜
-  喇叭口加速上行：上下轨反向张开 且 带宽单日放大>10% 且 处于可操作区""")
-    print("========================================\n")
+    logger.info("========== 布林线法则信号日志 ==========")
+    logger.info("【策略逻辑说明】\n"
+                f"股票：{stock_name}\n"
+                "策略：布林线法则（运行空间），识别以下信号：\n"
+                f"  超强势开启：昨收 <= 昨中轨 且 今收 > 今中轨 且 量 > {vol_ma_window}日均量×1.5倍 且 中轨向上\n"
+                f"  强势开启：昨收 <= 昨中轨 且 今收 > 今中轨 且 量 > {vol_ma_window}日均量×1.5倍\n"
+                "  波段结束：昨收 > 昨中轨 且 今收 < 今中轨\n"
+                "  可操作区：收盘 > 中轨 且 中轨向上倾斜\n"
+                "  喇叭口加速上行：上下轨反向张开 且 带宽单日放大>10% 且 处于可操作区")
+    logger.info("========================================\n")
 
 
 async def get_boll_rule_cn(stock_info: StockInfo, limit=400, vol_ma_window=50) -> dict:
@@ -224,6 +228,6 @@ if __name__ == '__main__':
     async def main():
         stock_info: StockInfo = get_stock_info_by_name('北方华创')
         result = await get_boll_rule_boll_only(stock_info)
-        print(json.dumps(result, ensure_ascii=False))
+        logger.info(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

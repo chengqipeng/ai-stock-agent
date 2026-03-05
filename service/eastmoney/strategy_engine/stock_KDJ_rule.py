@@ -1,5 +1,8 @@
 import asyncio
+import logging
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
 from common.utils.stock_info_utils import StockInfo
 
@@ -112,20 +115,21 @@ async def get_kdj_rule_cn(stock_info: StockInfo, limit=800, n=9, s1=3, s2=3, blu
 
 
 def _log_result(stock_name: str, df: pd.DataFrame, result: dict, n: int, s1: int, s2: int, blunt_n: int) -> None:
-    print("\n========== KDJ 信号日志 ==========")
-    print(f"""【策略逻辑说明】
-股票：{stock_name}
-策略：KDJ 法则（微观动能），参数 KDJ({n},{s1},{s2})，钝化判定连续天数={blunt_n}
-  买入：超卖区（K<20, D<20, J<0）出现金叉且 J 勾头向上
-  卖出（钝化）：K>80 连续{blunt_n}天，收盘跌破 MA5/MA20 或防守线 → Sell (Blunted Exit)（死叉失效）
-  卖出（普通）：超买区（K>80, D>80, J>100）死叉 → Sell (Standard)""")
-    print("\n【原始K线数据（最近250条）】")
+    logger.info("\n========== KDJ 信号日志 ==========")
+    logger.info("【策略逻辑说明】\n"
+                "股票：%s\n"
+                "策略：KDJ 法则（微观动能），参数 KDJ(%s,%s,%s)，钝化判定连续天数=%s\n"
+                "  买入：超卖区（K<20, D<20, J<0）出现金叉且 J 勾头向上\n"
+                "  卖出（钝化）：K>80 连续%s天，收盘跌破 MA5/MA20 或防守线 → Sell (Blunted Exit)（死叉失效）\n"
+                "  卖出（普通）：超买区（K>80, D>80, J>100）死叉 → Sell (Standard)",
+                stock_name, n, s1, s2, blunt_n, blunt_n)
+    logger.info("\n【原始K线数据（最近250条）】")
     cn_rename = {'open': '开盘价', 'close': '收盘价', 'high': '最高价', 'low': '最低价', 'volume': '成交量'}
     display_df = df[['open', 'close', 'high', 'low', 'volume', 'K', 'D', 'J', 'signal']].tail(250).copy()
     display_df = display_df.reset_index().rename(columns={**cn_rename, 'date': '日期', 'signal': '信号'})
     display_df['日期'] = display_df['日期'].dt.strftime('%Y-%m-%d')
-    print(display_df.to_json(orient='records', force_ascii=False))
-    print("==========================================\n")
+    logger.info(display_df.to_json(orient='records', force_ascii=False))
+    logger.info("==========================================\n")
 
 
 async def get_kdj_rule_kdj_only(stock_info: StockInfo, n=9, s1=3, s2=3, blunt_n=3, defense_line=None) -> dict:
@@ -197,6 +201,6 @@ if __name__ == '__main__':
         stock_info: StockInfo = get_stock_info_by_name('生益科技')
         import json
         result = await get_kdj_rule_kdj_only(stock_info)
-        print(json.dumps(result, ensure_ascii=False))
+        logger.info(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

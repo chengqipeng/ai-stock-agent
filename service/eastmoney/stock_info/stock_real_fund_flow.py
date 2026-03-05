@@ -1,6 +1,10 @@
+import logging
+
 from common.utils.amount_utils import convert_amount_unit
 from common.http.http_utils import EASTMONEY_PUSH_API_URL, fetch_eastmoney_api, EASTMONEY_PUSH2HIS_API_URL
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+
+logger = logging.getLogger(__name__)
 
 
 async def get_real_main_fund_flow(stock_info: StockInfo, date: str = None):
@@ -58,6 +62,6 @@ if __name__ == "__main__":
     async def main():
         stock_info: StockInfo = get_stock_info_by_name("北方华创")
         result = await get_real_main_fund_flow(stock_info)
-        print(result)
+        logger.info("%s", result)
 
     asyncio.run(main())

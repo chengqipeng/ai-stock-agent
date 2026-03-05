@@ -119,6 +119,6 @@ if __name__ == "__main__":
     async def main():
         stock_info = get_stock_info_by_name("北方华创")
         result = await get_northbound_funds_cn(stock_info, ['TRADE_DATE', 'ADD_MARKET_CAP','ADD_SHARES_AMP', 'ADD_SHARES_AMP'])
-        print(result)
+        logger.info("%s", result)
     
     asyncio.run(main())

@@ -1,4 +1,7 @@
+import logging
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_history_kline_max_min, _parse_kline_fields
 
@@ -38,7 +41,7 @@ if __name__ == "__main__":
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         # 测试 JSON 格式
         result = await get_stock_history_kline_max_min(stock_info)
-        print("股东增减持数据 (JSON格式):")
-        print(json.dumps(result, ensure_ascii=False))
+        logger.info("股东增减持数据 (JSON格式):")
+        logger.info(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

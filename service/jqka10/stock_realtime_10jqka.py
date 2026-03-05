@@ -108,6 +108,6 @@ if __name__ == "__main__":
 
     async def main():
         data = await get_today_kline_as_str("002371")
-        print(data)
+        logger.info(data)
 
     asyncio.run(main())

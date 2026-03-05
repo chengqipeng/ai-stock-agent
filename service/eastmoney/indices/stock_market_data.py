@@ -1,6 +1,10 @@
 import asyncio
 import json
+import logging
+
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_history_kline_max_min
+
+logger = logging.getLogger(__name__)
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 
 
@@ -112,12 +116,12 @@ async def main():
     # 测试相对强度
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
     result = await get_stock_relative_strength_cn(stock_info)
-    print("250相对强度数据:")
-    print(json.dumps(result, ensure_ascii=False))
+    logger.info("250相对强度数据:")
+    logger.info(json.dumps(result, ensure_ascii=False))
 
     result_1 = await get_stock_rs_stats(stock_info)
-    print("20相对强度数据:")
-    print(json.dumps(result_1, ensure_ascii=False))
+    logger.info("20相对强度数据:")
+    logger.info(json.dumps(result_1, ensure_ascii=False))
 
 
 if __name__ == "__main__":

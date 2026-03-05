@@ -2,7 +2,11 @@
 在 MySQL 中创建所有业务表。
 用法: python -m dao.create_tables
 """
+import logging
+
 from dao import get_connection
+
+logger = logging.getLogger(__name__)
 
 
 _TABLES = [
@@ -193,14 +197,14 @@ def create_all_tables():
         for ddl in _TABLES:
             cursor.execute(ddl)
         conn.commit()
-        print("所有表创建完成 ✓")
+        logger.info("所有表创建完成 ✓")
 
         # 列出已创建的表
         cursor.execute("SHOW TABLES")
         tables = [row[0] for row in cursor.fetchall()]
-        print(f"当前数据库共 {len(tables)} 张表:")
+        logger.info("当前数据库共 %d 张表:", len(tables))
         for t in tables:
-            print(f"  - {t}")
+            logger.info("  - %s", t)
     finally:
         cursor.close()
         conn.close()

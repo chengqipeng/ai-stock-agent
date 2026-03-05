@@ -213,6 +213,6 @@ if __name__ == "__main__":
     async def main():
         stock_info = get_stock_info_by_name("中际旭创")
         result = await get_search_key_result(stock_info)
-        print(result)
+        logger.info(result)
     
     asyncio.run(main())

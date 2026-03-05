@@ -253,14 +253,14 @@ if __name__ == "__main__":
 
     async def main():
         stock_info = get_stock_info_by_name("生益科技")
-        print(f"=== {stock_info.stock_name}（{stock_info.stock_code_normalize}）机构持仓快照 ===\n")
+        logger.info("=== %s（%s）机构持仓快照 ===\n", stock_info.stock_name, stock_info.stock_code_normalize)
 
         snapshot = await get_org_realtime_snapshot(stock_info)
-        print("原始快照：")
-        print(json.dumps(snapshot, ensure_ascii=False, indent=2))
+        logger.info("原始快照：")
+        logger.info(json.dumps(snapshot, ensure_ascii=False, indent=2))
 
-        print("\n--- 预计算摘要 ---")
+        logger.info("\n--- 预计算摘要 ---")
         summary = compute_org_snapshot_summary(snapshot)
-        print(json.dumps(summary, ensure_ascii=False, indent=2))
+        logger.info(json.dumps(summary, ensure_ascii=False, indent=2))
 
     asyncio.run(main())

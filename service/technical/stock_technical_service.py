@@ -70,7 +70,7 @@ async def get_technical_indicators_for_llm_analysis_prompt(stock_info: StockInfo
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
     result = await get_technical_indicators_prompt(stock_info)
-    print(result)
+    logger.info(result)
 
 if __name__ == "__main__":
     asyncio.run(main())

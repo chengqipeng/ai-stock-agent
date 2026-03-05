@@ -1,6 +1,10 @@
+import logging
+
 import requests
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
+
+logger = logging.getLogger(__name__)
 
 
 #评级统计
@@ -86,9 +90,9 @@ if __name__ == "__main__":
     stock_name = "北方华创"
     stock_info: StockInfo = get_stock_info_by_name(stock_name)
 
-    print(f"正在获取 {stock_name} 的机构评级数据...\n")
+    logger.info("正在获取 %s 的机构评级数据...\n", stock_name)
     
     result = get_institution_rating(stock_info)
     markdown = format_to_markdown(result)
     
-    print(markdown)
+    logger.info(markdown)

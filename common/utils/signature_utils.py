@@ -4,10 +4,13 @@
 """
 
 import json
+import logging
 import time
 import base64
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_v1_5
+
+logger = logging.getLogger(__name__)
 
 PUBLIC_KEY_STR = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDVT0rCVSoNi/5SEmL5lY6pIsccalZdSbMe0Qv+SYFlwuYVzxMCTIwVOTvOWFXt7EHEIk2ajvUnb3ARc7ALFt1uNVw6+vTPh68CIkqRC9ipuzkt5oQ8Sgv3tSiVSveu6zKNYjE83XTMIwqLBg87TC1j4+ExpmSKUGBA+d85c4tyMwIDAQAB"
 
@@ -85,5 +88,5 @@ if __name__ == "__main__":
     }
     
     signature = get_string(request_param)
-    print("签名结果:")
-    print(signature)
+    logger.info("签名结果:")
+    logger.info(signature)

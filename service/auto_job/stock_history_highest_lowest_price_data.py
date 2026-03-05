@@ -159,8 +159,8 @@ if __name__ == "__main__":
         #print("=== 创新高/新低统计 ===")
         #print(json.dumps(get_new_high_low_count(), ensure_ascii=False))
         
-        print("\n=== 最强10只股票 ===")
+        logger.info("\n=== 最强10只股票 ===")
         result = await get_top_strongest_stocks()
-        print(json.dumps(result, ensure_ascii=False))
+        logger.info(json.dumps(result, ensure_ascii=False))
     
     asyncio.run(main())

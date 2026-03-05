@@ -1,6 +1,10 @@
 import pandas as pd
 import json
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 sh_df = pd.read_excel('上海A股列表.xls')
 sz_df = pd.read_excel('深圳A股列表.xlsx')
 
@@ -19,4 +23,4 @@ for _, row in sz_df.iterrows():
 with open('stocks.json', 'w', encoding='utf-8') as f:
     json.dump(stocks, f, ensure_ascii=False)
 
-print(f"成功转换 {len(stocks)} 只股票")
+logger.info("成功转换 %d 只股票", len(stocks))

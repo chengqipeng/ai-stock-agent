@@ -100,18 +100,18 @@ if __name__ == '__main__':
     # 测试有多个指数的股票
     stock_info = get_stock_info_by_name("聚和材料")
     if stock_info:
-        print(f"股票名称: {stock_info.stock_name}")
-        print(f"股票代码: {stock_info.stock_code_normalize}")
-        print(f"secid: {stock_info.secid}")
-        print(f"指数代码: {stock_info.indices_stock_code}")
-        print(f"指数名称: {stock_info.indices_stock_name}")
+        logger.info("股票名称: %s", stock_info.stock_name)
+        logger.info("股票代码: %s", stock_info.stock_code_normalize)
+        logger.info("secid: %s", stock_info.secid)
+        logger.info("指数代码: %s", stock_info.indices_stock_code)
+        logger.info("指数名称: %s", stock_info.indices_stock_name)
     
-    print("\n---\n")
+    logger.info("\n---\n")
     
     # 测试只有一个指数的股票
     stock_info2 = get_stock_info_by_name("上证指数")
     if stock_info2:
-        print(f"股票名称: {stock_info2.stock_name}")
-        print(f"股票代码: {stock_info2.stock_code_normalize}")
-        print(f"指数代码: {stock_info2.indices_stock_code}")
-        print(f"指数名称: {stock_info2.indices_stock_name}")
+        logger.info("股票名称: %s", stock_info2.stock_name)
+        logger.info("股票代码: %s", stock_info2.stock_code_normalize)
+        logger.info("指数代码: %s", stock_info2.indices_stock_code)
+        logger.info("指数名称: %s", stock_info2.indices_stock_name)

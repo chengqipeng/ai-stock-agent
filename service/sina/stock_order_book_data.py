@@ -245,16 +245,16 @@ if __name__ == "__main__":
 
     async def main():
         stock_info = get_stock_info_by_name('生益科技')
-        print(f"=== {stock_info.stock_name}（{stock_info.stock_code_normalize}）五档盘口 ===\n")
+        logger.info("=== %s（%s）五档盘口 ===\n", stock_info.stock_name, stock_info.stock_code_normalize)
 
         order_book = await get_order_book(stock_info)
         if order_book:
-            print("原始盘口数据：")
-            print(json.dumps(order_book, ensure_ascii=False, indent=2))
-            print("\n--- 预计算摘要 ---")
+            logger.info("原始盘口数据：")
+            logger.info(json.dumps(order_book, ensure_ascii=False, indent=2))
+            logger.info("\n--- 预计算摘要 ---")
             summary = compute_order_book_summary(order_book)
-            print(json.dumps(summary, ensure_ascii=False, indent=2))
+            logger.info(json.dumps(summary, ensure_ascii=False, indent=2))
         else:
-            print("未获取到盘口数据")
+            logger.info("未获取到盘口数据")
 
     asyncio.run(main())

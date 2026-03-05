@@ -460,6 +460,6 @@ if __name__ == "__main__":
     async def main():
         stock_info = get_stock_info_by_name('中国卫通')
         news = await search_stock_news(stock_info)
-        print(format_news_for_prompt(news))
+        logger.info(format_news_for_prompt(news))
 
     asyncio.run(main())

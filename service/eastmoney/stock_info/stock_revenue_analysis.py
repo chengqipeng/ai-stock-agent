@@ -95,6 +95,6 @@ if __name__ == "__main__":
         # 测试获取过去三年json数据
         stock_info: StockInfo = get_stock_info_by_name("北方华创")
         result = await get_revenue_analysis_three_years(stock_info)
-        print(f"过去三年数据条数: {json.dumps(result, ensure_ascii=False)}\n")
+        logger.info(f"过去三年数据条数: {json.dumps(result, ensure_ascii=False)}\n")
 
     asyncio.run(main())

@@ -228,6 +228,6 @@ if __name__ == "__main__":
         stock_name = "沪电股份"
         stock_info: StockInfo = get_stock_info_by_name(stock_name)
         result = await get_stock_day_kline_cn(stock_info)
-        print(json.dumps(result, ensure_ascii=False))
+        logger.info(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

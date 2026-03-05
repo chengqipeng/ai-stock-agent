@@ -30,7 +30,7 @@ class PDFParser:
             async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
                 async with session.get(pdf_url) as response:
                     if response.status != 200:
-                        print(f"服务器拒绝请求，状态码: {response.status}")
+                        logger.warning("服务器拒绝请求，状态码: %d", response.status)
                         return None
                     
                     async with aiofiles.open(file_path, 'wb') as f:
@@ -40,11 +40,11 @@ class PDFParser:
                                     await f.write(chunk)
                         except (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError) as e:
                             logger.warning("PDF下载连接断开 [%s]: %s", pdf_url, e)
-                            print(f"警告：服务器连接提前断开，尝试抢救已下载的数据...")
+                            logger.warning("服务器连接提前断开，尝试抢救已下载的数据...")
             
             if os.path.exists(file_path):
                 file_size = os.path.getsize(file_path)
-                print(f"下载完成，文件大小: {file_size} 字节")
+                logger.info("下载完成，文件大小: %d 字节", file_size)
                 return file_path
             return None
         except Exception as e:
@@ -56,7 +56,7 @@ class PDFParser:
         """解析PDF文件为文本并保存"""
         try:
             if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
-                print(f"PDF文件为空或不存在: {file_path}")
+                logger.warning("PDF文件为空或不存在: %s", file_path)
                 return None
             
             text = ""

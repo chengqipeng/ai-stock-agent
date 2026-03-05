@@ -1,8 +1,11 @@
 import asyncio
+import logging
 
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.eastmoney.technical.abs.stock_indicator_base import parse_klines_to_df, process_indicator_data, INDICATOR_CONFIG
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline
+
+logger = logging.getLogger(__name__)
 
 """
 ATR: Averages true range to measure volatility.
@@ -48,7 +51,7 @@ async def get_atr_markdown(stock_info: StockInfo):
 async def main():
     stock_info: StockInfo = get_stock_info_by_name("北方华创")
     atr_data = await get_atr_markdown(stock_info)
-    print(atr_data)
+    logger.info(atr_data)
 
 if __name__ == "__main__":
     asyncio.run(main())

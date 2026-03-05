@@ -93,6 +93,6 @@ if __name__ == "__main__":
         result = await baidu_search(
             query="三花智控"
         )
-        print(result)
+        logger.info(result)
     
     asyncio.run(main())

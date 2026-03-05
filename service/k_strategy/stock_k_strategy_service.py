@@ -1,8 +1,11 @@
 import asyncio
+import logging
 
 from common.prompt.strategy_engine.stock_indicator_all_prompt import get_stock_indicator_all_prompt
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from service.llm.deepseek_client import DeepSeekClient
+
+logger = logging.getLogger(__name__)
 
 async def get_k_strategy_analysis(stock_info: StockInfo) -> tuple[str, str]:
     prompt = await get_stock_indicator_all_prompt(stock_info)
@@ -18,7 +21,7 @@ if __name__ == '__main__':
     async def main():
         stock_info: StockInfo = get_stock_info_by_name('生益科技')
         result = await get_stock_indicator_all_prompt(stock_info)
-        print(result)
+        logger.info(result)
         #print(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())

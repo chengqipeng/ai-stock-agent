@@ -43,6 +43,6 @@ if __name__ == "__main__":
     async def main():
         stock_info: StockInfo = get_stock_info_by_name("北方华创")
         prompt = await get_global_search_category_result(stock_info)
-        print(prompt)
+        logger.info("%s", prompt)
     
     asyncio.run(main())

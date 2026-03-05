@@ -1,8 +1,12 @@
+import logging
 from common.utils.amount_utils import convert_amount_unit
 from common.http.http_utils import EASTMONEY_API_URL, fetch_eastmoney_api
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
 
+
+
+logger = logging.getLogger(__name__)
 
 # async def get_financial_data(stock_info: StockInfo, page_size=5, page_number=1):
 #     """获取财务数据"""
@@ -246,9 +250,9 @@ if __name__ == "__main__":
     async def main():
         stock_info: StockInfo = get_stock_info_by_name("生益科技")
         
-        print("=== 业绩报表明细 ===")
+        logger.info("=== 业绩报表明细 ===")
         result1 = await get_financial_fast_report_cn(stock_info)
-        print(result1)
+        logger.info(result1)
 
         # result2 = await get_performance_forecast(stock_info)
         # print(result2)

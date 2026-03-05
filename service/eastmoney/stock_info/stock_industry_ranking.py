@@ -1,6 +1,10 @@
+import logging
+
 from common.http.http_utils import fetch_eastmoney_api
 from common.utils.stock_info_utils import StockInfo
 from common.utils.cache_utils import get_cache_path, load_cache, save_cache
+
+logger = logging.getLogger(__name__)
 
 async def get_stock_industry_ranking(stock_info: StockInfo, page: int = 1):
     """获取股票所属行业排名数据
@@ -149,6 +153,6 @@ if __name__ == "__main__":
     async def main():
         stock_info = get_stock_info_by_name("北方华创")
         result = await get_stock_industry_ranking_json(stock_info)
-        print(result)
+        logger.info("%s", result)
     
     asyncio.run(main())

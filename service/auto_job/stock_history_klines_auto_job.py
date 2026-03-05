@@ -42,8 +42,8 @@ async def _process_single_kline(stock_code, stock_name, limit, counter):
     t_dao = asyncio.get_event_loop().time()
 
     if not missing_days:
-        print(f"[K线 总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] "
-              f"最新数据日期是{latest_db_date}，无需拉取 dao耗时{t_dao-t_start:.2f}s")
+        logger.info("[K线 总%d 成功%d 失败%d 当前:%s] 最新数据日期是%s，无需拉取 dao耗时%.2fs",
+                    counter['total'], counter['success'], counter['failed'], stock_name, latest_db_date, t_dao-t_start)
         counter['success'] += 1
         return
 
@@ -130,8 +130,9 @@ async def _process_single_kline(stock_code, stock_name, limit, counter):
     t_db_end = asyncio.get_event_loop().time()
 
     counter['success'] += 1
-    print(f"[K线 总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] "
-          f"完成，{len(klines)}条 网络{elapsed:.2f}s dao{t_dao-t_start:.2f}s 写db{t_db_end-t_db_start:.2f}s")
+    logger.info("[K线 总%d 成功%d 失败%d 当前:%s] 完成，%d条 网络%.2fs dao%.2fs 写db%.2fs",
+                counter['total'], counter['success'], counter['failed'], stock_name,
+                len(klines), elapsed, t_dao-t_start, t_db_end-t_db_start)
 
 
 # ─────────────────── 财报采集流水线 ───────────────────
@@ -148,8 +149,8 @@ async def _process_single_finance(stock_code, stock_name, counter):
     latest_updated = get_finance_latest_updated_at(stock_code)
     if latest_updated and latest_updated[:10] >= today_str:
         counter['success'] += 1
-        print(f"[财报 总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] "
-              f"今日已更新({latest_updated})，跳过")
+        logger.info("[财报 总%d 成功%d 失败%d 当前:%s] 今日已更新(%s)，跳过",
+                    counter['total'], counter['success'], counter['failed'], stock_name, latest_updated)
         return
 
     t0 = asyncio.get_event_loop().time()
@@ -178,8 +179,9 @@ async def _process_single_finance(stock_code, stock_name, counter):
     t_db_end = asyncio.get_event_loop().time()
 
     counter['success'] += 1
-    print(f"[财报 总{counter['total']} 成功{counter['success']} 失败{counter['failed']} 当前:{stock_name}] "
-          f"完成，{len(records)}条 网络{elapsed:.2f}s 写db{t_db_end-t_db:.2f}s")
+    logger.info("[财报 总%d 成功%d 失败%d 当前:%s] 完成，%d条 网络%.2fs 写db%.2fs",
+                counter['total'], counter['success'], counter['failed'], stock_name,
+                len(records), elapsed, t_db_end-t_db)
 
 
 # ─────────────────── 公共工具 ───────────────────
@@ -208,7 +210,7 @@ def _build_stock_list() -> list[dict]:
 async def run_kline_job(limit=800, max_concurrent=1):
     """独立运行K线采集任务"""
     stocks = _build_stock_list()
-    print(f"[K线] 开始采集，共 {len(stocks)} 只股票")
+    logger.info("[K线] 开始采集，共 %d 只股票", len(stocks))
 
     semaphore = asyncio.Semaphore(max_concurrent)
     counter = {'total': len(stocks), 'success': 0, 'failed': 0}
@@ -218,14 +220,14 @@ async def run_kline_job(limit=800, max_concurrent=1):
             await _process_single_kline(stock['code'], stock['name'], limit, counter)
 
     await asyncio.gather(*[task(s) for s in stocks], return_exceptions=True)
-    print(f"[K线] 采集完成，总{counter['total']} 成功{counter['success']} 失败{counter['failed']}")
+    logger.info("[K线] 采集完成，总%d 成功%d 失败%d", counter['total'], counter['success'], counter['failed'])
     return counter
 
 
 async def run_finance_job(max_concurrent=3):
     """独立运行财报采集任务"""
     stocks = _build_stock_list()
-    print(f"[财报] 开始采集，共 {len(stocks)} 只股票")
+    logger.info("[财报] 开始采集，共 %d 只股票", len(stocks))
 
     semaphore = asyncio.Semaphore(max_concurrent)
     counter = {'total': len(stocks), 'success': 0, 'failed': 0}
@@ -235,7 +237,7 @@ async def run_finance_job(max_concurrent=3):
             await _process_single_finance(stock['code'], stock['name'], counter)
 
     await asyncio.gather(*[task(s) for s in stocks], return_exceptions=True)
-    print(f"[财报] 采集完成，总{counter['total']} 成功{counter['success']} 失败{counter['failed']}")
+    logger.info("[财报] 采集完成，总%d 成功%d 失败%d", counter['total'], counter['success'], counter['failed'])
     return counter
 
 
@@ -247,9 +249,9 @@ def run_stock_klines_job(limit=800, max_concurrent=1):
     任何一条流水线的异常或阻塞都不会影响另一条。
     K线默认串行（max_concurrent=1），财报默认3并发。
     """
-    print("=" * 60)
-    print("  启动数据采集（K线 + 财报 独立线程）")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("  启动数据采集（K线 + 财报 独立线程）")
+    logger.info("=" * 60)
 
     results = {}
 
@@ -279,11 +281,11 @@ def run_stock_klines_job(limit=800, max_concurrent=1):
     kline_counter = results.get('kline', {})
     finance_counter = results.get('finance', {})
 
-    print(f"\n{'=' * 60}")
-    print(f"  全部完成")
-    print(f"  K线: 总{kline_counter.get('total',0)} 成功{kline_counter.get('success',0)} 失败{kline_counter.get('failed',0)}")
-    print(f"  财报: 总{finance_counter.get('total',0)} 成功{finance_counter.get('success',0)} 失败{finance_counter.get('failed',0)}")
-    print(f"{'=' * 60}")
+    logger.info("\n" + "=" * 60)
+    logger.info("  全部完成")
+    logger.info("  K线: 总%d 成功%d 失败%d", kline_counter.get('total',0), kline_counter.get('success',0), kline_counter.get('failed',0))
+    logger.info("  财报: 总%d 成功%d 失败%d", finance_counter.get('total',0), finance_counter.get('success',0), finance_counter.get('failed',0))
+    logger.info("=" * 60)
     return kline_counter, finance_counter
 
 

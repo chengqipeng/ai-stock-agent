@@ -1,7 +1,11 @@
+import logging
+
 import pandas as pd
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline, \
     get_stock_day_range_kline_by_db_cache
+
+logger = logging.getLogger(__name__)
 
 
 async def get_volume_avg(stock_info: StockInfo, days=20, page_size=120):
@@ -51,6 +55,6 @@ if __name__ == '__main__':
     async def main():
         stock_info = get_stock_info_by_name('北方华创')
         result = await get_60day_volume_avg(stock_info)
-        print(json.dumps(result, ensure_ascii=False))
+        logger.info(json.dumps(result, ensure_ascii=False))
 
     asyncio.run(main())
