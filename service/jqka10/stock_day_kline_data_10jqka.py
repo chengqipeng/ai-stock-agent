@@ -3,6 +3,7 @@ import json
 import asyncio
 import logging
 import aiohttp
+import yarl
 from datetime import date, timedelta
 from chinese_calendar import is_workday
 from common.utils.stock_info_utils import StockInfo
@@ -153,7 +154,11 @@ async def _fetch_raw(url: str) -> dict:
         else:
             logger.warning("[_fetch_raw] HTTP %d, url=%s, body=%s", status, url, text[:500])
         raise aiohttp.ClientResponseError(
-            request_info=None, history=None,
+            request_info=aiohttp.RequestInfo(
+                url=yarl.URL(url), method="GET",
+                headers={}, real_url=yarl.URL(url),
+            ),
+            history=(),
             status=status, message=f"HTTP {status}: {text[:200]}"
         )
     if not text or not text.strip():

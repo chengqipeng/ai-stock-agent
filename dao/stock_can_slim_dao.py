@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 from dao import get_connection
+from common.constants.stocks_data import get_stock_code
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +167,10 @@ class DatabaseManager:
                     code = stock_code.split(" (")[1].rstrip(")")
                 else:
                     stock_name = stock_code
-                    code = stock_code
+                    try:
+                        code = get_stock_code(stock_name)
+                    except Exception:
+                        code = stock_code
                 cursor.execute(
                     "INSERT INTO stock_analysis_detail (batch_id, stock_code, stock_name, created_at) VALUES (%s, %s, %s, %s)",
                     (batch_id, code, stock_name, now_iso),
@@ -197,7 +201,10 @@ class DatabaseManager:
                     code = stock_code.split(" (")[1].rstrip(")")
                 else:
                     stock_name = stock_code
-                    code = stock_code
+                    try:
+                        code = get_stock_code(stock_name)
+                    except Exception:
+                        code = stock_code
 
                 if code in existing_codes:
                     continue

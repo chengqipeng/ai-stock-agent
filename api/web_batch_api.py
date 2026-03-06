@@ -493,6 +493,12 @@ async def get_batch_stocks(batch_id: int):
             stock.pop('overall_analysis', None)
             # 注入最新技术打分数据
             ts = tech_scores.get(stock.get('stock_code'))
+            if not ts:
+                # 兼容旧数据：stock_analysis_detail中stock_code可能是名称，按stock_name再查一次
+                for _ts in tech_scores.values():
+                    if _ts.get('stock_name') == stock.get('stock_name'):
+                        ts = _ts
+                        break
             if ts:
                 stock['tech_total_score'] = ts.get('total_score')
                 stock['tech_macd_score'] = ts.get('macd_score')
@@ -528,6 +534,11 @@ async def get_stock_technical_score_history(batch_id: int, stock_code: str):
     """获取某只股票在某批次下的所有技术打分记录"""
     try:
         records = get_technical_score_history(batch_id, stock_code)
+        # 兼容旧数据：stock_code可能是名称，按名称再查一次
+        if not records and not any(c.isdigit() for c in stock_code):
+            info = get_stock_info_by_name(stock_code)
+            if info:
+                records = get_technical_score_history(batch_id, info.stock_code_normalize)
         return {"success": True, "data": records}
     except Exception as e:
         logger.error("获取技术打分历史失败 batch_id=%s, stock_code=%s: %s", batch_id, stock_code, e, exc_info=True)
@@ -554,7 +565,13 @@ async def execute_batch_technical_score(batch_id: int, stock_ids: str = Query(..
                         stock = db_manager.get_stock_detail(stock_id)
                         if not stock or stock['batch_id'] != batch_id:
                             return {'success': False, 'stock_name': str(stock_id), 'error': 'not found'}
-                        r = await technical_analyze_stock(stock['stock_name'], stock['stock_code'], 0, 0)
+                        code = stock['stock_code']
+                        # 兼容旧数据：stock_code字段可能存的是股票名称而非代码
+                        if code and not any(c.isdigit() for c in code):
+                            info = get_stock_info_by_name(code)
+                            if info:
+                                code = info.stock_code_normalize
+                        r = await technical_analyze_stock(stock['stock_name'], code, 0, 0)
                         if r:
                             all_results.append(r)
                             return {'success': True, 'stock_name': stock['stock_name'], 'score': r['total']}
