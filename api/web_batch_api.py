@@ -501,6 +501,10 @@ async def get_batch_stocks(batch_id: int):
                 stock['tech_trend_score'] = ts.get('trend_score')
                 stock['tech_close_price'] = ts.get('close_price')
                 stock['tech_score_date'] = ts.get('score_date')
+                stock['tech_boll_score'] = ts.get('boll_score')
+                stock['tech_boll_signal'] = bool(ts.get('boll_signal'))
+                stock['tech_mid_bounce_score'] = ts.get('mid_bounce_score')
+                stock['tech_mid_bounce_signal'] = bool(ts.get('mid_bounce_signal'))
             else:
                 stock['tech_total_score'] = None
         return {"success": True, "data": stocks}

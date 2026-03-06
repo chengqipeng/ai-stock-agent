@@ -11,6 +11,16 @@ logger = logging.getLogger(__name__)
 
 _CST = ZoneInfo("Asia/Shanghai")
 
+# 布林线反弹相关列（用于自动迁移）
+_BOLL_COLUMNS = [
+    ("boll_score", "INT DEFAULT 0"),
+    ("boll_signal", "TINYINT DEFAULT 0"),
+    ("boll_detail", "TEXT"),
+    ("mid_bounce_score", "INT DEFAULT 0"),
+    ("mid_bounce_signal", "TINYINT DEFAULT 0"),
+    ("mid_bounce_detail", "TEXT"),
+]
+
 
 def create_technical_score_table(conn=None):
     """创建技术面打分结果表（兼容旧表自动迁移）"""
@@ -33,6 +43,12 @@ def create_technical_score_table(conn=None):
             vol_detail TEXT,
             trend_score INT NOT NULL,
             trend_detail TEXT,
+            boll_score INT DEFAULT 0,
+            boll_signal TINYINT DEFAULT 0,
+            boll_detail TEXT,
+            mid_bounce_score INT DEFAULT 0,
+            mid_bounce_signal TINYINT DEFAULT 0,
+            mid_bounce_detail TEXT,
             close_price DOUBLE,
             score_date VARCHAR(20),
             created_at VARCHAR(30) NOT NULL,
@@ -43,14 +59,13 @@ def create_technical_score_table(conn=None):
             INDEX idx_ts_date (score_date)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """)
-    # 兼容旧表：如果表已存在但缺少 batch_id 列，自动迁移
+    # 兼容旧表：自动迁移缺失列
     try:
         cursor.execute("SELECT batch_id FROM stock_batch_technical_score LIMIT 1")
     except Exception:
         conn.rollback()
         logger.info("检测到旧表缺少 batch_id 列，开始迁移...")
         cursor.execute("ALTER TABLE stock_batch_technical_score ADD COLUMN batch_id INT NOT NULL DEFAULT 0 AFTER id")
-        # 删除旧唯一键，创建新唯一键
         try:
             cursor.execute("ALTER TABLE stock_batch_technical_score DROP INDEX uk_code_date")
         except Exception:
@@ -64,6 +79,16 @@ def create_technical_score_table(conn=None):
         except Exception:
             conn.rollback()
         logger.info("旧表迁移完成，已添加 batch_id 列")
+
+    # 兼容旧表：自动添加布林线反弹列
+    for col_name, col_def in _BOLL_COLUMNS:
+        try:
+            cursor.execute(f"SELECT {col_name} FROM stock_batch_technical_score LIMIT 1")
+        except Exception:
+            conn.rollback()
+            logger.info("添加缺失列 %s ...", col_name)
+            cursor.execute(f"ALTER TABLE stock_batch_technical_score ADD COLUMN {col_name} {col_def}")
+
     conn.commit()
     if own_conn:
         cursor.close()
@@ -73,7 +98,7 @@ def create_technical_score_table(conn=None):
 
 
 def save_score_results(results: list[dict], batch_id: int):
-    """批量保存打分结果到数据库（带批次号）"""
+    """批量保存打分结果到数据库（带批次号、含布林线反弹数据）"""
     conn = get_connection()
     create_technical_score_table(conn)
     now = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
@@ -86,6 +111,8 @@ def save_score_results(results: list[dict], batch_id: int):
             r["kdj_score"], r["kdj_detail"],
             r["vol_score"], r["vol_detail"],
             r["trend_score"], r["trend_detail"],
+            r.get("boll_score", 0), 1 if r.get("boll_signal") else 0, r.get("boll_detail", ""),
+            r.get("mid_bounce_score", 0), 1 if r.get("mid_bounce_signal") else 0, r.get("mid_bounce_detail", ""),
             r.get("close"), r.get("date"),
             now,
         )
@@ -96,14 +123,18 @@ def save_score_results(results: list[dict], batch_id: int):
         (batch_id, stock_name, stock_code, total_score,
          macd_score, macd_detail, kdj_score, kdj_detail,
          vol_score, vol_detail, trend_score, trend_detail,
+         boll_score, boll_signal, boll_detail,
+         mid_bounce_score, mid_bounce_signal, mid_bounce_detail,
          close_price, score_date, created_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             stock_name=VALUES(stock_name), total_score=VALUES(total_score),
             macd_score=VALUES(macd_score), macd_detail=VALUES(macd_detail),
             kdj_score=VALUES(kdj_score), kdj_detail=VALUES(kdj_detail),
             vol_score=VALUES(vol_score), vol_detail=VALUES(vol_detail),
             trend_score=VALUES(trend_score), trend_detail=VALUES(trend_detail),
+            boll_score=VALUES(boll_score), boll_signal=VALUES(boll_signal), boll_detail=VALUES(boll_detail),
+            mid_bounce_score=VALUES(mid_bounce_score), mid_bounce_signal=VALUES(mid_bounce_signal), mid_bounce_detail=VALUES(mid_bounce_detail),
             close_price=VALUES(close_price), created_at=VALUES(created_at)
     """, rows)
     conn.commit()

@@ -1220,6 +1220,8 @@
                 </tr>`;
 
                 const techScoreColor = stock.tech_total_score != null ? getScoreColor(stock.tech_total_score) : '#c7c7cc';
+                const bollSignalHtml = stock.tech_boll_signal ? `<span style="background:#ff6b6b;color:white;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">🔻下轨反弹 ${stock.tech_boll_score}</span>` : (stock.tech_boll_score ? `<span style="color:#999;font-size:9px;">下轨${stock.tech_boll_score}</span>` : '');
+                const midSignalHtml = stock.tech_mid_bounce_signal ? `<span style="background:#4caf50;color:white;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">📈中轨反弹 ${stock.tech_mid_bounce_score}</span>` : (stock.tech_mid_bounce_score ? `<span style="color:#999;font-size:9px;">中轨${stock.tech_mid_bounce_score}</span>` : '');
                 const row_tech = `<tr class="row-kline" style="background:rgba(232,245,233,0.45);">
                     <td class="data-row"><div class="data-section">
                         <span class="data-section-label">🔧 技术打分</span>
@@ -1233,6 +1235,10 @@
                             <div class="data-metric"><span class="dm-label">KDJ</span><span class="dm-value">${stock.tech_kdj_score ?? '-'}</span></div>
                             <div class="data-metric"><span class="dm-label">量能</span><span class="dm-value">${stock.tech_vol_score ?? '-'}</span></div>
                             <div class="data-metric"><span class="dm-label">趋势</span><span class="dm-value">${stock.tech_trend_score ?? '-'}</span></div>
+                            <div class="data-metric" style="border-right:2px solid rgba(76,175,80,0.2);padding-right:10px;">
+                                <span class="dm-label">布林信号</span>
+                                <div style="display:flex;gap:4px;margin-top:2px;flex-wrap:wrap;">${midSignalHtml}${bollSignalHtml}${!midSignalHtml && !bollSignalHtml ? '<span class="dm-value empty" style="font-size:10px;">无信号</span>' : ''}</div>
+                            </div>
                             <div class="data-metric"><span class="dm-label">收盘价</span><span class="dm-value" style="font-size:11px;">${stock.tech_close_price ?? '-'}</span></div>
                             <div class="data-metric"><span class="dm-label">日期</span><span class="dm-value" style="font-size:10px;color:#48484a;">${stock.tech_score_date ?? '-'}</span></div>
                             <div class="data-metric" style="border-right:none;">
@@ -1908,11 +1914,15 @@
                         <th style="padding:8px;text-align:center;">KDJ</th>
                         <th style="padding:8px;text-align:center;">量能</th>
                         <th style="padding:8px;text-align:center;">趋势</th>
+                        <th style="padding:8px;text-align:center;">中轨反弹</th>
+                        <th style="padding:8px;text-align:center;">下轨反弹</th>
                         <th style="padding:8px;text-align:right;">收盘价</th>
                         <th style="padding:8px;text-align:right;font-size:10px;">记录时间</th>
                     </tr></thead><tbody>`;
                 records.forEach(r => {
                     const scoreColor = getScoreColor(r.total_score);
+                    const midTag = r.mid_bounce_signal ? `<span style="background:#4caf50;color:white;padding:1px 4px;border-radius:3px;font-size:9px;">📈${r.mid_bounce_score}</span>` : (r.mid_bounce_score ? r.mid_bounce_score : '-');
+                    const bollTag = r.boll_signal ? `<span style="background:#ff6b6b;color:white;padding:1px 4px;border-radius:3px;font-size:9px;">🔻${r.boll_score}</span>` : (r.boll_score ? r.boll_score : '-');
                     html += `<tr style="border-bottom:1px solid #eee;">
                         <td style="padding:6px 8px;font-weight:600;">${r.score_date || '-'}</td>
                         <td style="padding:6px 8px;text-align:center;font-weight:700;color:${scoreColor};font-size:14px;">${r.total_score}</td>
@@ -1920,6 +1930,8 @@
                         <td style="padding:6px 8px;text-align:center;" title="${r.kdj_detail || ''}">${r.kdj_score}</td>
                         <td style="padding:6px 8px;text-align:center;" title="${r.vol_detail || ''}">${r.vol_score}</td>
                         <td style="padding:6px 8px;text-align:center;" title="${r.trend_detail || ''}">${r.trend_score}</td>
+                        <td style="padding:6px 8px;text-align:center;" title="${r.mid_bounce_detail || ''}">${midTag}</td>
+                        <td style="padding:6px 8px;text-align:center;" title="${r.boll_detail || ''}">${bollTag}</td>
                         <td style="padding:6px 8px;text-align:right;">${r.close_price ?? '-'}</td>
                         <td style="padding:6px 8px;text-align:right;color:#999;font-size:10px;">${r.created_at || '-'}</td>
                     </tr>`;

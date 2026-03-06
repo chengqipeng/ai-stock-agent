@@ -29,14 +29,15 @@ DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 UVICORN_LOGGERS = ("uvicorn", "uvicorn.error", "uvicorn.access")
 
 
-def setup_logging(level: str = "INFO") -> None:
+def setup_logging(level: str = "DEBUG") -> None:
     """配置项目全局日志，同时统一 uvicorn 的日志格式。"""
     log_level = getattr(logging, level.upper(), logging.INFO)
 
     formatter = logging.Formatter(fmt=LOG_FORMAT, datefmt=DATE_FORMAT)
 
-    # 控制台 handler
+    # 控制台 handler — 设置为 DEBUG，确保所有日志都能在控制台打印
     console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.DEBUG)
     console_handler.setFormatter(formatter)
 
     # 文件 handler — 普通日志输出到 app.log
@@ -86,11 +87,13 @@ UVICORN_LOG_CONFIG: dict = {
             "class": "logging.StreamHandler",
             "formatter": "default",
             "stream": "ext://sys.stdout",
+            "level": "DEBUG",
         },
         "access": {
             "class": "logging.StreamHandler",
             "formatter": "access",
             "stream": "ext://sys.stdout",
+            "level": "DEBUG",
         },
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -121,22 +124,22 @@ UVICORN_LOG_CONFIG: dict = {
     "loggers": {
         "uvicorn": {
             "handlers": ["default", "file", "error_file"],
-            "level": "INFO",
+            "level": "DEBUG",
             "propagate": False,
         },
         "uvicorn.error": {
             "handlers": ["default", "file", "error_file"],
-            "level": "INFO",
+            "level": "DEBUG",
             "propagate": False,
         },
         "uvicorn.access": {
             "handlers": ["access", "access_file"],
-            "level": "INFO",
+            "level": "DEBUG",
             "propagate": False,
         },
     },
     "root": {
         "handlers": ["default", "file", "error_file"],
-        "level": "INFO",
+        "level": "DEBUG",
     },
 }
