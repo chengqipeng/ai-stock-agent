@@ -19,6 +19,7 @@ from pathlib import Path
 LOG_DIR = Path(__file__).parent.parent / "log"
 LOG_DIR.mkdir(exist_ok=True)
 LOG_FILE = str(LOG_DIR / "app.log")
+ERROR_LOG_FILE = str(LOG_DIR / "error.log")
 
 # 日志格式：与 uvicorn 风格保持一致
 LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d - %(message)s"
@@ -38,13 +39,20 @@ def setup_logging(level: str = "INFO") -> None:
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
 
-    # 文件 handler — 输出到 log/ 目录
+    # 文件 handler — 普通日志输出到 app.log
     file_handler = logging.handlers.RotatingFileHandler(
         LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
     )
     file_handler.setFormatter(formatter)
 
-    handlers = [console_handler, file_handler]
+    # 错误日志 handler — ERROR 及以上级别输出到 error.log
+    error_file_handler = logging.handlers.RotatingFileHandler(
+        ERROR_LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
+    )
+    error_file_handler.setFormatter(formatter)
+    error_file_handler.setLevel(logging.ERROR)
+
+    handlers = [console_handler, file_handler, error_file_handler]
 
     # 配置 root logger
     root = logging.getLogger()
@@ -92,6 +100,15 @@ UVICORN_LOG_CONFIG: dict = {
             "backupCount": 5,
             "encoding": "utf-8",
         },
+        "error_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "formatter": "default",
+            "filename": ERROR_LOG_FILE,
+            "maxBytes": 10 * 1024 * 1024,
+            "backupCount": 5,
+            "encoding": "utf-8",
+            "level": "ERROR",
+        },
         "access_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "access",
@@ -103,12 +120,12 @@ UVICORN_LOG_CONFIG: dict = {
     },
     "loggers": {
         "uvicorn": {
-            "handlers": ["default", "file"],
+            "handlers": ["default", "file", "error_file"],
             "level": "INFO",
             "propagate": False,
         },
         "uvicorn.error": {
-            "handlers": ["default", "file"],
+            "handlers": ["default", "file", "error_file"],
             "level": "INFO",
             "propagate": False,
         },
@@ -119,7 +136,7 @@ UVICORN_LOG_CONFIG: dict = {
         },
     },
     "root": {
-        "handlers": ["default", "file"],
+        "handlers": ["default", "file", "error_file"],
         "level": "INFO",
     },
 }
