@@ -70,12 +70,27 @@ GRADE_SCORE_MAP = {
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """应用生命周期：启动时注册定时调度，就绪后触发"""
-    await start_scheduler()
-    await start_price_scheduler()
-    # 通知所有调度器：应用已完全启动，可以开始工作
-    app_ready.set()
-    logger.info("[lifespan] 应用启动完成，所有调度器已激活")
+    async def _boot():
+        # 无论调度器是否成功，都要确保 app_ready 被触发，否则页面会卡住
+        try:
+            await start_scheduler()
+            logger.info("[lifespan] K线调度器已激活")
+        except Exception as e:
+            logger.error("[lifespan] 启动K线调度器异常: %s", e, exc_info=True)
+
+        try:
+            await start_price_scheduler()
+            logger.info("[lifespan] 最高最低价调度器已激活")
+        except Exception as e:
+            logger.error("[lifespan] 启动最高最低价调度器异常: %s", e, exc_info=True)
+
+        # 关键：app_ready 必须在 try 之外，确保一定会被 set
+        app_ready.set()
+        logger.info("[lifespan] 应用启动完成，就绪信号已触发")
+
+    _boot_task = asyncio.create_task(_boot())
     yield
+    _boot_task.cancel()
 
 
 app = FastAPI(title="AI Stock Agent", default_response_class=SafeJSONResponse, lifespan=lifespan)
