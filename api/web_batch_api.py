@@ -11,6 +11,12 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
+
+def _safe_loads(s: str, **kw):
+    """json.loads wrapper：允许控制字符（strict=False）"""
+    kw.setdefault("strict", False)
+    return json.loads(s, **kw)
+
 from common.utils.stock_list_parser import parse_stock_list, update_stock_score
 from common.utils.stock_info_utils import get_stock_info_by_name
 from service.can_slim.can_slim_service import execute_can_slim_score
@@ -697,7 +703,7 @@ def extract_grade_and_content(result: str):
 
             # 策略1: 直接解析
             try:
-                data = json.loads(clean)
+                data = _safe_loads(clean)
                 return (data.get('not_hold_grade', ''), data.get('content', ''),
                         data.get('hold_grade', ''), data.get('content', ''),
                         data.get('data_issues', '无'))
@@ -707,7 +713,7 @@ def extract_grade_and_content(result: str):
             # 策略2: 单引号转双引号（LLM常见问题）
             try:
                 fixed = clean.replace("'", '"')
-                data = json.loads(fixed)
+                data = _safe_loads(fixed)
                 logger.debug("extract_grade_and_content 单引号转双引号后解析成功")
                 return (data.get('not_hold_grade', ''), data.get('content', ''),
                         data.get('hold_grade', ''), data.get('content', ''),
@@ -718,7 +724,7 @@ def extract_grade_and_content(result: str):
             # 策略3: 替换未转义换行符
             try:
                 sanitized = clean.replace('\n', '\\n')
-                data = json.loads(sanitized)
+                data = _safe_loads(sanitized)
                 logger.debug("extract_grade_and_content 替换换行符后解析成功")
                 return (data.get('not_hold_grade', ''), data.get('content', ''),
                         data.get('hold_grade', ''), data.get('content', ''),
@@ -729,7 +735,7 @@ def extract_grade_and_content(result: str):
             # 策略4: 单引号转双引号 + 替换换行符
             try:
                 fixed2 = clean.replace("'", '"').replace('\n', '\\n')
-                data = json.loads(fixed2)
+                data = _safe_loads(fixed2)
                 logger.debug("extract_grade_and_content 单引号+换行符修复后解析成功")
                 return (data.get('not_hold_grade', ''), data.get('content', ''),
                         data.get('hold_grade', ''), data.get('content', ''),
@@ -782,7 +788,7 @@ def extract_grade_from_overall(result: str) -> str:
             clean = re.sub(r'\n```\s*$', '', clean)
         clean = clean.strip()
         if clean.startswith('{'):
-            return json.loads(clean).get('grade', '')
+            return _safe_loads(clean).get('grade', '')
     except Exception as e:
         logger.error("Error extracting grade: %s, result: %s", e, result[:200], exc_info=True)
     return ''
@@ -799,10 +805,10 @@ def extract_kline_total_score(result: str) -> int:
 
         if clean.startswith('{'):
             for attempt_fn in [
-                lambda s: json.loads(s),
-                lambda s: json.loads(s.replace("'", '"')),
-                lambda s: json.loads(s.replace('\n', '\\n')),
-                lambda s: json.loads(s.replace("'", '"').replace('\n', '\\n')),
+                lambda s: _safe_loads(s),
+                lambda s: _safe_loads(s.replace("'", '"')),
+                lambda s: _safe_loads(s.replace('\n', '\\n')),
+                lambda s: _safe_loads(s.replace("'", '"').replace('\n', '\\n')),
             ]:
                 try:
                     data = attempt_fn(clean)
@@ -834,12 +840,12 @@ def extract_score_from_result(result: str) -> float:
         
         if clean_result.startswith('{'):
             try:
-                data = json.loads(clean_result)
+                data = _safe_loads(clean_result)
             except json.JSONDecodeError:
                 # LLM sometimes returns single-quoted JSON; fix and retry
                 try:
                     fixed = clean_result.replace("'", '"')
-                    data = json.loads(fixed)
+                    data = _safe_loads(fixed)
                 except json.JSONDecodeError as e:
                     logger.error("Error parsing score JSON: %s, result: %s", e, clean_result[:200], exc_info=True)
                     m = re.search(r'["\']score["\']\s*:\s*["\']?(\d+\.?\d*)', clean_result)
@@ -877,7 +883,7 @@ def extract_summary_from_result(result: str) -> str:
         
         if clean_result.startswith('{'):
             try:
-                data = json.loads(clean_result)
+                data = _safe_loads(clean_result)
                 return data.get('content', data.get('summary', data.get('analysis', '')))
             except json.JSONDecodeError:
                 for key in ('content', 'summary', 'analysis'):
