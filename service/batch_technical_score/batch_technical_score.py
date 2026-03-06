@@ -37,10 +37,16 @@ def parse_stock_list(path: Path) -> list[dict]:
 
 
 def _make_stock_info(name: str, code: str) -> StockInfo:
-    stock_code, suffix = code.split('.')
+    if '.' in code:
+        stock_code, suffix = code.split('.')
+    else:
+        stock_code = code
+        # 根据股票代码前缀推断交易所：6开头为上海(SH)，其余为深圳(SZ)
+        suffix = "SH" if stock_code.startswith('6') else "SZ"
     prefix = "0" if suffix == "SZ" else "1"
+    code_normalized = f"{stock_code}.{suffix}"
     return StockInfo(secid=f"{prefix}.{stock_code}", stock_code=stock_code,
-                     stock_code_normalize=code, stock_name=name)
+                     stock_code_normalize=code_normalized, stock_name=name)
 
 
 # ─── 构建 DataFrame ───
