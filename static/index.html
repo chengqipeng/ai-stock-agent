@@ -2313,16 +2313,25 @@
                     text.textContent = msg;
                     banner.style.background = 'rgba(240,173,78,0.25)';
                 } else if (d.last_run_time) {
+                    const kTotal = d.kline_total || 0;
+                    const kSuccess = d.kline_success || 0;
                     const kFail = d.kline_failed || 0;
+                    const fTotal = d.finance_total || 0;
+                    const fSuccess = d.finance_success || 0;
                     const fFail = d.finance_failed || 0;
                     const totalFail = kFail + fFail;
+                    let detail = d.last_run_time + ' 拉取完成';
+                    detail += '  K线 ' + kSuccess + '/' + kTotal;
+                    if (kFail > 0) detail += '(失败' + kFail + ')';
+                    detail += '  财报 ' + fSuccess + '/' + fTotal;
+                    if (fFail > 0) detail += '(失败' + fFail + ')';
                     if (totalFail === 0) {
                         icon.textContent = '✅';
-                        text.textContent = d.last_run_time + ' 日线数据拉取完成';
+                        text.textContent = detail;
                         banner.style.background = 'rgba(92,184,92,0.25)';
                     } else {
                         icon.textContent = '⚠️';
-                        text.textContent = d.last_run_time + ' 日线数据拉取完成，失败（' + totalFail + '）';
+                        text.textContent = detail;
                         banner.style.background = 'rgba(217,83,79,0.25)';
                     }
                 } else {
@@ -2370,7 +2379,7 @@
                         banner.style.background = 'rgba(92,184,92,0.25)';
                     } else {
                         icon.textContent = '⚠️';
-                        text.textContent = d.last_run_time + ' 最高最低价拉取完成，失败（' + totalFail + '）';
+                        text.textContent = d.last_run_time + ' 最高最低价拉取完成（失败' + totalFail + '）';
                         banner.style.background = 'rgba(217,83,79,0.25)';
                     }
                 } else {
