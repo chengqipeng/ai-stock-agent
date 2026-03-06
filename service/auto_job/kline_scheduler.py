@@ -211,10 +211,13 @@ async def start_scheduler():
         now = datetime.now(_CST)
         today = now.date()
 
-        # 启动时检查：如果当天是交易日、已过15:00、且今天还没执行过 → 立即补拉
+        # 启动时检查：如果当天是交易日、已过15:00、且今天还没执行过 → 延迟补拉（等待项目完全启动）
         if is_a_share_trading_day(today) and now.time() >= dtime(15, 0) and not _already_done_today():
-            logger.info("[定时调度] 启动补拉：今天是交易日且已过15:00，立即执行")
-            asyncio.create_task(_execute_job())
+            logger.info("[定时调度] 启动补拉：今天是交易日且已过15:00，将在5秒后执行")
+            async def _delayed_execute():
+                await asyncio.sleep(5)
+                await _execute_job()
+            asyncio.create_task(_delayed_execute())
 
         # 启动定时循环
         asyncio.create_task(_scheduler_loop())

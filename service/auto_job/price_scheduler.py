@@ -155,8 +155,11 @@ async def start_price_scheduler():
         today = now.date()
 
         if is_a_share_trading_day(today) and now.time() >= dtime(15, 0) and not _already_done_today():
-            logger.info("[最高最低价调度] 启动补拉：今天是交易日且已过15:00，立即执行")
-            asyncio.create_task(_execute_job())
+            logger.info("[最高最低价调度] 启动补拉：今天是交易日且已过15:00，将在5秒后执行")
+            async def _delayed_execute():
+                await asyncio.sleep(5)
+                await _execute_job()
+            asyncio.create_task(_delayed_execute())
 
         asyncio.create_task(_scheduler_loop())
 
