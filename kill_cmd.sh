@@ -29,17 +29,18 @@ fi
 # 杀掉所有占用80端口的进程（兼容 macOS 和 Linux）
 get_port_pids() {
   if [ "$OS_TYPE" = "Darwin" ]; then
-    # macOS: 使用 lsof
-    lsof -ti:80 2>/dev/null || true
+    # macOS: 使用 lsof（macOS 自带）
+    lsof -i:80 2>/dev/null | awk 'NR>1 {print $2}' | sort -u || true
   else
-    # Linux: 优先使用 ss + awk，回退到 lsof
-    if command -v ss &>/dev/null; then
+    # Linux: 优先 fuser -> ss -> lsof，按常见程度排序
+    if command -v fuser &>/dev/null; then
+      fuser 80/tcp 2>/dev/null | tr -s ' ' '\n' | grep -E '^[0-9]+' || true
+    elif command -v ss &>/dev/null; then
       ss -tlnp sport = :80 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u || true
     elif command -v lsof &>/dev/null; then
-      lsof -ti:80 2>/dev/null || true
-    elif [ -d /proc ]; then
-      # 最后手段：通过 /proc/net/tcp 查找（端口80 = 0050）
-      fuser 80/tcp 2>/dev/null || true
+      lsof -i:80 2>/dev/null | awk 'NR>1 {print $2}' | sort -u || true
+    else
+      echo "Warning: no tool (fuser/ss/lsof) found to detect port 80 processes" >&2
     fi
   fi
 }
