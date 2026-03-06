@@ -1,7 +1,10 @@
 #!/bin/bash
+cd /data/ai-stock-agent
+git pull
+source .venv/bin/activate
 
-echo "启动 AI Stock Agent Web 服务..."
-echo "访问地址: http://localhost:8080"
-echo ""
+pid=$(pgrep -f "python web_app.py")
+[ -n "$pid" ] && kill "$pid" && echo "Killed pid=$pid"
 
-python api/web_api.py
+nohup python web_app.py > app.log 2>&1 &
+echo "Started, pid=$!, log=app.log"
