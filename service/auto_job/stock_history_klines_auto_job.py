@@ -26,6 +26,9 @@ _CST = ZoneInfo("Asia/Shanghai")
 
 logger = logging.getLogger(__name__)
 
+# 指数代码集合，用于判断是否为指数类股票
+_INDEX_CODES = {s['code'] for s in MAIN_STOCK}
+
 
 # ─────────────────── K线采集流水线 ───────────────────
 
@@ -69,15 +72,21 @@ async def _process_single_kline(stock_code, stock_name, limit, counter):
         _RETRYABLE_KEYWORDS = ('Server disconnected', 'Connection closed abruptly',
                                'Expecting value', '空响应', 'JSONP解包后为空',
                                'JSON解析失败', 'ClientResponseError')
-        for attempt in range(1, 11):
+        is_index = stock_code in _INDEX_CODES
+        max_attempts = 1 if is_index else 10
+        for attempt in range(1, max_attempts + 1):
             try:
                 klines = await get_stock_day_kline_as_str_10jqka(stock_info, fetch_limit)
                 elapsed = asyncio.get_event_loop().time() - t0
                 break
             except Exception as e:
+                if is_index:
+                    logger.warning("[K线 %s] 指数类股票拉取失败，跳过: %s", stock_name, str(e)[:200])
+                    counter['failed'] += 1
+                    return
                 err_msg = str(e)
                 is_retryable = any(kw in err_msg for kw in _RETRYABLE_KEYWORDS)
-                if is_retryable and attempt < 10:
+                if is_retryable and attempt < max_attempts:
                     wait = min(10 * attempt, 60)
                     logger.warning("[K线 %s] 请求异常(%s)，第%d次重试，等待%d秒",
                                    stock_name, err_msg[:200], attempt, wait)

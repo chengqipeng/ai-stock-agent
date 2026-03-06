@@ -1,50 +1,17 @@
 import asyncio
-import json
 import logging
 import re
 from datetime import datetime
 from pathlib import Path
 
 from common.utils.stock_info_utils import get_stock_info_by_name
+from dao.stock_highest_lowest_price_dao import save_price_record, get_today_processed_codes
 from service.jqka10.stock_week_kline_data_10jqka import get_stock_week_kline_list_10jqka
 
 logger = logging.getLogger(__name__)
 
-# 获取项目根目录
 project_root = Path(__file__).parent.parent.parent
-output_file = project_root / "data_results/stock_highest_lowest_price/stock_highest_lowest_price.json"
 lock = asyncio.Lock()
-
-
-def save_result(result):
-    """保存单条结果，如果有更高价或更新时间则覆盖"""
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-
-    # 读取现有数据
-    if output_file.exists():
-        with open(output_file, "r", encoding="utf-8") as f:
-            results = json.load(f)
-    else:
-        results = []
-
-    # 查找是否已存在
-    updated = False
-    for i, r in enumerate(results):
-        if r["code"] == result["code"]:
-            # 如果新数据的最高价更高或日期更新，则覆盖
-            if result["highest_price"] > r["highest_price"] or result["highest_date"] > r["highest_date"]:
-                results[i] = result
-                updated = True
-            break
-    else:
-        # 不存在则添加
-        results.append(result)
-        updated = True
-
-    # 只有数据变化时才保存
-    if updated:
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(results, f, ensure_ascii=False)
 
 
 async def _process_single_price(stock, counter):
@@ -68,7 +35,7 @@ async def _process_single_price(stock, counter):
             }
 
             async with lock:
-                save_result(result)
+                save_price_record(result)
 
             counter['success'] += 1
             logger.info("[最高最低价 总%d 成功%d 失败%d 当前:%s] 最高%s(%s) 最低%s(%s)",
@@ -99,14 +66,8 @@ async def run_price_job(max_concurrent=5, counter=None):
     """独立运行最高最低价采集任务（供调度器调用）"""
     today = datetime.now().strftime("%Y-%m-%d")
 
-    # 加载已处理的股票
-    processed_codes = set()
-    if output_file.exists():
-        with open(output_file, "r", encoding="utf-8") as f:
-            existing_results = json.load(f)
-            for r in existing_results:
-                if r.get("update_time", "").startswith(today):
-                    processed_codes.add(r["code"])
+    # 从数据库加载已处理的股票
+    processed_codes = get_today_processed_codes(today)
 
     all_stocks = _load_stocks()
     remaining_stocks = [s for s in all_stocks if s["code"] not in processed_codes]
@@ -137,4 +98,3 @@ async def run_price_job(max_concurrent=5, counter=None):
 
 if __name__ == "__main__":
     asyncio.run(run_price_job())
-

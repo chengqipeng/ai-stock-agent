@@ -2,7 +2,9 @@
 最高最低价数据定时调度模块
 
 - 每个A股交易日15:05自动触发最高最低价数据拉取
-- 项目启动时检查当天是否已完成，未完成则立即补拉
+- 一天只拉取一次，只有全部成功才标记完成
+- 失败时自动重试失败的股票（间隔5分钟），直到全部成功
+- 项目启动时检查当天是否已完成，未完成且已过15:00则立即补拉
 - 状态通过API暴露给前端展示
 """
 import asyncio
@@ -14,6 +16,9 @@ from service.auto_job.kline_scheduler import is_a_share_trading_day, app_ready
 
 _CST = ZoneInfo("Asia/Shanghai")
 logger = logging.getLogger(__name__)
+
+# 失败重试间隔（秒）
+_RETRY_INTERVAL = 300
 
 # ─────────── 全局状态 ───────────
 
@@ -54,43 +59,57 @@ def _next_trigger_dt(after: datetime) -> datetime:
 
 
 def _already_done_today() -> bool:
+    """只有当天执行过且全部成功，才算已完成"""
     now_date = datetime.now(_CST).date().isoformat()
-    return _job_status["last_run_date"] == now_date
+    return _job_status["last_run_date"] == now_date and _job_status["last_success"] is True
 
 
 async def _execute_job():
-    """执行一次最高最低价采集"""
+    """执行一次最高最低价采集，失败时自动重试直到全部成功"""
     from service.auto_job.stock_history_highest_lowest_price_auto_job import run_price_job
 
     _job_status["running"] = True
     today_str = datetime.now(_CST).date().isoformat()
-    logger.info("[最高最低价调度] 开始执行 %s", today_str)
+    attempt = 0
 
-    price_counter = {"total": 0, "success": 0, "failed": 0}
-    _job_status["_price_counter"] = price_counter
+    while True:
+        attempt += 1
+        logger.info("[最高最低价调度] 开始执行 %s（第%d次尝试）", today_str, attempt)
 
-    try:
-        price_counter = await run_price_job(max_concurrent=5, counter=price_counter)
+        price_counter = {"total": 0, "success": 0, "failed": 0}
         _job_status["_price_counter"] = price_counter
-    except Exception as e:
-        logger.error("[最高最低价调度] 采集异常: %s", e)
 
-    now_str = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
-    total_failed = price_counter.get("failed", 0)
+        try:
+            price_counter = await run_price_job(max_concurrent=5, counter=price_counter)
+            _job_status["_price_counter"] = price_counter
+        except Exception as e:
+            logger.error("[最高最低价调度] 采集异常: %s", e)
 
-    _job_status.update({
-        "last_run_time": now_str,
-        "last_run_date": today_str,
-        "last_success": total_failed == 0,
-        "price_total": price_counter.get("total", 0),
-        "price_success": price_counter.get("success", 0),
-        "price_failed": price_counter.get("failed", 0),
-        "running": False,
-        "_price_counter": None,
-    })
+        now_str = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
+        total_failed = price_counter.get("failed", 0)
+        all_success = total_failed == 0
 
-    logger.info("[最高最低价调度] 执行完成 %d/%d",
-                price_counter.get("success", 0), price_counter.get("total", 0))
+        _job_status.update({
+            "last_run_time": now_str,
+            "last_run_date": today_str,
+            "last_success": all_success,
+            "price_total": price_counter.get("total", 0),
+            "price_success": price_counter.get("success", 0),
+            "price_failed": total_failed,
+            "_price_counter": None,
+        })
+
+        if all_success:
+            logger.info("[最高最低价调度] 全部成功 %d/%d",
+                        price_counter.get("success", 0), price_counter.get("total", 0))
+            break
+
+        # 有失败，等待后重试（run_price_job 内部会跳过已成功入库的股票）
+        logger.warning("[最高最低价调度] 有 %d 只失败，%d秒后重试失败的股票",
+                       total_failed, _RETRY_INTERVAL)
+        await asyncio.sleep(_RETRY_INTERVAL)
+
+    _job_status["running"] = False
 
 
 async def _scheduler_loop():
@@ -110,7 +129,7 @@ async def _scheduler_loop():
                 continue
 
             if _already_done_today():
-                logger.info("[最高最低价调度] 今日 %s 已执行过，跳过", trigger_date)
+                logger.info("[最高最低价调度] 今日 %s 已全部成功，跳过", trigger_date)
                 await asyncio.sleep(60)
                 continue
 

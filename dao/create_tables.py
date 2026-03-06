@@ -163,6 +163,25 @@ _TABLES = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 
+    # ── stock_highest_lowest_price ──
+    """
+    CREATE TABLE IF NOT EXISTS stock_highest_lowest_price (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        stock_code VARCHAR(20) NOT NULL,
+        stock_name VARCHAR(100) NOT NULL,
+        highest_price DOUBLE,
+        highest_date VARCHAR(20),
+        lowest_price DOUBLE,
+        lowest_date VARCHAR(20),
+        update_time VARCHAR(30),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_code (stock_code),
+        INDEX idx_highest_date (highest_date),
+        INDEX idx_lowest_date (lowest_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+
     # ── stock_batch_technical_score ──
     """
     CREATE TABLE IF NOT EXISTS stock_batch_technical_score (
