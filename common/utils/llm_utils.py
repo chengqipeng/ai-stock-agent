@@ -24,4 +24,10 @@ def parse_llm_json(content: str):
     if match:
         content = match.group(1).strip()
 
-    return json.loads(content)
+    # strict=False 允许字符串内的控制字符（\n, \t 等）
+    try:
+        return json.loads(content, strict=False)
+    except json.JSONDecodeError:
+        # 移除非法控制字符后重试
+        cleaned = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', content)
+        return json.loads(cleaned, strict=False)

@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import StreamingResponse, HTMLResponse
+from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from typing import List
 import json
@@ -8,28 +8,72 @@ import re
 import ast
 import logging
 import uuid
+from datetime import datetime, date
 
 logger = logging.getLogger(__name__)
 
 
-def _safe_loads(s: str, **kw):
-    """json.loads wrapper：允许控制字符（strict=False）"""
-    kw.setdefault("strict", False)
-    return json.loads(s, **kw)
+def _sanitize_json_string(s: str) -> str:
+    """移除 JSON 字符串值内部的非法控制字符（U+0000-U+001F，保留常见转义）"""
+    # Remove control chars that are not valid even inside JSON strings
+    # Keep \n \r \t as they are common and handled by strict=False
+    return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', s)
 
+
+def _safe_loads(s: str, **kw):
+    """json.loads wrapper：允许控制字符（strict=False），并预清理非法字符"""
+    kw.setdefault("strict", False)
+    try:
+        return json.loads(s, **kw)
+    except json.JSONDecodeError:
+        # Fallback: strip control characters and retry
+        cleaned = _sanitize_json_string(s)
+        return json.loads(cleaned, **kw)
+
+
+class _DateTimeEncoder(json.JSONEncoder):
+    """处理 MySQL 返回的 datetime / date / timedelta 对象"""
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, date):
+            return obj.isoformat()
+        if hasattr(obj, 'total_seconds'):  # timedelta
+            return str(obj)
+        return super().default(obj)
+
+
+class SafeJSONResponse(JSONResponse):
+    def render(self, content) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            cls=_DateTimeEncoder,
+        ).encode("utf-8")
+
+from contextlib import asynccontextmanager
 from common.utils.stock_list_parser import parse_stock_list, update_stock_score
 from common.utils.stock_info_utils import get_stock_info_by_name
 from service.can_slim.can_slim_service import execute_can_slim_score
 from service.k_strategy.stock_k_strategy_service import get_k_strategy_analysis
 from service.eastmoney.stock_info.stock_day_kline_data import get_120day_high_to_latest_change
 from dao.stock_can_slim_dao import db_manager
+from service.auto_job.kline_scheduler import start_scheduler, get_job_status
 
 GRADE_SCORE_MAP = {
     '积极买入': 95, '逢低建仓': 75, '持股待涨': 60,
     '逢高减仓': 40, '清仓离场': 20, '保持观望': 50
 }
 
-app = FastAPI(title="AI Stock Agent")
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """应用生命周期：启动时启动定时调度"""
+    await start_scheduler()
+    yield
+
+
+app = FastAPI(title="AI Stock Agent", default_response_class=SafeJSONResponse, lifespan=lifespan)
 
 @app.get("/.well-known/appspecific/com.chrome.devtools.json")
 async def chrome_devtools():
@@ -47,6 +91,12 @@ async def read_root():
         "Pragma": "no-cache",
         "Expires": "0"
     })
+
+
+@app.get("/api/kline_job_status")
+async def kline_job_status():
+    """获取日线数据定时拉取任务状态"""
+    return {"success": True, "data": get_job_status()}
 
 @app.get("/api/stock_list")
 async def get_stock_list():

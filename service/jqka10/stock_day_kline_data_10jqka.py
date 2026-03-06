@@ -165,7 +165,7 @@ async def _fetch_raw(url: str) -> dict:
         logger.warning("[_fetch_raw] JSONP解包后为空, url=%s, raw=%s", url, text[:500])
         raise ValueError(f"JSONP解包后为空: {url}")
     try:
-        return json.loads(json_text)
+        return json.loads(json_text, strict=False)
     except json.JSONDecodeError as e:
         logger.warning("[_fetch_raw] JSON解析失败, url=%s, error=%s, body=%s", url, e, text[:500])
         raise

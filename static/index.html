@@ -583,6 +583,25 @@
         <h1>📊 批量股票分析</h1>
     </div>
 
+    <!-- 日线数据拉取状态横幅 -->
+    <div id="klineJobBanner" style="
+        background: rgba(255,255,255,0.65);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(0,0,0,0.06);
+        border-radius: 10px;
+        padding: 8px 16px;
+        margin-bottom: 10px;
+        font-size: 13px;
+        color: #555;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    ">
+        <span id="klineJobIcon" style="font-size: 15px;">⏳</span>
+        <span id="klineJobText">日线数据状态加载中...</span>
+    </div>
+
     <div class="container" id="mainContainer">
         <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="折叠/展开侧栏">◀</button>
         <div class="left-column" id="leftColumn">
@@ -2246,12 +2265,53 @@
             }
         }
 
+        // ─── 日线数据拉取状态轮询 ───
+        async function pollKlineJobStatus() {
+            try {
+                const resp = await fetch('/api/kline_job_status');
+                const json = await resp.json();
+                if (!json.success) return;
+                const d = json.data;
+                const banner = document.getElementById('klineJobBanner');
+                const icon = document.getElementById('klineJobIcon');
+                const text = document.getElementById('klineJobText');
+
+                if (d.running) {
+                    icon.textContent = '🔄';
+                    text.textContent = '日线数据正在拉取中...';
+                    banner.style.borderLeft = '3px solid #f0ad4e';
+                } else if (d.last_run_time) {
+                    const kFail = d.kline_failed || 0;
+                    const fFail = d.finance_failed || 0;
+                    const totalFail = kFail + fFail;
+                    if (totalFail === 0) {
+                        icon.textContent = '✅';
+                        text.textContent = d.last_run_time + ' 日线数据拉取完成';
+                        banner.style.borderLeft = '3px solid #5cb85c';
+                    } else {
+                        icon.textContent = '⚠️';
+                        text.textContent = d.last_run_time + ' 日线数据拉取完成，失败（' + totalFail + '）';
+                        banner.style.borderLeft = '3px solid #d9534f';
+                    }
+                } else {
+                    icon.textContent = '⏳';
+                    text.textContent = '日线数据等待调度中（每个交易日15:05自动执行）';
+                    banner.style.borderLeft = '3px solid #999';
+                }
+            } catch (e) {
+                // 静默失败
+            }
+        }
+
         // 初始化
         loadStockList();
         loadBatchList();
+        pollKlineJobStatus();
         
         // 定时刷新批次列表
         setInterval(loadBatchList, 5000);
+        // 定时刷新日线拉取状态（10秒）
+        setInterval(pollKlineJobStatus, 10000);
     </script>
 </body>
 </html>
