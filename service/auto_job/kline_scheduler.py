@@ -4,26 +4,60 @@
 - 每个A股交易日15:05自动触发K线+财报数据拉取
 - 项目启动时检查当天是否已完成，未完成则立即补拉
 - 状态通过API暴露给前端展示
+- 执行状态持久化到本地文件，重启后不会重复全量拉取
 """
 import asyncio
+import json
 import logging
 from datetime import datetime, date, timedelta, time as dtime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 from chinese_calendar import is_workday
 
 _CST = ZoneInfo("Asia/Shanghai")
 logger = logging.getLogger(__name__)
 
+# ─────────── 状态持久化 ───────────
+_STATUS_FILE = Path(__file__).parent.parent.parent / "data_results" / ".kline_scheduler_status.json"
+
+
+def _load_persisted_status() -> dict:
+    """从本地文件恢复上次执行状态"""
+    try:
+        if _STATUS_FILE.exists():
+            data = json.loads(_STATUS_FILE.read_text(encoding="utf-8"))
+            logger.info("[定时调度] 从文件恢复状态: last_run_date=%s", data.get("last_run_date"))
+            return data
+    except Exception as e:
+        logger.warning("[定时调度] 读取状态文件失败: %s", e)
+    return {}
+
+
+def _save_persisted_status(status: dict):
+    """将关键状态持久化到本地文件"""
+    try:
+        _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "last_run_time": status.get("last_run_time"),
+            "last_run_date": status.get("last_run_date"),
+            "last_success": status.get("last_success"),
+        }
+        _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        logger.warning("[定时调度] 写入状态文件失败: %s", e)
+
+
 # ─────────── 启动就绪信号 ───────────
 # 所有调度器共享此 Event，应用完全启动后由 lifespan 触发
 app_ready = asyncio.Event()
 
 # ─────────── 全局状态 ───────────
+_persisted = _load_persisted_status()
 
 _job_status = {
-    "last_run_time": None,       # 最近一次执行完成时间 (str)
-    "last_run_date": None,       # 最近一次执行对应的交易日 (str)
-    "last_success": None,        # 最近一次是否成功 (bool)
+    "last_run_time": _persisted.get("last_run_time"),
+    "last_run_date": _persisted.get("last_run_date"),
+    "last_success": _persisted.get("last_success"),
     "kline_total": 0,
     "kline_success": 0,
     "kline_failed": 0,
@@ -123,6 +157,9 @@ async def _execute_job():
         "_kline_counter": None,
         "_finance_counter": None,
     })
+
+    # 持久化状态，重启后可跳过已完成的日期
+    _save_persisted_status(_job_status)
 
     logger.info("[定时调度] 执行完成 K线:%d/%d 财报:%d/%d",
                 kline_counter.get("success", 0), kline_counter.get("total", 0),
