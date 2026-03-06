@@ -60,6 +60,7 @@ _TABLES = [
         completed_count INT DEFAULT 0,
         status VARCHAR(50) DEFAULT 'pending',
         is_pinned TINYINT DEFAULT 0,
+        is_continuous_analysis TINYINT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4

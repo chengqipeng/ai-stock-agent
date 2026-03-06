@@ -27,6 +27,7 @@ class DatabaseManager:
                     completed_count INT DEFAULT 0,
                     status VARCHAR(50) DEFAULT 'pending',
                     is_pinned TINYINT DEFAULT 0,
+                    is_continuous_analysis TINYINT DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -129,6 +130,15 @@ class DatabaseManager:
                     INDEX idx_execution_id (execution_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
+
+            # 兼容已有表：添加 is_continuous_analysis 列
+            try:
+                cursor.execute("""
+                    ALTER TABLE stock_batch_list_info
+                    ADD COLUMN is_continuous_analysis TINYINT DEFAULT 0 AFTER is_pinned
+                """)
+            except Exception:
+                pass  # 列已存在则忽略
 
             conn.commit()
         finally:
@@ -248,6 +258,23 @@ class DatabaseManager:
                 return False
             new_val = 0 if row[0] else 1
             cursor.execute("UPDATE stock_batch_list_info SET is_pinned = %s WHERE id = %s", (new_val, batch_id))
+            conn.commit()
+            return bool(new_val)
+        finally:
+            cursor.close()
+            conn.close()
+
+    def toggle_continuous_analysis(self, batch_id: int) -> bool:
+        """切换批次持续分析状态，返回新的状态"""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT is_continuous_analysis FROM stock_batch_list_info WHERE id = %s", (batch_id,))
+            row = cursor.fetchone()
+            if not row:
+                return False
+            new_val = 0 if row[0] else 1
+            cursor.execute("UPDATE stock_batch_list_info SET is_continuous_analysis = %s WHERE id = %s", (new_val, batch_id))
             conn.commit()
             return bool(new_val)
         finally:

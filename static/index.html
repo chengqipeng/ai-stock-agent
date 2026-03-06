@@ -1025,11 +1025,12 @@
             container.innerHTML = batches.map(batch => `
                 <div class="batch-item ${batch.id === currentBatchId ? 'active' : ''}" onclick="loadBatchStocks(${batch.id})">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="font-weight: 600; font-size: 12px;">${batch.is_pinned ? '📌 ' : ''}${batch.batch_name}</div>
-                        <div style="display:flex;gap:4px;flex-shrink:0;">
-                            <button onclick="event.stopPropagation(); pinBatch(${batch.id})" title="${batch.is_pinned ? '取消置顶' : '置顶'}" style="padding: 2px 6px; background: ${batch.is_pinned ? 'rgba(255,152,0,0.8)' : 'rgba(142,142,147,0.6)'}; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 10px;">${batch.is_pinned ? '取消置顶' : '置顶'}</button>
-                            <button onclick="event.stopPropagation(); renameBatch(${batch.id}, '${batch.batch_name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')" style="padding: 2px 6px; background: rgba(102,126,234,0.8); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 10px;">重命名</button>
-                            <button onclick="event.stopPropagation(); deleteBatch(${batch.id})" style="padding: 2px 6px; background: rgba(255,59,48,0.75); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 10px;">删除</button>
+                        <div style="font-weight: 600; font-size: 12px;">${batch.is_pinned ? '📌 ' : ''}${batch.is_continuous_analysis ? '♻️ ' : ''}${batch.batch_name}</div>
+                        <div style="display:flex;gap:2px;flex-shrink:0;">
+                            <button onclick="event.stopPropagation(); toggleContinuousAnalysis(${batch.id})" title="${batch.is_continuous_analysis ? '取消持续分析' : '标记持续分析'}" style="padding: 2px 5px; background: ${batch.is_continuous_analysis ? 'rgba(76,175,80,0.85)' : 'rgba(142,142,147,0.4)'}; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; line-height: 1;">${batch.is_continuous_analysis ? '♻️' : '⏸️'}</button>
+                            <button onclick="event.stopPropagation(); pinBatch(${batch.id})" title="${batch.is_pinned ? '取消置顶' : '置顶'}" style="padding: 2px 5px; background: ${batch.is_pinned ? 'rgba(255,152,0,0.8)' : 'rgba(142,142,147,0.4)'}; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; line-height: 1;">📌</button>
+                            <button onclick="event.stopPropagation(); renameBatch(${batch.id}, '${batch.batch_name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')" title="重命名" style="padding: 2px 5px; background: rgba(142,142,147,0.4); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; line-height: 1;">✏️</button>
+                            <button onclick="event.stopPropagation(); deleteBatch(${batch.id})" title="删除" style="padding: 2px 5px; background: rgba(142,142,147,0.4); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; line-height: 1;">🗑️</button>
                         </div>
                     </div>
                     <div style="font-size: 11px; color: #86868b; margin-top: 2px;">
@@ -1061,6 +1062,14 @@
         async function pinBatch(batchId) {
             try {
                 const resp = await fetch(`/api/batch/${batchId}/pin`, { method: 'PATCH' });
+                const data = await resp.json();
+                if (data.success) loadBatchList();
+            } catch (e) { alert('操作失败: ' + e.message); }
+        }
+
+        async function toggleContinuousAnalysis(batchId) {
+            try {
+                const resp = await fetch(`/api/batch/${batchId}/continuous_analysis`, { method: 'PATCH' });
                 const data = await resp.json();
                 if (data.success) loadBatchList();
             } catch (e) { alert('操作失败: ' + e.message); }

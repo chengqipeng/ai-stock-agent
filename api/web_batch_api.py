@@ -585,6 +585,16 @@ async def pin_batch(batch_id: int):
         logger.error("切换批次置顶状态失败 batch_id=%s: %s", batch_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.patch("/api/batch/{batch_id}/continuous_analysis")
+async def toggle_continuous_analysis(batch_id: int):
+    """切换批次持续分析标记"""
+    try:
+        is_continuous = db_manager.toggle_continuous_analysis(batch_id)
+        return {"success": True, "is_continuous_analysis": is_continuous}
+    except Exception as e:
+        logger.error("切换持续分析状态失败 batch_id=%s: %s", batch_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.delete("/api/batch/{batch_id}")
 async def delete_batch(batch_id: int):
     """删除批次"""
