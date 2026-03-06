@@ -16,7 +16,7 @@ from datetime import datetime
 from common.utils.stock_info_utils import StockInfo
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_day_range_kline_by_db_cache
 from service.jqka10.stock_finance_data_10jqka import get_financial_data_from_db
-from dao.stock_technical_score_dao import save_score_results
+from dao.stock_technical_score_dao import save_score_results, get_continuous_analysis_batches, get_batch_stock_list
 
 logger = logging.getLogger(__name__)
 
@@ -1432,40 +1432,58 @@ def _append_finance_lines(lines: list[str], r: dict):
 
 
 async def main():
-    stocks = parse_stock_list(SCORE_LIST_PATH)
-    logger.info("共解析到 %d 只股票，开始技术面打分...", len(stocks))
+    batches = get_continuous_analysis_batches()
+    if not batches:
+        logger.info("没有标记为持续分析的批次，退出")
+        return
 
-    results = []
-    total = len(stocks)
-    for i, s in enumerate(stocks, 1):
-        r = await analyze_stock(s['name'], s['code'], i, total)
-        if r:
-            results.append(r)
+    logger.info("共找到 %d 个持续分析批次", len(batches))
 
-    write_result(results, OUTPUT_PATH)
-    save_score_results(results)
-    logger.info("打分结果已保存到数据库")
+    for batch in batches:
+        batch_id = batch['id']
+        batch_name = batch.get('batch_name', str(batch_id))
+        logger.info("=" * 60)
+        logger.info("开始处理批次: %s (id=%d)", batch_name, batch_id)
 
-    qualified = [r for r in results if r['total'] >= 50]
-    mid_bounce_signals = [r for r in results if r.get('mid_bounce_signal')]
-    bounce_signals = [r for r in results if r.get('boll_signal')]
-    logger.info("=" * 60)
-    logger.info("分析完成: 共 %d 只有效股票", len(results))
-    if mid_bounce_signals:
-        logger.info("📈 中轨反弹信号: %d 只", len(mid_bounce_signals))
-        for r in sorted(mid_bounce_signals, key=lambda x: -x['mid_bounce_score']):
-            logger.info("    %s %s 综合:%3d 中轨反弹:%3d %%b=%s",
-                        r['name'], r['code'], r['total'], r['mid_bounce_score'], r.get('mid_pct_b', '-'))
-    else:
-        logger.info("📈 中轨反弹信号: 暂无")
-    if bounce_signals:
-        logger.info("🔻 下轨反弹信号: %d 只", len(bounce_signals))
-        for r in sorted(bounce_signals, key=lambda x: -x['boll_score']):
-            logger.info("    %s %s 综合:%3d 反弹:%3d %%b=%s",
-                        r['name'], r['code'], r['total'], r['boll_score'], r.get('pct_b', '-'))
-    else:
-        logger.info("🔻 下轨反弹信号: 暂无")
-    logger.info("=" * 60)
+        stocks = get_batch_stock_list(batch_id)
+        if not stocks:
+            logger.info("批次 %s 中没有股票，跳过", batch_name)
+            continue
+
+        logger.info("批次 %s 共 %d 只股票，开始技术面打分...", batch_name, len(stocks))
+
+        results = []
+        total = len(stocks)
+        for i, s in enumerate(stocks, 1):
+            r = await analyze_stock(s['stock_name'], s['stock_code'], i, total)
+            if r:
+                results.append(r)
+
+        if results:
+            write_result(results, OUTPUT_PATH)
+            save_score_results(results, batch_id)
+            logger.info("批次 %s 打分结果已保存到数据库 (batch_id=%d)", batch_name, batch_id)
+
+        qualified = [r for r in results if r['total'] >= 50]
+        mid_bounce_signals = [r for r in results if r.get('mid_bounce_signal')]
+        bounce_signals = [r for r in results if r.get('boll_signal')]
+        logger.info("=" * 60)
+        logger.info("批次 %s 分析完成: 共 %d 只有效股票", batch_name, len(results))
+        if mid_bounce_signals:
+            logger.info("📈 中轨反弹信号: %d 只", len(mid_bounce_signals))
+            for r in sorted(mid_bounce_signals, key=lambda x: -x['mid_bounce_score']):
+                logger.info("    %s %s 综合:%3d 中轨反弹:%3d %%b=%s",
+                            r['name'], r['code'], r['total'], r['mid_bounce_score'], r.get('mid_pct_b', '-'))
+        else:
+            logger.info("📈 中轨反弹信号: 暂无")
+        if bounce_signals:
+            logger.info("🔻 下轨反弹信号: %d 只", len(bounce_signals))
+            for r in sorted(bounce_signals, key=lambda x: -x['boll_score']):
+                logger.info("    %s %s 综合:%3d 反弹:%3d %%b=%s",
+                            r['name'], r['code'], r['total'], r['boll_score'], r.get('pct_b', '-'))
+        else:
+            logger.info("🔻 下轨反弹信号: 暂无")
+        logger.info("=" * 60)
 
 
 if __name__ == '__main__':

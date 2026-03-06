@@ -187,6 +187,7 @@ _TABLES = [
     """
     CREATE TABLE IF NOT EXISTS stock_batch_technical_score (
         id INT AUTO_INCREMENT PRIMARY KEY,
+        batch_id INT NOT NULL,
         stock_name VARCHAR(100) NOT NULL,
         stock_code VARCHAR(20) NOT NULL,
         total_score INT NOT NULL,
@@ -201,7 +202,8 @@ _TABLES = [
         close_price DOUBLE,
         score_date VARCHAR(20),
         created_at VARCHAR(30) NOT NULL,
-        UNIQUE KEY uk_code_date (stock_code, score_date),
+        UNIQUE KEY uk_batch_code_date (batch_id, stock_code, score_date),
+        INDEX idx_ts_batch (batch_id),
         INDEX idx_ts_code (stock_code),
         INDEX idx_ts_total (total_score),
         INDEX idx_ts_date (score_date)
