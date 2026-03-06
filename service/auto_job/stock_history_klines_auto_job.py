@@ -207,13 +207,16 @@ def _build_stock_list() -> list[dict]:
 
 # ─────────────────── 独立运行入口 ───────────────────
 
-async def run_kline_job(limit=800, max_concurrent=1):
+async def run_kline_job(limit=800, max_concurrent=1, counter=None):
     """独立运行K线采集任务"""
     stocks = _build_stock_list()
     logger.info("[K线] 开始采集，共 %d 只股票", len(stocks))
 
     semaphore = asyncio.Semaphore(max_concurrent)
-    counter = {'total': len(stocks), 'success': 0, 'failed': 0}
+    if counter is None:
+        counter = {'total': len(stocks), 'success': 0, 'failed': 0}
+    else:
+        counter['total'] = len(stocks)
 
     async def task(stock):
         async with semaphore:
@@ -224,13 +227,16 @@ async def run_kline_job(limit=800, max_concurrent=1):
     return counter
 
 
-async def run_finance_job(max_concurrent=3):
+async def run_finance_job(max_concurrent=3, counter=None):
     """独立运行财报采集任务"""
     stocks = _build_stock_list()
     logger.info("[财报] 开始采集，共 %d 只股票", len(stocks))
 
     semaphore = asyncio.Semaphore(max_concurrent)
-    counter = {'total': len(stocks), 'success': 0, 'failed': 0}
+    if counter is None:
+        counter = {'total': len(stocks), 'success': 0, 'failed': 0}
+    else:
+        counter['total'] = len(stocks)
 
     async def task(stock):
         async with semaphore:

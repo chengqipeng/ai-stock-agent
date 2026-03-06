@@ -14,8 +14,6 @@ logger = logging.getLogger(__name__)
 project_root = Path(__file__).parent.parent.parent
 output_file = project_root / "data_results/stock_highest_lowest_price/stock_highest_lowest_price.json"
 lock = asyncio.Lock()
-completed_count = 0
-total_count = 0
 
 
 def save_result(result):
@@ -49,9 +47,8 @@ def save_result(result):
             json.dump(results, f, ensure_ascii=False)
 
 
-async def process_stock(stock):
-    """处理单个股票"""
-    global completed_count
+async def _process_single_price(stock, counter):
+    """处理单个股票的最高最低价数据"""
     try:
         stock_name = stock["name"]
         stock_info = get_stock_info_by_name(stock_name)
@@ -72,39 +69,22 @@ async def process_stock(stock):
 
             async with lock:
                 save_result(result)
-                completed_count += 1
 
-            logger.info("✓ %s: 最高%s(%s) 最低%s(%s) - 当前执行 %d/%d",
-                        stock_name, highest_record['最高'], highest_record['日期'],
-                        lowest_record['最低'], lowest_record['日期'], completed_count, total_count)
+            counter['success'] += 1
+            logger.info("[最高最低价 总%d 成功%d 失败%d 当前:%s] 最高%s(%s) 最低%s(%s)",
+                        counter['total'], counter['success'], counter['failed'], stock_name,
+                        highest_record['最高'], highest_record['日期'],
+                        lowest_record['最低'], lowest_record['日期'])
+        else:
+            counter['failed'] += 1
+            logger.warning("[最高最低价 %s] 返回空数据", stock_name)
     except Exception as e:
-        logger.error("✗ %s 失败: %s", stock.get('name', ''), e)
+        counter['failed'] += 1
+        logger.error("[最高最低价 %s] 失败: %s", stock.get('name', ''), e)
 
 
-async def process_batch(stocks):
-    """处理一批股票"""
-    for stock in stocks:
-        await process_stock(stock)
-    await asyncio.sleep(1)
-
-
-async def main():
-    """主函数：5线程遍历所有股票"""
-    global completed_count, total_count
-
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    # 加载已处理的股票
-    processed_codes = set()
-    if output_file.exists():
-        with open(output_file, "r", encoding="utf-8") as f:
-            existing_results = json.load(f)
-            # 只保留今天处理的数据
-            for r in existing_results:
-                if r.get("update_time", "").startswith(today):
-                    processed_codes.add(r["code"])
-
-    # 从 stock_score_list.md 加载股票列表
+def _load_stocks() -> list[dict]:
+    """从 stock_score_list.md 加载股票列表"""
     score_list_path = project_root / "data_results/stock_to_score_list/stock_score_list.md"
     pattern = re.compile(r'^(.+?)\s+\(([^)]+)\)')
     all_stocks = []
@@ -112,29 +92,49 @@ async def main():
         m = pattern.match(line.strip())
         if m:
             all_stocks.append({'name': m.group(1), 'code': m.group(2)})
+    return all_stocks
 
-    # 过滤未处理的股票
+
+async def run_price_job(max_concurrent=5, counter=None):
+    """独立运行最高最低价采集任务（供调度器调用）"""
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    # 加载已处理的股票
+    processed_codes = set()
+    if output_file.exists():
+        with open(output_file, "r", encoding="utf-8") as f:
+            existing_results = json.load(f)
+            for r in existing_results:
+                if r.get("update_time", "").startswith(today):
+                    processed_codes.add(r["code"])
+
+    all_stocks = _load_stocks()
     remaining_stocks = [s for s in all_stocks if s["code"] not in processed_codes]
-    total_count = len(remaining_stocks)
-    completed_count = 0
 
-    logger.info("开始处理 %d 只股票（今日已完成 %d 只）...", total_count, len(processed_codes))
+    if counter is None:
+        counter = {'total': len(remaining_stocks), 'success': 0, 'failed': 0}
+    else:
+        counter['total'] = len(remaining_stocks)
+
+    logger.info("[最高最低价] 开始采集，共 %d 只股票（今日已完成 %d 只）",
+                len(remaining_stocks), len(processed_codes))
 
     if not remaining_stocks:
-        logger.info("所有股票已处理完成！")
-        return
+        logger.info("[最高最低价] 所有股票已处理完成")
+        return counter
 
-    # 将股票分成5批
-    batch_size = (len(remaining_stocks) + 4) // 5
-    batches = [remaining_stocks[i:i + batch_size] for i in range(0, len(remaining_stocks), batch_size)]
+    semaphore = asyncio.Semaphore(max_concurrent)
 
-    # 5线程并发处理
-    tasks = [process_batch(batch) for batch in batches]
-    await asyncio.gather(*tasks)
+    async def task(stock):
+        async with semaphore:
+            await _process_single_price(stock, counter)
 
-    logger.info("处理完成！结果已保存到: %s", output_file)
+    await asyncio.gather(*[task(s) for s in remaining_stocks], return_exceptions=True)
+    logger.info("[最高最低价] 采集完成，总%d 成功%d 失败%d",
+                counter['total'], counter['success'], counter['failed'])
+    return counter
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(run_price_job())
 

@@ -58,7 +58,8 @@ from service.can_slim.can_slim_service import execute_can_slim_score
 from service.k_strategy.stock_k_strategy_service import get_k_strategy_analysis
 from service.eastmoney.stock_info.stock_day_kline_data import get_120day_high_to_latest_change
 from dao.stock_can_slim_dao import db_manager
-from service.auto_job.kline_scheduler import start_scheduler, get_job_status
+from service.auto_job.kline_scheduler import start_scheduler, get_job_status, app_ready
+from service.auto_job.price_scheduler import start_price_scheduler, get_price_job_status
 
 GRADE_SCORE_MAP = {
     '积极买入': 95, '逢低建仓': 75, '持股待涨': 60,
@@ -68,8 +69,12 @@ GRADE_SCORE_MAP = {
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    """应用生命周期：启动时启动定时调度"""
+    """应用生命周期：启动时注册定时调度，就绪后触发"""
     await start_scheduler()
+    await start_price_scheduler()
+    # 通知所有调度器：应用已完全启动，可以开始工作
+    app_ready.set()
+    logger.info("[lifespan] 应用启动完成，所有调度器已激活")
     yield
 
 
@@ -97,6 +102,11 @@ async def read_root():
 async def kline_job_status():
     """获取日线数据定时拉取任务状态"""
     return {"success": True, "data": get_job_status()}
+
+@app.get("/api/price_job_status")
+async def price_job_status():
+    """获取最高最低价定时拉取任务状态"""
+    return {"success": True, "data": get_price_job_status()}
 
 @app.get("/api/stock_list")
 async def get_stock_list():

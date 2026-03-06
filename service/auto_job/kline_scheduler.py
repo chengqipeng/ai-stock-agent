@@ -14,6 +14,10 @@ from chinese_calendar import is_workday
 _CST = ZoneInfo("Asia/Shanghai")
 logger = logging.getLogger(__name__)
 
+# ─────────── 启动就绪信号 ───────────
+# 所有调度器共享此 Event，应用完全启动后由 lifespan 触发
+app_ready = asyncio.Event()
+
 # ─────────── 全局状态 ───────────
 
 _job_status = {
@@ -31,7 +35,21 @@ _job_status = {
 
 
 def get_job_status() -> dict:
-    return dict(_job_status)
+    status = dict(_job_status)
+    # 运行中时，从实时计数器读取进度
+    if status.get("running"):
+        kc = status.get("_kline_counter") or {}
+        fc = status.get("_finance_counter") or {}
+        status["kline_total"] = kc.get("total", 0)
+        status["kline_success"] = kc.get("success", 0)
+        status["kline_failed"] = kc.get("failed", 0)
+        status["finance_total"] = fc.get("total", 0)
+        status["finance_success"] = fc.get("success", 0)
+        status["finance_failed"] = fc.get("failed", 0)
+    # 不暴露内部引用
+    status.pop("_kline_counter", None)
+    status.pop("_finance_counter", None)
+    return status
 
 
 def is_a_share_trading_day(d: date) -> bool:
@@ -68,16 +86,23 @@ async def _execute_job():
     today_str = datetime.now(_CST).date().isoformat()
     logger.info("[定时调度] 开始执行日线数据拉取 %s", today_str)
 
+    # 实时计数器，run_kline_job / run_finance_job 内部会原地修改
     kline_counter = {"total": 0, "success": 0, "failed": 0}
     finance_counter = {"total": 0, "success": 0, "failed": 0}
 
+    # 将引用挂到全局状态，前端轮询时可读取实时进度
+    _job_status["_kline_counter"] = kline_counter
+    _job_status["_finance_counter"] = finance_counter
+
     try:
-        kline_counter = await run_kline_job(limit=800, max_concurrent=1)
+        kline_counter = await run_kline_job(limit=800, max_concurrent=1, counter=kline_counter)
+        _job_status["_kline_counter"] = kline_counter
     except Exception as e:
         logger.error("[定时调度] K线采集异常: %s", e)
 
     try:
-        finance_counter = await run_finance_job(max_concurrent=3)
+        finance_counter = await run_finance_job(max_concurrent=3, counter=finance_counter)
+        _job_status["_finance_counter"] = finance_counter
     except Exception as e:
         logger.error("[定时调度] 财报采集异常: %s", e)
 
@@ -95,6 +120,8 @@ async def _execute_job():
         "finance_success": finance_counter.get("success", 0),
         "finance_failed": finance_counter.get("failed", 0),
         "running": False,
+        "_kline_counter": None,
+        "_finance_counter": None,
     })
 
     logger.info("[定时调度] 执行完成 K线:%d/%d 财报:%d/%d",
@@ -138,15 +165,22 @@ async def _scheduler_loop():
 
 
 async def start_scheduler():
-    """启动调度器：先检查是否需要补拉，再启动定时循环"""
-    now = datetime.now(_CST)
-    today = now.date()
+    """启动调度器：等待应用就绪后，检查是否需要补拉，再启动定时循环"""
 
-    # 启动时检查：如果当天是交易日、已过15:00、且今天还没执行过 → 立即补拉
-    if is_a_share_trading_day(today) and now.time() >= dtime(15, 0) and not _already_done_today():
-        logger.info("[定时调度] 启动补拉：今天是交易日且已过15:00，立即执行")
-        asyncio.create_task(_execute_job())
+    async def _deferred_start():
+        await app_ready.wait()
+        logger.info("[定时调度] 应用已就绪，调度器开始工作")
 
-    # 启动定时循环
-    asyncio.create_task(_scheduler_loop())
-    logger.info("[定时调度] 调度器已启动")
+        now = datetime.now(_CST)
+        today = now.date()
+
+        # 启动时检查：如果当天是交易日、已过15:00、且今天还没执行过 → 立即补拉
+        if is_a_share_trading_day(today) and now.time() >= dtime(15, 0) and not _already_done_today():
+            logger.info("[定时调度] 启动补拉：今天是交易日且已过15:00，立即执行")
+            asyncio.create_task(_execute_job())
+
+        # 启动定时循环
+        asyncio.create_task(_scheduler_loop())
+
+    asyncio.create_task(_deferred_start())
+    logger.info("[定时调度] 调度器已注册，等待应用就绪")
