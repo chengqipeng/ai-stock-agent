@@ -1,5 +1,5 @@
 """
-批量检测 stock_*.db 数据异常脚本
+批量检测 stock_kline 数据异常脚本
 
 检测场景：
 1. 价格逻辑错误：close_price <= 0 / open_price <= 0 / high_price <= 0 / low_price <= 0

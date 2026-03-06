@@ -150,11 +150,7 @@ async def execute_batch_kline_update(batch_id: int, stock_ids: str = Query(...),
                         db_manager.update_stock_dimension_score(stock_id, 'kline', not_hold_grade, not_hold_content, None, prompt)
                         if kline_total_score is not None:
                             db_manager.update_stock_kline_scores(stock_id, kline_total_score)
-                        with __import__('sqlite3').connect(db_manager.db_path) as _conn:
-                            _conn.execute(
-                                "UPDATE stock_analysis_detail SET kline_hold_score=?, kline_hold_prompt=?, data_issues=? WHERE id=?",
-                                (hold_grade, hold_content, data_issues, stock_id)
-                            )
+                        db_manager.update_stock_kline_hold(stock_id, hold_grade, hold_content, data_issues)
                         # numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)
                         # if numeric_score is not None:
                         #     update_stock_score(
@@ -294,12 +290,7 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                         db_manager.update_stock_dimension_score(stock['id'], 'kline', not_hold_grade, not_hold_content, None, prompt)
                         if kline_total_score is not None:
                             db_manager.update_stock_kline_scores(stock['id'], kline_total_score)
-                        # 存持有建议和数据质量反馈到 kline_hold_score / kline_hold_prompt / data_issues
-                        with __import__('sqlite3').connect(db_manager.db_path) as _conn:
-                            _conn.execute(
-                                "UPDATE stock_analysis_detail SET kline_hold_score=?, kline_hold_prompt=?, data_issues=? WHERE id=?",
-                                (hold_grade, hold_content, data_issues, stock['id'])
-                            )
+                        db_manager.update_stock_kline_hold(stock['id'], hold_grade, hold_content, data_issues)
                         db_manager.update_stock_status(stock['id'], 'completed', None, deep_thinking)
 
                         # numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)

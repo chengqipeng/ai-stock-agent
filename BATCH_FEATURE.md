@@ -105,7 +105,7 @@ GET /api/batch/stock/{stock_id}
 ### 后端
 - FastAPI SSE（Server-Sent Events）实现实时进度推送
 - asyncio.Semaphore 控制并发数为5
-- SQLite 存储批次和分析结果
+- MySQL 存储批次和分析结果
 - 正则表达式自动提取分析结果中的分数
 
 ### 前端

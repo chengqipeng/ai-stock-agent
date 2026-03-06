@@ -370,6 +370,19 @@ class DatabaseManager:
         finally:
             cursor.close()
             conn.close()
+    def update_stock_kline_hold(self, stock_id: int, hold_score: str, hold_prompt: str, data_issues: str):
+        """更新K线持有建议和数据质量反馈"""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "UPDATE stock_analysis_detail SET kline_hold_score=%s, kline_hold_prompt=%s, data_issues=%s WHERE id=%s",
+                (hold_score, hold_prompt, data_issues, stock_id),
+            )
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
 
     def update_stock_overall_analysis(self, stock_id: int, analysis: str, prompt: str = None, grade: str = None):
         """更新整体分析"""

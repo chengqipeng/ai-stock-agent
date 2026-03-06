@@ -736,7 +736,7 @@
             const s = utcStr.trim();
             // datetime.now().isoformat() 格式含T且含微秒，是本地时间，直接截取显示
             if (s.includes('T') && s.includes('.')) return s.slice(0, 16).replace('T', ' ');
-            // SQLite CURRENT_TIMESTAMP 格式: "2024-01-01 12:00:00" (UTC)
+            // MySQL CURRENT_TIMESTAMP 格式: "2024-01-01 12:00:00" (UTC)
             const d = new Date(s.replace(' ', 'T') + (s.includes('+') || s.endsWith('Z') ? '' : 'Z'));
             if (isNaN(d)) return s.slice(0, 16).replace('T', ' ');
             return d.getFullYear() + '-' +
