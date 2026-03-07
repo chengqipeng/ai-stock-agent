@@ -14,7 +14,7 @@
             font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
             background: linear-gradient(135deg, #e8ecf4 0%, #d5dbe8 25%, #c9d6f0 50%, #ddd5ee 75%, #e8ecf4 100%);
             background-attachment: fixed;
-            padding: 20px;
+            padding: 0;
             min-height: 100vh;
             color: #1d1d1f;
         }
@@ -24,16 +24,16 @@
             -webkit-backdrop-filter: blur(20px) saturate(180%);
             color: white;
             padding: 10px 16px;
-            border-radius: 12px;
-            margin-bottom: 10px;
+            border-radius: 0;
+            margin-bottom: 0;
             border: 1px solid rgba(255, 255, 255, 0.25);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 12px;
+            gap: 8px;
         }
         .header h1 {
-            font-size: 16px;
+            font-size: 14px;
             margin: 0;
             font-weight: 600;
             letter-spacing: -0.2px;
@@ -42,10 +42,12 @@
         .container {
             max-width: 1400px;
             margin: 0 auto;
+            padding: 8px;
             display: grid;
             grid-template-columns: 300px 1fr;
-            gap: 20px;
+            gap: 8px;
             transition: grid-template-columns 0.3s;
+            min-height: calc(100vh - 42px);
         }
         .container.sidebar-collapsed {
             grid-template-columns: 0px 1fr;
@@ -54,7 +56,7 @@
         .left-column {
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 8px;
             overflow: hidden;
             transition: opacity 0.3s;
             min-width: 0;
@@ -95,8 +97,8 @@
             background: rgba(255, 255, 255, 0.6);
             backdrop-filter: blur(24px) saturate(180%);
             -webkit-backdrop-filter: blur(24px) saturate(180%);
-            border-radius: 14px;
-            padding: 20px;
+            border-radius: 10px;
+            padding: 12px;
             box-shadow: 0 2px 16px rgba(0,0,0,0.06), 0 0 1px rgba(0,0,0,0.1);
             border: 1px solid rgba(255, 255, 255, 0.5);
         }
@@ -589,30 +591,36 @@
         <div id="klineJobBanner" style="
             background: rgba(255,255,255,0.2);
             border-radius: 8px;
-            padding: 4px 12px;
-            font-size: 13px;
+            padding: 4px 8px;
+            font-size: 11px;
             color: rgba(255,255,255,0.9);
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
         ">
-            <span id="klineJobIcon" style="font-size: 14px;">⏳</span>
-            <span id="klineJobText">日线数据状态加载中...</span>
+            <span id="klineJobIcon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
+            <span id="klineJobText" style="overflow: hidden; text-overflow: ellipsis;">日线数据状态加载中...</span>
         </div>
         <div id="priceJobBanner" style="
             background: rgba(255,255,255,0.2);
             border-radius: 8px;
-            padding: 4px 12px;
-            font-size: 13px;
+            padding: 4px 8px;
+            font-size: 11px;
             color: rgba(255,255,255,0.9);
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
         ">
-            <span id="priceJobIcon" style="font-size: 14px;">⏳</span>
-            <span id="priceJobText">最高最低价状态加载中...</span>
+            <span id="priceJobIcon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
+            <span id="priceJobText" style="overflow: hidden; text-overflow: ellipsis;">最高最低价状态加载中...</span>
         </div>
     </div>
 
@@ -2449,26 +2457,34 @@
                     text.textContent = msg;
                     banner.style.background = 'rgba(240,173,78,0.25)';
                 } else if (d.last_run_time) {
-                    const kTotal = d.kline_total || 0;
-                    const kSuccess = d.kline_success || 0;
-                    const kFail = d.kline_failed || 0;
-                    const fTotal = d.finance_total || 0;
-                    const fSuccess = d.finance_success || 0;
-                    const fFail = d.finance_failed || 0;
-                    const totalFail = kFail + fFail;
-                    let detail = d.last_run_time + ' 拉取完成';
-                    detail += '  K线 ' + kSuccess + '/' + kTotal;
-                    if (kFail > 0) detail += '(失败' + kFail + ')';
-                    detail += '  财报 ' + fSuccess + '/' + fTotal;
-                    if (fFail > 0) detail += '(失败' + fFail + ')';
-                    if (totalFail === 0) {
-                        icon.textContent = '✅';
-                        text.textContent = detail;
-                        banner.style.background = 'rgba(92,184,92,0.25)';
+                    const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
+                    const isToday = d.last_run_date === today;
+                    if (isToday) {
+                        const kTotal = d.kline_total || 0;
+                        const kSuccess = d.kline_success || 0;
+                        const kFail = d.kline_failed || 0;
+                        const fTotal = d.finance_total || 0;
+                        const fSuccess = d.finance_success || 0;
+                        const fFail = d.finance_failed || 0;
+                        const totalFail = kFail + fFail;
+                        let detail = d.last_run_time + ' 拉取完成';
+                        detail += '  K线 ' + kSuccess + '/' + kTotal;
+                        if (kFail > 0) detail += '(失败' + kFail + ')';
+                        detail += '  财报 ' + fSuccess + '/' + fTotal;
+                        if (fFail > 0) detail += '(失败' + fFail + ')';
+                        if (totalFail === 0) {
+                            icon.textContent = '✅';
+                            text.textContent = detail;
+                            banner.style.background = 'rgba(92,184,92,0.25)';
+                        } else {
+                            icon.textContent = '⚠️';
+                            text.textContent = detail;
+                            banner.style.background = 'rgba(217,83,79,0.25)';
+                        }
                     } else {
-                        icon.textContent = '⚠️';
-                        text.textContent = detail;
-                        banner.style.background = 'rgba(217,83,79,0.25)';
+                        icon.textContent = '⏳';
+                        text.textContent = '日线数据等待调度中（每个交易日15:05自动执行）  上次执行: ' + d.last_run_time;
+                        banner.style.background = 'rgba(255,255,255,0.2)';
                     }
                 } else {
                     icon.textContent = '⏳';
@@ -2508,15 +2524,23 @@
                     text.textContent = msg;
                     banner.style.background = 'rgba(240,173,78,0.25)';
                 } else if (d.last_run_time) {
+                    const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
+                    const isToday = d.last_run_date === today;
                     const totalFail = d.price_failed || 0;
-                    if (totalFail === 0) {
-                        icon.textContent = '✅';
-                        text.textContent = d.last_run_time + ' 最高最低价拉取完成';
-                        banner.style.background = 'rgba(92,184,92,0.25)';
+                    if (isToday) {
+                        if (totalFail === 0) {
+                            icon.textContent = '✅';
+                            text.textContent = d.last_run_time + ' 最高最低价拉取完成';
+                            banner.style.background = 'rgba(92,184,92,0.25)';
+                        } else {
+                            icon.textContent = '⚠️';
+                            text.textContent = d.last_run_time + ' 最高最低价拉取完成（失败' + totalFail + '）';
+                            banner.style.background = 'rgba(217,83,79,0.25)';
+                        }
                     } else {
-                        icon.textContent = '⚠️';
-                        text.textContent = d.last_run_time + ' 最高最低价拉取完成（失败' + totalFail + '）';
-                        banner.style.background = 'rgba(217,83,79,0.25)';
+                        icon.textContent = '⏳';
+                        text.textContent = '最高最低价等待调度中（每个交易日15:05自动执行）  上次执行: ' + d.last_run_time;
+                        banner.style.background = 'rgba(255,255,255,0.2)';
                     }
                 } else {
                     icon.textContent = '⏳';

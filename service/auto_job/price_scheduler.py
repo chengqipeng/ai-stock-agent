@@ -8,8 +8,10 @@
 - 状态通过API暴露给前端展示
 """
 import asyncio
+import json
 import logging
 from datetime import datetime, date, timedelta, time as dtime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from service.auto_job.kline_scheduler import is_a_share_trading_day, app_ready
@@ -20,12 +22,72 @@ logger = logging.getLogger(__name__)
 # 失败重试间隔（秒）
 _RETRY_INTERVAL = 300
 
+# ─────────── 状态持久化 ───────────
+_PRICE_STATUS_FILE = Path(__file__).parent.parent.parent / "data_results" / ".price_scheduler_status.json"
+
+
+def _query_last_update_from_db() -> dict:
+    """从数据库查询最近一次 update_time 作为兜底"""
+    try:
+        from dao import get_connection
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT MAX(update_time) FROM stock_highest_lowest_price"
+            )
+            row = cursor.fetchone()
+            if row and row[0]:
+                ts = str(row[0])  # e.g. "2026-03-06 15:12:34"
+                run_date = ts[:10]  # "2026-03-06"
+                logger.info("[最高最低价调度] 从数据库恢复上次执行时间: %s", ts)
+                return {
+                    "last_run_time": ts,
+                    "last_run_date": run_date,
+                    "last_success": True,
+                }
+        finally:
+            cursor.close()
+            conn.close()
+    except Exception as e:
+        logger.warning("[最高最低价调度] 从数据库查询上次执行时间失败: %s", e)
+    return {}
+
+
+def _load_persisted_status() -> dict:
+    """从本地文件恢复上次执行状态，文件不存在时从数据库兜底"""
+    try:
+        if _PRICE_STATUS_FILE.exists():
+            data = json.loads(_PRICE_STATUS_FILE.read_text(encoding="utf-8"))
+            logger.info("[最高最低价调度] 从文件恢复状态: last_run_date=%s", data.get("last_run_date"))
+            return data
+    except Exception as e:
+        logger.warning("[最高最低价调度] 读取状态文件失败: %s", e)
+    # 文件不存在，尝试从数据库获取
+    return _query_last_update_from_db()
+
+
+def _save_persisted_status(status: dict):
+    """将关键状态持久化到本地文件"""
+    try:
+        _PRICE_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "last_run_time": status.get("last_run_time"),
+            "last_run_date": status.get("last_run_date"),
+            "last_success": status.get("last_success"),
+        }
+        _PRICE_STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        logger.warning("[最高最低价调度] 写入状态文件失败: %s", e)
+
+
 # ─────────── 全局状态 ───────────
+_persisted = _load_persisted_status()
 
 _job_status = {
-    "last_run_time": None,       # 最近一次执行完成时间 (str)
-    "last_run_date": None,       # 最近一次执行对应的交易日 (str)
-    "last_success": None,        # 最近一次是否成功 (bool)
+    "last_run_time": _persisted.get("last_run_time"),
+    "last_run_date": _persisted.get("last_run_date"),
+    "last_success": _persisted.get("last_success"),
     "price_total": 0,
     "price_success": 0,
     "price_failed": 0,
@@ -98,6 +160,9 @@ async def _execute_job():
             "price_failed": total_failed,
             "_price_counter": None,
         })
+
+        # 持久化状态
+        _save_persisted_status(_job_status)
 
         if all_success:
             logger.info("[最高最低价调度] 全部成功 %d/%d",
