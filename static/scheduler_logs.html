@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>调度执行记录 - AI Stock Agent</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #e8ecf4 0%, #d5dbe8 25%, #c9d6f0 50%, #ddd5ee 75%, #e8ecf4 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: #1d1d1f;
+        }
+        .header {
+            background: rgba(102, 126, 234, 0.75);
+            backdrop-filter: blur(20px) saturate(180%);
+            color: white;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255,255,255,0.25);
+        }
+        .header h1 { font-size: 14px; font-weight: 600; }
+        .header a { color: rgba(255,255,255,0.9); text-decoration: none; font-size: 12px; }
+        .header a:hover { color: white; }
+        .container {
+            max-width: 1200px;
+            margin: 12px auto;
+            padding: 0 12px;
+        }
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .log-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: rgba(255,255,255,0.6);
+            backdrop-filter: blur(24px);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+        .log-table thead tr {
+            background: linear-gradient(135deg, rgba(102,126,234,0.12) 0%, rgba(118,75,162,0.08) 100%);
+        }
+        .log-table th {
+            padding: 8px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #48484a;
+            border-bottom: 2px solid rgba(102,126,234,0.2);
+            text-align: left;
+            white-space: nowrap;
+        }
+        .log-table td {
+            padding: 7px 10px;
+            font-size: 12px;
+            border-bottom: 1px solid rgba(0,0,0,0.04);
+            vertical-align: top;
+        }
+        .log-table tbody tr:hover { background: rgba(102,126,234,0.04); }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            color: white;
+        }
+        .status-success { background: rgba(76,175,80,0.85); }
+        .status-running { background: rgba(240,173,78,0.85); }
+        .status-failed { background: rgba(217,83,79,0.85); }
+        .status-partial { background: rgba(255,152,0,0.85); }
+        .job-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            background: rgba(102,126,234,0.12);
+            color: #667eea;
+        }
+        .detail-text {
+            max-width: 350px;
+            word-break: break-all;
+            color: #636366;
+            font-size: 11px;
+            white-space: pre-wrap;
+            max-height: 60px;
+            overflow-y: auto;
+            cursor: pointer;
+        }
+        .detail-text.expanded {
+            max-height: none;
+        }
+        .page-btn {
+            padding: 4px 12px;
+            border: 1px solid rgba(102,126,234,0.25);
+            border-radius: 6px;
+            background: rgba(255,255,255,0.6);
+            cursor: pointer;
+            font-size: 11px;
+            color: #48484a;
+        }
+        .page-btn:hover { background: rgba(102,126,234,0.08); }
+        .page-btn.active { background: rgba(102,126,234,0.15); color: #667eea; font-weight: 600; }
+        .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 id="pageTitle">📋 调度执行记录</h1>
+        <a href="/">← 返回主页</a>
+    </div>
+    <div class="container">
+        <div class="toolbar" id="toolbar">
+            <select id="jobFilter" onchange="loadLogs()" style="padding:5px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:6px;font-size:12px;background:rgba(255,255,255,0.7);">
+                <option value="">全部任务</option>
+                <option value="日线数据">日线数据</option>
+                <option value="最高最低价">最高最低价</option>
+                <option value="技术打分">技术打分</option>
+                <option value="K线初筛">K线初筛</option>
+                <option value="数据异常检测">数据异常检测</option>
+            </select>
+            <button onclick="loadLogs()" style="padding:5px 12px;background:rgba(102,126,234,0.85);color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">刷新</button>
+            <span id="totalInfo" style="font-size:11px;color:#666;margin-left:auto;"></span>
+        </div>
+        <div id="logTable"></div>
+        <div id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:10px;"></div>
+    </div>
+
+    <script>
+        const PAGE_SIZE = 20;
+        let currentPage = 1;
+        let totalCount = 0;
+
+        // Read job_name from URL params and lock filter if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const fixedJobName = urlParams.get('job_name');
+        if (fixedJobName) {
+            const filterEl = document.getElementById('jobFilter');
+            filterEl.value = fixedJobName;
+            filterEl.style.display = 'none';
+            document.getElementById('pageTitle').textContent = '📋 ' + fixedJobName + ' - 执行记录';
+            document.title = fixedJobName + ' 执行记录 - AI Stock Agent';
+        }
+
+        function formatDuration(seconds) {
+            if (seconds == null) return '-';
+            if (seconds < 60) return seconds + '秒';
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            if (m < 60) return m + '分' + (s > 0 ? s + '秒' : '');
+            const h = Math.floor(m / 60);
+            return h + '时' + (m % 60) + '分';
+        }
+
+        function statusBadge(status) {
+            const cls = {success:'status-success',running:'status-running',failed:'status-failed',partial:'status-partial'}[status] || 'status-running';
+            const label = {success:'成功',running:'执行中',failed:'失败',partial:'部分失败'}[status] || status;
+            return '<span class="status-badge ' + cls + '">' + label + '</span>';
+        }
+
+        async function loadLogs() {
+            const jobName = document.getElementById('jobFilter').value;
+            const offset = (currentPage - 1) * PAGE_SIZE;
+            let url = '/api/scheduler_logs?limit=' + PAGE_SIZE + '&offset=' + offset;
+            if (jobName) url += '&job_name=' + encodeURIComponent(jobName);
+
+            try {
+                const resp = await fetch(url);
+                const json = await resp.json();
+                if (!json.success) return;
+
+                totalCount = json.total;
+                document.getElementById('totalInfo').textContent = '共 ' + totalCount + ' 条记录';
+
+                const rows = json.data;
+                let html = '<table class="log-table"><thead><tr>';
+                html += '<th>ID</th><th>任务</th><th>状态</th><th>总数</th><th>成功</th><th>失败</th><th>跳过</th>';
+                html += '<th>开始时间</th><th>结束时间</th><th>耗时</th><th>详情</th>';
+                html += '</tr></thead><tbody>';
+
+                if (rows.length === 0) {
+                    html += '<tr><td colspan="11" style="text-align:center;color:#999;padding:20px;">暂无记录</td></tr>';
+                }
+                for (const r of rows) {
+                    html += '<tr>';
+                    html += '<td>' + r.id + '</td>';
+                    html += '<td><span class="job-badge">' + r.job_name + '</span></td>';
+                    html += '<td>' + statusBadge(r.status) + '</td>';
+                    html += '<td>' + (r.total_count || 0) + '</td>';
+                    html += '<td>' + (r.success_count || 0) + '</td>';
+                    html += '<td>' + (r.failed_count || 0) + '</td>';
+                    html += '<td>' + (r.skipped_count || 0) + '</td>';
+                    html += '<td style="white-space:nowrap;">' + (r.started_at || '-') + '</td>';
+                    html += '<td style="white-space:nowrap;">' + (r.finished_at || '-') + '</td>';
+                    html += '<td>' + formatDuration(r.duration_seconds) + '</td>';
+                    html += '<td class="detail-text" onclick="this.classList.toggle(\'expanded\')" title="点击展开/收起">' + (r.detail || '-') + '</td>';
+                    html += '</tr>';
+                }
+                html += '</tbody></table>';
+                document.getElementById('logTable').innerHTML = html;
+
+                renderPagination();
+            } catch (e) {
+                document.getElementById('logTable').innerHTML = '<p style="color:red;">加载失败: ' + e.message + '</p>';
+            }
+        }
+
+        function renderPagination() {
+            const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+            if (totalPages <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
+            let html = '';
+            html += '<button class="page-btn" onclick="goPage(1)" ' + (currentPage===1?'disabled':'') + '>首页</button>';
+            html += '<button class="page-btn" onclick="goPage(' + (currentPage-1) + ')" ' + (currentPage===1?'disabled':'') + '>上一页</button>';
+            const start = Math.max(1, currentPage - 2);
+            const end = Math.min(totalPages, currentPage + 2);
+            for (let i = start; i <= end; i++) {
+                html += '<button class="page-btn' + (i===currentPage?' active':'') + '" onclick="goPage(' + i + ')">' + i + '</button>';
+            }
+            html += '<button class="page-btn" onclick="goPage(' + (currentPage+1) + ')" ' + (currentPage===totalPages?'disabled':'') + '>下一页</button>';
+            html += '<button class="page-btn" onclick="goPage(' + totalPages + ')" ' + (currentPage===totalPages?'disabled':'') + '>末页</button>';
+            document.getElementById('pagination').innerHTML = html;
+        }
+
+        function goPage(page) {
+            const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+            if (page < 1 || page > totalPages) return;
+            currentPage = page;
+            loadLogs();
+        }
+
+        loadLogs();
+    </script>
+</body>
+</html>

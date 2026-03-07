@@ -123,3 +123,25 @@ def get_candidates_by_high_date(start_date: str, top_n: int = 10) -> list[dict]:
     finally:
         cursor.close()
         conn.close()
+
+def get_last_update_time() -> dict:
+    """查询最近一次 update_time，用于调度器状态恢复兜底"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(f"SELECT MAX(update_time) FROM {TABLE_NAME}")
+        row = cursor.fetchone()
+        if row and row[0]:
+            ts = str(row[0])
+            return {
+                "last_run_time": ts,
+                "last_run_date": ts[:10],
+                "last_success": True,
+            }
+    except Exception as e:
+        logger.warning("查询最高最低价最近更新时间失败: %s", e)
+    finally:
+        cursor.close()
+        conn.close()
+    return {}
+

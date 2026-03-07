@@ -44,6 +44,7 @@ def _save_persisted_status(status: dict):
             "last_run_time": status.get("last_run_time"),
             "last_run_date": status.get("last_run_date"),
             "last_success": status.get("last_success"),
+            "done_stock_ids": status.get("done_stock_ids", []),
         }
         _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
@@ -61,6 +62,7 @@ _job_status = {
     "kline_score_success": 0,
     "kline_score_failed": 0,
     "running": False,
+    "error": None,
 }
 
 
@@ -80,7 +82,7 @@ def _already_done_today() -> bool:
     return _job_status["last_run_date"] == now_date and _job_status["last_success"] is True
 
 
-async def _analyze_single_stock(stock, db_manager, counter):
+async def _analyze_single_stock(stock, db_manager, counter, done_stock_ids):
     """对单只股票执行K线初筛"""
     from common.utils.stock_info_utils import get_stock_info_by_name
     from service.k_strategy.stock_k_strategy_service import get_k_strategy_analysis
@@ -100,6 +102,7 @@ async def _analyze_single_stock(stock, db_manager, counter):
         db_manager.update_stock_kline_hold(stock_id, hold_grade, hold_content, data_issues)
 
         counter["success"] += 1
+        done_stock_ids.add(stock_id)
         logger.info("[K线初筛调度 总%d 成功%d 失败%d] %s 评分: %s",
                     counter["total"], counter["success"], counter["failed"],
                     stock_name, not_hold_grade)
@@ -112,68 +115,110 @@ async def _execute_job():
     """执行一次K线初筛"""
     from dao.stock_can_slim_dao import db_manager
     from dao.stock_technical_score_dao import get_continuous_analysis_batches
+    from dao.scheduler_log_dao import insert_log, update_log
 
     _job_status["running"] = True
+    _job_status["error"] = None
     today_str = datetime.now(_CST).date().isoformat()
+    started_at = datetime.now(_CST)
+    log_id = insert_log("K线初筛", started_at)
     attempt = 0
 
-    while True:
-        attempt += 1
-        logger.info("[K线初筛调度] 开始执行 %s（第%d次尝试）", today_str, attempt)
+    # 断点续传：加载今日已完成的 stock_id 集合
+    done_stock_ids = set()
+    if _persisted.get("last_run_date") == today_str and not _persisted.get("last_success"):
+        persisted_ids = _persisted.get("done_stock_ids", [])
+        done_stock_ids = set(persisted_ids)
+        if done_stock_ids:
+            logger.info("[K线初筛调度] 断点续传：恢复 %d 只已完成的股票", len(done_stock_ids))
 
-        counter = {"total": 0, "success": 0, "failed": 0}
-        _job_status["_counter"] = counter
+    total_skipped = 0
 
+    try:
+        while True:
+            attempt += 1
+            logger.info("[K线初筛调度] 开始执行 %s（第%d次尝试）", today_str, attempt)
+
+            counter = {"total": 0, "success": 0, "failed": 0}
+            _job_status["_counter"] = counter
+            total_skipped = 0
+
+            try:
+                batches = get_continuous_analysis_batches()
+                if not batches:
+                    logger.info("[K线初筛调度] 没有标记为持续分析的批次，跳过")
+                else:
+                    for batch in batches:
+                        batch_id = batch['id']
+                        batch_name = batch.get('batch_name', str(batch_id))
+                        stocks = db_manager.get_batch_stocks(batch_id)
+                        if not stocks:
+                            continue
+
+                        # 断点续传：过滤已完成的股票
+                        remaining = [s for s in stocks if s['id'] not in done_stock_ids]
+                        skipped = len(stocks) - len(remaining)
+                        total_skipped += skipped
+
+                        counter["total"] += len(stocks)
+                        counter["success"] += skipped
+                        if skipped > 0:
+                            logger.info("[K线初筛调度] 批次 %s 共 %d 只，今日已完成 %d 只，剩余 %d 只",
+                                        batch_name, len(stocks), skipped, len(remaining))
+                        else:
+                            logger.info("[K线初筛调度] 批次 %s 共 %d 只股票", batch_name, len(remaining))
+
+                        semaphore = asyncio.Semaphore(3)
+
+                        async def _run(s):
+                            async with semaphore:
+                                await _analyze_single_stock(s, db_manager, counter, done_stock_ids)
+
+                        await asyncio.gather(*[_run(s) for s in remaining], return_exceptions=True)
+                        logger.info("[K线初筛调度] 批次 %s 完成", batch_name)
+
+            except Exception as e:
+                logger.error("[K线初筛调度] 执行异常: %s", e, exc_info=True)
+
+            now_str = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
+            total_failed = counter.get("failed", 0)
+            all_success = total_failed == 0
+
+            _job_status.update({
+                "last_run_time": now_str,
+                "last_run_date": today_str,
+                "last_success": all_success,
+                "kline_score_total": counter.get("total", 0),
+                "kline_score_success": counter.get("success", 0),
+                "kline_score_failed": total_failed,
+                "_counter": None,
+                "done_stock_ids": list(done_stock_ids) if not all_success else [],
+            })
+
+            _save_persisted_status(_job_status)
+
+            if all_success:
+                logger.info("[K线初筛调度] 全部成功 %d/%d",
+                            counter.get("success", 0), counter.get("total", 0))
+                detail = (f"总{counter['total']}只 成功{counter['success']}只 "
+                          f"失败{total_failed}只 跳过(已完成){total_skipped}只 重试{attempt}次")
+                update_log(log_id, "success", counter["total"], counter["success"],
+                           total_failed, total_skipped, detail)
+                break
+
+            logger.warning("[K线初筛调度] 有 %d 只失败，%d秒后重试", total_failed, _RETRY_INTERVAL)
+            await asyncio.sleep(_RETRY_INTERVAL)
+
+    except Exception as e:
+        import traceback as _tb
+        err_msg = f"任务异常终止: {type(e).__name__}: {e}"
+        err_detail = f"{err_msg}\n{_tb.format_exc()}"
+        logger.error("[K线初筛调度] %s", err_msg, exc_info=True)
+        _job_status.update({"error": err_msg, "_counter": None})
         try:
-            batches = get_continuous_analysis_batches()
-            if not batches:
-                logger.info("[K线初筛调度] 没有标记为持续分析的批次，跳过")
-            else:
-                for batch in batches:
-                    batch_id = batch['id']
-                    batch_name = batch.get('batch_name', str(batch_id))
-                    stocks = db_manager.get_batch_stocks(batch_id)
-                    if not stocks:
-                        continue
-
-                    counter["total"] += len(stocks)
-                    logger.info("[K线初筛调度] 批次 %s 共 %d 只股票", batch_name, len(stocks))
-
-                    semaphore = asyncio.Semaphore(3)
-
-                    async def _run(s):
-                        async with semaphore:
-                            await _analyze_single_stock(s, db_manager, counter)
-
-                    await asyncio.gather(*[_run(s) for s in stocks], return_exceptions=True)
-                    logger.info("[K线初筛调度] 批次 %s 完成", batch_name)
-
-        except Exception as e:
-            logger.error("[K线初筛调度] 执行异常: %s", e, exc_info=True)
-
-        now_str = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
-        total_failed = counter.get("failed", 0)
-        all_success = total_failed == 0
-
-        _job_status.update({
-            "last_run_time": now_str,
-            "last_run_date": today_str,
-            "last_success": all_success,
-            "kline_score_total": counter.get("total", 0),
-            "kline_score_success": counter.get("success", 0),
-            "kline_score_failed": total_failed,
-            "_counter": None,
-        })
-
-        _save_persisted_status(_job_status)
-
-        if all_success:
-            logger.info("[K线初筛调度] 全部成功 %d/%d",
-                        counter.get("success", 0), counter.get("total", 0))
-            break
-
-        logger.warning("[K线初筛调度] 有 %d 只失败，%d秒后重试", total_failed, _RETRY_INTERVAL)
-        await asyncio.sleep(_RETRY_INTERVAL)
+            update_log(log_id, "failed", detail=err_detail)
+        except Exception:
+            pass
 
     _job_status["running"] = False
 

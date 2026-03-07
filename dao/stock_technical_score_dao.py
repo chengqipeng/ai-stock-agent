@@ -273,3 +273,23 @@ def get_technical_score_history(batch_id: int, stock_code: str) -> list[dict]:
     finally:
         cursor.close()
         conn.close()
+
+def get_today_scored_codes(batch_id: int) -> set[str]:
+    """获取今日已完成技术打分的股票代码集合（按 created_at 判断）"""
+    today_str = datetime.now(_CST).strftime("%Y-%m-%d")
+    conn = get_connection(use_dict_cursor=True)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT DISTINCT stock_code FROM stock_batch_technical_score "
+            "WHERE batch_id = %s AND created_at >= %s",
+            (batch_id, today_str),
+        )
+        return {row['stock_code'] for row in cursor.fetchall()}
+    except Exception as e:
+        logger.warning("查询今日已打分股票失败 [batch_id=%s]: %s", batch_id, e)
+        return set()
+    finally:
+        cursor.close()
+        conn.close()
+

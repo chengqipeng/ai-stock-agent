@@ -32,26 +32,11 @@ _PRICE_STATUS_FILE = Path(__file__).parent.parent.parent / "data_results" / ".pr
 def _query_last_update_from_db() -> dict:
     """从数据库查询最近一次 update_time 作为兜底"""
     try:
-        from dao import get_connection
-        conn = get_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute(
-                "SELECT MAX(update_time) FROM stock_highest_lowest_price"
-            )
-            row = cursor.fetchone()
-            if row and row[0]:
-                ts = str(row[0])  # e.g. "2026-03-06 15:12:34"
-                run_date = ts[:10]  # "2026-03-06"
-                logger.info("[最高最低价调度] 从数据库恢复上次执行时间: %s", ts)
-                return {
-                    "last_run_time": ts,
-                    "last_run_date": run_date,
-                    "last_success": True,
-                }
-        finally:
-            cursor.close()
-            conn.close()
+        from dao.stock_highest_lowest_price_dao import get_last_update_time
+        result = get_last_update_time()
+        if result:
+            logger.info("[最高最低价调度] 从数据库恢复上次执行时间: %s", result.get("last_run_time"))
+        return result
     except Exception as e:
         logger.warning("[最高最低价调度] 从数据库查询上次执行时间失败: %s", e)
     return {}
@@ -95,6 +80,7 @@ _job_status = {
     "price_success": 0,
     "price_failed": 0,
     "running": False,            # 是否正在执行
+    "error": None,               # 异常信息
 }
 
 
@@ -146,9 +132,13 @@ async def _execute_job():
     from common.utils.stock_info_utils import get_stock_info_by_name
     from dao.stock_highest_lowest_price_dao import save_price_record, get_today_processed_codes
     from service.jqka10.stock_week_kline_data_10jqka import get_stock_week_kline_list_10jqka
+    from dao.scheduler_log_dao import insert_log, update_log
 
     _job_status["running"] = True
+    _job_status["error"] = None
     today_str = datetime.now(_CST).date().isoformat()
+    started_at = datetime.now(_CST)
+    log_id = insert_log("最高最低价", started_at)
     attempt = 0
     _db_lock = asyncio.Lock()
 
@@ -186,58 +176,75 @@ async def _execute_job():
             counter["failed"] += 1
             logger.error("[最高最低价 %s] 失败: %s", stock_name, e)
 
-    while True:
-        attempt += 1
-        logger.info("[最高最低价调度] 开始执行 %s（第%d次尝试）", today_str, attempt)
+    all_stocks = _load_stocks()
+    total_all = len(all_stocks)
 
-        # 从数据库加载今日已处理的股票
-        today_date = datetime.now(_CST).strftime("%Y-%m-%d")
-        processed_codes = get_today_processed_codes(today_date)
+    try:
+        while True:
+            attempt += 1
+            logger.info("[最高最低价调度] 开始执行 %s（第%d次尝试）", today_str, attempt)
 
-        all_stocks = _load_stocks()
-        remaining_stocks = [s for s in all_stocks if s["code"] not in processed_codes]
+            # 从数据库加载今日已处理的股票
+            today_date = datetime.now(_CST).strftime("%Y-%m-%d")
+            processed_codes = get_today_processed_codes(today_date)
 
-        price_counter = {"total": len(remaining_stocks), "success": 0, "failed": 0}
-        _job_status["_price_counter"] = price_counter
+            remaining_stocks = [s for s in all_stocks if s["code"] not in processed_codes]
 
-        logger.info("[最高最低价] 开始采集，共 %d 只股票（今日已完成 %d 只）",
-                    len(remaining_stocks), len(processed_codes))
+            price_counter = {"total": len(remaining_stocks), "success": 0, "failed": 0}
+            _job_status["_price_counter"] = price_counter
 
-        if remaining_stocks:
-            semaphore = asyncio.Semaphore(5)
+            logger.info("[最高最低价] 开始采集，共 %d 只股票（今日已完成 %d 只）",
+                        len(remaining_stocks), len(processed_codes))
 
-            async def _run(s):
-                async with semaphore:
-                    await _process_single(s, price_counter)
+            if remaining_stocks:
+                semaphore = asyncio.Semaphore(5)
 
-            await asyncio.gather(*[_run(s) for s in remaining_stocks], return_exceptions=True)
-            logger.info("[最高最低价] 采集完成，总%d 成功%d 失败%d",
-                        price_counter["total"], price_counter["success"], price_counter["failed"])
+                async def _run(s):
+                    async with semaphore:
+                        await _process_single(s, price_counter)
 
-        now_str = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
-        total_failed = price_counter.get("failed", 0)
-        all_success = total_failed == 0
+                await asyncio.gather(*[_run(s) for s in remaining_stocks], return_exceptions=True)
+                logger.info("[最高最低价] 采集完成，总%d 成功%d 失败%d",
+                            price_counter["total"], price_counter["success"], price_counter["failed"])
 
-        _job_status.update({
-            "last_run_time": now_str,
-            "last_run_date": today_str,
-            "last_success": all_success,
-            "price_total": price_counter.get("total", 0),
-            "price_success": price_counter.get("success", 0),
-            "price_failed": total_failed,
-            "_price_counter": None,
-        })
+            now_str = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
+            total_failed = price_counter.get("failed", 0)
+            all_success = total_failed == 0
 
-        _save_persisted_status(_job_status)
+            _job_status.update({
+                "last_run_time": now_str,
+                "last_run_date": today_str,
+                "last_success": all_success,
+                "price_total": price_counter.get("total", 0),
+                "price_success": price_counter.get("success", 0),
+                "price_failed": total_failed,
+                "_price_counter": None,
+            })
 
-        if all_success:
-            logger.info("[最高最低价调度] 全部成功 %d/%d",
-                        price_counter.get("success", 0), price_counter.get("total", 0))
-            break
+            _save_persisted_status(_job_status)
 
-        logger.warning("[最高最低价调度] 有 %d 只失败，%d秒后重试失败的股票",
-                       total_failed, _RETRY_INTERVAL)
-        await asyncio.sleep(_RETRY_INTERVAL)
+            if all_success:
+                logger.info("[最高最低价调度] 全部成功 %d/%d",
+                            price_counter.get("success", 0), price_counter.get("total", 0))
+                skipped = len(processed_codes)
+                detail = f"共{total_all}只 成功{total_all - total_failed}只 失败{total_failed}只 跳过(已完成){skipped}只 重试{attempt}次"
+                update_log(log_id, "success", total_all, total_all, 0, skipped, detail)
+                break
+
+            logger.warning("[最高最低价调度] 有 %d 只失败，%d秒后重试失败的股票",
+                           total_failed, _RETRY_INTERVAL)
+            await asyncio.sleep(_RETRY_INTERVAL)
+
+    except Exception as e:
+        import traceback as _tb
+        err_msg = f"任务异常终止: {type(e).__name__}: {e}"
+        err_detail = f"{err_msg}\n{_tb.format_exc()}"
+        logger.error("[最高最低价调度] %s", err_msg, exc_info=True)
+        _job_status.update({"error": err_msg, "_price_counter": None})
+        try:
+            update_log(log_id, "failed", detail=err_detail)
+        except Exception:
+            pass
 
     _job_status["running"] = False
 

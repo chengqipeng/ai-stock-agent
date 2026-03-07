@@ -65,6 +65,7 @@ _job_status = {
     "score_success": 0,
     "score_failed": 0,
     "running": False,
+    "error": None,
 }
 
 
@@ -95,76 +96,110 @@ async def _execute_job():
         get_continuous_analysis_batches,
         get_batch_stock_list,
         save_score_results,
+        get_today_scored_codes,
     )
+    from dao.scheduler_log_dao import insert_log, update_log
 
     _job_status["running"] = True
+    _job_status["error"] = None
     today_str = datetime.now(_CST).date().isoformat()
+    started_at = datetime.now(_CST)
+    log_id = insert_log("技术打分", started_at)
     attempt = 0
+    total_skipped = 0
 
-    while True:
-        attempt += 1
-        logger.info("[技术打分调度] 开始执行 %s（第%d次尝试）", today_str, attempt)
+    try:
+        while True:
+            attempt += 1
+            logger.info("[技术打分调度] 开始执行 %s（第%d次尝试）", today_str, attempt)
 
-        score_counter = {"total": 0, "success": 0, "failed": 0}
-        _job_status["_score_counter"] = score_counter
+            score_counter = {"total": 0, "success": 0, "failed": 0}
+            _job_status["_score_counter"] = score_counter
+            total_skipped = 0
 
+            try:
+                batches = get_continuous_analysis_batches()
+                if not batches:
+                    logger.info("[技术打分调度] 没有标记为持续分析的批次，跳过")
+                    score_counter["total"] = 0
+                    score_counter["success"] = 0
+                    score_counter["failed"] = 0
+                else:
+                    for batch in batches:
+                        batch_id = batch['id']
+                        batch_name = batch.get('batch_name', str(batch_id))
+                        stocks = get_batch_stock_list(batch_id)
+                        if not stocks:
+                            continue
+
+                        # 断点续传：查询今日已完成打分的股票，跳过
+                        already_done = get_today_scored_codes(batch_id)
+                        remaining = [s for s in stocks if s['stock_code'] not in already_done]
+                        skipped = len(stocks) - len(remaining)
+                        total_skipped += skipped
+
+                        score_counter["total"] += len(stocks)
+                        score_counter["success"] += skipped
+                        if skipped > 0:
+                            logger.info("[技术打分调度] 批次 %s 共 %d 只，今日已完成 %d 只，剩余 %d 只",
+                                        batch_name, len(stocks), skipped, len(remaining))
+
+                        results = []
+                        total = len(stocks)
+                        for i, s in enumerate(remaining, skipped + 1):
+                            r = await analyze_stock(s['stock_name'], s['stock_code'], i, total)
+                            if r:
+                                results.append(r)
+                                score_counter["success"] += 1
+                            else:
+                                score_counter["failed"] += 1
+
+                        if results:
+                            write_result(results, OUTPUT_PATH)
+                            save_score_results(results, batch_id)
+                            logger.info("[技术打分调度] 批次 %s 打分结果已保存 (batch_id=%d)", batch_name, batch_id)
+
+            except Exception as e:
+                logger.error("[技术打分调度] 执行异常: %s", e, exc_info=True)
+
+            now_str = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
+            total_failed = score_counter.get("failed", 0)
+            all_success = total_failed == 0
+
+            _job_status.update({
+                "last_run_time": now_str,
+                "last_run_date": today_str,
+                "last_success": all_success,
+                "score_total": score_counter.get("total", 0),
+                "score_success": score_counter.get("success", 0),
+                "score_failed": total_failed,
+                "_score_counter": None,
+            })
+
+            _save_persisted_status(_job_status)
+
+            if all_success:
+                logger.info("[技术打分调度] 全部成功 %d/%d",
+                            score_counter.get("success", 0), score_counter.get("total", 0))
+                detail = (f"总{score_counter['total']}只 成功{score_counter['success']}只 "
+                          f"失败{total_failed}只 跳过(已完成){total_skipped}只 重试{attempt}次")
+                update_log(log_id, "success", score_counter["total"], score_counter["success"],
+                           total_failed, total_skipped, detail)
+                break
+
+            logger.warning("[技术打分调度] 有 %d 只失败，%d秒后重试", total_failed, _RETRY_INTERVAL)
+            await asyncio.sleep(_RETRY_INTERVAL)
+
+    except Exception as e:
+        import traceback as _tb
+        err_msg = f"任务异常终止: {type(e).__name__}: {e}"
+        err_detail = f"{err_msg}\n{_tb.format_exc()}"
+        logger.error("[技术打分调度] %s", err_msg, exc_info=True)
+        _job_status.update({"error": err_msg, "_score_counter": None})
         try:
-            batches = get_continuous_analysis_batches()
-            if not batches:
-                logger.info("[技术打分调度] 没有标记为持续分析的批次，跳过")
-                score_counter["total"] = 0
-                score_counter["success"] = 0
-                score_counter["failed"] = 0
-            else:
-                for batch in batches:
-                    batch_id = batch['id']
-                    batch_name = batch.get('batch_name', str(batch_id))
-                    stocks = get_batch_stock_list(batch_id)
-                    if not stocks:
-                        continue
-
-                    score_counter["total"] += len(stocks)
-                    results = []
-                    total = len(stocks)
-                    for i, s in enumerate(stocks, 1):
-                        r = await analyze_stock(s['stock_name'], s['stock_code'], i, total)
-                        if r:
-                            results.append(r)
-                            score_counter["success"] += 1
-                        else:
-                            score_counter["failed"] += 1
-
-                    if results:
-                        write_result(results, OUTPUT_PATH)
-                        save_score_results(results, batch_id)
-                        logger.info("[技术打分调度] 批次 %s 打分结果已保存 (batch_id=%d)", batch_name, batch_id)
-
-        except Exception as e:
-            logger.error("[技术打分调度] 执行异常: %s", e, exc_info=True)
-
-        now_str = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
-        total_failed = score_counter.get("failed", 0)
-        all_success = total_failed == 0
-
-        _job_status.update({
-            "last_run_time": now_str,
-            "last_run_date": today_str,
-            "last_success": all_success,
-            "score_total": score_counter.get("total", 0),
-            "score_success": score_counter.get("success", 0),
-            "score_failed": total_failed,
-            "_score_counter": None,
-        })
-
-        _save_persisted_status(_job_status)
-
-        if all_success:
-            logger.info("[技术打分调度] 全部成功 %d/%d",
-                        score_counter.get("success", 0), score_counter.get("total", 0))
-            break
-
-        logger.warning("[技术打分调度] 有 %d 只失败，%d秒后重试", total_failed, _RETRY_INTERVAL)
-        await asyncio.sleep(_RETRY_INTERVAL)
+            update_log(log_id, "failed", detail=err_detail)
+        except Exception:
+            pass
 
     _job_status["running"] = False
 

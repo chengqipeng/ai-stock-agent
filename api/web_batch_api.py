@@ -60,10 +60,15 @@ from service.eastmoney.stock_info.stock_day_kline_data import get_120day_high_to
 from dao.stock_can_slim_dao import db_manager
 from dao.stock_technical_score_dao import get_latest_technical_scores_for_batch, get_technical_score_history, save_score_results
 from service.auto_job.kline_data_scheduler import start_scheduler, get_job_status, app_ready
+from service.auto_job.kline_data_scheduler import _execute_job as _kline_execute_job
 from service.auto_job.week_highest_lowest_price_scheduler import start_price_scheduler, get_price_job_status
+from service.auto_job.week_highest_lowest_price_scheduler import _execute_job as _price_execute_job
 from service.auto_job.kline_technical_scheduler import start_score_scheduler, get_score_job_status
+from service.auto_job.kline_technical_scheduler import _execute_job as _score_execute_job
 from service.auto_job.kline_score_scheduler import start_kline_score_scheduler, get_kline_score_job_status
+from service.auto_job.kline_score_scheduler import _execute_job as _kline_score_execute_job
 from service.auto_job.db_anomalies_scheduler import start_db_check_scheduler, get_db_check_job_status
+from service.auto_job.db_anomalies_scheduler import _execute_job as _db_check_execute_job
 from service.batch_technical_score.batch_technical_score import analyze_stock as technical_analyze_stock
 
 GRADE_SCORE_MAP = {
@@ -136,6 +141,28 @@ async def read_root():
     })
 
 
+@app.get("/scheduler_logs", response_class=HTMLResponse)
+async def scheduler_logs_page():
+    with open("static/scheduler_logs.html", "r", encoding="utf-8") as f:
+        content = f.read()
+    return HTMLResponse(content=content, headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+    })
+
+
+@app.get("/api/scheduler_logs")
+async def get_scheduler_logs(job_name: str = None, limit: int = 50, offset: int = 0):
+    from dao.scheduler_log_dao import get_logs
+    try:
+        rows, total = get_logs(job_name, limit, offset)
+        return {"success": True, "data": rows, "total": total}
+    except Exception as e:
+        logger.error("查询调度日志失败: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/kline_job_status")
 async def kline_job_status():
     """获取日线数据定时拉取任务状态"""
@@ -160,6 +187,57 @@ async def kline_score_job_status():
 async def db_check_job_status():
     """获取数据异常检测定时任务状态"""
     return {"success": True, "data": get_db_check_job_status()}
+
+
+@app.post("/api/trigger_kline_job")
+async def trigger_kline_job():
+    """手动触发日线数据拉取"""
+    status = get_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "日线数据任务正在执行中"}
+    asyncio.create_task(_kline_execute_job())
+    return {"success": True, "message": "日线数据任务已触发"}
+
+
+@app.post("/api/trigger_price_job")
+async def trigger_price_job():
+    """手动触发最高最低价拉取"""
+    status = get_price_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "最高最低价任务正在执行中"}
+    asyncio.create_task(_price_execute_job())
+    return {"success": True, "message": "最高最低价任务已触发"}
+
+
+@app.post("/api/trigger_score_job")
+async def trigger_score_job():
+    """手动触发技术打分"""
+    status = get_score_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "技术打分任务正在执行中"}
+    asyncio.create_task(_score_execute_job())
+    return {"success": True, "message": "技术打分任务已触发"}
+
+
+@app.post("/api/trigger_kline_score_job")
+async def trigger_kline_score_job():
+    """手动触发K线初筛"""
+    status = get_kline_score_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "K线初筛任务正在执行中"}
+    asyncio.create_task(_kline_score_execute_job())
+    return {"success": True, "message": "K线初筛任务已触发"}
+
+
+@app.post("/api/trigger_db_check_job")
+async def trigger_db_check_job():
+    """手动触发数据异常检测"""
+    status = get_db_check_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "数据异常检测任务正在执行中"}
+    asyncio.create_task(_db_check_execute_job())
+    return {"success": True, "message": "数据异常检测任务已触发"}
+
 
 @app.get("/api/stock_list")
 async def get_stock_list():

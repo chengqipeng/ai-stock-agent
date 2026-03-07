@@ -88,6 +88,7 @@ _job_status = {
     "finance_success": 0,
     "finance_failed": 0,
     "running": False,            # 是否正在执行
+    "error": None,               # 异常信息
 }
 
 
@@ -413,64 +414,90 @@ def _already_done_today() -> bool:
 
 async def _execute_job():
     """执行一次K线+财报采集"""
+    from dao.scheduler_log_dao import insert_log, update_log
+
     _job_status["running"] = True
+    _job_status["error"] = None
     today_str = datetime.now(_CST).date().isoformat()
-    logger.info("[定时调度] 开始执行日线数据拉取 %s", today_str)
-
-    # 实时计数器，run_kline_job / run_finance_job 内部会原地修改
-    kline_counter = {"total": 0, "success": 0, "failed": 0}
-    finance_counter = {"total": 0, "success": 0, "failed": 0}
-
-    # 将引用挂到全局状态，前端轮询时可读取实时进度
-    _job_status["_kline_counter"] = kline_counter
-    _job_status["_finance_counter"] = finance_counter
+    started_at = datetime.now(_CST)
+    log_id = insert_log("日线数据", started_at)
+    logger.info("[定时调度] 开始执行日线数据拉取 %s (log_id=%d)", today_str, log_id)
 
     try:
-        kline_counter = await run_kline_job(limit=800, max_concurrent=1, counter=kline_counter)
+        # 实时计数器，run_kline_job / run_finance_job 内部会原地修改
+        kline_counter = {"total": 0, "success": 0, "failed": 0}
+        finance_counter = {"total": 0, "success": 0, "failed": 0}
+
+        # 将引用挂到全局状态，前端轮询时可读取实时进度
         _job_status["_kline_counter"] = kline_counter
-    except Exception as e:
-        logger.error("[定时调度] K线采集异常: %s", e)
-
-    try:
-        finance_counter = await run_finance_job(max_concurrent=3, counter=finance_counter)
         _job_status["_finance_counter"] = finance_counter
+
+        try:
+            kline_counter = await run_kline_job(limit=800, max_concurrent=1, counter=kline_counter)
+            _job_status["_kline_counter"] = kline_counter
+        except Exception as e:
+            logger.error("[定时调度] K线采集异常: %s", e)
+
+        try:
+            finance_counter = await run_finance_job(max_concurrent=3, counter=finance_counter)
+            _job_status["_finance_counter"] = finance_counter
+        except Exception as e:
+            logger.error("[定时调度] 财报采集异常: %s", e)
+
+        now_str = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
+        total_failed = kline_counter.get("failed", 0) + finance_counter.get("failed", 0)
+        total_count = kline_counter.get("total", 0) + finance_counter.get("total", 0)
+        total_success = kline_counter.get("success", 0) + finance_counter.get("success", 0)
+
+        _job_status.update({
+            "last_run_time": now_str,
+            "last_run_date": today_str,
+            "last_success": total_failed == 0,
+            "kline_total": kline_counter.get("total", 0),
+            "kline_success": kline_counter.get("success", 0),
+            "kline_failed": kline_counter.get("failed", 0),
+            "finance_total": finance_counter.get("total", 0),
+            "finance_success": finance_counter.get("success", 0),
+            "finance_failed": finance_counter.get("failed", 0),
+            "running": False,
+            "_kline_counter": None,
+            "_finance_counter": None,
+        })
+
+        # 持久化状态，重启后可跳过已完成的日期
+        _save_persisted_status(_job_status)
+
+        detail = (f"K线: {kline_counter.get('success',0)}/{kline_counter.get('total',0)}"
+                  f"(失败{kline_counter.get('failed',0)})  "
+                  f"财报: {finance_counter.get('success',0)}/{finance_counter.get('total',0)}"
+                  f"(失败{finance_counter.get('failed',0)})")
+        update_log(log_id, "success" if total_failed == 0 else "partial",
+                   total_count, total_success, total_failed, detail=detail)
+
+        logger.info("[定时调度] 执行完成 K线:%d/%d 财报:%d/%d",
+                    kline_counter.get("success", 0), kline_counter.get("total", 0),
+                    finance_counter.get("success", 0), finance_counter.get("total", 0))
+
+        # 日线执行完成后，通知技术打分调度器
+        try:
+            from service.auto_job.kline_technical_scheduler import kline_done_event, kline_done_event_for_kscore, kline_done_event_for_dbcheck
+            kline_done_event.set()
+            kline_done_event_for_kscore.set()
+            kline_done_event_for_dbcheck.set()
+            logger.info("[定时调度] 已发送日线完成信号给下游调度器")
+        except Exception as e:
+            logger.warning("[定时调度] 发送日线完成信号失败: %s", e)
+
     except Exception as e:
-        logger.error("[定时调度] 财报采集异常: %s", e)
-
-    now_str = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
-    total_failed = kline_counter.get("failed", 0) + finance_counter.get("failed", 0)
-
-    _job_status.update({
-        "last_run_time": now_str,
-        "last_run_date": today_str,
-        "last_success": total_failed == 0,
-        "kline_total": kline_counter.get("total", 0),
-        "kline_success": kline_counter.get("success", 0),
-        "kline_failed": kline_counter.get("failed", 0),
-        "finance_total": finance_counter.get("total", 0),
-        "finance_success": finance_counter.get("success", 0),
-        "finance_failed": finance_counter.get("failed", 0),
-        "running": False,
-        "_kline_counter": None,
-        "_finance_counter": None,
-    })
-
-    # 持久化状态，重启后可跳过已完成的日期
-    _save_persisted_status(_job_status)
-
-    logger.info("[定时调度] 执行完成 K线:%d/%d 财报:%d/%d",
-                kline_counter.get("success", 0), kline_counter.get("total", 0),
-                finance_counter.get("success", 0), finance_counter.get("total", 0))
-
-    # 日线执行完成后，通知技术打分调度器
-    try:
-        from service.auto_job.kline_technical_scheduler import kline_done_event, kline_done_event_for_kscore, kline_done_event_for_dbcheck
-        kline_done_event.set()
-        kline_done_event_for_kscore.set()
-        kline_done_event_for_dbcheck.set()
-        logger.info("[定时调度] 已发送日线完成信号给下游调度器")
-    except Exception as e:
-        logger.warning("[定时调度] 发送日线完成信号失败: %s", e)
+        import traceback as _tb
+        err_msg = f"任务异常终止: {type(e).__name__}: {e}"
+        err_detail = f"{err_msg}\n{_tb.format_exc()}"
+        logger.error("[定时调度] %s", err_msg, exc_info=True)
+        _job_status.update({"running": False, "error": err_msg, "_kline_counter": None, "_finance_counter": None})
+        try:
+            update_log(log_id, "failed", detail=err_detail)
+        except Exception:
+            pass
 
 
 async def _scheduler_loop():

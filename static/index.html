@@ -587,7 +587,7 @@
 </head>
 <body>
     <div class="header" style="display: grid; grid-template-columns: auto 1fr 1fr; grid-template-rows: auto auto auto; gap: 4px 8px; align-items: center;">
-        <h1 style="grid-row: 1 / 4;">📊 批量股票分析</h1>
+        <h1 style="grid-row: 1 / 4;">📊 批量股票分析 <a href="/scheduler_logs" style="font-size:10px;color:rgba(255,255,255,0.7);font-weight:400;text-decoration:none;margin-left:6px;">📋 调度日志</a></h1>
         <div id="klineJobBanner" style="
             background: rgba(255,255,255,0.2);
             border-radius: 8px;
@@ -604,6 +604,8 @@
         ">
             <span id="klineJobIcon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
             <span id="klineJobText" style="overflow: hidden; text-overflow: ellipsis;">日线数据状态加载中...</span>
+            <button onclick="triggerJob('kline')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
+            <a href="/scheduler_logs?job_name=日线数据" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
         </div>
         <div id="priceJobBanner" style="
             background: rgba(255,255,255,0.2);
@@ -621,6 +623,8 @@
         ">
             <span id="priceJobIcon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
             <span id="priceJobText" style="overflow: hidden; text-overflow: ellipsis;">最高最低价状态加载中...</span>
+            <button onclick="triggerJob('price')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
+            <a href="/scheduler_logs?job_name=最高最低价" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
         </div>
         <div id="scoreJobBanner" style="
             background: rgba(255,255,255,0.2);
@@ -638,6 +642,8 @@
         ">
             <span id="scoreJobIcon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
             <span id="scoreJobText" style="overflow: hidden; text-overflow: ellipsis;">技术打分状态加载中...</span>
+            <button onclick="triggerJob('score')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
+            <a href="/scheduler_logs?job_name=技术打分" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
         </div>
         <div id="klineScoreJobBanner" style="
             background: rgba(255,255,255,0.2);
@@ -655,6 +661,8 @@
         ">
             <span id="klineScoreJobIcon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
             <span id="klineScoreJobText" style="overflow: hidden; text-overflow: ellipsis;">K线初筛状态加载中...</span>
+            <button onclick="triggerJob('kline_score')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
+            <a href="/scheduler_logs?job_name=K线初筛" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
         </div>
         <div id="dbCheckJobBanner" style="
             background: rgba(255,255,255,0.2);
@@ -669,10 +677,11 @@
             overflow: hidden;
             text-overflow: ellipsis;
             min-width: 0;
-            grid-column: 2 / 4;
         ">
             <span id="dbCheckJobIcon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
             <span id="dbCheckJobText" style="overflow: hidden; text-overflow: ellipsis;">数据异常检测状态加载中...</span>
+            <button onclick="triggerJob('db_check')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
+            <a href="/scheduler_logs?job_name=数据异常检测" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
         </div>
     </div>
 
@@ -2475,6 +2484,19 @@
             }
         }
 
+        // ─── 手动触发调度任务 ───
+        async function triggerJob(jobType) {
+            const names = {kline:'日线数据',price:'最高最低价',score:'技术打分',kline_score:'K线初筛',db_check:'数据异常检测'};
+            if (!confirm('确认手动执行「' + names[jobType] + '」任务？')) return;
+            try {
+                const resp = await fetch('/api/trigger_' + jobType + '_job', {method:'POST'});
+                const json = await resp.json();
+                alert(json.message || (json.success ? '已触发' : '触发失败'));
+            } catch (e) {
+                alert('触发失败: ' + e.message);
+            }
+        }
+
         // ─── 日线数据拉取状态轮询 ───
         async function pollKlineJobStatus() {
             try {
@@ -2486,7 +2508,11 @@
                 const icon = document.getElementById('klineJobIcon');
                 const text = document.getElementById('klineJobText');
 
-                if (d.running) {
+                if (d.error && !d.running) {
+                    icon.textContent = '❌';
+                    text.textContent = '日线数据执行异常: ' + d.error;
+                    banner.style.background = 'rgba(217,83,79,0.25)';
+                } else if (d.running) {
                     const kTotal = d.kline_total || 0;
                     const kDone = (d.kline_success || 0) + (d.kline_failed || 0);
                     const kFail = d.kline_failed || 0;
@@ -2559,7 +2585,11 @@
                 const icon = document.getElementById('priceJobIcon');
                 const text = document.getElementById('priceJobText');
 
-                if (d.running) {
+                if (d.error && !d.running) {
+                    icon.textContent = '❌';
+                    text.textContent = '最高最低价执行异常: ' + d.error;
+                    banner.style.background = 'rgba(217,83,79,0.25)';
+                } else if (d.running) {
                     const pTotal = d.price_total || 0;
                     const pDone = (d.price_success || 0) + (d.price_failed || 0);
                     const pFail = d.price_failed || 0;
@@ -2615,7 +2645,11 @@
                 const icon = document.getElementById('scoreJobIcon');
                 const text = document.getElementById('scoreJobText');
 
-                if (d.running) {
+                if (d.error && !d.running) {
+                    icon.textContent = '❌';
+                    text.textContent = '技术打分执行异常: ' + d.error;
+                    banner.style.background = 'rgba(217,83,79,0.25)';
+                } else if (d.running) {
                     const sTotal = d.score_total || 0;
                     const sDone = (d.score_success || 0) + (d.score_failed || 0);
                     const sFail = d.score_failed || 0;
@@ -2634,15 +2668,20 @@
                 } else if (d.last_run_time) {
                     const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
                     const isToday = d.last_run_date === today;
-                    const totalFail = d.score_failed || 0;
+                    const sTotal = d.score_total || 0;
+                    const sSuccess = d.score_success || 0;
+                    const sFail = d.score_failed || 0;
                     if (isToday) {
-                        if (totalFail === 0) {
+                        let detail = d.last_run_time + ' 技术打分完成';
+                        detail += '  ' + sSuccess + '/' + sTotal;
+                        if (sFail > 0) detail += '(失败' + sFail + ')';
+                        if (sFail === 0) {
                             icon.textContent = '✅';
-                            text.textContent = d.last_run_time + ' 技术打分完成';
+                            text.textContent = detail;
                             banner.style.background = 'rgba(92,184,92,0.25)';
                         } else {
                             icon.textContent = '⚠️';
-                            text.textContent = d.last_run_time + ' 技术打分完成（失败' + totalFail + '）';
+                            text.textContent = detail;
                             banner.style.background = 'rgba(217,83,79,0.25)';
                         }
                     } else {
@@ -2687,7 +2726,11 @@
                 const icon = document.getElementById('klineScoreJobIcon');
                 const text = document.getElementById('klineScoreJobText');
 
-                if (d.running) {
+                if (d.error && !d.running) {
+                    icon.textContent = '❌';
+                    text.textContent = 'K线初筛执行异常: ' + d.error;
+                    banner.style.background = 'rgba(217,83,79,0.25)';
+                } else if (d.running) {
                     const sTotal = d.kline_score_total || 0;
                     const sDone = (d.kline_score_success || 0) + (d.kline_score_failed || 0);
                     const sFail = d.kline_score_failed || 0;
@@ -2747,7 +2790,11 @@
                 const icon = document.getElementById('dbCheckJobIcon');
                 const text = document.getElementById('dbCheckJobText');
 
-                if (d.running) {
+                if (d.error && !d.running) {
+                    icon.textContent = '❌';
+                    text.textContent = '数据异常检测执行异常: ' + d.error;
+                    banner.style.background = 'rgba(217,83,79,0.25)';
+                } else if (d.running) {
                     const sTotal = d.check_total || 0;
                     const anomalies = d.check_anomalies || 0;
                     const repaired = d.check_repaired || 0;

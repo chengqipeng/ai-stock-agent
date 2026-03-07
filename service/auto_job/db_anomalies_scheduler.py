@@ -73,6 +73,7 @@ _job_status = {
     "check_anomalies": 0,
     "check_repaired": 0,
     "running": False,
+    "error": None,
 }
 
 
@@ -97,10 +98,14 @@ async def _execute_job():
     from dao.stock_kline_dao import check_db, save_kline_to_db, get_all_stock_codes
     from service.jqka10.stock_day_kline_data_10jqka import get_stock_day_kline_10jqka
     from common.utils.stock_info_utils import get_stock_info_by_code
+    from dao.scheduler_log_dao import insert_log, update_log
 
     _job_status["running"] = True
+    _job_status["error"] = None
     today_str = datetime.now(_CST).date().isoformat()
-    logger.info("[数据异常检测] 开始执行 %s", today_str)
+    started_at = datetime.now(_CST)
+    log_id = insert_log("数据异常检测", started_at)
+    logger.info("[数据异常检测] 开始执行 %s (log_id=%d)", today_str, log_id)
 
     counter = {"total": 0, "anomalies": 0, "repaired": 0}
     _job_status["_counter"] = counter
@@ -159,51 +164,69 @@ async def _execute_job():
             return False
 
     try:
-        stock_codes = get_all_stock_codes()
-        counter["total"] = len(stock_codes)
+        try:
+            stock_codes = get_all_stock_codes()
+            counter["total"] = len(stock_codes)
 
-        if not stock_codes:
-            logger.info("[数据异常检测] 未找到任何K线数据")
-        else:
-            logger.info("[数据异常检测] 共 %d 只股票，开始检测...", len(stock_codes))
-            total_issues = 0
-            for stock_code in stock_codes:
-                issues = check_db(stock_code)
-                if not issues:
-                    continue
+            if not stock_codes:
+                logger.info("[数据异常检测] 未找到任何K线数据")
+            else:
+                logger.info("[数据异常检测] 共 %d 只股票，开始检测...", len(stock_codes))
+                total_issues = 0
+                for stock_code in stock_codes:
+                    issues = check_db(stock_code)
+                    if not issues:
+                        continue
 
-                active_issues = [i for i in issues if not i.get("legacy")]
-                if not active_issues:
-                    continue
+                    active_issues = [i for i in issues if not i.get("legacy")]
+                    if not active_issues:
+                        continue
 
-                counter["anomalies"] += 1
-                total_issues += len(active_issues)
+                    counter["anomalies"] += 1
+                    total_issues += len(active_issues)
 
-                repaired = await _repair_stock(stock_code, active_issues)
-                if repaired:
-                    counter["repaired"] += 1
+                    repaired = await _repair_stock(stock_code, active_issues)
+                    if repaired:
+                        counter["repaired"] += 1
 
-            logger.info("[数据异常检测] 检测完成：共 %d 只股票，%d 只有异常，共 %d 条异常记录",
-                        len(stock_codes), counter["anomalies"], total_issues)
+                logger.info("[数据异常检测] 检测完成：共 %d 只股票，%d 只有异常，共 %d 条异常记录",
+                            len(stock_codes), counter["anomalies"], total_issues)
+
+        except Exception as e:
+            logger.error("[数据异常检测] 执行异常: %s", e, exc_info=True)
+
+        now_str = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
+        _job_status.update({
+            "last_run_time": now_str,
+            "last_run_date": today_str,
+            "last_success": True,
+            "check_total": counter.get("total", 0),
+            "check_anomalies": counter.get("anomalies", 0),
+            "check_repaired": counter.get("repaired", 0),
+            "running": False,
+            "_counter": None,
+        })
+
+        _save_persisted_status(_job_status)
+
+        detail = (f"共{counter['total']}只股票 异常{counter['anomalies']}只 "
+                  f"已修复{counter['repaired']}只")
+        update_log(log_id, "success", counter["total"], counter["total"],
+                   counter["anomalies"] - counter["repaired"], detail=detail)
+
+        logger.info("[数据异常检测] 完成：共 %d 只股票，%d 只有异常，%d 只已修复",
+                    counter["total"], counter["anomalies"], counter["repaired"])
 
     except Exception as e:
-        logger.error("[数据异常检测] 执行异常: %s", e, exc_info=True)
-
-    now_str = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
-    _job_status.update({
-        "last_run_time": now_str,
-        "last_run_date": today_str,
-        "last_success": True,
-        "check_total": counter.get("total", 0),
-        "check_anomalies": counter.get("anomalies", 0),
-        "check_repaired": counter.get("repaired", 0),
-        "running": False,
-        "_counter": None,
-    })
-
-    _save_persisted_status(_job_status)
-    logger.info("[数据异常检测] 完成：共 %d 只股票，%d 只有异常，%d 只已修复",
-                counter["total"], counter["anomalies"], counter["repaired"])
+        import traceback as _tb
+        err_msg = f"任务异常终止: {type(e).__name__}: {e}"
+        err_detail = f"{err_msg}\n{_tb.format_exc()}"
+        logger.error("[数据异常检测] %s", err_msg, exc_info=True)
+        _job_status.update({"running": False, "error": err_msg, "_counter": None})
+        try:
+            update_log(log_id, "failed", detail=err_detail)
+        except Exception:
+            pass
 
 
 async def _scheduler_loop():
