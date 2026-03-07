@@ -594,7 +594,7 @@ async def get_batch_stocks(batch_id: int):
             f'{dim}{suffix}'
             for dim in ['c', 'a', 'n', 's', 'l', 'i', 'm', 'kline']
             for suffix in ['_prompt', '_score_prompt', '_summary', '_deep_prompt', '_deep_score_prompt', '_deep_summary']
-        } | {'overall_prompt'}
+        } | {'overall_prompt', 'kline_hold_prompt', 'data_issues'}
         for stock in stocks:
             scores = [stock.get(f'{dim}_score') for dim in ['c', 'a', 'n', 's', 'l', 'i', 'm'] if stock.get(f'{dim}_score')]
             stock['score'] = round(sum(scores) / len(scores)) if scores else None
@@ -736,6 +736,8 @@ async def get_stock_prompt(stock_id: int, dim: str, type: str = "score"):
         # kline_hold 维度映射到 kline_hold_prompt
         if dim == 'kline_hold' and type == 'prompt':
             field = 'kline_hold_prompt'
+        elif type == 'data_issues':
+            field = 'data_issues'
         else:
             field = field_map.get(type, f'{dim}_score_prompt')
         return {"success": True, "data": stock.get(field)}
@@ -755,6 +757,26 @@ async def get_stock_detail(stock_id: int):
         return {"success": True, "data": stock}
     except Exception as e:
         logger.error("获取股票详情失败 stock_id=%s: %s", stock_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/stock/finance/{stock_code:path}")
+async def get_stock_finance_data(stock_code: str, limit: int = Query(None)):
+    """获取股票财报数据列表，按报告期倒序"""
+    try:
+        from common.utils.stock_info_utils import get_stock_info_by_code
+        # stock_code 可能是名称或标准化代码（如 300602.SZ），两种都尝试
+        info = get_stock_info_by_name(stock_code)
+        if not info:
+            info = get_stock_info_by_code(stock_code)
+        if not info:
+            raise HTTPException(status_code=404, detail="未找到该股票信息")
+        from service.jqka10.stock_finance_data_10jqka import get_financial_data_from_db
+        records = get_financial_data_from_db(info, limit=limit)
+        return SafeJSONResponse(content={"success": True, "data": records})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("获取财报数据失败 stock_code=%s: %s", stock_code, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/stock/history/{stock_name}")

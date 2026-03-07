@@ -340,7 +340,7 @@
             -webkit-backdrop-filter: blur(12px);
             z-index: 5;
             vertical-align: top;
-            max-width: 72px;
+            max-width: 90px;
         }
         .stock-check-cell {
             padding: 8px 4px;
@@ -914,6 +914,15 @@
         </div>
     </div>
 
+    <!-- 财报数据弹窗 -->
+    <div class="modal" id="financeModal" onclick="if(event.target.id==='financeModal')document.getElementById('financeModal').classList.remove('show')">
+        <div class="modal-content" onclick="event.stopPropagation()" style="width:1100px;max-width:95%;">
+            <button class="close-btn" onclick="document.getElementById('financeModal').classList.remove('show')">×</button>
+            <h2 id="financeModalTitle" style="font-size:15px;margin-bottom:12px;"></h2>
+            <div id="financeModalContent" style="max-height:65vh;overflow-y:auto;">加载中...</div>
+        </div>
+    </div>
+
     <script>
         marked.use({ breaks: true });
         let stockList = [];
@@ -1296,7 +1305,7 @@
             
             tbody.innerHTML = stocks.map((stock, idx) => {
                 const stockKey = `stock_${idx}`;
-                window.stockPrompts[stockKey] = { name: stock.stock_name, stock_id: stock.id, data_issues: stock.data_issues || '' };
+                window.stockPrompts[stockKey] = { name: stock.stock_name, stock_id: stock.id };
 
                 const dbtn = (label, onclick, cls) => `<button class="dim-btn ${cls}" onclick="${onclick}">${label}</button>`;
                 const dimCell = (key, label) => {
@@ -1319,11 +1328,15 @@
                     </div>`;
                 };
 
+                const stockDisplayName = stock.stock_name.replace(/ *\(.*\)$/, '');
+                const stockDisplayCode = (stockList.find(s => s.name === stockDisplayName) || {}).code || stock.stock_code;
+
                 const nameCell = (rowspan) => `<td class="stock-name-cell" rowspan="${rowspan}">
-                    <div class="sname">${stock.stock_name.replace(/ *\(.*\)$/, '')}</div>
-                    <div class="scode">${(stockList.find(s => s.name === stock.stock_name.replace(/ *\(.*\)$/, '')) || {}).code || stock.stock_code}</div>
+                    <div class="sname">${stockDisplayName}</div>
+                    <div class="scode">${stockDisplayCode}</div>
                     <div class="stime">${formatLocalTime(stock.completed_at || stock.created_at)}</div>
                     <button class="sbtn" onclick="showHistory('${stock.stock_name}')">CAN SLIM历史</button>
+                    <button class="sbtn" style="background:linear-gradient(135deg,rgba(255,152,0,0.7),rgba(255,152,0,0.9));" onclick="showFinanceData('${stockDisplayCode}','${stockDisplayName}')">财报数据</button>
                 </td>`;
                 const checkCell = (rowspan) => `<td class="stock-check-cell" rowspan="${rowspan}">
                     <input type="checkbox" class="stock-checkbox" data-stock-id="${stock.id}" onchange="updateBatchSelection()" style="cursor:pointer;">
@@ -1789,9 +1802,17 @@
                 content = `<div class="markdown-body">${marked.parse(cleanPrompt)}</div>`;
             }
             
-            // 追加数据质量反馈（仅K线结果弹窗底部）
+            // 追加数据质量反馈（仅K线结果弹窗底部，按需加载）
             if ((dimKey === 'kline' || dimKey === 'kline_hold') && !overrideType) {
-                const issuesText = promptData.data_issues;
+                let issuesText = promptData._data_issues;
+                if (issuesText === undefined) {
+                    try {
+                        const diResp = await fetch(`/api/batch/stock/${promptData.stock_id}/prompt?dim=kline&type=data_issues`);
+                        const diResult = await diResp.json();
+                        issuesText = diResult.data || '';
+                        promptData._data_issues = issuesText; // 缓存
+                    } catch (e) { issuesText = ''; }
+                }
                 if (issuesText && issuesText !== '无') {
                     content += `<div style="margin-top:16px; border:1px solid rgba(255,152,0,0.3); border-radius:12px; padding:15px; background:rgba(255,248,225,0.5);">
                         <h4 style="margin:0 0 10px 0; color:#e65100; font-size:14px;">⚠️ 数据质量反馈</h4>
@@ -1815,6 +1836,128 @@
                 console.error('复制失败:', err);
                 alert('复制失败，请手动复制');
             });
+        }
+
+        async function showFinanceData(stockCode, stockName) {
+            document.getElementById('financeModalTitle').textContent = `📋 ${stockName}（${stockCode}）- 财报数据`;
+            document.getElementById('financeModalContent').innerHTML = '<p style="text-align:center;color:#999;padding:30px;">加载中...</p>';
+            document.getElementById('financeModal').classList.add('show');
+            try {
+                const resp = await fetch(`/api/stock/finance/${encodeURIComponent(stockCode)}`);
+                const data = await resp.json();
+                if (!data.success || !data.data || data.data.length === 0) {
+                    document.getElementById('financeModalContent').innerHTML = '<p style="text-align:center;color:#999;padding:30px;">暂无财报数据</p>';
+                    return;
+                }
+                const records = data.data;
+
+                // 解析带中文单位的数值（如 "46.17亿"、"3618.73万"），统一转为元
+                const parseCnNum = (v) => {
+                    if (v == null || v === '' || v === 'None') return null;
+                    const s = String(v).replace(/,/g, '').trim();
+                    const m = s.match(/^([+-]?\d+(?:\.\d+)?)\s*(亿|万)?$/);
+                    if (!m) { const n = parseFloat(s); return isNaN(n) ? null : n; }
+                    let num = parseFloat(m[1]);
+                    if (m[2] === '亿') num *= 1e8;
+                    else if (m[2] === '万') num *= 1e4;
+                    return num;
+                };
+
+                // 计算环比：(当期-上期)/|上期|*100，records已按时间倒序
+                const calcQoQ = (records, fieldName) => {
+                    const result = new Array(records.length).fill(null);
+                    for (let i = 0; i < records.length - 1; i++) {
+                        const curr = parseCnNum(records[i][fieldName]);
+                        const prev = parseCnNum(records[i + 1][fieldName]);
+                        if (curr != null && prev != null && prev !== 0) {
+                            result[i] = ((curr - prev) / Math.abs(prev)) * 100;
+                        }
+                    }
+                    return result;
+                };
+
+                const revenueQoQ = calcQoQ(records, '营业总收入(元)');
+                const profitQoQ = calcQoQ(records, '扣非净利润(元)');
+
+                // 解析普通数值
+                const parseNum = (v) => {
+                    if (v == null || v === '' || v === 'None') return null;
+                    const n = parseFloat(String(v).replace(/,/g, ''));
+                    return isNaN(n) ? null : n;
+                };
+
+                // 关键增长指标
+                const growthCols = [
+                    { label: '营收同比', getVal: (r) => parseNum(r['营业总收入同比增长(%)']) },
+                    { label: '营收环比', getVal: (r, i) => {
+                        const v = parseNum(r['营业总收入环比增长(%)']);
+                        return v != null ? v : revenueQoQ[i];
+                    }},
+                    { label: '扣非同比', getVal: (r) => parseNum(r['扣非净利润同比增长(%)']) },
+                    { label: '扣非环比', getVal: (r, i) => {
+                        const v = parseNum(r['扣非净利润环比增长(%)']);
+                        return v != null ? v : profitQoQ[i];
+                    }},
+                ];
+
+                // 要隐藏的原始增长字段（已在前面展示）
+                const hiddenKeys = new Set([
+                    '营业总收入同比增长(%)', '营业总收入环比增长(%)',
+                    '扣非净利润同比增长(%)', '扣非净利润环比增长(%)',
+                ]);
+                const metaKeys = new Set(['报告期', '报告日期']);
+                const otherKeys = [];
+                records.forEach(r => {
+                    Object.keys(r).forEach(k => {
+                        if (!metaKeys.has(k) && !hiddenKeys.has(k) && !otherKeys.includes(k)) otherKeys.push(k);
+                    });
+                });
+
+                const fmtGrowth = (num) => {
+                    if (num == null) return '<span style="color:#c7c7cc;">-</span>';
+                    const icon = num > 0 ? '▲' : num < 0 ? '▼' : '—';
+                    const bg = num > 0 ? 'rgba(229,57,53,0.12)' : num < 0 ? 'rgba(46,125,50,0.12)' : 'rgba(0,0,0,0.04)';
+                    const fg = num > 0 ? '#e53935' : num < 0 ? '#2e7d32' : '#8e8e93';
+                    const border = num > 0 ? 'rgba(229,57,53,0.3)' : num < 0 ? 'rgba(46,125,50,0.3)' : 'rgba(0,0,0,0.1)';
+                    return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:${bg};color:${fg};font-weight:700;font-size:12px;border:1px solid ${border};white-space:nowrap;">${icon} ${num.toFixed(2)}%</span>`;
+                };
+
+                let html = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
+                html += '<thead><tr style="background:rgba(102,126,234,0.1);">';
+                html += '<th style="padding:8px;text-align:left;position:sticky;left:0;background:rgba(245,245,250,0.95);z-index:2;min-width:80px;">报告期</th>';
+                html += '<th style="padding:8px;text-align:left;min-width:80px;">报告日期</th>';
+                growthCols.forEach(g => {
+                    html += `<th style="padding:8px;text-align:center;white-space:nowrap;color:#667eea;font-weight:700;">${g.label}</th>`;
+                });
+                otherKeys.forEach(k => {
+                    html += `<th style="padding:8px;text-align:right;white-space:nowrap;">${k}</th>`;
+                });
+                html += '</tr></thead><tbody>';
+
+                records.forEach((r, i) => {
+                    html += '<tr style="border-bottom:1px solid rgba(0,0,0,0.06);">';
+                    html += `<td style="padding:6px 8px;font-weight:600;position:sticky;left:0;background:rgba(255,255,255,0.95);z-index:1;">${r['报告期'] || '-'}</td>`;
+                    html += `<td style="padding:6px 8px;color:#666;">${r['报告日期'] || '-'}</td>`;
+                    growthCols.forEach(g => {
+                        html += `<td style="padding:6px 8px;text-align:center;">${fmtGrowth(g.getVal(r, i))}</td>`;
+                    });
+                    otherKeys.forEach(k => {
+                        const v = r[k];
+                        const display = v != null && v !== '' && v !== 'None' ? v : '-';
+                        const numVal = parseFloat(String(display).replace(/,/g, ''));
+                        let color = '#1d1d1f';
+                        if (!isNaN(numVal) && String(display).includes('%')) {
+                            color = numVal > 0 ? '#e53935' : numVal < 0 ? '#2e7d32' : '#1d1d1f';
+                        }
+                        html += `<td style="padding:6px 8px;text-align:right;white-space:nowrap;color:${color};">${display}</td>`;
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody></table></div>';
+                document.getElementById('financeModalContent').innerHTML = html;
+            } catch (e) {
+                document.getElementById('financeModalContent').innerHTML = `<p style="color:red;text-align:center;padding:30px;">加载失败: ${e.message}</p>`;
+            }
         }
 
         function toggleSelectAllStocks() {
@@ -2738,11 +2881,11 @@
                     if (isToday) {
                         if (totalFail === 0) {
                             icon.textContent = '✅';
-                            text.textContent = d.last_run_time + ' 最高最低价拉取完成';
+                            text.textContent = d.last_run_time + ' 最高最低价自动拉取完成';
                             banner.style.background = 'rgba(92,184,92,0.25)';
                         } else {
                             icon.textContent = '⚠️';
-                            text.textContent = d.last_run_time + ' 最高最低价拉取完成（失败' + totalFail + '）';
+                            text.textContent = d.last_run_time + ' 最高最低价自动拉取完成（失败' + totalFail + '）';
                             banner.style.background = 'rgba(217,83,79,0.25)';
                         }
                     } else {
@@ -2798,7 +2941,7 @@
                     const sSuccess = d.score_success || 0;
                     const sFail = d.score_failed || 0;
                     if (isToday) {
-                        let detail = d.last_run_time + ' 技术打分完成';
+                        let detail = d.last_run_time + ' 技术指标自动打分完成';
                         detail += '  ' + sSuccess + '/' + sTotal;
                         if (sFail > 0) detail += '(失败' + sFail + ')';
                         if (sFail === 0) {
@@ -2890,16 +3033,16 @@
                     if (isToday) {
                         if (totalFail === 0) {
                             icon.textContent = '✅';
-                            text.textContent = d.last_run_time + ' K线初筛完成';
+                            text.textContent = d.last_run_time + ' K线自动初筛完成';
                             banner.style.background = 'rgba(92,184,92,0.25)';
                         } else {
                             icon.textContent = '⚠️';
-                            text.textContent = d.last_run_time + ' K线初筛完成（失败' + totalFail + '）';
+                            text.textContent = d.last_run_time + ' K线自动初筛完成（失败' + totalFail + '）';
                             banner.style.background = 'rgba(217,83,79,0.25)';
                         }
                     } else {
                         icon.textContent = '⏳';
-                        text.textContent = 'K线初筛等待日线完成后自动执行  上次执行: ' + d.last_run_time;
+                        text.textContent = 'K线自动初筛等待日线完成后自动执行  上次执行: ' + d.last_run_time;
                         banner.style.background = 'rgba(255,255,255,0.2)';
                     }
                 } else {
@@ -2951,11 +3094,11 @@
                     if (isToday) {
                         if (anomalies === 0) {
                             icon.textContent = '✅';
-                            text.textContent = d.last_run_time + ' 数据异常检测完成（无异常）';
+                            text.textContent = d.last_run_time + ' 数据异常自动检测完成（无异常）';
                             banner.style.background = 'rgba(92,184,92,0.25)';
                         } else {
                             icon.textContent = anomalies === repaired ? '✅' : '⚠️';
-                            text.textContent = d.last_run_time + ' 数据异常检测完成（异常' + anomalies + ' 修复' + repaired + '）';
+                            text.textContent = d.last_run_time + ' 数据异常自动检测完成（异常' + anomalies + ' 修复' + repaired + '）';
                             banner.style.background = anomalies === repaired ? 'rgba(92,184,92,0.25)' : 'rgba(217,83,79,0.25)';
                         }
                     } else {

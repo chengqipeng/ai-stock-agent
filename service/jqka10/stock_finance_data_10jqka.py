@@ -762,7 +762,7 @@ if __name__ == "__main__":
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info = get_stock_info_by_name("贵州茅台")
+        stock_info = get_stock_info_by_name("飞荣达")
         if not stock_info:
             logger.info("未找到股票信息")
             return
