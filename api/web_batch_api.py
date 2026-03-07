@@ -779,6 +779,81 @@ async def get_stock_finance_data(stock_code: str, limit: int = Query(None)):
         logger.error("获取财报数据失败 stock_code=%s: %s", stock_code, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/api/batch/{batch_id}/finance_growth")
+async def get_batch_finance_growth(batch_id: int):
+    """获取批次中所有股票最近3期财报增长数据（营收同比/环比、扣非同比/环比）"""
+    try:
+        from dao.stock_finance_dao import get_finance_from_db
+        stocks = db_manager.get_batch_stocks(batch_id)
+        result = {}
+        growth_keys = [
+            "营业总收入同比增长(%)",
+            "营业总收入环比增长(%)",
+            "扣非净利润同比增长(%)",
+            "扣非净利润环比增长(%)",
+        ]
+        # 单季度值 key → 对应的环比 key
+        sq_qoq_map = [
+            ("单季度营业收入(元)", "营业总收入环比增长(%)"),
+            ("单季扣非净利润(元)", "扣非净利润环比增长(%)"),
+        ]
+
+        def _parse_num(v):
+            """将可能带单位的金额字符串转为 float，如 '12.34亿' → 1234000000"""
+            if v is None:
+                return None
+            if isinstance(v, (int, float)):
+                return float(v)
+            s = str(v).strip()
+            if not s:
+                return None
+            multiplier = 1
+            if s.endswith("亿"):
+                multiplier = 1e8
+                s = s[:-1]
+            elif s.endswith("万"):
+                multiplier = 1e4
+                s = s[:-1]
+            try:
+                return float(s) * multiplier
+            except (ValueError, TypeError):
+                return None
+
+        for stock in stocks:
+            code = stock.get("stock_code") or ""
+            name = stock.get("stock_name", "").replace(" ", "").split("(")[0]
+            # 多取1条用于计算第3期的环比
+            if code and any(c.isdigit() for c in code):
+                records = get_finance_from_db(code, limit=4)
+            else:
+                info = get_stock_info_by_name(name)
+                records = get_finance_from_db(info.stock_code_normalize, limit=4) if info else []
+
+            # 补算环比：当存储的环比为空时，用相邻两期单季度值计算
+            for i in range(len(records) - 1):
+                cur, prev = records[i], records[i + 1]
+                for sq_key, qoq_key in sq_qoq_map:
+                    if cur.get(qoq_key) is not None:
+                        continue
+                    cur_val = _parse_num(cur.get(sq_key))
+                    prev_val = _parse_num(prev.get(sq_key))
+                    if cur_val is not None and prev_val is not None and prev_val != 0:
+                        cur[qoq_key] = round((cur_val / prev_val - 1) * 100, 2)
+
+            periods = []
+            for rec in records[:3]:
+                period = {"报告期": rec.get("报告期", "")}
+                for k in growth_keys:
+                    period[k] = rec.get(k)
+                periods.append(period)
+            result[name] = periods
+        return SafeJSONResponse(content={"success": True, "data": result})
+    except Exception as e:
+        logger.error("获取批次财报增长数据失败 batch_id=%s: %s", batch_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/stock/history/{stock_name}")
 async def get_stock_history(stock_name: str):
     """获取股票历史深度分析记录"""

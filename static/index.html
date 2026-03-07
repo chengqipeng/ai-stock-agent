@@ -1248,9 +1248,22 @@
             renderBatchList(await (await fetch('/api/batches')).json().then(d => d.data));
             
             try {
-                const response = await fetch(`/api/batch/${batchId}/stocks`);
-                const data = await response.json();
+                const [stocksResp, finGrowthResp] = await Promise.all([
+                    fetch(`/api/batch/${batchId}/stocks`),
+                    fetch(`/api/batch/${batchId}/finance_growth`).catch(() => null)
+                ]);
+                const data = await stocksResp.json();
+                let finGrowthData = {};
+                if (finGrowthResp && finGrowthResp.ok) {
+                    const fg = await finGrowthResp.json();
+                    if (fg.success) finGrowthData = fg.data;
+                }
                 if (data.success) {
+                    // 将财报增长数据注入到每只股票
+                    for (const stock of data.data) {
+                        const name = (stock.stock_name || '').replace(/ *\(.*\)$/, '');
+                        stock.finance_growth = finGrowthData[name] || [];
+                    }
                     renderBatchStocks(data.data);
                 }
             } catch (error) {
@@ -1361,8 +1374,8 @@
                 const changePctVal = stock.change_pct != null ? stock.change_pct + '%' : '-';
 
                 const row1 = `<tr class="stock-group-row row-change">
-                    ${checkCell(4)}
-                    ${nameCell(4)}
+                    ${checkCell(5)}
+                    ${nameCell(5)}
                     <td class="data-row"><div class="data-section">
                         <span class="data-section-label">📈 涨跌幅</span>
                         <div class="data-section-items">
@@ -1427,7 +1440,45 @@
                     </div></td>
                 </tr>`;
 
-                return row1 + row2 + row_tech + row3;
+                // 财报增长行
+                const fgPeriods = stock.finance_growth || [];
+                const fgValHtml = (val) => {
+                    if (val == null || val === '') return '<span class="dm-value empty">-</span>';
+                    const n = parseFloat(val);
+                    const cls = isNaN(n) ? 'empty' : n >= 0 ? 'positive' : 'negative';
+                    return `<span class="dm-value ${cls}">${isNaN(n) ? '-' : n.toFixed(2) + '%'}</span>`;
+                };
+                const fgPeriodHtml = fgPeriods.length > 0 ? fgPeriods.map(p => {
+                    const rp = p['报告期'] || '';
+                    const rpShort = rp.length >= 10 ? rp.substring(0, 4) + rp.substring(4, 10).replace(/-/g, '') : rp;
+                    return `<div style="display:inline-flex;flex-direction:column;border-right:1px solid rgba(0,0,0,0.06);padding:3px 8px;min-width:120px;">
+                        <span style="font-size:10px;font-weight:600;color:#667eea;margin-bottom:2px;">${rpShort}</span>
+                        <div style="display:flex;gap:0;">
+                            <div class="data-metric" style="min-width:56px;border-right:none;padding:1px 5px;">
+                                <span class="dm-label">营收同比</span>${fgValHtml(p['营业总收入同比增长(%)'])}
+                            </div>
+                            <div class="data-metric" style="min-width:56px;border-right:none;padding:1px 5px;">
+                                <span class="dm-label">营收环比</span>${fgValHtml(p['营业总收入环比增长(%)'])}
+                            </div>
+                            <div class="data-metric" style="min-width:56px;border-right:none;padding:1px 5px;">
+                                <span class="dm-label">扣非同比</span>${fgValHtml(p['扣非净利润同比增长(%)'])}
+                            </div>
+                            <div class="data-metric" style="min-width:56px;border-right:none;padding:1px 5px;">
+                                <span class="dm-label">扣非环比</span>${fgValHtml(p['扣非净利润环比增长(%)'])}
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('') : '<div class="data-metric"><span class="dm-value empty">暂无财报数据</span></div>';
+                const row_finance = `<tr class="row-change" style="background:rgba(255,243,224,0.45);">
+                    <td class="data-row"><div class="data-section">
+                        <span class="data-section-label">📋 财报增长</span>
+                        <div class="data-section-items" style="flex-wrap:nowrap;overflow-x:auto;">
+                            ${fgPeriodHtml}
+                        </div>
+                    </div></td>
+                </tr>`;
+
+                return row1 + row2 + row_tech + row_finance + row3;
             }).join('');
         }
 

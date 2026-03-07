@@ -215,6 +215,28 @@ _TABLES = [
         INDEX idx_ts_date (score_date)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
+    # ── stock_kline_screening_history（K线初筛历史记录，按天保存） ──
+    """
+    CREATE TABLE IF NOT EXISTS stock_kline_screening_history (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        batch_id INT NOT NULL,
+        stock_id INT NOT NULL,
+        stock_name VARCHAR(100) NOT NULL,
+        stock_code VARCHAR(20) NOT NULL,
+        screen_date VARCHAR(20) NOT NULL,
+        kline_score VARCHAR(50),
+        kline_hold_score VARCHAR(50),
+        kline_total_score INT,
+        kline_prompt LONGTEXT,
+        kline_hold_prompt LONGTEXT,
+        data_issues LONGTEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_batch_stock_date (batch_id, stock_id, screen_date),
+        INDEX idx_ksh_batch (batch_id),
+        INDEX idx_ksh_date (screen_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
 ]
 
 
