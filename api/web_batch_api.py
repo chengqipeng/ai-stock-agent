@@ -794,6 +794,7 @@ async def get_batch_finance_growth(batch_id: int):
             "扣非净利润环比增长(%)",
         ]
         # 单季度值 key → 对应的环比 key
+        # 环比正确算法：用单季度值比较，(当期单季 - 上期单季) / |上期单季| * 100
         sq_qoq_map = [
             ("单季度营业收入(元)", "营业总收入环比增长(%)"),
             ("单季扣非净利润(元)", "扣非净利润环比增长(%)"),
@@ -806,7 +807,7 @@ async def get_batch_finance_growth(batch_id: int):
             if isinstance(v, (int, float)):
                 return float(v)
             s = str(v).strip()
-            if not s:
+            if not s or s == 'None':
                 return None
             multiplier = 1
             if s.endswith("亿"):
@@ -831,6 +832,7 @@ async def get_batch_finance_growth(batch_id: int):
                 records = get_finance_from_db(info.stock_code_normalize, limit=4) if info else []
 
             # 补算环比：当存储的环比为空时，用相邻两期单季度值计算
+            # 公式: (当期单季 - 上期单季) / |上期单季| * 100
             for i in range(len(records) - 1):
                 cur, prev = records[i], records[i + 1]
                 for sq_key, qoq_key in sq_qoq_map:
@@ -839,7 +841,7 @@ async def get_batch_finance_growth(batch_id: int):
                     cur_val = _parse_num(cur.get(sq_key))
                     prev_val = _parse_num(prev.get(sq_key))
                     if cur_val is not None and prev_val is not None and prev_val != 0:
-                        cur[qoq_key] = round((cur_val / prev_val - 1) * 100, 2)
+                        cur[qoq_key] = round((cur_val - prev_val) / abs(prev_val) * 100, 2)
 
             periods = []
             for rec in records[:3]:

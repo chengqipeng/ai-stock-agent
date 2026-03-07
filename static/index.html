@@ -1914,7 +1914,7 @@
                     return num;
                 };
 
-                // 计算环比：(当期-上期)/|上期|*100，records已按时间倒序
+                // 计算环比：用单季度值，(当期单季-上期单季)/|上期单季|*100，records已按时间倒序
                 const calcQoQ = (records, fieldName) => {
                     const result = new Array(records.length).fill(null);
                     for (let i = 0; i < records.length - 1; i++) {
@@ -1927,8 +1927,8 @@
                     return result;
                 };
 
-                const revenueQoQ = calcQoQ(records, '营业总收入(元)');
-                const profitQoQ = calcQoQ(records, '扣非净利润(元)');
+                const revenueQoQ = calcQoQ(records, '单季度营业收入(元)');
+                const profitQoQ = calcQoQ(records, '单季扣非净利润(元)');
 
                 // 解析普通数值
                 const parseNum = (v) => {
