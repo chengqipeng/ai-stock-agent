@@ -119,6 +119,7 @@ async def _execute_job():
 
     _job_status["running"] = True
     _job_status["error"] = None
+    _job_status["start_time"] = datetime.now(_CST).isoformat()
     today_str = datetime.now(_CST).date().isoformat()
     started_at = datetime.now(_CST)
     log_id = insert_log("K线初筛", started_at)

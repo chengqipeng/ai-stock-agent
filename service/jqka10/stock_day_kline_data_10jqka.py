@@ -259,6 +259,39 @@ async def _get_today_kline(stock_code_normalize: str) -> dict | None:
         return None
 
 
+def _backfill_derived_fields(today: dict, history: list[dict]) -> None:
+    """
+    当实时K线的 amplitude/change_percent/change_amount 为空时，
+    利用历史数据中最后一条的 close_price 作为 prev_close 进行回补。
+    """
+    needs_fix = (today.get("amplitude") is None
+                 or today.get("change_percent") is None
+                 or today.get("change_amount") is None)
+    if not needs_fix or not history:
+        return
+
+    # 找到前一个交易日（排除同一天的重复记录）
+    prev_close = None
+    for rec in reversed(history):
+        if rec["date"] != today["date"] and rec.get("close_price"):
+            prev_close = rec["close_price"]
+            break
+
+    if not prev_close:
+        return
+
+    high = today.get("high_price")
+    low = today.get("low_price")
+    close = today.get("close_price")
+
+    if today.get("amplitude") is None and high is not None and low is not None:
+        today["amplitude"] = round((high - low) / prev_close * 100, 2)
+    if today.get("change_percent") is None and close is not None:
+        today["change_percent"] = round((close - prev_close) / prev_close * 100, 2)
+    if today.get("change_amount") is None and close is not None:
+        today["change_amount"] = round(close - prev_close, 2)
+
+
 async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) -> list[dict]:
     """
     从同花顺获取日K线数据，返回最近 limit 条记录（由旧到新排列）。
@@ -308,9 +341,9 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
         nofq = nofq_map.get(dates[i].replace("-", ""), {})
         actual_close = nofq.get("close", close_p)
         prev_close = result[-1]["close_price"] if result else None
-        amplitude   = round((high_p - low_p) / prev_close * 100, 2) if prev_close else None
-        change_pct  = round((actual_close - prev_close) / prev_close * 100, 2) if prev_close else None
-        change_amt  = round(actual_close - prev_close, 2) if prev_close else None
+        amplitude   = round((high_p - low_p) / prev_close * 100, 2) if prev_close else 0
+        change_pct  = round((actual_close - prev_close) / prev_close * 100, 2) if prev_close else 0
+        change_amt  = round(actual_close - prev_close, 2) if prev_close else 0
         record = {
             "date":           dates[i],
             "open_price":     open_p,
@@ -342,6 +375,8 @@ async def get_stock_day_kline_10jqka(stock_info: StockInfo, limit: int = 400) ->
     latest_trading_day = _latest_trading_day().strftime("%Y-%m-%d")
     today_kline = await _get_today_kline(stock_info.stock_code_normalize)
     if today_kline and today_kline["date"] == latest_trading_day:
+        # 如果实时接口未能获取 prev_close 导致衍生字段为空，用历史数据回补
+        _backfill_derived_fields(today_kline, result)
         if result and result[-1]["date"] == latest_trading_day:
             result[-1] = today_kline
         else:
@@ -392,8 +427,8 @@ if __name__ == "__main__":
     from common.utils.stock_info_utils import get_stock_info_by_name
 
     async def main():
-        stock_info = get_stock_info_by_name("禾元生物")
+        stock_info = get_stock_info_by_name("乐心医疗")
         klines = await get_stock_day_kline_cn_10jqka(stock_info)
-        logger.info(json.dumps(klines, ensure_ascii=False))
+        print(json.dumps(klines, ensure_ascii=False))
 
     asyncio.run(main())
