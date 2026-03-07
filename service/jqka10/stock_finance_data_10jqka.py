@@ -725,7 +725,7 @@ def get_financial_data_from_db(
     """
     从本地数据库查询已存储的财报数据。
 
-    数据由 stock_history_klines_auto_job 批量拉取后写入，
+    数据由 kline_data_scheduler 批量拉取后写入，
     格式与 get_financial_data_to_json 返回值一致。
 
     优先从 DB 读取，避免重复请求远程接口。

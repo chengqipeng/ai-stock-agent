@@ -59,8 +59,11 @@ from service.k_strategy.stock_k_strategy_service import get_k_strategy_analysis
 from service.eastmoney.stock_info.stock_day_kline_data import get_120day_high_to_latest_change
 from dao.stock_can_slim_dao import db_manager
 from dao.stock_technical_score_dao import get_latest_technical_scores_for_batch, get_technical_score_history, save_score_results
-from service.auto_job.kline_scheduler import start_scheduler, get_job_status, app_ready
-from service.auto_job.price_scheduler import start_price_scheduler, get_price_job_status
+from service.auto_job.kline_data_scheduler import start_scheduler, get_job_status, app_ready
+from service.auto_job.week_highest_lowest_price_scheduler import start_price_scheduler, get_price_job_status
+from service.auto_job.kline_technical_scheduler import start_score_scheduler, get_score_job_status
+from service.auto_job.kline_score_scheduler import start_kline_score_scheduler, get_kline_score_job_status
+from service.auto_job.db_anomalies_scheduler import start_db_check_scheduler, get_db_check_job_status
 from service.batch_technical_score.batch_technical_score import analyze_stock as technical_analyze_stock
 
 GRADE_SCORE_MAP = {
@@ -85,6 +88,24 @@ async def lifespan(application: FastAPI):
             logger.info("[lifespan] 最高最低价调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动最高最低价调度器异常: %s", e, exc_info=True)
+
+        try:
+            await start_score_scheduler()
+            logger.info("[lifespan] 技术打分调度器已激活")
+        except Exception as e:
+            logger.error("[lifespan] 启动技术打分调度器异常: %s", e, exc_info=True)
+
+        try:
+            await start_kline_score_scheduler()
+            logger.info("[lifespan] K线初筛调度器已激活")
+        except Exception as e:
+            logger.error("[lifespan] 启动K线初筛调度器异常: %s", e, exc_info=True)
+
+        try:
+            await start_db_check_scheduler()
+            logger.info("[lifespan] 数据异常检测调度器已激活")
+        except Exception as e:
+            logger.error("[lifespan] 启动数据异常检测调度器异常: %s", e, exc_info=True)
 
         # 关键：app_ready 必须在 try 之外，确保一定会被 set
         app_ready.set()
@@ -124,6 +145,21 @@ async def kline_job_status():
 async def price_job_status():
     """获取最高最低价定时拉取任务状态"""
     return {"success": True, "data": get_price_job_status()}
+
+@app.get("/api/score_job_status")
+async def score_job_status():
+    """获取技术打分定时任务状态"""
+    return {"success": True, "data": get_score_job_status()}
+
+@app.get("/api/kline_score_job_status")
+async def kline_score_job_status():
+    """获取K线初筛定时任务状态"""
+    return {"success": True, "data": get_kline_score_job_status()}
+
+@app.get("/api/db_check_job_status")
+async def db_check_job_status():
+    """获取数据异常检测定时任务状态"""
+    return {"success": True, "data": get_db_check_job_status()}
 
 @app.get("/api/stock_list")
 async def get_stock_list():

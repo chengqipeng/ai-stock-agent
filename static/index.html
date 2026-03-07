@@ -586,8 +586,8 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>📊 批量股票分析</h1>
+    <div class="header" style="display: grid; grid-template-columns: auto 1fr 1fr; grid-template-rows: auto auto auto; gap: 4px 8px; align-items: center;">
+        <h1 style="grid-row: 1 / 4;">📊 批量股票分析</h1>
         <div id="klineJobBanner" style="
             background: rgba(255,255,255,0.2);
             border-radius: 8px;
@@ -621,6 +621,58 @@
         ">
             <span id="priceJobIcon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
             <span id="priceJobText" style="overflow: hidden; text-overflow: ellipsis;">最高最低价状态加载中...</span>
+        </div>
+        <div id="scoreJobBanner" style="
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+        ">
+            <span id="scoreJobIcon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
+            <span id="scoreJobText" style="overflow: hidden; text-overflow: ellipsis;">技术打分状态加载中...</span>
+        </div>
+        <div id="klineScoreJobBanner" style="
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+        ">
+            <span id="klineScoreJobIcon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
+            <span id="klineScoreJobText" style="overflow: hidden; text-overflow: ellipsis;">K线初筛状态加载中...</span>
+        </div>
+        <div id="dbCheckJobBanner" style="
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            grid-column: 2 / 4;
+        ">
+            <span id="dbCheckJobIcon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
+            <span id="dbCheckJobText" style="overflow: hidden; text-overflow: ellipsis;">数据异常检测状态加载中...</span>
         </div>
     </div>
 
@@ -2552,11 +2604,68 @@
             }
         }
 
+        // ─── 技术打分状态轮询 ───
+        async function pollScoreJobStatus() {
+            try {
+                const resp = await fetch('/api/score_job_status');
+                const json = await resp.json();
+                if (!json.success) return;
+                const d = json.data;
+                const banner = document.getElementById('scoreJobBanner');
+                const icon = document.getElementById('scoreJobIcon');
+                const text = document.getElementById('scoreJobText');
+
+                if (d.running) {
+                    const sTotal = d.score_total || 0;
+                    const sDone = (d.score_success || 0) + (d.score_failed || 0);
+                    const sFail = d.score_failed || 0;
+                    const remaining = sTotal - sDone;
+                    icon.textContent = '🔄';
+                    let msg = '技术打分正在执行中';
+                    if (sTotal > 0) {
+                        msg += '  已完成 ' + sDone + '/' + sTotal;
+                        if (remaining > 0) msg += '  剩余 ' + remaining;
+                        if (sFail > 0) msg += '  失败 ' + sFail;
+                    } else {
+                        msg += '...';
+                    }
+                    text.textContent = msg;
+                    banner.style.background = 'rgba(240,173,78,0.25)';
+                } else if (d.last_run_time) {
+                    const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
+                    const isToday = d.last_run_date === today;
+                    const totalFail = d.score_failed || 0;
+                    if (isToday) {
+                        if (totalFail === 0) {
+                            icon.textContent = '✅';
+                            text.textContent = d.last_run_time + ' 技术打分完成';
+                            banner.style.background = 'rgba(92,184,92,0.25)';
+                        } else {
+                            icon.textContent = '⚠️';
+                            text.textContent = d.last_run_time + ' 技术打分完成（失败' + totalFail + '）';
+                            banner.style.background = 'rgba(217,83,79,0.25)';
+                        }
+                    } else {
+                        icon.textContent = '⏳';
+                        text.textContent = '技术打分等待日线完成后自动执行  上次执行: ' + d.last_run_time;
+                        banner.style.background = 'rgba(255,255,255,0.2)';
+                    }
+                } else {
+                    icon.textContent = '⏳';
+                    text.textContent = '技术打分等待日线完成后自动执行';
+                    banner.style.background = 'rgba(255,255,255,0.2)';
+                }
+            } catch (e) {
+                // 静默失败
+            }
+        }
+
         // 初始化
         loadStockList();
         loadBatchList();
         pollKlineJobStatus();
         pollPriceJobStatus();
+        pollScoreJobStatus();
         
         // 定时刷新批次列表
         setInterval(loadBatchList, 5000);
@@ -2564,6 +2673,128 @@
         setInterval(pollKlineJobStatus, 10000);
         // 定时刷新最高最低价拉取状态（10秒）
         setInterval(pollPriceJobStatus, 10000);
+        // 定时刷新技术打分状态（10秒）
+        setInterval(pollScoreJobStatus, 10000);
+
+        // ─── K线初筛状态轮询 ───
+        async function pollKlineScoreJobStatus() {
+            try {
+                const resp = await fetch('/api/kline_score_job_status');
+                const json = await resp.json();
+                if (!json.success) return;
+                const d = json.data;
+                const banner = document.getElementById('klineScoreJobBanner');
+                const icon = document.getElementById('klineScoreJobIcon');
+                const text = document.getElementById('klineScoreJobText');
+
+                if (d.running) {
+                    const sTotal = d.kline_score_total || 0;
+                    const sDone = (d.kline_score_success || 0) + (d.kline_score_failed || 0);
+                    const sFail = d.kline_score_failed || 0;
+                    const remaining = sTotal - sDone;
+                    icon.textContent = '🔄';
+                    let msg = 'K线初筛正在执行中';
+                    if (sTotal > 0) {
+                        msg += '  已完成 ' + sDone + '/' + sTotal;
+                        if (remaining > 0) msg += '  剩余 ' + remaining;
+                        if (sFail > 0) msg += '  失败 ' + sFail;
+                    } else {
+                        msg += '...';
+                    }
+                    text.textContent = msg;
+                    banner.style.background = 'rgba(240,173,78,0.25)';
+                } else if (d.last_run_time) {
+                    const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
+                    const isToday = d.last_run_date === today;
+                    const totalFail = d.kline_score_failed || 0;
+                    if (isToday) {
+                        if (totalFail === 0) {
+                            icon.textContent = '✅';
+                            text.textContent = d.last_run_time + ' K线初筛完成';
+                            banner.style.background = 'rgba(92,184,92,0.25)';
+                        } else {
+                            icon.textContent = '⚠️';
+                            text.textContent = d.last_run_time + ' K线初筛完成（失败' + totalFail + '）';
+                            banner.style.background = 'rgba(217,83,79,0.25)';
+                        }
+                    } else {
+                        icon.textContent = '⏳';
+                        text.textContent = 'K线初筛等待日线完成后自动执行  上次执行: ' + d.last_run_time;
+                        banner.style.background = 'rgba(255,255,255,0.2)';
+                    }
+                } else {
+                    icon.textContent = '⏳';
+                    text.textContent = 'K线初筛等待日线完成后自动执行';
+                    banner.style.background = 'rgba(255,255,255,0.2)';
+                }
+            } catch (e) {
+                // 静默失败
+            }
+        }
+
+        pollKlineScoreJobStatus();
+        // 定时刷新K线初筛状态（10秒）
+        setInterval(pollKlineScoreJobStatus, 10000);
+
+        // ─── 数据异常检测状态轮询 ───
+        async function pollDbCheckJobStatus() {
+            try {
+                const resp = await fetch('/api/db_check_job_status');
+                const json = await resp.json();
+                if (!json.success) return;
+                const d = json.data;
+                const banner = document.getElementById('dbCheckJobBanner');
+                const icon = document.getElementById('dbCheckJobIcon');
+                const text = document.getElementById('dbCheckJobText');
+
+                if (d.running) {
+                    const sTotal = d.check_total || 0;
+                    const anomalies = d.check_anomalies || 0;
+                    const repaired = d.check_repaired || 0;
+                    icon.textContent = '🔄';
+                    let msg = '数据异常检测正在执行中';
+                    if (sTotal > 0) {
+                        msg += '  共 ' + sTotal + ' 只股票';
+                        if (anomalies > 0) msg += '  异常 ' + anomalies;
+                        if (repaired > 0) msg += '  已修复 ' + repaired;
+                    } else {
+                        msg += '...';
+                    }
+                    text.textContent = msg;
+                    banner.style.background = 'rgba(240,173,78,0.25)';
+                } else if (d.last_run_time) {
+                    const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
+                    const isToday = d.last_run_date === today;
+                    const anomalies = d.check_anomalies || 0;
+                    const repaired = d.check_repaired || 0;
+                    if (isToday) {
+                        if (anomalies === 0) {
+                            icon.textContent = '✅';
+                            text.textContent = d.last_run_time + ' 数据异常检测完成（无异常）';
+                            banner.style.background = 'rgba(92,184,92,0.25)';
+                        } else {
+                            icon.textContent = anomalies === repaired ? '✅' : '⚠️';
+                            text.textContent = d.last_run_time + ' 数据异常检测完成（异常' + anomalies + ' 修复' + repaired + '）';
+                            banner.style.background = anomalies === repaired ? 'rgba(92,184,92,0.25)' : 'rgba(217,83,79,0.25)';
+                        }
+                    } else {
+                        icon.textContent = '⏳';
+                        text.textContent = '数据异常检测等待日线完成后自动执行  上次执行: ' + d.last_run_time;
+                        banner.style.background = 'rgba(255,255,255,0.2)';
+                    }
+                } else {
+                    icon.textContent = '⏳';
+                    text.textContent = '数据异常检测等待日线完成后自动执行';
+                    banner.style.background = 'rgba(255,255,255,0.2)';
+                }
+            } catch (e) {
+                // 静默失败
+            }
+        }
+
+        pollDbCheckJobStatus();
+        // 定时刷新数据异常检测状态（10秒）
+        setInterval(pollDbCheckJobStatus, 10000);
     </script>
 </body>
 </html>

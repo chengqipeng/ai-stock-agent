@@ -4,7 +4,7 @@ import pandas as pd
 from common.prompt.can_slim.M_Direction_prompt import M_DIRECTION_PROMPT_TEMPLATE
 from common.constants.can_slim_final_outputs import M_FINAL_OUTPUT
 from common.utils.stock_info_utils import StockInfo, get_stock_info_by_name
-from service.auto_job.stock_history_highest_lowest_price_data import get_new_high_low_count, get_top_strongest_stocks
+from service.eastmoney.stock_info.stock_history_highest_lowest_price_data import get_new_high_low_count, get_top_strongest_stocks
 from service.eastmoney.technical.stock_day_range_kline import calculate_moving_averages
 from service.eastmoney.stock_info.stock_day_kline_data import get_stock_history_kline_max_min
 from service.can_slim.base_can_slim_service import BaseCanSlimService
