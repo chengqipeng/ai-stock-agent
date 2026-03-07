@@ -598,6 +598,54 @@ class DatabaseManager:
             cursor.close()
             conn.close()
 
+    def save_kline_screening_history(self, batch_id: int, stock_id: int, stock_name: str,
+                                       stock_code: str, screen_date: str,
+                                       kline_score: str, kline_hold_score: str,
+                                       kline_total_score: int, kline_prompt: str,
+                                       kline_hold_prompt: str, data_issues: str):
+        """保存K线初筛历史记录，同一天同一批次同一股票覆盖"""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO stock_kline_screening_history
+                (batch_id, stock_id, stock_name, stock_code, screen_date,
+                 kline_score, kline_hold_score, kline_total_score,
+                 kline_prompt, kline_hold_prompt, data_issues)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    kline_score=VALUES(kline_score),
+                    kline_hold_score=VALUES(kline_hold_score),
+                    kline_total_score=VALUES(kline_total_score),
+                    kline_prompt=VALUES(kline_prompt),
+                    kline_hold_prompt=VALUES(kline_hold_prompt),
+                    data_issues=VALUES(data_issues)
+            """, (batch_id, stock_id, stock_name, stock_code, screen_date,
+                  kline_score, kline_hold_score, kline_total_score,
+                  kline_prompt, kline_hold_prompt, data_issues))
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+
+    def get_kline_screening_history(self, batch_id: int, stock_id: int) -> List[Dict[str, Any]]:
+        """获取某只股票在某批次下的K线初筛历史记录，按日期倒序"""
+        conn = get_connection(use_dict_cursor=True)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT id, screen_date, kline_score, kline_hold_score,
+                       kline_total_score, kline_prompt, kline_hold_prompt, data_issues,
+                       created_at, updated_at
+                FROM stock_kline_screening_history
+                WHERE batch_id = %s AND stock_id = %s
+                ORDER BY screen_date DESC
+            """, (batch_id, stock_id))
+            return list(cursor.fetchall())
+        finally:
+            cursor.close()
+            conn.close()
+
     def get_stock_deep_analysis_history(self, stock_name: str) -> List[Dict[str, Any]]:
         """按股票名称查询历史深度分析记录，按时间倒序"""
         conn = get_connection(use_dict_cursor=True)

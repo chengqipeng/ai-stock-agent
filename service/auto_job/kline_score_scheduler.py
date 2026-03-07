@@ -101,6 +101,14 @@ async def _analyze_single_stock(stock, db_manager, counter, done_stock_ids):
             db_manager.update_stock_kline_scores(stock_id, kline_total_score)
         db_manager.update_stock_kline_hold(stock_id, hold_grade, hold_content, data_issues)
 
+        # 保存K线初筛历史记录（按天覆盖）
+        today_str = datetime.now(_CST).strftime('%Y-%m-%d')
+        db_manager.save_kline_screening_history(
+            stock['batch_id'], stock_id, stock_name, stock.get('stock_code', ''),
+            today_str, not_hold_grade, hold_grade, kline_total_score,
+            not_hold_content, hold_content, data_issues
+        )
+
         counter["success"] += 1
         done_stock_ids.add(stock_id)
         logger.info("[K线初筛调度 总%d 成功%d 失败%d] %s 评分: %s",

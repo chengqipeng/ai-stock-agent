@@ -1660,11 +1660,14 @@ def _compute_fund_flow_behavior(fund_flow: list[dict]) -> dict:
         if isinstance(val, (int, float)):
             return float(val)
         if isinstance(val, str):
-            val = val.replace('亿', '').replace(',', '').strip()
+            val = val.replace(',', '').strip()
             try:
+                if val.endswith('亿'):
+                    return float(val[:-1])
+                if val.endswith('万'):
+                    return float(val[:-1]) / 10000
                 return float(val)
-            except ValueError as e:
-                logger.debug("_parse_amount 转换失败: val=%s, %s", val, e)
+            except ValueError:
                 return 0
         return 0
 

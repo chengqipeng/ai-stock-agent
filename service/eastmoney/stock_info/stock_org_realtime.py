@@ -4,7 +4,7 @@
 以及股东人数变化趋势（RPT_F10_EH_HOLDERNUM），
 预计算摘要供提示词直接引用。
 """
-
+import asyncio
 import logging
 from collections import defaultdict
 
@@ -75,17 +75,16 @@ async def _fetch_holder_num_trend(stock_info: StockInfo, page_size: int = 8) -> 
 
 
 def _safe_hold_focus(val) -> str | None:
-    """安全解析筹码集中度，支持数值和文本（如'非常分散'、'集中'）"""
+    """安全解析筹码集中度，支持数值和文本（如'非常分散'、'较分散'、'集中'）"""
     if val is None:
         return None
+    if isinstance(val, (int, float)):
+        return f"{round(float(val), 2)}%"
     if isinstance(val, str):
         try:
             return f"{round(float(val), 2)}%"
-        except ValueError as e:
-            logger.debug("_safe_hold_focus 转换失败: val=%s, %s", val, e)
-            return val  # 直接返回文本描述
-    if isinstance(val, (int, float)):
-        return f"{round(float(val), 2)}%"
+        except ValueError:
+            return val  # 文本描述如"较分散"、"集中"等，直接返回
     return str(val)
 
 

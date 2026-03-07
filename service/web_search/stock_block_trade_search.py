@@ -117,7 +117,7 @@ async def _search_block_trade_via_baidu(stock_info: StockInfo, days: int=7) -> l
         temperature=0.1,
         thinking=True
     )
-    resp_content = response['choices'][0]['message']['content']
+    resp_content = response['choices'][0]['message'].get('content') or response['choices'][0]['message'].get('reasoning_content') or ''
     records = parse_llm_json(resp_content)
 
     if not isinstance(records, list):

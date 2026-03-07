@@ -48,7 +48,17 @@ class VolcengineClient:
             try:
                 async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
                     async with session.post(url, headers=headers, json=payload) as response:
-                        return await response.json()
+                        result = await response.json()
+                        if response.status != 200:
+                            error_msg = result.get('error', {}).get('message', '') or str(result)
+                            if attempt < 2 and response.status in (429, 500, 502, 503):
+                                logger.warning("VolcengineClient.chat HTTP %d (attempt %d): %s", response.status, attempt + 1, error_msg)
+                                await asyncio.sleep(2 ** attempt)
+                                continue
+                            raise RuntimeError(f"LLM API HTTP {response.status}: {error_msg}")
+                        if 'choices' not in result:
+                            raise RuntimeError(f"LLM API 响应缺少 choices 字段: {str(result)[:200]}")
+                        return result
             except (aiohttp.ClientPayloadError, aiohttp.ClientError, ConnectionResetError) as e:
                 if attempt == 2:
                     raise e

@@ -9,8 +9,11 @@ import ast
 import logging
 import uuid
 from datetime import datetime, date
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
+
+_CST = ZoneInfo("Asia/Shanghai")
 
 
 def _sanitize_json_string(s: str) -> str:
@@ -348,6 +351,13 @@ async def execute_batch_kline_update(batch_id: int, stock_ids: str = Query(...),
                         if kline_total_score is not None:
                             db_manager.update_stock_kline_scores(stock_id, kline_total_score)
                         db_manager.update_stock_kline_hold(stock_id, hold_grade, hold_content, data_issues)
+                        # 保存K线初筛历史记录（按天覆盖）
+                        today_str = datetime.now(_CST).strftime('%Y-%m-%d')
+                        db_manager.save_kline_screening_history(
+                            batch_id, stock_id, stock['stock_name'], stock.get('stock_code', ''),
+                            today_str, not_hold_grade, hold_grade, kline_total_score,
+                            not_hold_content, hold_content, data_issues
+                        )
                         # numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)
                         # if numeric_score is not None:
                         #     update_stock_score(
@@ -489,6 +499,13 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                             db_manager.update_stock_kline_scores(stock['id'], kline_total_score)
                         db_manager.update_stock_kline_hold(stock['id'], hold_grade, hold_content, data_issues)
                         db_manager.update_stock_status(stock['id'], 'completed', None, deep_thinking)
+                        # 保存K线初筛历史记录（按天覆盖）
+                        today_str = datetime.now(_CST).strftime('%Y-%m-%d')
+                        db_manager.save_kline_screening_history(
+                            batch_id, stock['id'], stock['stock_name'], stock.get('stock_code', ''),
+                            today_str, not_hold_grade, hold_grade, kline_total_score,
+                            not_hold_content, hold_content, data_issues
+                        )
 
                         # numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)
                         # if numeric_score is not None:
@@ -656,6 +673,17 @@ async def get_stock_technical_score_history(batch_id: int, stock_code: str):
         return {"success": True, "data": records}
     except Exception as e:
         logger.error("获取技术打分历史失败 batch_id=%s, stock_code=%s: %s", batch_id, stock_code, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/batch/{batch_id}/kline_screening_history/{stock_id}")
+async def get_kline_screening_history(batch_id: int, stock_id: int):
+    """获取某只股票在某批次下的K线初筛历史记录（按日期倒序）"""
+    try:
+        records = db_manager.get_kline_screening_history(batch_id, stock_id)
+        return SafeJSONResponse(content={"success": True, "data": records})
+    except Exception as e:
+        logger.error("获取K线初筛历史失败 batch_id=%s, stock_id=%s: %s", batch_id, stock_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
