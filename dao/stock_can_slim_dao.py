@@ -602,27 +602,42 @@ class DatabaseManager:
                                        stock_code: str, screen_date: str,
                                        kline_score: str, kline_hold_score: str,
                                        kline_total_score: int, kline_prompt: str,
-                                       kline_hold_prompt: str, data_issues: str):
+                                       kline_hold_prompt: str, data_issues: str,
+                                       next_day_prediction: str = None,
+                                       next_week_prediction: str = None):
         """保存K线初筛历史记录，同一天同一批次同一股票覆盖"""
         conn = get_connection()
         cursor = conn.cursor()
         try:
+            # 自动迁移：添加预测列（兼容旧表）
+            for col_name in ('next_day_prediction', 'next_week_prediction'):
+                try:
+                    cursor.execute(f"SELECT {col_name} FROM stock_kline_screening_history LIMIT 1")
+                except Exception:
+                    conn.rollback()
+                    cursor.execute(f"ALTER TABLE stock_kline_screening_history ADD COLUMN {col_name} JSON")
+                    conn.commit()
+
             cursor.execute("""
                 INSERT INTO stock_kline_screening_history
                 (batch_id, stock_id, stock_name, stock_code, screen_date,
                  kline_score, kline_hold_score, kline_total_score,
-                 kline_prompt, kline_hold_prompt, data_issues)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 kline_prompt, kline_hold_prompt, data_issues,
+                 next_day_prediction, next_week_prediction)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     kline_score=VALUES(kline_score),
                     kline_hold_score=VALUES(kline_hold_score),
                     kline_total_score=VALUES(kline_total_score),
                     kline_prompt=VALUES(kline_prompt),
                     kline_hold_prompt=VALUES(kline_hold_prompt),
-                    data_issues=VALUES(data_issues)
+                    data_issues=VALUES(data_issues),
+                    next_day_prediction=VALUES(next_day_prediction),
+                    next_week_prediction=VALUES(next_week_prediction)
             """, (batch_id, stock_id, stock_name, stock_code, screen_date,
                   kline_score, kline_hold_score, kline_total_score,
-                  kline_prompt, kline_hold_prompt, data_issues))
+                  kline_prompt, kline_hold_prompt, data_issues,
+                  next_day_prediction, next_week_prediction))
             conn.commit()
         finally:
             cursor.close()
@@ -636,12 +651,71 @@ class DatabaseManager:
             cursor.execute("""
                 SELECT id, screen_date, kline_score, kline_hold_score,
                        kline_total_score, kline_prompt, kline_hold_prompt, data_issues,
+                       next_day_prediction, next_week_prediction,
                        created_at, updated_at
                 FROM stock_kline_screening_history
                 WHERE batch_id = %s AND stock_id = %s
                 ORDER BY screen_date DESC
             """, (batch_id, stock_id))
             return list(cursor.fetchall())
+        except Exception:
+            # 兼容旧表无预测列的情况
+            conn2 = get_connection(use_dict_cursor=True)
+            cursor2 = conn2.cursor()
+            try:
+                cursor2.execute("""
+                    SELECT id, screen_date, kline_score, kline_hold_score,
+                           kline_total_score, kline_prompt, kline_hold_prompt, data_issues,
+                           created_at, updated_at
+                    FROM stock_kline_screening_history
+                    WHERE batch_id = %s AND stock_id = %s
+                    ORDER BY screen_date DESC
+                """, (batch_id, stock_id))
+                return list(cursor2.fetchall())
+            finally:
+                cursor2.close()
+                conn2.close()
+        finally:
+            cursor.close()
+            conn.close()
+
+    def get_latest_kline_predictions_for_batch(self, batch_id: int) -> Dict[int, Dict[str, Any]]:
+        """获取批次中每只股票最新一次K线初筛的预测数据，返回 {stock_id: {next_day_prediction, next_week_prediction}}"""
+        conn = get_connection(use_dict_cursor=True)
+        cursor = conn.cursor()
+        try:
+            # 先确保列存在（兼容旧表）
+            for col_name in ('next_day_prediction', 'next_week_prediction'):
+                try:
+                    cursor.execute(f"SELECT {col_name} FROM stock_kline_screening_history LIMIT 1")
+                except Exception:
+                    conn.rollback()
+                    cursor.execute(f"ALTER TABLE stock_kline_screening_history ADD COLUMN {col_name} JSON")
+                    conn.commit()
+
+            cursor.execute("""
+                SELECT h.stock_id, h.next_day_prediction, h.next_week_prediction
+                FROM stock_kline_screening_history h
+                INNER JOIN (
+                    SELECT stock_id, MAX(screen_date) AS max_date
+                    FROM stock_kline_screening_history
+                    WHERE batch_id = %s
+                    GROUP BY stock_id
+                ) latest ON h.stock_id = latest.stock_id AND h.screen_date = latest.max_date
+                WHERE h.batch_id = %s
+            """, (batch_id, batch_id))
+            rows = cursor.fetchall()
+            result = {}
+            for r in rows:
+                result[r['stock_id']] = {
+                    'next_day_prediction': r.get('next_day_prediction'),
+                    'next_week_prediction': r.get('next_week_prediction'),
+                }
+            return result
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("查询批次最新预测失败 [batch_id=%s]: %s", batch_id, e)
+            return {}
         finally:
             cursor.close()
             conn.close()

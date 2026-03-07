@@ -347,6 +347,7 @@ async def execute_batch_kline_update(batch_id: int, stock_ids: str = Query(...),
                         prompt, result = await get_k_strategy_analysis(stock_info)
                         not_hold_grade, not_hold_content, hold_grade, hold_content, data_issues = extract_grade_and_content(result)
                         kline_total_score = extract_kline_total_score(result)
+                        next_day_pred, next_week_pred = extract_predictions(result)
                         db_manager.update_stock_dimension_score(stock_id, 'kline', not_hold_grade, not_hold_content, None, prompt)
                         if kline_total_score is not None:
                             db_manager.update_stock_kline_scores(stock_id, kline_total_score)
@@ -356,7 +357,8 @@ async def execute_batch_kline_update(batch_id: int, stock_ids: str = Query(...),
                         db_manager.save_kline_screening_history(
                             batch_id, stock_id, stock['stock_name'], stock.get('stock_code', ''),
                             today_str, not_hold_grade, hold_grade, kline_total_score,
-                            not_hold_content, hold_content, data_issues
+                            not_hold_content, hold_content, data_issues,
+                            next_day_pred, next_week_pred
                         )
                         # numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)
                         # if numeric_score is not None:
@@ -493,6 +495,7 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                         prompt, result = await get_k_strategy_analysis(stock_info)
                         not_hold_grade, not_hold_content, hold_grade, hold_content, data_issues = extract_grade_and_content(result)
                         kline_total_score = extract_kline_total_score(result)
+                        next_day_pred, next_week_pred = extract_predictions(result)
 
                         db_manager.update_stock_dimension_score(stock['id'], 'kline', not_hold_grade, not_hold_content, None, prompt)
                         if kline_total_score is not None:
@@ -504,7 +507,8 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                         db_manager.save_kline_screening_history(
                             batch_id, stock['id'], stock['stock_name'], stock.get('stock_code', ''),
                             today_str, not_hold_grade, hold_grade, kline_total_score,
-                            not_hold_content, hold_content, data_issues
+                            not_hold_content, hold_content, data_issues,
+                            next_day_pred, next_week_pred
                         )
 
                         # numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)
@@ -607,6 +611,8 @@ async def get_batch_stocks(batch_id: int):
         stocks = db_manager.get_batch_stocks(batch_id)
         # 获取该批次下每只股票的最新技术打分
         tech_scores = get_latest_technical_scores_for_batch(batch_id)
+        # 获取该批次下每只股票的最新预测数据
+        latest_predictions = db_manager.get_latest_kline_predictions_for_batch(batch_id)
         exclude_fields = {
             f'{dim}{suffix}'
             for dim in ['c', 'a', 'n', 's', 'l', 'i', 'm', 'kline']
@@ -644,6 +650,14 @@ async def get_batch_stocks(batch_id: int):
                 stock['tech_mid_bounce_signal'] = bool(ts.get('mid_bounce_signal'))
             else:
                 stock['tech_total_score'] = None
+            # 注入最新预测数据
+            pred = latest_predictions.get(stock.get('id'))
+            if pred:
+                stock['next_day_prediction'] = pred.get('next_day_prediction')
+                stock['next_week_prediction'] = pred.get('next_week_prediction')
+            else:
+                stock['next_day_prediction'] = None
+                stock['next_week_prediction'] = None
         return {"success": True, "data": stocks}
     except Exception as e:
         logger.error("获取批次股票列表失败 batch_id=%s: %s", batch_id, e, exc_info=True)
@@ -1217,6 +1231,54 @@ def extract_grade_from_overall(result: str) -> str:
     except Exception as e:
         logger.error("Error extracting grade: %s, result: %s", e, result[:200], exc_info=True)
     return ''
+
+
+def extract_predictions(result: str) -> tuple:
+    """从策略引擎大模型结果中提取 next_day_prediction 和 next_week_prediction，返回 (day_json_str, week_json_str)"""
+    try:
+        clean = result.strip()
+        if clean.startswith('```'):
+            clean = re.sub(r'^```(?:json)?\s*\n', '', clean)
+            clean = re.sub(r'\n```\s*$', '', clean)
+        clean = clean.strip()
+
+        data = None
+        if clean.startswith('{'):
+            for attempt_fn in [
+                lambda s: _safe_loads(s),
+                lambda s: _safe_loads(s.replace("'", '"')),
+                lambda s: _safe_loads(s.replace('\n', '\\n')),
+                lambda s: _safe_loads(s.replace("'", '"').replace('\n', '\\n')),
+            ]:
+                try:
+                    data = attempt_fn(clean)
+                    break
+                except (json.JSONDecodeError, ValueError):
+                    continue
+
+        if not data:
+            # 尝试从文本中提取最后一个 JSON 块
+            json_blocks = re.findall(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', clean, re.DOTALL)
+            if json_blocks:
+                for attempt_fn in [
+                    lambda s: _safe_loads(s),
+                    lambda s: _safe_loads(s.replace("'", '"')),
+                ]:
+                    try:
+                        data = attempt_fn(json_blocks[-1].strip())
+                        break
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+
+        if data:
+            day_pred = data.get('next_day_prediction')
+            week_pred = data.get('next_week_prediction')
+            day_str = json.dumps(day_pred, ensure_ascii=False) if day_pred else None
+            week_str = json.dumps(week_pred, ensure_ascii=False) if week_pred else None
+            return day_str, week_str
+    except Exception as e:
+        logger.error("extract_predictions 异常: %s, result: %s", e, result[:200], exc_info=True)
+    return None, None
 
 
 def extract_kline_total_score(result: str) -> int:

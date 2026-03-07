@@ -230,6 +230,8 @@ _TABLES = [
         kline_prompt LONGTEXT,
         kline_hold_prompt LONGTEXT,
         data_issues LONGTEXT,
+        next_day_prediction JSON,
+        next_week_prediction JSON,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY uk_batch_stock_date (batch_id, stock_id, screen_date),

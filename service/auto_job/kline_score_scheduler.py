@@ -86,7 +86,7 @@ async def _analyze_single_stock(stock, db_manager, counter, done_stock_ids):
     """对单只股票执行K线初筛"""
     from common.utils.stock_info_utils import get_stock_info_by_name
     from service.k_strategy.stock_k_strategy_service import get_k_strategy_analysis
-    from api.web_batch_api import extract_grade_and_content, extract_kline_total_score
+    from api.web_batch_api import extract_grade_and_content, extract_kline_total_score, extract_predictions
 
     stock_id = stock['id']
     stock_name = stock['stock_name']
@@ -95,6 +95,7 @@ async def _analyze_single_stock(stock, db_manager, counter, done_stock_ids):
         prompt, result = await get_k_strategy_analysis(stock_info)
         not_hold_grade, not_hold_content, hold_grade, hold_content, data_issues = extract_grade_and_content(result)
         kline_total_score = extract_kline_total_score(result)
+        next_day_pred, next_week_pred = extract_predictions(result)
 
         db_manager.update_stock_dimension_score(stock_id, 'kline', not_hold_grade, not_hold_content, None, prompt)
         if kline_total_score is not None:
@@ -106,7 +107,8 @@ async def _analyze_single_stock(stock, db_manager, counter, done_stock_ids):
         db_manager.save_kline_screening_history(
             stock['batch_id'], stock_id, stock_name, stock.get('stock_code', ''),
             today_str, not_hold_grade, hold_grade, kline_total_score,
-            not_hold_content, hold_content, data_issues
+            not_hold_content, hold_content, data_issues,
+            next_day_pred, next_week_pred
         )
 
         counter["success"] += 1
