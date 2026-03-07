@@ -1329,6 +1329,7 @@
                     const score = stock[`${key}_score`];
                     const deep = stock[`${key}_deep_score`];
                     const hasPrescreening = key === 'c' || key === 'a';
+                    const lnk = (text, onclick, color) => `<span style="cursor:pointer;color:${color};text-decoration:underline;font-size:9px;" onclick="${onclick}">${text}</span>`;
                     if (!score && !deep) return `<div class="data-metric">
                         <span class="dm-label">${label}</span>
                         <span class="dm-value empty">-</span>
@@ -1336,11 +1337,11 @@
                     return `<div class="data-metric">
                         <span class="dm-label">${label}: ${score||''}${deep ? `<span style="color:#ff6b6b">${score ? '/' : ''}${deep}</span>` : ''}</span>
                         <div class="dm-actions" style="flex-wrap:wrap;">
-                            ${hasPrescreening && score ? dbtn('初筛', `showPrompt('${stockKey}','${key}','${label}')`, 'primary') : ''}
-                            ${hasPrescreening && score ? dbtn('初筛词', `showPrompt('${stockKey}','${key}_score_prompt','${label}')`, 'success') : ''}
+                            ${hasPrescreening && score ? lnk('初筛', `showPrompt('${stockKey}','${key}','${label}')`, '#8e8e93') : ''}
+                            ${hasPrescreening && score ? lnk('初筛词', `showPrompt('${stockKey}','${key}_score_prompt','${label}')`, '#aeaeb2') : ''}
                             ${deep ? '<div style="width:100%"></div>' : ''}
-                            ${deep ? dbtn('深度', `showPrompt('${stockKey}','${key}_deep','${label}')`, 'danger') : ''}
-                            ${deep ? dbtn('深度词', `showPrompt('${stockKey}','${key}_deep_score_prompt','${label}')`, 'success') : ''}
+                            ${deep ? lnk('深度', `showPrompt('${stockKey}','${key}_deep','${label}')`, '#8e8e93') : ''}
+                            ${deep ? lnk('深度词', `showPrompt('${stockKey}','${key}_deep_score_prompt','${label}')`, '#aeaeb2') : ''}
                         </div>
                     </div>`;
                 };
@@ -1370,8 +1371,8 @@
                         <span class="dm-label">${label}</span>
                         <span class="dm-value" style="color:#667eea;">${scoreVal}</span>
                         <div class="dm-actions">
-                            ${dbtn('结果', `showPrompt('${stockKey}','${resultKey}','K线(${label})')`, 'primary')}
-                            ${dbtn('提示词', `showPrompt('${stockKey}','${promptKey}','K线(${label})')`, 'success')}
+                            <span style="cursor:pointer;color:#8e8e93;text-decoration:underline;font-size:9px;" onclick="showPrompt('${stockKey}','${resultKey}','K线(${label})')">结果</span>
+                            <span style="cursor:pointer;color:#aeaeb2;text-decoration:underline;font-size:9px;" onclick="showPrompt('${stockKey}','${promptKey}','K线(${label})')">提示词</span>
                         </div>
                     </div>`;
                 };
