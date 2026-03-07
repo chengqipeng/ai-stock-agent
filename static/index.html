@@ -1415,12 +1415,20 @@
                         const dir = pred.direction || '';
                         const range = pred.range || '';
                         const conf = pred.confidence || '';
+                        const rationale = pred.rationale || '';
+                        const riskFactors = pred.risk_factors || '';
                         const color = predColor(dir);
                         const confBadge = conf ? `<span style="font-size:8px;color:#999;margin-left:2px;">[${conf}]</span>` : '';
+                        const hasDetail = rationale || riskFactors;
+                        const escAttr = s => s ? s.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n') : '';
                         return `<div class="data-metric" style="min-width:90px;">
                             <span class="dm-label">${label}</span>
                             <span class="dm-value" style="color:${color};font-size:12px;font-weight:600;">${dir}${confBadge}</span>
                             ${range ? `<span style="font-size:9px;color:#666;">${range}</span>` : ''}
+                            ${hasDetail ? `<div class="dm-actions">
+                                ${rationale ? `<span style="cursor:pointer;color:#8e8e93;text-decoration:underline;font-size:9px;" onclick="showPredictionDetail('${label} - 预测依据','${escAttr(rationale)}')">依据</span>` : ''}
+                                ${riskFactors ? `<span style="cursor:pointer;color:#aeaeb2;text-decoration:underline;font-size:9px;" onclick="showPredictionDetail('${label} - 风险因素','${escAttr(riskFactors)}')">风险</span>` : ''}
+                            </div>` : ''}
                         </div>`;
                     };
                     const predHtml = (dayPred || weekPred) ? `<div style="display:flex;gap:2px;border-left:2px solid rgba(102,126,234,0.2);padding-left:10px;margin-left:4px;">
@@ -1928,6 +1936,16 @@
             });
         }
 
+        function showPredictionDetail(title, text) {
+            window.currentPromptContent = text;
+            document.getElementById('modalTitle').innerHTML = `
+                ${title}
+                <button onclick="copyPromptContent()" style="margin-left: 20px; padding: 8px 16px; background: rgba(76,175,80,0.85); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px;">📋 复制内容</button>
+            `;
+            document.getElementById('modalContent').innerHTML = `<div class="markdown-body" style="font-size:13px;line-height:1.8;white-space:pre-wrap;word-wrap:break-word;">${text}</div>`;
+            document.getElementById('detailModal').classList.add('show');
+        }
+
         async function showFinanceData(stockCode, stockName) {
             document.getElementById('financeModalTitle').textContent = `📋 ${stockName}（${stockCode}）- 财报数据`;
             document.getElementById('financeModalContent').innerHTML = '<p style="text-align:center;color:#999;padding:30px;">加载中...</p>';
@@ -2357,13 +2375,25 @@
                     if (dir.includes('跌')) return '#4caf50';
                     return '#fb8c00';
                 };
-                const predCell = (pred) => {
+                const predCell = (pred, rowIdx, type) => {
                     if (!pred) return '<span style="color:#ccc;">-</span>';
                     const dir = pred.direction || '';
                     const range = pred.range || '';
                     const conf = pred.confidence || '';
+                    const rationale = pred.rationale || '';
+                    const riskFactors = pred.risk_factors || '';
                     const color = predDirColor(dir);
-                    return `<span style="color:${color};font-weight:600;">${dir}</span>${range ? `<br><span style="font-size:9px;color:#666;">${range}</span>` : ''}${conf ? `<br><span style="font-size:8px;color:#999;">[${conf}]</span>` : ''}`;
+                    const hasDetail = rationale || riskFactors;
+                    const typeLabel = type === 'day' ? '🔮 明日预测' : '📅 一周预测';
+                    const escAttr = s => s ? s.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n') : '';
+                    let h = `<span style="color:${color};font-weight:600;">${dir}</span>${range ? `<br><span style="font-size:9px;color:#666;">${range}</span>` : ''}${conf ? `<br><span style="font-size:8px;color:#999;">[${conf}]</span>` : ''}`;
+                    if (hasDetail) {
+                        h += `<br><span style="display:inline-flex;gap:4px;margin-top:2px;">`;
+                        if (rationale) h += `<span style="cursor:pointer;color:#8e8e93;text-decoration:underline;font-size:9px;" onclick="showPredictionDetail('${typeLabel} - 预测依据','${escAttr(rationale)}')">依据</span>`;
+                        if (riskFactors) h += `<span style="cursor:pointer;color:#aeaeb2;text-decoration:underline;font-size:9px;" onclick="showPredictionDetail('${typeLabel} - 风险因素','${escAttr(riskFactors)}')">风险</span>`;
+                        h += `</span>`;
+                    }
+                    return h;
                 };
                 let html = `<table style="width:100%;border-collapse:collapse;font-size:12px;">
                     <thead><tr style="background:rgba(118,75,162,0.1);">
@@ -2388,8 +2418,8 @@
                         <td style="padding:6px 8px;text-align:center;">${r.kline_score || '-'}</td>
                         <td style="padding:6px 8px;text-align:center;">${r.kline_hold_score || '-'}</td>
                         <td style="padding:6px 8px;text-align:center;font-weight:700;color:${scoreColor};font-size:14px;">${r.kline_total_score ?? '-'}</td>
-                        <td style="padding:6px 8px;text-align:center;font-size:11px;">${predCell(dayPred)}</td>
-                        <td style="padding:6px 8px;text-align:center;font-size:11px;">${predCell(weekPred)}</td>
+                        <td style="padding:6px 8px;text-align:center;font-size:11px;">${predCell(dayPred, idx, 'day')}</td>
+                        <td style="padding:6px 8px;text-align:center;font-size:11px;">${predCell(weekPred, idx, 'week')}</td>
                         <td style="padding:6px 8px;text-align:center;">${hasIssues ? `<span style="cursor:pointer;color:#f44336;text-decoration:underline;font-size:10px;" onclick="document.getElementById('kh_issues_${idx}').style.display=document.getElementById('kh_issues_${idx}').style.display==='none'?'table-row':'none'">查看</span>` : '-'}</td>
                         <td style="padding:6px 8px;text-align:center;">${hasPrompt ? `<span style="cursor:pointer;color:#667eea;text-decoration:underline;font-size:10px;" onclick="document.getElementById('kh_content_${idx}').style.display=document.getElementById('kh_content_${idx}').style.display==='none'?'table-row':'none'">查看</span>` : '-'}</td>
                         <td style="padding:6px 8px;text-align:right;color:#999;font-size:10px;">${r.created_at || '-'}</td>
