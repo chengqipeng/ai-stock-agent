@@ -2796,12 +2796,13 @@
                     banner.style.background = 'rgba(217,83,79,0.25)';
                 } else if (d.running) {
                     const sTotal = d.check_total || 0;
+                    const checked = d.check_checked || 0;
                     const anomalies = d.check_anomalies || 0;
                     const repaired = d.check_repaired || 0;
                     icon.textContent = '🔄';
                     let msg = '数据异常检测正在执行中';
                     if (sTotal > 0) {
-                        msg += '  共 ' + sTotal + ' 只股票';
+                        msg += '  已检测 ' + checked + '/' + sTotal;
                         if (anomalies > 0) msg += '  异常 ' + anomalies;
                         if (repaired > 0) msg += '  已修复 ' + repaired;
                     } else {

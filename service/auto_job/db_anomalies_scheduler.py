@@ -82,6 +82,7 @@ def get_db_check_job_status() -> dict:
     if status.get("running"):
         sc = status.get("_counter") or {}
         status["check_total"] = sc.get("total", 0)
+        status["check_checked"] = sc.get("checked", 0)
         status["check_anomalies"] = sc.get("anomalies", 0)
         status["check_repaired"] = sc.get("repaired", 0)
     status.pop("_counter", None)
@@ -107,7 +108,7 @@ async def _execute_job():
     log_id = insert_log("数据异常检测", started_at)
     logger.info("[数据异常检测] 开始执行 %s (log_id=%d)", today_str, log_id)
 
-    counter = {"total": 0, "anomalies": 0, "repaired": 0}
+    counter = {"total": 0, "checked": 0, "anomalies": 0, "repaired": 0}
     _job_status["_counter"] = counter
 
     _ALL_FIELDS = ("date", "open_price", "close_price", "high_price", "low_price",
@@ -164,6 +165,7 @@ async def _execute_job():
             return False
 
     try:
+        anomaly_details = []
         try:
             stock_codes = get_all_stock_codes()
             counter["total"] = len(stock_codes)
@@ -175,6 +177,9 @@ async def _execute_job():
                 total_issues = 0
                 for stock_code in stock_codes:
                     issues = check_db(stock_code)
+                    counter["checked"] += 1
+                    if counter["checked"] % 50 == 0:
+                        await asyncio.sleep(0)
                     if not issues:
                         continue
 
@@ -185,7 +190,11 @@ async def _execute_job():
                     counter["anomalies"] += 1
                     total_issues += len(active_issues)
 
+                    # 收集异常详情
+                    issue_lines = [f"[{iss['type']}] 日期={iss['date']} {iss['detail']}" for iss in active_issues]
                     repaired = await _repair_stock(stock_code, active_issues)
+                    status_tag = "已修复" if repaired else "未修复"
+                    anomaly_details.append(f"{stock_code}({status_tag}): " + "; ".join(issue_lines))
                     if repaired:
                         counter["repaired"] += 1
 
@@ -211,6 +220,8 @@ async def _execute_job():
 
         detail = (f"共{counter['total']}只股票 异常{counter['anomalies']}只 "
                   f"已修复{counter['repaired']}只")
+        if anomaly_details:
+            detail += "\n" + "\n".join(anomaly_details)
         update_log(log_id, "success", counter["total"], counter["total"],
                    counter["anomalies"] - counter["repaired"], detail=detail)
 
