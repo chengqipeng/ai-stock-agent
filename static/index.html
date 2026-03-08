@@ -1252,6 +1252,16 @@
         async function loadBatchStocks(batchId) {
             currentBatchId = batchId;
             document.getElementById('addStockToBatchBtn').disabled = false;
+
+            // 显示 loading 状态
+            const table = document.getElementById('stockResultTable');
+            const empty = document.getElementById('stockResultEmpty');
+            const sortBar = document.getElementById('sortBar');
+            table.style.display = 'none';
+            sortBar.style.display = 'none';
+            empty.style.display = 'block';
+            empty.innerHTML = '<span style="color:#999;">加载中<span class="job-dots" style="display:inline"></span></span>';
+
             const batchesData = await (await fetch('/api/batches')).json().then(d => d.data);
             renderBatchList(batchesData);
             // 更新标题中的批次名称和更新时间
