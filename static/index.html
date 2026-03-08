@@ -1705,7 +1705,7 @@
                 alert('没有可复制的内容');
                 return;
             }
-            navigator.clipboard.writeText(window.currentPrompts[type]).then(() => {
+            copyToClipboard(window.currentPrompts[type]).then(() => {
                 const labels = {
                     'can_slim_prompt': 'CAN SLIM评分提示词',
                     'technical_prompt': 'K线技术提示词',
@@ -1951,11 +1951,35 @@
                 alert('没有可复制的内容');
                 return;
             }
-            navigator.clipboard.writeText(window.currentPromptContent).then(() => {
+            copyToClipboard(window.currentPromptContent).then(() => {
                 alert('内容已复制到剪贴板');
             }).catch(err => {
                 console.error('复制失败:', err);
                 alert('复制失败，请手动复制');
+            });
+        }
+
+        function copyToClipboard(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text);
+            }
+            // fallback: 使用 textarea + execCommand 兼容非HTTPS环境
+            return new Promise((resolve, reject) => {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                textarea.style.top = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                try {
+                    document.execCommand('copy') ? resolve() : reject(new Error('execCommand copy failed'));
+                } catch (err) {
+                    reject(err);
+                } finally {
+                    document.body.removeChild(textarea);
+                }
             });
         }
 
