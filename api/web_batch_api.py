@@ -613,21 +613,13 @@ async def get_batch_stocks(batch_id: int):
         tech_scores = get_latest_technical_scores_for_batch(batch_id)
         # 获取该批次下每只股票的最新预测数据
         latest_predictions = db_manager.get_latest_kline_predictions_for_batch(batch_id)
-        exclude_fields = {
-            f'{dim}{suffix}'
-            for dim in ['c', 'a', 'n', 's', 'l', 'i', 'm', 'kline']
-            for suffix in ['_prompt', '_score_prompt', '_summary', '_deep_prompt', '_deep_score_prompt', '_deep_summary']
-        } | {'overall_prompt', 'kline_hold_prompt', 'data_issues'}
         for stock in stocks:
             scores = [stock.get(f'{dim}_score') for dim in ['c', 'a', 'n', 's', 'l', 'i', 'm'] if stock.get(f'{dim}_score')]
             stock['score'] = round(sum(scores) / len(scores)) if scores else None
             stock['technical_score'] = stock.get('kline_score')
             stock['technical_hold_score'] = stock.get('kline_hold_score')
-            stock['has_overall'] = bool(stock.get('overall_analysis'))
-            stock['overall_grade'] = stock.get('overall_grade')
-            for f in exclude_fields:
-                stock.pop(f, None)
-            stock.pop('overall_analysis', None)
+            # has_overall 已在SQL中计算
+            stock['has_overall'] = bool(stock.get('has_overall'))
             # 注入最新技术打分数据
             ts = tech_scores.get(stock.get('stock_code'))
             if not ts:
@@ -827,7 +819,8 @@ async def get_batch_finance_growth(batch_id: int):
     """获取批次中所有股票最近3期财报增长数据（营收同比/环比、扣非同比/环比）"""
     try:
         from dao.stock_finance_dao import get_finance_from_db
-        stocks = db_manager.get_batch_stocks(batch_id)
+        from dao.stock_technical_score_dao import get_batch_stock_list
+        stocks = get_batch_stock_list(batch_id)
         result = {}
         growth_keys = [
             "营业总收入同比增长(%)",

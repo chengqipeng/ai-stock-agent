@@ -238,11 +238,21 @@ class DatabaseManager:
             conn.close()
 
     def get_batches(self) -> List[Dict[str, Any]]:
-        """获取所有批次，置顶优先，再按创建时间倒序"""
+        """获取所有批次，置顶优先，再按创建时间倒序；附带最后更新时间"""
         conn = get_connection(use_dict_cursor=True)
         cursor = conn.cursor()
         try:
-            cursor.execute("SELECT * FROM stock_batch_list_info ORDER BY is_pinned DESC, created_at DESC")
+            cursor.execute("""
+                SELECT b.*,
+                       GREATEST(
+                           b.updated_at,
+                           COALESCE((SELECT MAX(completed_at) FROM stock_analysis_detail WHERE batch_id = b.id), b.updated_at),
+                           COALESCE((SELECT MAX(created_at) FROM stock_dim_analysis_history WHERE batch_id = b.id), b.updated_at),
+                           COALESCE((SELECT MAX(created_at) FROM stock_kline_screening_history WHERE batch_id = b.id), b.updated_at)
+                       ) as last_updated_at
+                FROM stock_batch_list_info b
+                ORDER BY b.is_pinned DESC, b.created_at DESC
+            """)
             return list(cursor.fetchall())
         finally:
             cursor.close()
@@ -298,13 +308,22 @@ class DatabaseManager:
             conn.close()
 
     def get_batch_stocks(self, batch_id: int) -> List[Dict[str, Any]]:
-        """获取批次中的股票列表，有深度分析的优先，按最新深度分析时间倒序"""
+        """获取批次中的股票列表（轻量版，不含LONGTEXT字段），有深度分析的优先，按最新深度分析时间倒序"""
         conn = get_connection(use_dict_cursor=True)
         cursor = conn.cursor()
         try:
             cursor.execute("""
-                SELECT s.*,
-                    MAX(h.created_at) as last_deep_at
+                SELECT s.id, s.batch_id, s.stock_code, s.stock_name,
+                       s.c_score, s.a_score, s.n_score, s.s_score,
+                       s.l_score, s.i_score, s.m_score,
+                       s.c_deep_score, s.a_deep_score, s.n_deep_score, s.s_deep_score,
+                       s.l_deep_score, s.i_deep_score, s.m_deep_score,
+                       s.overall_grade, s.kline_score, s.kline_hold_score, s.kline_total_score,
+                       s.change_pct, s.high_price_120, s.high_price_date_120, s.latest_price,
+                       s.status, s.error_message, s.is_deep_thinking,
+                       s.created_at, s.completed_at,
+                       CASE WHEN s.overall_analysis IS NOT NULL AND s.overall_analysis != '' THEN 1 ELSE 0 END as has_overall,
+                       MAX(h.created_at) as last_deep_at
                 FROM stock_analysis_detail s
                 LEFT JOIN stock_dim_analysis_history h ON h.stock_id = s.id
                 WHERE s.batch_id = %s

@@ -816,7 +816,7 @@
 
         <div class="panel" style="overflow-x: auto;">
             <h2 style="font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
-                <span>批次股票列表</span>
+                <span>批次股票列表<br><span id="batchNameLabel" style="font-size:11px;color:#86868b;font-weight:400;white-space:pre-line;"></span></span>
                 <div style="display:flex;gap:6px;align-items:center;">
                     <button id="addStockToBatchBtn" class="btn btn-primary" disabled onclick="openAddStockPanel()" style="position:relative;">+ 添加股票</button>
                     <button id="batchPrescreeningBtn" class="btn" style="background:#e67e22;" disabled onclick="batchPrescreeningUpdate()">涨跌分析 (<span id="batchPrescreeningCount">0</span>)</button>
@@ -1249,7 +1249,17 @@
         async function loadBatchStocks(batchId) {
             currentBatchId = batchId;
             document.getElementById('addStockToBatchBtn').disabled = false;
-            renderBatchList(await (await fetch('/api/batches')).json().then(d => d.data));
+            const batchesData = await (await fetch('/api/batches')).json().then(d => d.data);
+            renderBatchList(batchesData);
+            // 更新标题中的批次名称和更新时间
+            const currentBatch = batchesData.find(b => b.id === batchId);
+            const label = document.getElementById('batchNameLabel');
+            if (currentBatch) {
+                const updatedAt = currentBatch.last_updated_at ? `\n更新: ${formatLocalTime(currentBatch.last_updated_at)}` : '';
+                label.innerText = `${currentBatch.batch_name}${updatedAt}`;
+            } else {
+                label.textContent = '';
+            }
             
             try {
                 const [stocksResp, finGrowthResp] = await Promise.all([
