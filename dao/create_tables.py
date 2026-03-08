@@ -228,7 +228,7 @@ _TABLES = [
         INDEX idx_ts_created (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
-    # ── stock_kline_screening_history（K线初筛历史记录，按天保存） ──
+    # ── stock_kline_screening_history（K线初筛历史记录，每次分析都产生新记录） ──
     """
     CREATE TABLE IF NOT EXISTS stock_kline_screening_history (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -247,7 +247,6 @@ _TABLES = [
         next_week_prediction JSON,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY uk_batch_stock_date (batch_id, stock_id, screen_date),
         INDEX idx_ksh_batch (batch_id),
         INDEX idx_ksh_date (screen_date),
         INDEX idx_ksh_stock_id (stock_id)

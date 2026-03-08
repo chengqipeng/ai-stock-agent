@@ -352,7 +352,7 @@ async def execute_batch_kline_update(batch_id: int, stock_ids: str = Query(...),
                         if kline_total_score is not None:
                             db_manager.update_stock_kline_scores(stock_id, kline_total_score)
                         db_manager.update_stock_kline_hold(stock_id, hold_grade, hold_content, data_issues)
-                        # 保存K线初筛历史记录（按天覆盖）
+                        # 保存K线初筛历史记录（每次产生新记录）
                         today_str = datetime.now(_CST).strftime('%Y-%m-%d')
                         db_manager.save_kline_screening_history(
                             batch_id, stock_id, stock['stock_name'], stock.get('stock_code', ''),
@@ -502,7 +502,7 @@ async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(Fals
                             db_manager.update_stock_kline_scores(stock['id'], kline_total_score)
                         db_manager.update_stock_kline_hold(stock['id'], hold_grade, hold_content, data_issues)
                         db_manager.update_stock_status(stock['id'], 'completed', None, deep_thinking)
-                        # 保存K线初筛历史记录（按天覆盖）
+                        # 保存K线初筛历史记录（每次产生新记录）
                         today_str = datetime.now(_CST).strftime('%Y-%m-%d')
                         db_manager.save_kline_screening_history(
                             batch_id, stock['id'], stock['stock_name'], stock.get('stock_code', ''),
@@ -684,12 +684,72 @@ async def get_stock_technical_score_history(batch_id: int, stock_code: str):
 
 @app.get("/api/batch/{batch_id}/kline_screening_history/{stock_id}")
 async def get_kline_screening_history(batch_id: int, stock_id: int):
-    """获取某只股票在某批次下的K线初筛历史记录（按日期倒序）"""
+    """获取某只股票在某批次下的K线初筛历史记录（按ID倒序）"""
     try:
         records = db_manager.get_kline_screening_history(batch_id, stock_id)
         return SafeJSONResponse(content={"success": True, "data": records})
     except Exception as e:
         logger.error("获取K线初筛历史失败 batch_id=%s, stock_id=%s: %s", batch_id, stock_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/kline_screening_history/{history_id}")
+async def delete_kline_screening_history(history_id: int):
+    """删除单条K线初筛历史记录"""
+    try:
+        db_manager.delete_kline_screening_history(history_id)
+        return SafeJSONResponse(content={"success": True})
+    except Exception as e:
+        logger.error("删除K线初筛历史失败 id=%s: %s", history_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/backtest/predictions")
+async def backtest_predictions(batch_id: int = Query(None), limit: int = Query(200)):
+    """预测回测：对比历史预测与实际涨跌，计算准确率"""
+    try:
+        from service.backtest.prediction_backtest import run_backtest
+        result = run_backtest(batch_id=batch_id, limit=limit)
+        return SafeJSONResponse(content={"success": True, "data": result})
+    except Exception as e:
+        logger.error("预测回测失败: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/backtest/stock/{stock_code}")
+async def backtest_stock_predictions(stock_code: str, batch_id: int = Query(None), limit: int = Query(50)):
+    """单只股票预测回测"""
+    try:
+        from service.backtest.prediction_backtest import run_stock_backtest
+        result = run_stock_backtest(stock_code=stock_code, batch_id=batch_id, limit=limit)
+        return SafeJSONResponse(content={"success": True, "data": result})
+    except Exception as e:
+        logger.error("股票预测回测失败 [%s]: %s", stock_code, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/backtest/calibration")
+async def get_probability_calibration(batch_id: int = Query(None)):
+    """获取概率校准数据：基于回测结果校准预测概率模型"""
+    try:
+        from service.backtest.prediction_backtest import get_calibrated_probability_params, run_backtest
+        calibrated = get_calibrated_probability_params(batch_id=batch_id)
+        backtest = run_backtest(batch_id=batch_id, limit=300)
+        return SafeJSONResponse(content={
+            "success": True,
+            "data": {
+                "calibrated_params": calibrated,
+                "backtest_summary": {
+                    '次日预测回测': backtest.get('次日预测回测', {}),
+                    '一周预测回测': backtest.get('一周预测回测', {}),
+                    '按评分区间': backtest.get('按评分区间', {}),
+                    '按置信度': backtest.get('按置信度', {}),
+                    '校准数据': backtest.get('校准数据', {}),
+                },
+            }
+        })
+    except Exception as e:
+        logger.error("概率校准失败: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

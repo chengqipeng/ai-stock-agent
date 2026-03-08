@@ -664,7 +664,7 @@ class DatabaseManager:
                                        kline_hold_prompt: str, data_issues: str,
                                        next_day_prediction: str = None,
                                        next_week_prediction: str = None):
-        """保存K线初筛历史记录，同一天同一批次同一股票覆盖"""
+        """保存K线初筛历史记录，每次分析都产生一条新记录"""
         conn = get_connection()
         cursor = conn.cursor()
         try:
@@ -677,6 +677,15 @@ class DatabaseManager:
                     cursor.execute(f"ALTER TABLE stock_kline_screening_history ADD COLUMN {col_name} JSON")
                     conn.commit()
 
+            # 自动迁移：删除旧的唯一键约束（允许同一天多条记录）
+            try:
+                cursor.execute("SHOW INDEX FROM stock_kline_screening_history WHERE Key_name = 'uk_batch_stock_date'")
+                if cursor.fetchone():
+                    cursor.execute("ALTER TABLE stock_kline_screening_history DROP INDEX uk_batch_stock_date")
+                    conn.commit()
+            except Exception:
+                conn.rollback()
+
             cursor.execute("""
                 INSERT INTO stock_kline_screening_history
                 (batch_id, stock_id, stock_name, stock_code, screen_date,
@@ -684,15 +693,6 @@ class DatabaseManager:
                  kline_prompt, kline_hold_prompt, data_issues,
                  next_day_prediction, next_week_prediction)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    kline_score=VALUES(kline_score),
-                    kline_hold_score=VALUES(kline_hold_score),
-                    kline_total_score=VALUES(kline_total_score),
-                    kline_prompt=VALUES(kline_prompt),
-                    kline_hold_prompt=VALUES(kline_hold_prompt),
-                    data_issues=VALUES(data_issues),
-                    next_day_prediction=VALUES(next_day_prediction),
-                    next_week_prediction=VALUES(next_week_prediction)
             """, (batch_id, stock_id, stock_name, stock_code, screen_date,
                   kline_score, kline_hold_score, kline_total_score,
                   kline_prompt, kline_hold_prompt, data_issues,
@@ -702,8 +702,19 @@ class DatabaseManager:
             cursor.close()
             conn.close()
 
+    def delete_kline_screening_history(self, history_id: int):
+        """根据ID删除单条K线初筛历史记录"""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("DELETE FROM stock_kline_screening_history WHERE id = %s", (history_id,))
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+
     def get_kline_screening_history(self, batch_id: int, stock_id: int) -> List[Dict[str, Any]]:
-        """获取某只股票在某批次下的K线初筛历史记录，按日期倒序"""
+        """获取某只股票在某批次下的K线初筛历史记录，按ID倒序（最新在前）"""
         conn = get_connection(use_dict_cursor=True)
         cursor = conn.cursor()
         try:
@@ -714,7 +725,7 @@ class DatabaseManager:
                        created_at, updated_at
                 FROM stock_kline_screening_history
                 WHERE batch_id = %s AND stock_id = %s
-                ORDER BY screen_date DESC
+                ORDER BY id DESC
             """, (batch_id, stock_id))
             return list(cursor.fetchall())
         except Exception:
@@ -728,7 +739,7 @@ class DatabaseManager:
                            created_at, updated_at
                     FROM stock_kline_screening_history
                     WHERE batch_id = %s AND stock_id = %s
-                    ORDER BY screen_date DESC
+                    ORDER BY id DESC
                 """, (batch_id, stock_id))
                 return list(cursor2.fetchall())
             finally:
@@ -756,11 +767,11 @@ class DatabaseManager:
                 SELECT h.stock_id, h.next_day_prediction, h.next_week_prediction
                 FROM stock_kline_screening_history h
                 INNER JOIN (
-                    SELECT stock_id, MAX(screen_date) AS max_date
+                    SELECT stock_id, MAX(id) AS max_id
                     FROM stock_kline_screening_history
                     WHERE batch_id = %s
                     GROUP BY stock_id
-                ) latest ON h.stock_id = latest.stock_id AND h.screen_date = latest.max_date
+                ) latest ON h.id = latest.max_id
                 WHERE h.batch_id = %s
             """, (batch_id, batch_id))
             rows = cursor.fetchall()

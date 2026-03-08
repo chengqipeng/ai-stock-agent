@@ -102,7 +102,7 @@ async def _analyze_single_stock(stock, db_manager, counter, done_stock_ids):
             db_manager.update_stock_kline_scores(stock_id, kline_total_score)
         db_manager.update_stock_kline_hold(stock_id, hold_grade, hold_content, data_issues)
 
-        # 保存K线初筛历史记录（按天覆盖）
+        # 保存K线初筛历史记录（每次产生新记录）
         today_str = datetime.now(_CST).strftime('%Y-%m-%d')
         db_manager.save_kline_screening_history(
             stock['batch_id'], stock_id, stock_name, stock.get('stock_code', ''),

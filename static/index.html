@@ -2347,6 +2347,21 @@
             showHistory(stockName);
         }
 
+        async function deleteKlineHistory(historyId, stockId, stockName) {
+            if (!confirm('确定要删除这条K线分析记录？')) return;
+            try {
+                const resp = await fetch(`/api/kline_screening_history/${historyId}`, { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.success) {
+                    showKlineHistory(stockId, stockName);
+                } else {
+                    alert('删除失败');
+                }
+            } catch(e) {
+                alert('删除失败: ' + e.message);
+            }
+        }
+
         async function showTechScoreHistory(stockCode) {
             if (!currentBatchId) { alert('请先选择批次'); return; }
             document.getElementById('historyModalTitle').textContent = stockCode + ' - 技术打分历史';
@@ -2453,6 +2468,7 @@
                         <th style="padding:8px;text-align:center;">数据问题</th>
                         <th style="padding:8px;text-align:center;">分析内容</th>
                         <th style="padding:8px;text-align:right;font-size:10px;">记录时间</th>
+                        <th style="padding:8px;text-align:center;">操作</th>
                     </tr></thead><tbody>`;
                 records.forEach((r, idx) => {
                     const scoreColor = r.kline_total_score >= 70 ? '#e53935' : r.kline_total_score >= 40 ? '#fb8c00' : '#4caf50';
@@ -2470,12 +2486,13 @@
                         <td style="padding:6px 8px;text-align:center;">${hasIssues ? `<span style="cursor:pointer;color:#f44336;text-decoration:underline;font-size:10px;" onclick="document.getElementById('kh_issues_${idx}').style.display=document.getElementById('kh_issues_${idx}').style.display==='none'?'table-row':'none'">查看</span>` : '-'}</td>
                         <td style="padding:6px 8px;text-align:center;">${hasPrompt ? `<span style="cursor:pointer;color:#667eea;text-decoration:underline;font-size:10px;" onclick="document.getElementById('kh_content_${idx}').style.display=document.getElementById('kh_content_${idx}').style.display==='none'?'table-row':'none'">查看</span>` : '-'}</td>
                         <td style="padding:6px 8px;text-align:right;color:#999;font-size:10px;">${r.created_at || '-'}</td>
+                        <td style="padding:6px 8px;text-align:center;"><button onclick="deleteKlineHistory(${r.id},${stockId},'${stockName.replace(/'/g,"\\'")}')" style="padding:2px 8px;background:#f44336;color:white;border:none;border-radius:3px;cursor:pointer;font-size:10px;">删除</button></td>
                     </tr>`;
                     if (r.data_issues) {
-                        html += `<tr id="kh_issues_${idx}" style="display:none;"><td colspan="9" style="padding:10px 12px;background:rgba(255,235,235,0.4);font-size:11px;color:#666;line-height:1.6;word-break:break-all;">${escHtml(r.data_issues)}</td></tr>`;
+                        html += `<tr id="kh_issues_${idx}" style="display:none;"><td colspan="10" style="padding:10px 12px;background:rgba(255,235,235,0.4);font-size:11px;color:#666;line-height:1.6;word-break:break-all;">${escHtml(r.data_issues)}</td></tr>`;
                     }
                     if (hasPrompt) {
-                        html += `<tr id="kh_content_${idx}" style="display:none;"><td colspan="9" style="padding:10px 12px;background:rgba(237,233,254,0.3);font-size:11px;color:#333;line-height:1.6;">`;
+                        html += `<tr id="kh_content_${idx}" style="display:none;"><td colspan="10" style="padding:10px 12px;background:rgba(237,233,254,0.3);font-size:11px;color:#333;line-height:1.6;">`;
                         if (r.kline_prompt) html += `<div style="margin-bottom:8px;"><b style="color:#667eea;">未持仓分析：</b><br>${escHtml(r.kline_prompt)}</div>`;
                         if (r.kline_hold_prompt) html += `<div><b style="color:#e67e22;">持仓分析：</b><br>${escHtml(r.kline_hold_prompt)}</div>`;
                         html += `</td></tr>`;
