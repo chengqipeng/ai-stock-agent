@@ -340,7 +340,7 @@
             -webkit-backdrop-filter: blur(12px);
             z-index: 5;
             vertical-align: top;
-            max-width: 90px;
+            max-width: 99px;
         }
         .stock-check-cell {
             padding: 8px 4px;
@@ -850,7 +850,7 @@
                             <th style="text-align:center;position:sticky;left:0;background:rgba(245,245,250,0.9);z-index:10;width:36px;">
                                 <input type="checkbox" id="selectAllStocks" onchange="toggleSelectAllStocks()" style="cursor:pointer;">
                             </th>
-                            <th style="text-align:left;position:sticky;left:36px;background:rgba(245,245,250,0.9);z-index:10;width:90px;">股票信息</th>
+                            <th style="text-align:left;position:sticky;left:36px;background:rgba(245,245,250,0.9);z-index:10;width:99px;">股票信息</th>
                             <th style="text-align:left;">数据详情</th>
                         </tr>
                     </thead>
@@ -1224,7 +1224,7 @@
                     <div style="font-size: 11px; color: #86868b; margin-top: 2px;">
                         总数: ${batch.total_count} | 成功: ${batch.success_count} | 失败: ${batch.completed_count - batch.success_count} | 
                         状态: ${batch.status === 'completed' ? '✅ 已完成' : '⏳ 进行中'} | 
-                        ${formatLocalTime(batch.created_at)}
+                        ${formatBeijingTime(batch.created_at)}
                         ${batch.status !== 'completed' && batch.completed_count < batch.total_count ? '<button onclick="event.stopPropagation(); continueBatch(' + batch.id + ')" style="margin-left: 10px; padding: 2px 8px; background: rgba(76,175,80,0.8); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 10px;">继续分析</button>' : ''}
                     </div>
                 </div>
@@ -1286,7 +1286,7 @@
             const currentBatch = batchesData.find(b => b.id === batchId);
             const label = document.getElementById('batchNameLabel');
             if (currentBatch) {
-                const updatedAt = currentBatch.last_updated_at ? `\n更新: ${formatLocalTime(currentBatch.last_updated_at)}` : '';
+                const updatedAt = currentBatch.last_updated_at ? `\n更新: ${formatBeijingTime(currentBatch.last_updated_at)}` : '';
                 label.innerText = `${currentBatch.batch_name}${updatedAt}`;
             } else {
                 label.textContent = '';
@@ -1394,7 +1394,7 @@
                 const nameCell = (rowspan) => `<td class="stock-name-cell" rowspan="${rowspan}">
                     <div class="sname">${stockDisplayName}</div>
                     <div class="scode">${stockDisplayCode}</div>
-                    <div class="stime">${formatLocalTime(stock.completed_at || stock.created_at)}</div>
+                    <div class="stime">${formatBeijingTime(stock.completed_at || stock.created_at)}</div>
                     <button class="sbtn" onclick="showHistory('${stock.stock_name}')">CAN SLIM历史</button>
                     <button class="sbtn" style="background:linear-gradient(135deg,rgba(118,75,162,0.7),rgba(118,75,162,0.9));" onclick="showKlineHistory(${stock.id},'${stockDisplayName}')">K线分析历史</button>
                     <button class="sbtn" style="background:linear-gradient(135deg,rgba(38,166,154,0.7),rgba(38,166,154,0.9));" onclick="showTechScoreHistory('${stock.stock_code}')">技术打分历史</button>
@@ -2576,7 +2576,7 @@
                     return `<div style="border:1px solid #667eea;border-radius:6px;padding:12px;margin-bottom:10px;">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                             <span style="font-weight:600;font-size:12px;">批次 #${g.batch_id} ${g.is_deep_thinking?'🧠 深度思考':''}${gradeHtml}</span>
-                            <span style="font-size:10px;color:#999;">${formatLocalTime(g.created_at)}</span>
+                            <span style="font-size:10px;color:#999;">${formatBeijingTime(g.created_at)}</span>
                         </div>
                         <div style="margin-bottom:6px;">${dimsHtml}</div>
                         ${summaries ? `<details><summary style="cursor:pointer;font-size:11px;color:#667eea;">查看摘要</summary><div style="margin-top:6px;">${summaries}</div></details>` : ''}
