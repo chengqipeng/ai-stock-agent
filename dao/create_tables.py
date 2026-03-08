@@ -62,7 +62,8 @@ _TABLES = [
         is_pinned TINYINT DEFAULT 0,
         is_continuous_analysis TINYINT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_continuous (is_continuous_analysis)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 
@@ -115,6 +116,8 @@ _TABLES = [
         completed_at TIMESTAMP NULL,
 
         INDEX idx_batch_id (batch_id),
+        INDEX idx_ad_stock_code (stock_code),
+        INDEX idx_ad_status (status),
         FOREIGN KEY (batch_id) REFERENCES stock_batch_list_info (id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
@@ -137,7 +140,11 @@ _TABLES = [
         m_score DOUBLE, m_result LONGTEXT, m_summary LONGTEXT,
         overall_analysis LONGTEXT,
         overall_prompt LONGTEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_dah_batch (batch_id),
+        INDEX idx_dah_stock_id (stock_id),
+        INDEX idx_dah_stock_name (stock_name),
+        INDEX idx_dah_stock_code (stock_code)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 
@@ -160,7 +167,10 @@ _TABLES = [
         error_message LONGTEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_stock_name (stock_name),
-        INDEX idx_execution_id (execution_id)
+        INDEX idx_execution_id (execution_id),
+        INDEX idx_dim_batch_id (batch_id),
+        INDEX idx_dim_stock_id (stock_id),
+        INDEX idx_dim_stock_code (stock_code)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 
@@ -179,7 +189,8 @@ _TABLES = [
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY uk_code (stock_code),
         INDEX idx_highest_date (highest_date),
-        INDEX idx_lowest_date (lowest_date)
+        INDEX idx_lowest_date (lowest_date),
+        INDEX idx_update_time (update_time)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 
@@ -212,7 +223,8 @@ _TABLES = [
         INDEX idx_ts_batch (batch_id),
         INDEX idx_ts_code (stock_code),
         INDEX idx_ts_total (total_score),
-        INDEX idx_ts_date (score_date)
+        INDEX idx_ts_date (score_date),
+        INDEX idx_ts_created (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
     # ── stock_kline_screening_history（K线初筛历史记录，按天保存） ──
@@ -236,7 +248,8 @@ _TABLES = [
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY uk_batch_stock_date (batch_id, stock_id, screen_date),
         INDEX idx_ksh_batch (batch_id),
-        INDEX idx_ksh_date (screen_date)
+        INDEX idx_ksh_date (screen_date),
+        INDEX idx_ksh_stock_id (stock_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 ]
@@ -251,6 +264,11 @@ def create_all_tables():
         conn.commit()
         logger.info("所有表创建完成 ✓")
 
+        # 为已存在的表补充缺失索引
+        _migrate_indexes(cursor)
+        conn.commit()
+        logger.info("索引迁移完成 ✓")
+
         # 列出已创建的表
         cursor.execute("SHOW TABLES")
         tables = [row[0] for row in cursor.fetchall()]
@@ -260,6 +278,43 @@ def create_all_tables():
     finally:
         cursor.close()
         conn.close()
+
+
+# ── 索引迁移：为已存在的表安全添加缺失索引 ──
+_INDEX_MIGRATIONS = [
+    # (表名, 索引名, 索引定义)
+    ("stock_batch_list_info", "idx_continuous", "INDEX idx_continuous (is_continuous_analysis)"),
+    ("stock_analysis_detail", "idx_ad_stock_code", "INDEX idx_ad_stock_code (stock_code)"),
+    ("stock_analysis_detail", "idx_ad_status", "INDEX idx_ad_status (status)"),
+    ("stock_deep_analysis_history", "idx_dah_batch", "INDEX idx_dah_batch (batch_id)"),
+    ("stock_deep_analysis_history", "idx_dah_stock_id", "INDEX idx_dah_stock_id (stock_id)"),
+    ("stock_deep_analysis_history", "idx_dah_stock_name", "INDEX idx_dah_stock_name (stock_name)"),
+    ("stock_deep_analysis_history", "idx_dah_stock_code", "INDEX idx_dah_stock_code (stock_code)"),
+    ("stock_dim_analysis_history", "idx_dim_batch_id", "INDEX idx_dim_batch_id (batch_id)"),
+    ("stock_dim_analysis_history", "idx_dim_stock_id", "INDEX idx_dim_stock_id (stock_id)"),
+    ("stock_dim_analysis_history", "idx_dim_stock_code", "INDEX idx_dim_stock_code (stock_code)"),
+    ("stock_highest_lowest_price", "idx_update_time", "INDEX idx_update_time (update_time)"),
+    ("stock_batch_technical_score", "idx_ts_created", "INDEX idx_ts_created (created_at)"),
+    ("stock_kline_screening_history", "idx_ksh_stock_id", "INDEX idx_ksh_stock_id (stock_id)"),
+]
+
+
+def _migrate_indexes(cursor):
+    """安全地为已存在的表添加缺失索引，索引已存在则跳过"""
+    for table, idx_name, idx_def in _INDEX_MIGRATIONS:
+        try:
+            cursor.execute(
+                "SELECT COUNT(*) FROM information_schema.statistics "
+                "WHERE table_schema = DATABASE() AND table_name = %s AND index_name = %s",
+                (table, idx_name),
+            )
+            if cursor.fetchone()[0] == 0:
+                cursor.execute(f"ALTER TABLE {table} ADD {idx_def}")
+                logger.info("  已添加索引: %s.%s", table, idx_name)
+            else:
+                logger.debug("  索引已存在: %s.%s", table, idx_name)
+        except Exception as e:
+            logger.warning("  添加索引失败 %s.%s: %s", table, idx_name, e)
 
 
 if __name__ == "__main__":

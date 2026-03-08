@@ -83,6 +83,8 @@ class DatabaseManager:
                     completed_at TIMESTAMP NULL,
 
                     INDEX idx_batch_id (batch_id),
+                    INDEX idx_ad_stock_code (stock_code),
+                    INDEX idx_ad_status (status),
                     FOREIGN KEY (batch_id) REFERENCES stock_batch_list_info (id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
@@ -105,7 +107,11 @@ class DatabaseManager:
                     m_score DOUBLE, m_result LONGTEXT, m_summary LONGTEXT,
                     overall_analysis LONGTEXT,
                     overall_prompt LONGTEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_dah_batch (batch_id),
+                    INDEX idx_dah_stock_id (stock_id),
+                    INDEX idx_dah_stock_name (stock_name),
+                    INDEX idx_dah_stock_code (stock_code)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
 
@@ -128,7 +134,10 @@ class DatabaseManager:
                     error_message LONGTEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     INDEX idx_stock_name (stock_name),
-                    INDEX idx_execution_id (execution_id)
+                    INDEX idx_execution_id (execution_id),
+                    INDEX idx_dim_batch_id (batch_id),
+                    INDEX idx_dim_stock_id (stock_id),
+                    INDEX idx_dim_stock_code (stock_code)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
 
