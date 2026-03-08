@@ -950,6 +950,24 @@
                 String(d.getMinutes()).padStart(2,'0');
         }
 
+        function formatBeijingTime(timeStr) {
+            if (!timeStr) return '-';
+            const s = timeStr.trim();
+            // 尝试解析为 Date，强制输出 Asia/Shanghai 24小时制
+            // MySQL TIMESTAMP 可能是 UTC 或已经是北京时间，统一用+08:00解析
+            let d;
+            if (s.includes('T')) {
+                d = new Date(s);
+            } else {
+                // "2024-01-01 12:00:00" 格式，假设是 UTC
+                d = new Date(s.replace(' ', 'T') + (s.includes('+') || s.endsWith('Z') ? '' : 'Z'));
+            }
+            if (isNaN(d)) return s;
+            return d.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false,
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
         async function loadStockList() {
             try {
                 const response = await fetch('/api/stock_list');
@@ -2485,7 +2503,7 @@
                         <td style="padding:6px 8px;text-align:center;font-size:11px;">${predCell(weekPred, idx, 'week')}</td>
                         <td style="padding:6px 8px;text-align:center;">${hasIssues ? `<span style="cursor:pointer;color:#f44336;text-decoration:underline;font-size:10px;" onclick="document.getElementById('kh_issues_${idx}').style.display=document.getElementById('kh_issues_${idx}').style.display==='none'?'table-row':'none'">查看</span>` : '-'}</td>
                         <td style="padding:6px 8px;text-align:center;">${hasPrompt ? `<span style="cursor:pointer;color:#667eea;text-decoration:underline;font-size:10px;" onclick="document.getElementById('kh_content_${idx}').style.display=document.getElementById('kh_content_${idx}').style.display==='none'?'table-row':'none'">查看</span>` : '-'}</td>
-                        <td style="padding:6px 8px;text-align:right;color:#999;font-size:10px;">${r.created_at || '-'}</td>
+                        <td style="padding:6px 8px;text-align:right;color:#999;font-size:10px;">${formatBeijingTime(r.created_at)}</td>
                         <td style="padding:6px 8px;text-align:center;"><button onclick="deleteKlineHistory(${r.id},${stockId},'${stockName.replace(/'/g,"\\'")}')" style="padding:2px 8px;background:#f44336;color:white;border:none;border-radius:3px;cursor:pointer;font-size:10px;">删除</button></td>
                     </tr>`;
                     if (r.data_issues) {
