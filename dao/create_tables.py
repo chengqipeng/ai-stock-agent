@@ -61,6 +61,7 @@ _TABLES = [
         status VARCHAR(50) DEFAULT 'pending',
         is_pinned TINYINT DEFAULT 0,
         is_continuous_analysis TINYINT DEFAULT 0,
+        sort_order INT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_continuous (is_continuous_analysis)

@@ -150,6 +150,22 @@ class DatabaseManager:
             except Exception:
                 pass  # 列已存在则忽略
 
+            # 兼容已有表：添加 sort_order 列
+            try:
+                cursor.execute("""
+                    ALTER TABLE stock_batch_list_info
+                    ADD COLUMN sort_order INT DEFAULT 0 AFTER is_continuous_analysis
+                """)
+                # 初始化：按 is_pinned DESC, created_at DESC 赋初始序号
+                cursor.execute("SET @r := 0")
+                cursor.execute("""
+                    UPDATE stock_batch_list_info
+                    SET sort_order = (@r := @r + 1)
+                    ORDER BY is_pinned DESC, created_at DESC
+                """)
+            except Exception:
+                pass  # 列已存在则忽略
+
             conn.commit()
         finally:
             cursor.close()
@@ -165,8 +181,12 @@ class DatabaseManager:
         cursor = conn.cursor()
         try:
             cursor.execute(
-                "INSERT INTO stock_batch_list_info (batch_name, total_count) VALUES (%s, %s)",
-                (batch_name, len(stock_codes)),
+                "SELECT COALESCE(MAX(sort_order), 0) + 1 FROM stock_batch_list_info"
+            )
+            next_order = cursor.fetchone()[0]
+            cursor.execute(
+                "INSERT INTO stock_batch_list_info (batch_name, total_count, sort_order) VALUES (%s, %s, %s)",
+                (batch_name, len(stock_codes), next_order),
             )
             batch_id = cursor.lastrowid
 
@@ -238,7 +258,7 @@ class DatabaseManager:
             conn.close()
 
     def get_batches(self) -> List[Dict[str, Any]]:
-        """获取所有批次，置顶优先，再按创建时间倒序；附带最后更新时间"""
+        """获取所有批次，按序号正序排列；附带最后更新时间"""
         conn = get_connection(use_dict_cursor=True)
         cursor = conn.cursor()
         try:
@@ -251,7 +271,7 @@ class DatabaseManager:
                            COALESCE((SELECT MAX(created_at) FROM stock_kline_screening_history WHERE batch_id = b.id), b.updated_at)
                        ) as last_updated_at
                 FROM stock_batch_list_info b
-                ORDER BY b.is_pinned DESC, b.created_at DESC
+                ORDER BY b.sort_order ASC, b.id ASC
             """)
             return list(cursor.fetchall())
         finally:
@@ -286,6 +306,17 @@ class DatabaseManager:
             cursor.execute("UPDATE stock_batch_list_info SET is_pinned = %s WHERE id = %s", (new_val, batch_id))
             conn.commit()
             return bool(new_val)
+        finally:
+            cursor.close()
+            conn.close()
+    def update_batch_sort_order(self, batch_id: int, sort_order: int) -> bool:
+        """更新批次序号"""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("UPDATE stock_batch_list_info SET sort_order = %s WHERE id = %s", (sort_order, batch_id))
+            conn.commit()
+            return cursor.rowcount > 0
         finally:
             cursor.close()
             conn.close()

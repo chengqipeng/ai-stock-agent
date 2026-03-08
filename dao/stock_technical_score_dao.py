@@ -149,7 +149,7 @@ def get_continuous_analysis_batches() -> list[dict]:
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "SELECT * FROM stock_batch_list_info WHERE is_continuous_analysis = 1 ORDER BY created_at DESC"
+            "SELECT * FROM stock_batch_list_info WHERE is_continuous_analysis = 1 ORDER BY sort_order ASC, id ASC"
         )
         return list(cursor.fetchall())
     finally:

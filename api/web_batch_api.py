@@ -932,6 +932,21 @@ async def pin_batch(batch_id: int):
         logger.error("切换批次置顶状态失败 batch_id=%s: %s", batch_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.patch("/api/batch/{batch_id}/sort_order")
+async def update_batch_sort_order(batch_id: int, request: dict):
+    """修改批次序号"""
+    try:
+        sort_order = request.get("sort_order")
+        if sort_order is None:
+            raise HTTPException(status_code=400, detail="sort_order is required")
+        ok = db_manager.update_batch_sort_order(batch_id, int(sort_order))
+        return {"success": ok}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("修改批次序号失败 batch_id=%s: %s", batch_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.patch("/api/batch/{batch_id}/continuous_analysis")
 async def toggle_continuous_analysis(batch_id: int):
     """切换批次持续分析标记"""
