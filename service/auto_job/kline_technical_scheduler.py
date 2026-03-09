@@ -19,6 +19,7 @@ _CST = ZoneInfo("Asia/Shanghai")
 logger = logging.getLogger(__name__)
 
 _RETRY_INTERVAL = 300
+_MAX_RETRY = 3
 
 # ─────────── 日线完成信号 ───────────
 # kline_data_scheduler 执行成功后 set，各下游调度器等待此信号
@@ -48,6 +49,8 @@ def _save_persisted_status(status: dict):
             "last_run_time": status.get("last_run_time"),
             "last_run_date": status.get("last_run_date"),
             "last_success": status.get("last_success"),
+            "running": status.get("running", False),
+            "error": status.get("error"),
         }
         _SCORE_STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
@@ -57,6 +60,13 @@ def _save_persisted_status(status: dict):
 # ─────────── 全局状态 ───────────
 _persisted = _load_persisted_status()
 
+# 如果上次持久化时 running=True，说明进程被中断，重置为失败状态
+if _persisted.get("running"):
+    logger.warning("[技术打分调度] 检测到上次运行被中断，重置状态为失败")
+    _persisted["running"] = False
+    _persisted["last_success"] = False
+    _persisted["error"] = "上次运行被中断（进程重启）"
+
 _job_status = {
     "last_run_time": _persisted.get("last_run_time"),
     "last_run_date": _persisted.get("last_run_date"),
@@ -65,7 +75,7 @@ _job_status = {
     "score_success": 0,
     "score_failed": 0,
     "running": False,
-    "error": None,
+    "error": _persisted.get("error"),
 }
 
 
@@ -105,6 +115,7 @@ async def _execute_job():
     _job_status["start_time"] = datetime.now(_CST).isoformat()
     today_str = datetime.now(_CST).date().isoformat()
     started_at = datetime.now(_CST)
+    _save_persisted_status(_job_status)  # 持久化 running=True，便于重启后检测中断
     log_id = insert_log("技术打分", started_at)
     attempt = 0
     total_skipped = 0
@@ -189,6 +200,18 @@ async def _execute_job():
                 break
 
             logger.warning("[技术打分调度] 有 %d 只失败，%d秒后重试", total_failed, _RETRY_INTERVAL)
+            if attempt >= _MAX_RETRY:
+                err_msg = f"达到最大重试次数({_MAX_RETRY})，仍有{total_failed}只失败"
+                logger.error("[技术打分调度] %s", err_msg)
+                _job_status["error"] = err_msg
+                detail = (f"总{score_counter['total']}只 成功{score_counter['success']}只 "
+                          f"失败{total_failed}只 跳过(已完成){total_skipped}只 重试{attempt}次 (达到上限)")
+                try:
+                    update_log(log_id, "failed", score_counter["total"], score_counter["success"],
+                               total_failed, total_skipped, detail)
+                except Exception:
+                    pass
+                break
             await asyncio.sleep(_RETRY_INTERVAL)
 
     except Exception as e:
@@ -203,6 +226,7 @@ async def _execute_job():
             pass
 
     _job_status["running"] = False
+    _save_persisted_status(_job_status)
 
 
 async def _scheduler_loop():

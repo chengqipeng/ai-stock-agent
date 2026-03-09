@@ -7,6 +7,7 @@ import asyncio
 import logging
 import random
 import re
+import socket
 from typing import List
 from urllib.parse import urlparse
 
@@ -20,7 +21,18 @@ logger = logging.getLogger(__name__)
 DEFAULT_TIMEOUT = 30
 BUSINESS_TIMEOUT = 60
 CLASHX_PROXY = "http://127.0.0.1:7890"
+_PROXY_HOST = "127.0.0.1"
+_PROXY_PORT = 7890
 IMPERSONATE = "chrome131"
+
+
+def _is_proxy_available() -> bool:
+    """检测本地代理端口是否可连通。"""
+    try:
+        with socket.create_connection((_PROXY_HOST, _PROXY_PORT), timeout=1):
+            return True
+    except OSError:
+        return False
 
 # 已知付费墙 / 强反爬网站域名，直接跳过抓取以节省时间
 _SKIP_DOMAINS = {
@@ -101,6 +113,9 @@ async def extract_main_content(url: str, use_proxy: bool = False, timeout: int =
 
 async def _fetch_html(url: str, use_proxy: bool = False, timeout: int = DEFAULT_TIMEOUT) -> str:
     """请求网页并返回 HTML 文本，失败返回空字符串。"""
+    if use_proxy and not _is_proxy_available():
+        logger.debug("代理不可用，跳过代理请求: %s", url)
+        return ""
     proxy = CLASHX_PROXY if use_proxy else None
     try:
         async with AsyncSession(impersonate=IMPERSONATE) as session:
@@ -249,7 +264,7 @@ async def extract_titles(url: str, tag: str = "h2", use_proxy: bool = True) -> L
     Returns:
         List[str]: 提取的文本内容列表
     """
-    proxy = CLASHX_PROXY if use_proxy else None
+    proxy = CLASHX_PROXY if use_proxy and _is_proxy_available() else None
 
     async with AsyncSession(impersonate=IMPERSONATE) as session:
         response = await session.get(url, proxy=proxy, timeout=DEFAULT_TIMEOUT, headers=_build_headers())
@@ -268,7 +283,7 @@ async def extract_content_with_datetime(url: str, use_proxy: bool = False, timeo
         dict: {'content': str, 'publish_time': str|None}
               publish_time 格式为 'YYYY-MM-DD HH:MM'，提取失败为 None。
     """
-    proxy = CLASHX_PROXY if use_proxy else None
+    proxy = CLASHX_PROXY if use_proxy and _is_proxy_available() else None
 
     async with AsyncSession(impersonate=IMPERSONATE) as session:
         response = await session.get(url, proxy=proxy, timeout=timeout, headers=_build_headers())

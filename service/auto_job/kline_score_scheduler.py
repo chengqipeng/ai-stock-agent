@@ -21,6 +21,7 @@ _CST = ZoneInfo("Asia/Shanghai")
 logger = logging.getLogger(__name__)
 
 _RETRY_INTERVAL = 300
+_MAX_RETRY = 3
 
 # ─────────── 状态持久化 ───────────
 _STATUS_FILE = Path(__file__).parent.parent.parent / "data_results" / ".kline_score_scheduler_status.json"
@@ -45,6 +46,8 @@ def _save_persisted_status(status: dict):
             "last_run_date": status.get("last_run_date"),
             "last_success": status.get("last_success"),
             "done_stock_ids": status.get("done_stock_ids", []),
+            "running": status.get("running", False),
+            "error": status.get("error"),
         }
         _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
@@ -54,6 +57,13 @@ def _save_persisted_status(status: dict):
 # ─────────── 全局状态 ───────────
 _persisted = _load_persisted_status()
 
+# 如果上次持久化时 running=True，说明进程被中断，重置为失败状态
+if _persisted.get("running"):
+    logger.warning("[K线初筛调度] 检测到上次运行被中断，重置状态为失败")
+    _persisted["running"] = False
+    _persisted["last_success"] = False
+    _persisted["error"] = "上次运行被中断（进程重启）"
+
 _job_status = {
     "last_run_time": _persisted.get("last_run_time"),
     "last_run_date": _persisted.get("last_run_date"),
@@ -62,7 +72,7 @@ _job_status = {
     "kline_score_success": 0,
     "kline_score_failed": 0,
     "running": False,
-    "error": None,
+    "error": _persisted.get("error"),
 }
 
 
@@ -132,6 +142,7 @@ async def _execute_job():
     _job_status["start_time"] = datetime.now(_CST).isoformat()
     today_str = datetime.now(_CST).date().isoformat()
     started_at = datetime.now(_CST)
+    _save_persisted_status(_job_status)  # 持久化 running=True，便于重启后检测中断
     log_id = insert_log("K线初筛", started_at)
     attempt = 0
 
@@ -218,6 +229,18 @@ async def _execute_job():
                 break
 
             logger.warning("[K线初筛调度] 有 %d 只失败，%d秒后重试", total_failed, _RETRY_INTERVAL)
+            if attempt >= _MAX_RETRY:
+                err_msg = f"达到最大重试次数({_MAX_RETRY})，仍有{total_failed}只失败"
+                logger.error("[K线初筛调度] %s", err_msg)
+                _job_status["error"] = err_msg
+                detail = (f"总{counter['total']}只 成功{counter['success']}只 "
+                          f"失败{total_failed}只 跳过(已完成){total_skipped}只 重试{attempt}次 (达到上限)")
+                try:
+                    update_log(log_id, "failed", counter["total"], counter["success"],
+                               total_failed, total_skipped, detail)
+                except Exception:
+                    pass
+                break
             await asyncio.sleep(_RETRY_INTERVAL)
 
     except Exception as e:
@@ -232,6 +255,7 @@ async def _execute_job():
             pass
 
     _job_status["running"] = False
+    _save_persisted_status(_job_status)
 
 
 async def _scheduler_loop():

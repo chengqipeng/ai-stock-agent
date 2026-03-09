@@ -37,11 +37,19 @@ def parse_stock_list(path: Path) -> list[dict]:
 
 
 def _make_stock_info(name: str, code: str) -> StockInfo:
+    # 如果 code 不是 6 位数字（说明 DB 中存的是股票名称），尝试通过名称查找
+    raw = code.split('.')[0] if '.' in code else code
+    if not raw.isdigit() or len(raw) != 6:
+        from common.constants.stocks_data import get_stock_code
+        try:
+            code = get_stock_code(code)  # code 此时实际上是名称
+        except Exception:
+            logger.warning("_make_stock_info: 无法解析股票代码 [%s]，跳过", code)
+            return None
     if '.' in code:
         stock_code, suffix = code.split('.')
     else:
         stock_code = code
-        # 根据股票代码前缀推断交易所：6开头为上海(SH)，其余为深圳(SZ)
         suffix = "SH" if stock_code.startswith('6') else "SZ"
     prefix = "0" if suffix == "SZ" else "1"
     code_normalized = f"{stock_code}.{suffix}"
@@ -1226,6 +1234,9 @@ def analyze_finance_growth(stock_info: StockInfo) -> dict:
 # ─── 单只股票分析 ───
 async def analyze_stock(name: str, code: str, idx: int, total: int) -> dict | None:
     stock_info = _make_stock_info(name, code)
+    if stock_info is None:
+        logger.warning("[%d/%d] %s(%s) - 无法解析股票代码，跳过", idx, total, name, code)
+        return None
     try:
         klines = await get_stock_day_range_kline_by_db_cache(stock_info, limit=200)
         if not klines or len(klines) < 60:

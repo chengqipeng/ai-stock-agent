@@ -24,6 +24,7 @@ _project_root = Path(__file__).parent.parent.parent
 
 # 失败重试间隔（秒）
 _RETRY_INTERVAL = 300
+_MAX_RETRY = 3
 
 # ─────────── 状态持久化 ───────────
 _PRICE_STATUS_FILE = Path(__file__).parent.parent.parent / "data_results" / ".price_scheduler_status.json"
@@ -87,11 +88,26 @@ _job_status = {
 def get_price_job_status() -> dict:
     status = dict(_job_status)
     if status.get("running"):
+        # 安全超时：如果 running 状态持续超过2小时，强制重置
+        start_time = status.get("start_time")
+        if start_time:
+            try:
+                started = datetime.fromisoformat(start_time)
+                elapsed = (datetime.now(_CST) - started).total_seconds()
+                if elapsed > 7200:
+                    logger.warning("[最高最低价调度] running 状态已持续 %.0f 秒，强制重置为 False", elapsed)
+                    _job_status["running"] = False
+                    _job_status["error"] = f"任务超时（已运行{int(elapsed//3600)}小时{int((elapsed%3600)//60)}分钟），已自动重置"
+                    _job_status["_price_counter"] = None
+                    status = dict(_job_status)
+            except (ValueError, TypeError):
+                pass
         pc = status.get("_price_counter") or {}
         status["price_total"] = pc.get("total", 0)
         status["price_success"] = pc.get("success", 0)
         status["price_failed"] = pc.get("failed", 0)
     status.pop("_price_counter", None)
+    status.pop("start_time", None)
     return status
 
 
@@ -234,6 +250,17 @@ async def _execute_job():
 
             logger.warning("[最高最低价调度] 有 %d 只失败，%d秒后重试失败的股票",
                            total_failed, _RETRY_INTERVAL)
+            if attempt >= _MAX_RETRY:
+                err_msg = f"达到最大重试次数({_MAX_RETRY})，仍有{total_failed}只失败"
+                logger.error("[最高最低价调度] %s", err_msg)
+                _job_status["error"] = err_msg
+                detail = (f"共{total_all}只 失败{total_failed}只 重试{attempt}次 (达到上限)")
+                try:
+                    update_log(log_id, "failed", total_all, total_all - total_failed,
+                               total_failed, len(processed_codes), detail)
+                except Exception:
+                    pass
+                break
             await asyncio.sleep(_RETRY_INTERVAL)
 
     except Exception as e:
