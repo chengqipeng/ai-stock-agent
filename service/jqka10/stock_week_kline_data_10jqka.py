@@ -59,7 +59,7 @@ async def _fetch_raw(url: str, cache_key: str = None, code: str = None) -> dict:
     else:
         cache_path = None
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
         async with session.get(url, headers=_HEADERS) as resp:
             text = unescape(await resp.text())
     json_text = re.sub(r"^\w+\(", "", text)

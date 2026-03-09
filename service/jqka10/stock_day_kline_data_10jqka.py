@@ -144,7 +144,8 @@ def _decode_prices(price_str: str, price_factor: int) -> list[tuple]:
 
 
 async def _fetch_raw(url: str) -> dict:
-    async with aiohttp.ClientSession() as session:
+    timeout = aiohttp.ClientTimeout(total=30)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(url, headers=_HEADERS) as resp:
             status = resp.status
             text = await resp.text()

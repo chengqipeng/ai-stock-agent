@@ -20,7 +20,7 @@ async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None) 
     """
     code = stock_info.stock_code
     url = f"https://d.10jqka.com.cn/v6/time/hs_{code}/defer/last.js"
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
         async with session.get(url, headers=_HEADERS) as resp:
             text = await resp.text()
 

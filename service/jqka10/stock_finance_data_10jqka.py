@@ -148,7 +148,7 @@ async def _fetch_finance_json(
     if session is not None:
         return await _do_fetch(session)
     else:
-        async with aiohttp.ClientSession() as s:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as s:
             return await _do_fetch(s)
 
 
@@ -296,7 +296,7 @@ async def get_stock_all_finance_data(
         }
     """
     report_types: list[ReportType] = ["benefit", "debt", "cash", "main"]
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
         flashes = await asyncio.gather(
             *(
                 _fetch_finance_json(stock_info.stock_code, rt, session=session)
