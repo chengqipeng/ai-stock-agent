@@ -112,14 +112,15 @@
             white-space: nowrap;
         }
         .container {
-            max-width: 1400px;
+            max-width: 100%;
             margin: 0 auto;
             padding: 8px;
             display: grid;
             grid-template-columns: 300px 1fr;
+            grid-template-rows: auto;
             gap: 8px;
             transition: grid-template-columns 0.3s;
-            min-height: calc(100vh - 42px);
+            align-items: start;
         }
         .container.sidebar-collapsed {
             grid-template-columns: 0px 1fr;
@@ -658,6 +659,24 @@
         .overlay-disabled {
             pointer-events: none;
             opacity: 0.6;
+        }
+
+        /* 大屏幕：左右两栏等高对齐 */
+        @media (min-width: 1600px) {
+            .container {
+                align-items: stretch;
+            }
+            .container > .panel {
+                display: flex;
+                flex-direction: column;
+            }
+            .container > .panel > div[style*="overflow-x"] {
+                flex: 1;
+                max-height: none !important;
+            }
+            .stock-list {
+                max-height: 30vh;
+            }
         }
     </style>
 </head>
