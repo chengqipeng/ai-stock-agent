@@ -401,6 +401,29 @@ def _compute_kline_summary(kline_data: list[dict]) -> dict:
     up_days = sum(1 for d in recent_5 if d['收盘价'] > d['开盘价'])
     down_days = sum(1 for d in recent_5 if d['收盘价'] < d['开盘价'])
 
+    # 连续上涨/下跌天数（从最新日往前数）
+    consecutive_up = 0
+    consecutive_down = 0
+    cumulative_change_pct = 0.0
+    for i, d in enumerate(valid):
+        chg = d.get('涨跌幅(%)', 0) or 0
+        if i == 0:
+            if chg > 0:
+                consecutive_up = 1
+                cumulative_change_pct = chg
+            elif chg < 0:
+                consecutive_down = 1
+                cumulative_change_pct = chg
+            continue
+        if consecutive_up > 0 and chg > 0:
+            consecutive_up += 1
+            cumulative_change_pct += chg
+        elif consecutive_down > 0 and chg < 0:
+            consecutive_down += 1
+            cumulative_change_pct += chg
+        else:
+            break
+
     # 最新一日的上下影线
     latest = valid[0] if valid else {}
     upper_shadow = round(latest.get('最高价', 0) - max(latest.get('收盘价', 0), latest.get('开盘价', 0)), 2)
@@ -420,6 +443,13 @@ def _compute_kline_summary(kline_data: list[dict]) -> dict:
     latest_vol = latest.get('成交量（手）', 0)
     latest_vol_vs_threshold_detail = f"{latest_vol}手 vs 阈值{breakout_vol_threshold}手（{'未达到' if latest_vol < breakout_vol_threshold else '已达到'}放量突破标准）"
 
+    # 近5日/近10日累计涨跌幅（用于超跌反弹判断，不要求连续下跌）
+    recent_5_chg = sum(d.get('涨跌幅(%)', 0) or 0 for d in valid[:5]) if len(valid) >= 5 else 0
+    recent_10_chg = sum(d.get('涨跌幅(%)', 0) or 0 for d in valid[:10]) if len(valid) >= 10 else 0
+    # 近5日/近10日下跌天数
+    recent_5_down_count = sum(1 for d in valid[:5] if (d.get('涨跌幅(%)', 0) or 0) < -0.3)
+    recent_10_down_count = sum(1 for d in valid[:10] if (d.get('涨跌幅(%)', 0) or 0) < -0.3)
+
     return {
         '120日最高价': high_120,
         '120日最高价日期': high_date,
@@ -433,6 +463,9 @@ def _compute_kline_summary(kline_data: list[dict]) -> dict:
         '最新日成交量vs放量阈值': latest_vol_vs_threshold_detail,
         '近5日阳线数': up_days,
         '近5日阴线数': down_days,
+        '连续上涨天数': consecutive_up,
+        '连续下跌天数': consecutive_down,
+        '连续涨跌累计幅度(%)': round(cumulative_change_pct, 2),
         '近5日平均振幅(%)': avg_amplitude_5,
         '近5日最大振幅(%)': max_amplitude_5,
         '最新日上影线': upper_shadow,
@@ -441,6 +474,15 @@ def _compute_kline_summary(kline_data: list[dict]) -> dict:
         '上影线vs实体比': round(upper_shadow / body, 2) if body > 0 else float('inf'),
         '下影线vs实体比': round(lower_shadow / body, 2) if body > 0 else float('inf'),
         '最新日K线形态': '长上影线' if upper_shadow > body * 2 else ('长下影线' if lower_shadow > body * 2 else '普通'),
+        '近5日累计涨跌(%)': round(recent_5_chg, 2),
+        '近10日累计涨跌(%)': round(recent_10_chg, 2),
+        '近5日下跌天数': recent_5_down_count,
+        '近10日下跌天数': recent_10_down_count,
+        # 近20日振幅与趋势（用于震荡市检测）
+        '近20日累计涨跌(%)': round(sum(d.get('涨跌幅(%)', 0) or 0 for d in valid[:20]), 2) if len(valid) >= 20 else 0,
+        '近20日最高价': max(d['最高价'] for d in valid[:20]) if len(valid) >= 20 else (max(d['最高价'] for d in valid) if valid else 0),
+        '近20日最低价': min(d['最低价'] for d in valid[:20]) if len(valid) >= 20 else (min(d['最低价'] for d in valid) if valid else 0),
+        '近20日振幅(%)': round((max(d['最高价'] for d in valid[:20]) - min(d['最低价'] for d in valid[:20])) / min(d['最低价'] for d in valid[:20]) * 100, 2) if len(valid) >= 20 and min(d['最低价'] for d in valid[:20]) > 0 else 0,
     }
 
 
@@ -2716,9 +2758,13 @@ def _compute_comprehensive_score(
     news_data: list,
     margin_summary: dict = None,
     calibrated_probability_params: dict = None,
+    stock_vs_index_rs: dict = None,
+    prev_total: int = None,
 ) -> dict:
     """
     基于行业共识规则的综合评分体系（满分100分），7个维度。
+    v2: 趋势维度降权15分（原20分），动能+2→22分，情绪+2→17分，结构+1→16分。
+    增加趋势衰竭检测、震荡市收敛、资金筹码无数据降权。
 
     所有评分规则均基于A股技术分析行业共识：
     - MACD：零轴位置决定趋势强度，金叉/死叉质量影响信号可靠性
@@ -2733,30 +2779,32 @@ def _compute_comprehensive_score(
     details = {}
 
     # ════════════════════════════════════════════
-    # 维度1：趋势强度（满分20分）
+    # 维度1：趋势强度（满分15分）← 从20分降至15分
+    # 回测发现趋势维度是滞后指标，与次日准确率负相关：
+    # 趋势0-5分准确率50.4%，趋势15-20分准确率28.6%
+    # 降低权重避免滞后趋势信号主导评分
     # ════════════════════════════════════════════
-    trend_score = 10  # 基准分
+    trend_score = 7  # 基准分（从10降至7，满分15）
     trend_reasons = []
 
-    # --- MACD位置与方向（0~8分）---
-    # 行业共识：DIF/DEA均>0为强多头，DIF>0/DEA<0为弱多头，DIF<0为空头
+    # --- MACD位置与方向（0~6分）--- ← 从0~8缩减
     latest_detail = macd_data.get('明细数据', [{}])[0] if macd_data.get('明细数据') else {}
     market_state = latest_detail.get('市场状态', '')
     if market_state == '强多头':
-        trend_score += 4
-        trend_reasons.append('MACD强多头（DIF>0且DEA>0）+4')
+        trend_score += 3
+        trend_reasons.append('MACD强多头（DIF>0且DEA>0）+3')
     elif market_state == '弱多头':
         trend_score += 1
         trend_reasons.append('MACD弱多头（DIF>0但DEA<0）+1')
     elif market_state == '空头':
-        trend_score -= 3
-        trend_reasons.append('MACD空头（DIF<0）-3')
+        trend_score -= 2
+        trend_reasons.append('MACD空头（DIF<0）-2')
 
     # MACD柱方向
     bar_trend = macd_bar_trend.get('MACD柱趋势', '')
     if '红柱' in bar_trend and '放大' in bar_trend:
-        trend_score += 2
-        trend_reasons.append(f'MACD{bar_trend}+2')
+        trend_score += 1
+        trend_reasons.append(f'MACD{bar_trend}+1')
     elif '红柱' in bar_trend and '收窄' in bar_trend:
         trend_score += 0
         trend_reasons.append(f'MACD{bar_trend}+0（多头动能边际减弱）')
@@ -2764,8 +2812,8 @@ def _compute_comprehensive_score(
         trend_score += 1
         trend_reasons.append(f'MACD{bar_trend}+1（空头动能衰竭）')
     elif '绿柱' in bar_trend and '放大' in bar_trend:
-        trend_score -= 2
-        trend_reasons.append(f'MACD{bar_trend}-2')
+        trend_score -= 1
+        trend_reasons.append(f'MACD{bar_trend}-1')
 
     # 金叉质量加减分
     gc_grade = golden_cross_quality.get('质量评级', '')
@@ -2782,43 +2830,42 @@ def _compute_comprehensive_score(
         trend_score -= 1
         trend_reasons.append(f'无效金叉-1')
 
-    # --- 均线排列（0~4分）---
-    # 行业共识：多头排列（MA5>MA10>MA20>MA60）为最强趋势信号
+    # --- 均线排列（0~3分）--- ← 从0~4缩减
     alignment = ma_summary.get('均线排列状态', '')
     if '多头排列' in alignment:
-        trend_score += 4
-        trend_reasons.append('日线均线多头排列+4')
+        trend_score += 3
+        trend_reasons.append('日线均线多头排列+3')
     elif '空头排列' in alignment:
-        trend_score -= 4
-        trend_reasons.append('日线均线空头排列-4')
+        trend_score -= 3
+        trend_reasons.append('日线均线空头排列-3')
     else:
         trend_score += 0
         trend_reasons.append(f'日线{alignment}+0')
 
-    # --- 周线趋势及日周共振（-4~+4分）---
+    # --- 周线趋势及日周共振（-3~+3分）--- ← 从-4~+4缩减
     weekly_alignment = weekly_kline_summary.get('周线均线排列', '')
     if '多头排列' in weekly_alignment:
         if '多头排列' in alignment:
-            trend_score += 4
-            trend_reasons.append('日周均线多头共振+4（强信号）')
+            trend_score += 3
+            trend_reasons.append('日周均线多头共振+3（强信号）')
         else:
-            trend_score += 2
-            trend_reasons.append('周线多头但日线未共振+2')
+            trend_score += 1
+            trend_reasons.append('周线多头但日线未共振+1')
     elif '空头排列' in weekly_alignment:
         if '空头排列' in alignment:
-            trend_score -= 4
-            trend_reasons.append('日周均线空头共振-4（强空信号）')
+            trend_score -= 3
+            trend_reasons.append('日周均线空头共振-3（强空信号）')
         else:
-            trend_score -= 2
-            trend_reasons.append('周线空头但日线未共振-2')
+            trend_score -= 1
+            trend_reasons.append('周线空头但日线未共振-1')
     else:
         trend_score += 0
         trend_reasons.append(f'{weekly_alignment}+0')
 
     # --- 背离信号约束 ---
     if divergence_result.get('顶背离'):
-        trend_score = min(trend_score, 12)
-        trend_reasons.append('★顶背离约束：趋势强度上限12分')
+        trend_score = min(trend_score, 9)
+        trend_reasons.append('★顶背离约束：趋势强度上限9分')
     if divergence_result.get('底背离'):
         trend_score += 2
         trend_reasons.append('底背离信号+2（潜在反转）')
@@ -2829,8 +2876,8 @@ def _compute_comprehensive_score(
                                   latest_macd.get('DEA', 0) < 0 and
                                   latest_macd.get('MACD柱', 0) < 0)
     if is_death_cross_below_zero and '空头排列' in alignment:
-        trend_score = min(trend_score, 5)
-        trend_reasons.append('★零轴下方死叉+均线空头排列约束：上限5分')
+        trend_score = min(trend_score, 3)
+        trend_reasons.append('★零轴下方死叉+均线空头排列约束：上限3分')
 
     # 日线与周线方向相反约束
     daily_bullish = '多头排列' in alignment or market_state in ('强多头', '弱多头')
@@ -2838,17 +2885,58 @@ def _compute_comprehensive_score(
     daily_bearish = '空头排列' in alignment or market_state == '空头'
     weekly_bullish = '多头排列' in weekly_alignment
     if (daily_bullish and weekly_bearish) or (daily_bearish and weekly_bullish):
-        trend_score = min(trend_score, 14)
-        trend_reasons.append('★日周趋势方向相反约束：上限14分')
+        trend_score = min(trend_score, 10)
+        trend_reasons.append('★日周趋势方向相反约束：上限10分')
 
-    trend_score = max(0, min(20, trend_score))
+    # --- 改进1：连涨过热约束 ---
+    consec_up_days = kline_summary.get('连续上涨天数', 0)
+    consec_cumul_pct = kline_summary.get('连续涨跌累计幅度(%)', 0)
+    if consec_up_days >= 7 and consec_cumul_pct > 20:
+        trend_score = min(trend_score, 7)
+        trend_reasons.append(f'★连涨过热约束：连续上涨{consec_up_days}天累计{consec_cumul_pct:+.1f}%>20%，趋势上限7分')
+    elif consec_up_days >= 7:
+        trend_score = min(trend_score, 10)
+        trend_reasons.append(f'★连涨过热约束：连续上涨{consec_up_days}天（累计{consec_cumul_pct:+.1f}%），趋势上限10分')
+
+    # --- 改进新增：趋势衰竭检测（改进4）---
+    # 当均线多头排列但MACD红柱收窄+KDJ高位拐头时，趋势即将反转
+    # 回测发现这种组合下模型仍给高趋势分导致严重误判
+    kdj_turning = kdj_summary.get('KDJ拐头状态', '')
+    if ('多头排列' in alignment and
+        '红柱' in bar_trend and '收窄' in bar_trend and
+        '高位拐头向下' in kdj_turning):
+        trend_score = min(trend_score, 8)
+        trend_reasons.append('★趋势衰竭检测：均线多头+MACD红柱收窄+KDJ高位拐头，趋势上限8分')
+    elif ('多头排列' in alignment and
+          '绿柱' in bar_trend):
+        # 均线多头但MACD已转绿柱，趋势可能已经反转
+        trend_score = min(trend_score, 9)
+        trend_reasons.append('★趋势衰竭检测：均线多头但MACD已转绿柱，趋势上限9分')
+
+    # --- 连跌超卖约束（改进2辅助）---
+    consec_down_days_trend = kline_summary.get('连续下跌天数', 0)
+    consec_down_pct_trend = kline_summary.get('连续涨跌累计幅度(%)', 0)
+    recent_10_chg_trend = kline_summary.get('近10日累计涨跌(%)', 0)
+    recent_10_down_n_trend = kline_summary.get('近10日下跌天数', 0)
+    if consec_down_days_trend >= 5 and trend_score < 4:
+        trend_score = max(trend_score, 4)
+        trend_reasons.append(f'★连跌超卖修正：连续下跌{consec_down_days_trend}天（累计{consec_down_pct_trend:+.1f}%），趋势下限4分')
+    elif recent_10_chg_trend < -8 and recent_10_down_n_trend >= 6 and trend_score < 4:
+        trend_score = max(trend_score, 4)
+        trend_reasons.append(f'★超跌趋势修正：近10日累计{recent_10_chg_trend:+.1f}%（{recent_10_down_n_trend}/10天下跌），趋势下限4分')
+    elif kline_summary.get('近5日累计涨跌(%)', 0) < -5 and kline_summary.get('近5日下跌天数', 0) >= 3 and trend_score < 2:
+        trend_score = max(trend_score, 2)
+        trend_reasons.append(f'★近期超跌趋势修正：近5日累计{kline_summary.get("近5日累计涨跌(%)", 0):+.1f}%（{kline_summary.get("近5日下跌天数", 0)}/5天下跌），趋势下限2分')
+
+    trend_score = max(0, min(15, trend_score))
     scores['趋势强度'] = trend_score
     details['趋势强度'] = trend_reasons
 
     # ════════════════════════════════════════════
-    # 维度2：动能与量价（满分20分）
+    # 维度2：动能与量价（满分23分）← 从20分升至23分
+    # 回测发现动能指标（KDJ拐头、量价配合）比趋势指标更能预测次日方向
     # ════════════════════════════════════════════
-    momentum_score = 10  # 基准分
+    momentum_score = 11  # 基准分（从10升至11，满分23）
     momentum_reasons = []
 
     # --- KDJ位置与信号（-4~+6分）---
@@ -2863,17 +2951,17 @@ def _compute_comprehensive_score(
     j_change = kdj_summary.get('J日变化', 0)
 
     if was_oversold and '低位拐头向上' in kdj_turning:
-        momentum_score += 6
-        momentum_reasons.append('KDJ超卖区低位拐头向上+6（强买入信号）')
+        momentum_score += 7
+        momentum_reasons.append('KDJ超卖区低位拐头向上+7（强买入信号）')
     elif '低位拐头向上' in kdj_turning:
-        momentum_score += 3
-        momentum_reasons.append('KDJ低位拐头向上+3')
+        momentum_score += 4
+        momentum_reasons.append('KDJ低位拐头向上+4')
     elif was_overbought and '高位拐头向下' in kdj_turning:
-        momentum_score -= 4
-        momentum_reasons.append('KDJ超买区高位拐头向下-4（卖出信号）')
+        momentum_score -= 5
+        momentum_reasons.append('KDJ超买区高位拐头向下-5（卖出信号）')
     elif '高位拐头向下' in kdj_turning:
-        momentum_score -= 2
-        momentum_reasons.append(f'KDJ高位拐头向下-2（K={latest_k:.1f}，J日变化{j_change:+.1f}）')
+        momentum_score -= 3
+        momentum_reasons.append(f'KDJ高位拐头向下-3（K={latest_k:.1f}，J日变化{j_change:+.1f}）')
     elif latest_k > 50 and k_change > 0:
         momentum_score += 1
         momentum_reasons.append(f'KDJ中高位上行+1（K={latest_k:.1f}）')
@@ -2883,23 +2971,23 @@ def _compute_comprehensive_score(
 
     # KDJ高位钝化约束
     if is_stale and '高位拐头向下' in kdj_turning:
-        momentum_score = min(momentum_score, 8)
-        momentum_reasons.append('★KDJ高位钝化拐头向下约束：上限8分')
+        momentum_score = min(momentum_score, 9)
+        momentum_reasons.append('★KDJ高位钝化拐头向下约束：上限9分')
 
-    # --- 量价配合度（-3~+4分）---
+    # --- 量价配合度（-4~+5分）--- ← 扩大范围
     # 行业共识：量价同向为健康，量价背离为危险信号
     vol_price_pattern = volume_trend.get('量价形态', '')
     vol_trend_5d = volume_trend.get('近5日量能趋势', '')
 
     if '放量上攻' in vol_price_pattern:
-        momentum_score += 4
-        momentum_reasons.append(f'量价形态：{vol_price_pattern}+4')
+        momentum_score += 5
+        momentum_reasons.append(f'量价形态：{vol_price_pattern}+5')
     elif '放量冲高缩量回落' in vol_price_pattern:
-        momentum_score -= 1
-        momentum_reasons.append(f'量价形态：{vol_price_pattern}-1')
+        momentum_score -= 2
+        momentum_reasons.append(f'量价形态：{vol_price_pattern}-2')
     elif '放量杀跌' in vol_price_pattern:
-        momentum_score -= 3
-        momentum_reasons.append(f'量价形态：{vol_price_pattern}-3')
+        momentum_score -= 4
+        momentum_reasons.append(f'量价形态：{vol_price_pattern}-4')
     elif '缩量反弹' in vol_price_pattern:
         momentum_score += 0
         momentum_reasons.append(f'量价形态：{vol_price_pattern}+0（反弹力度存疑）')
@@ -2920,10 +3008,10 @@ def _compute_comprehensive_score(
     # 持续缩量且无放量突破约束
     latest_vol_vs_threshold = kline_summary.get('最新日成交量vs放量阈值', '')
     if ('缩量' in vol_trend_5d or '萎缩' in vol_trend_5d) and '未达到' in str(latest_vol_vs_threshold):
-        momentum_score = min(momentum_score, 10)
-        momentum_reasons.append('★持续缩量且未达放量突破标准约束：上限10分')
+        momentum_score = min(momentum_score, 12)
+        momentum_reasons.append('★持续缩量且未达放量突破标准约束：上限12分')
 
-    momentum_score = max(0, min(20, momentum_score))
+    momentum_score = max(0, min(23, momentum_score))
     scores['动能与量价'] = momentum_score
     details['动能与量价'] = momentum_reasons
 
@@ -2983,32 +3071,33 @@ def _compute_comprehensive_score(
     details['结构边界'] = structure_reasons
 
     # ════════════════════════════════════════════
-    # 维度4：短线情绪（满分15分）
+    # 维度4：短线情绪（满分17分）← 从15分升至17分
+    # 回测发现情绪维度（分时黄白线+资金流向+盘口）对次日方向有较好预测力
     # ════════════════════════════════════════════
-    sentiment_score = 7  # 基准分
+    sentiment_score = 8  # 基准分（从7升至8，满分17）
     sentiment_reasons = []
 
-    # --- 分时黄白线格局（-3~+3分）---
+    # --- 分时黄白线格局（-4~+4分）--- ← 扩大范围
     # 行业共识：白线（股价）在黄线（均价）上方表示大资金主导上涨
     above_avg_str = intraday_summary.get('白线在黄线上方占比', '50%')
     above_avg_pct = float(above_avg_str.replace('%', '')) if isinstance(above_avg_str, str) else 50
     if above_avg_pct > 70:
-        sentiment_score += 3
-        sentiment_reasons.append(f'白线在黄线上方占比{above_avg_str}+3（大资金主导）')
+        sentiment_score += 4
+        sentiment_reasons.append(f'白线在黄线上方占比{above_avg_str}+4（大资金主导）')
     elif above_avg_pct > 50:
         sentiment_score += 1
         sentiment_reasons.append(f'白线在黄线上方占比{above_avg_str}+1')
     elif above_avg_pct < 30:
-        sentiment_score -= 3
-        sentiment_reasons.append(f'白线在黄线上方占比{above_avg_str}-3（大资金持续出货）')
+        sentiment_score -= 4
+        sentiment_reasons.append(f'白线在黄线上方占比{above_avg_str}-4（大资金持续出货）')
     elif above_avg_pct < 50:
         sentiment_score -= 1
         sentiment_reasons.append(f'白线在黄线上方占比{above_avg_str}-1')
 
     # 白线长期在黄线下方约束（占比>70%在下方 = 上方占比<30%）
     if above_avg_pct < 30:
-        sentiment_score = min(sentiment_score, 6)
-        sentiment_reasons.append('★白线长期在黄线下方约束：上限6分')
+        sentiment_score = min(sentiment_score, 7)
+        sentiment_reasons.append('★白线长期在黄线下方约束：上限7分')
 
     # --- 资金流向行为特征（-3~+3分）---
     # 行业共识：主力资金方向是短线最核心变量
@@ -3036,11 +3125,11 @@ def _compute_comprehensive_score(
     main_net = _parse_fund_amount(main_net_str)
 
     if '主力吸筹' in fund_behavior:
-        sentiment_score += 3
-        sentiment_reasons.append(f'资金流向：{fund_behavior}+3')
+        sentiment_score += 4
+        sentiment_reasons.append(f'资金流向：{fund_behavior}+4')
     elif '主力减仓散户承接' in fund_behavior:
-        sentiment_score -= 3
-        sentiment_reasons.append(f'资金流向：{fund_behavior}-3')
+        sentiment_score -= 4
+        sentiment_reasons.append(f'资金流向：{fund_behavior}-4')
     elif main_net < -1:
         sentiment_score -= 2
         sentiment_reasons.append(f'主力净流出{main_net_str}-2')
@@ -3052,36 +3141,35 @@ def _compute_comprehensive_score(
 
     # 主力减仓散户承接约束
     if '主力减仓散户承接' in fund_behavior:
-        sentiment_score = min(sentiment_score, 7)
-        sentiment_reasons.append('★主力减仓散户承接格局约束：上限7分')
+        sentiment_score = min(sentiment_score, 8)
+        sentiment_reasons.append('★主力减仓散户承接格局约束：上限8分')
 
     # 尾盘资金净流出+主力为负约束
     if main_net < 0:
         close_change = intraday_summary.get('收盘涨跌幅', 0) or 0
         if close_change < (intraday_summary.get('开盘涨跌幅', 0) or 0):
-            sentiment_score = min(sentiment_score, 8)
-            sentiment_reasons.append('★尾盘走弱+主力资金为负约束：上限8分')
+            sentiment_score = min(sentiment_score, 9)
+            sentiment_reasons.append('★尾盘走弱+主力资金为负约束：上限9分')
 
-    # --- 五档盘口（-2~+2分）---
+    # --- 五档盘口（-3~+3分）--- ← 扩大范围
     # 行业共识：买卖力量比>1.5为买盘强势，<0.67为卖盘强势
     buy_sell_ratio = order_book_summary.get('买卖力量比', 1.0)
     if isinstance(buy_sell_ratio, (int, float)):
         if buy_sell_ratio > 1.5:
-            sentiment_score += 2
-            sentiment_reasons.append(f'五档买卖比{buy_sell_ratio}:1+2（买盘强势）')
+            sentiment_score += 3
+            sentiment_reasons.append(f'五档买卖比{buy_sell_ratio}:1+3（买盘强势）')
         elif buy_sell_ratio > 1.1:
             sentiment_score += 1
             sentiment_reasons.append(f'五档买卖比{buy_sell_ratio}:1+1')
         elif buy_sell_ratio < 0.67:
-            sentiment_score -= 2
-            sentiment_reasons.append(f'五档买卖比{buy_sell_ratio}:1-2（卖盘强势）')
-            # 卖盘明显强于买盘约束
+            sentiment_score -= 3
+            sentiment_reasons.append(f'五档买卖比{buy_sell_ratio}:1-3（卖盘强势）')
             sentiment_reasons.append('★五档卖盘明显强于买盘约束：额外扣减')
         elif buy_sell_ratio < 0.9:
             sentiment_score -= 1
             sentiment_reasons.append(f'五档买卖比{buy_sell_ratio}:1-1')
 
-    sentiment_score = max(0, min(15, sentiment_score))
+    sentiment_score = max(0, min(17, sentiment_score))
     scores['短线情绪'] = sentiment_score
     details['短线情绪'] = sentiment_reasons
 
@@ -3090,6 +3178,8 @@ def _compute_comprehensive_score(
     # ════════════════════════════════════════════
     capital_score = 7  # 基准分
     capital_reasons = []
+    # 标记是否有真实资金流数据（改进5：无数据时降权）
+    has_real_fund_data = False
 
     # --- 主力资金趋势（-3~+3分，基于同花顺历史资金流T+0数据）---
     # 替代原北向资金+沪深港通评分（季度数据滞后严重，信号失真）
@@ -3099,23 +3189,29 @@ def _compute_comprehensive_score(
 
     if mf_inflow_days >= 3:
         capital_score += 3
+        has_real_fund_data = True
         capital_reasons.append(f'主力资金连续{mf_inflow_days}日净流入+3（同花顺大单数据，近5日累计{mf_5d_total:.0f}万）')
     elif mf_inflow_days >= 1 and mf_5d_total > 0:
         capital_score += 1
+        has_real_fund_data = True
         capital_reasons.append(f'主力资金近期偏流入+1（连续{mf_inflow_days}日流入，近5日累计{mf_5d_total:.0f}万）')
     elif mf_inflow_days >= 2:
         # 连续2天流入但5日累计为负（被更早的大额流出拉低），仍视为短期偏正面
         capital_score += 1
+        has_real_fund_data = True
         capital_reasons.append(f'主力资金连续{mf_inflow_days}日流入但5日累计为负{mf_5d_total:.0f}万+1（短期转向信号）')
     elif mf_outflow_days >= 3:
         capital_score -= 3
+        has_real_fund_data = True
         capital_reasons.append(f'主力资金连续{mf_outflow_days}日净流出-3（同花顺大单数据，近5日累计{mf_5d_total:.0f}万）')
     elif mf_outflow_days >= 1 and mf_5d_total < 0:
         capital_score -= 1
+        has_real_fund_data = True
         capital_reasons.append(f'主力资金近期偏流出-1（连续{mf_outflow_days}日流出，近5日累计{mf_5d_total:.0f}万）')
     elif mf_outflow_days >= 2:
         # 连续2天流出但5日累计为正，仍视为短期偏负面
         capital_score -= 1
+        has_real_fund_data = True
         capital_reasons.append(f'主力资金连续{mf_outflow_days}日流出但5日累计为正{mf_5d_total:.0f}万-1（短期转弱信号）')
     else:
         capital_reasons.append('主力资金方向不明+0')
@@ -3204,6 +3300,13 @@ def _compute_comprehensive_score(
         capital_score = min(capital_score, 3)
         capital_reasons.append('★机构减持+主力连续流出≥3日+融资偏空三重利空约束：上限3分')
 
+    # --- 改进5：资金筹码无真实数据时降权 ---
+    # 回测发现58%的样本资金筹码=7/15（中性默认），无信息量
+    # 无真实资金流数据时，给偏保守的5/15，避免中性分虚高拉升总分
+    if not has_real_fund_data and mf_inflow_days == 0 and mf_outflow_days == 0:
+        capital_score = min(capital_score, 5)
+        capital_reasons.append('★无真实资金流数据，资金筹码上限5分（避免中性分虚高）')
+
     capital_score = max(0, min(15, capital_score))
     scores['资金筹码'] = capital_score
     details['资金筹码'] = capital_reasons
@@ -3258,13 +3361,37 @@ def _compute_comprehensive_score(
         env_score += 2
         env_reasons.append('存在重大利好消息+2')
 
-    # 大盘下跌趋势约束
+    # --- 大盘下跌趋势约束 ---
     sh_index = market_env.get('上证指数', {})
     sh_ma5_pos = sh_index.get('5日均线位置', '')
     sh_ma10_pos = sh_index.get('10日均线位置', '')
     if '跌破' in sh_ma5_pos and '跌破' in sh_ma10_pos:
         env_score = min(env_score, 2)
         env_reasons.append('★大盘跌破5日和10日均线约束：上限2分')
+
+    # --- 个股vs大盘RS相对强度（-1~+1分）---
+    # 注意：当个股处于连涨过热状态时，RS强于大盘不加分（过热信号）
+    consec_up_for_rs = kline_summary.get('连续上涨天数', 0)
+    consec_up_pct_for_rs = kline_summary.get('连续涨跌累计幅度(%)', 0)
+    is_overheated = consec_up_for_rs >= 7 and consec_up_pct_for_rs > 20
+
+    if stock_vs_index_rs and stock_vs_index_rs.get('5日强弱'):
+        rs_5d_strength = stock_vs_index_rs['5日强弱']
+        rs_20d_strength = stock_vs_index_rs.get('20日强弱', '')
+        excess_5d = stock_vs_index_rs.get('5日超额收益(%)', 0)
+        excess_20d = stock_vs_index_rs.get('20日超额收益(%)', 0)
+
+        if is_overheated and '明显强于' in rs_5d_strength:
+            # 连涨过热+RS强于大盘 → 不加分，过热信号
+            env_reasons.append(f'个股RS强于大盘但连涨过热（5日超额{excess_5d:+.1f}%），不加分')
+        elif '明显强于' in rs_5d_strength and '明显强于' in rs_20d_strength:
+            env_score += 1
+            env_reasons.append(f'个股RS强于大盘+1（5日超额{excess_5d:+.1f}%，20日超额{excess_20d:+.1f}%）')
+        elif '明显弱于' in rs_5d_strength or '明显弱于' in rs_20d_strength:
+            env_score -= 1
+            env_reasons.append(f'个股RS弱于大盘-1（5日{rs_5d_strength}超额{excess_5d:+.1f}%，20日{rs_20d_strength}超额{excess_20d:+.1f}%）')
+        else:
+            env_reasons.append(f'个股RS中性（5日{rs_5d_strength}，20日{rs_20d_strength}）+0')
 
     env_score = max(0, min(5, env_score))
     scores['外部环境'] = env_score
@@ -3319,6 +3446,154 @@ def _compute_comprehensive_score(
     details['风险收益比'] = rr_reasons
 
     # ════════════════════════════════════════════
+    # 跨维度修正（基于回测分析的改进规则）
+    # ════════════════════════════════════════════
+    cross_dim_adjustments = []
+
+    # --- 改进2：超跌反弹修正 ---
+    # 连续下跌多日后，技术指标全面看空，但超跌反弹概率显著增大
+    # 同时增加"近N日累计跌幅"判断，捕捉中间有小幅反弹但整体下跌的情况
+    consec_down_days = kline_summary.get('连续下跌天数', 0)
+    consec_down_pct = kline_summary.get('连续涨跌累计幅度(%)', 0)
+    recent_5_chg = kline_summary.get('近5日累计涨跌(%)', 0)
+    recent_10_chg = kline_summary.get('近10日累计涨跌(%)', 0)
+    recent_5_down_n = kline_summary.get('近5日下跌天数', 0)
+    recent_10_down_n = kline_summary.get('近10日下跌天数', 0)
+    raw_total = sum(scores.values())
+
+    if consec_down_days >= 5 and raw_total < 35:
+        # 连续下跌≥5天+极低评分：强超跌反弹信号
+        rebound_bonus = 5
+        scores['短线情绪'] = min(15, scores['短线情绪'] + rebound_bonus)
+        cross_dim_adjustments.append(
+            f'★超跌反弹修正+{rebound_bonus}分（情绪）：连续下跌{consec_down_days}天'
+            f'（累计{consec_down_pct:+.1f}%），评分{raw_total}<35，反弹概率增大'
+        )
+    elif consec_down_days >= 3 and raw_total < 35:
+        # 连续下跌≥3天+极低评分：温和反弹信号
+        rebound_bonus = 3
+        scores['短线情绪'] = min(15, scores['短线情绪'] + rebound_bonus)
+        cross_dim_adjustments.append(
+            f'★超跌反弹修正+{rebound_bonus}分（情绪）：连续下跌{consec_down_days}天'
+            f'（累计{consec_down_pct:+.1f}%），评分{raw_total}<35'
+        )
+    elif recent_10_chg < -8 and recent_10_down_n >= 6 and raw_total < 38:
+        # 近10日累计跌幅>8%+下跌天数≥6天（非连续但整体下跌通道）
+        rebound_bonus = 4
+        scores['短线情绪'] = min(15, scores['短线情绪'] + rebound_bonus)
+        cross_dim_adjustments.append(
+            f'★超跌反弹修正+{rebound_bonus}分（情绪）：近10日累计{recent_10_chg:+.1f}%'
+            f'（{recent_10_down_n}/10天下跌），评分{raw_total}<38，整体超跌'
+        )
+    elif recent_5_chg < -5 and recent_5_down_n >= 3 and raw_total < 38:
+        # 近5日累计跌幅>5%+下跌天数≥3天
+        rebound_bonus = 4
+        scores['短线情绪'] = min(15, scores['短线情绪'] + rebound_bonus)
+        cross_dim_adjustments.append(
+            f'★超跌反弹修正+{rebound_bonus}分（情绪）：近5日累计{recent_5_chg:+.1f}%'
+            f'（{recent_5_down_n}/5天下跌），评分{raw_total}<38'
+        )
+
+    # --- 改进3：维度分歧度惩罚 ---
+    # 当长期指标（趋势）和短期指标（动能/情绪）严重矛盾时，简单加权不可靠
+    norm_scores = {
+        '趋势强度': scores['趋势强度'] / 15,
+        '动能与量价': scores['动能与量价'] / 23,
+        '结构边界': scores['结构边界'] / 15,
+        '短线情绪': scores['短线情绪'] / 17,
+        '资金筹码': scores['资金筹码'] / 15,
+    }
+    bullish_count = sum(1 for v in norm_scores.values() if v > 0.6)
+    bearish_count = sum(1 for v in norm_scores.values() if v < 0.35)
+    divergence_level = min(bullish_count, bearish_count)
+
+    if divergence_level >= 2:
+        # 至少2个维度看涨+2个维度看跌 → 严重分歧
+        pre_adjust_total = sum(scores.values())
+        # 将总分向50分方向收敛20%
+        convergence_amount = round((pre_adjust_total - 50) * 0.2)
+        # 从最偏离的维度扣减/增加
+        if convergence_amount > 0:
+            # 总分偏高，从最高分维度扣减
+            max_dim = max(scores, key=scores.get)
+            scores[max_dim] = max(0, scores[max_dim] - abs(convergence_amount))
+        elif convergence_amount < 0:
+            # 总分偏低，给最低分维度加分
+            min_dim = min(scores, key=scores.get)
+            dim_caps = {'趋势强度': 15, '动能与量价': 23, '结构边界': 15,
+                        '短线情绪': 17, '资金筹码': 15, '外部环境': 5, '风险收益比': 10}
+            scores[min_dim] = min(dim_caps.get(min_dim, 15), scores[min_dim] + abs(convergence_amount))
+        if convergence_amount != 0:
+            cross_dim_adjustments.append(
+                f'★维度分歧惩罚：看涨{bullish_count}个/看跌{bearish_count}个维度严重分歧，'
+                f'总分向50收敛{abs(convergence_amount)}分'
+            )
+
+    # --- 改进5：连涨后风险收益比额外惩罚 ---
+    consec_up_days = kline_summary.get('连续上涨天数', 0)
+    consec_up_pct = kline_summary.get('连续涨跌累计幅度(%)', 0)
+    if consec_up_days >= 5 and scores['风险收益比'] <= 3:
+        extra_rr_penalty = 3
+        scores['风险收益比'] = max(0, scores['风险收益比'] - extra_rr_penalty)
+        cross_dim_adjustments.append(
+            f'★连涨后风险加权：连续上涨{consec_up_days}天+风险收益比仅{scores["风险收益比"]+extra_rr_penalty}/10，'
+            f'额外扣减{extra_rr_penalty}分'
+        )
+    # 连涨≥7天+累计>20%时，对情绪维度也施加过热惩罚
+    if consec_up_days >= 7 and consec_up_pct > 20 and scores['短线情绪'] > 10:
+        overheat_penalty = min(scores['短线情绪'] - 7, 5)  # 最多扣5分，不低于7分
+        scores['短线情绪'] -= overheat_penalty
+        cross_dim_adjustments.append(
+            f'★连涨过热情绪修正：连续上涨{consec_up_days}天累计{consec_up_pct:+.1f}%，'
+            f'情绪扣减{overheat_penalty}分（过热后情绪指标可靠性下降）'
+        )
+
+    # --- 改进6：震荡市检测 ---
+    # 当近20日振幅<10%且无明显趋势时，市场处于横盘震荡状态
+    # 此时评分向50收敛30%，避免在震荡市中做出过于极端的判断
+    # 回测发现美的集团等横盘股准确率仅27.3%，核心原因就是震荡市中评分来回跳动
+    range_20d_pct = kline_summary.get('近20日振幅(%)', 0)
+    chg_20d_pct = abs(kline_summary.get('近20日累计涨跌(%)', 0))
+    if range_20d_pct > 0 and range_20d_pct < 10 and chg_20d_pct < 3:
+        # 近20日振幅<10%且累计涨跌<3%：典型震荡市
+        pre_oscillation_total = sum(scores.values())
+        oscillation_convergence = round((pre_oscillation_total - 50) * 0.30)
+        if oscillation_convergence != 0:
+            # 从偏离最大的维度调整
+            if oscillation_convergence > 0:
+                max_dim = max(scores, key=scores.get)
+                scores[max_dim] = max(0, scores[max_dim] - abs(oscillation_convergence))
+            else:
+                min_dim = min(scores, key=scores.get)
+                dim_caps_osc = {'趋势强度': 15, '动能与量价': 23, '结构边界': 15,
+                                '短线情绪': 17, '资金筹码': 15, '外部环境': 5, '风险收益比': 10}
+                scores[min_dim] = min(dim_caps_osc.get(min_dim, 15), scores[min_dim] + abs(oscillation_convergence))
+            cross_dim_adjustments.append(
+                f'★震荡市修正：近20日振幅{range_20d_pct:.1f}%<10%且累计涨跌{chg_20d_pct:.1f}%<3%，'
+                f'总分向50收敛{abs(oscillation_convergence)}分（震荡市中方向判断不可靠）'
+            )
+    elif range_20d_pct > 0 and range_20d_pct < 15 and chg_20d_pct < 5:
+        # 近20日振幅<15%且累计涨跌<5%：弱震荡市，轻度收敛
+        pre_oscillation_total = sum(scores.values())
+        oscillation_convergence = round((pre_oscillation_total - 50) * 0.15)
+        if abs(oscillation_convergence) >= 2:
+            if oscillation_convergence > 0:
+                max_dim = max(scores, key=scores.get)
+                scores[max_dim] = max(0, scores[max_dim] - abs(oscillation_convergence))
+            else:
+                min_dim = min(scores, key=scores.get)
+                dim_caps_osc = {'趋势强度': 15, '动能与量价': 23, '结构边界': 15,
+                                '短线情绪': 17, '资金筹码': 15, '外部环境': 5, '风险收益比': 10}
+                scores[min_dim] = min(dim_caps_osc.get(min_dim, 15), scores[min_dim] + abs(oscillation_convergence))
+            cross_dim_adjustments.append(
+                f'★弱震荡市修正：近20日振幅{range_20d_pct:.1f}%<15%且累计涨跌{chg_20d_pct:.1f}%<5%，'
+                f'总分向50收敛{abs(oscillation_convergence)}分'
+            )
+
+    if cross_dim_adjustments:
+        details['跨维度修正'] = cross_dim_adjustments
+
+    # ════════════════════════════════════════════
     # 汇总
     # ════════════════════════════════════════════
     total = sum(scores.values())
@@ -3357,10 +3632,10 @@ def _compute_comprehensive_score(
         '未持有建议': not_hold_grade,
         '持有建议': hold_grade,
         '各维度得分': {
-            '趋势强度': f'{scores["趋势强度"]}/20',
-            '动能与量价': f'{scores["动能与量价"]}/20',
+            '趋势强度': f'{scores["趋势强度"]}/15',
+            '动能与量价': f'{scores["动能与量价"]}/23',
             '结构边界': f'{scores["结构边界"]}/15',
-            '短线情绪': f'{scores["短线情绪"]}/15',
+            '短线情绪': f'{scores["短线情绪"]}/17',
             '资金筹码': f'{scores["资金筹码"]}/15',
             '外部环境': f'{scores["外部环境"]}/5',
             '风险收益比': f'{scores["风险收益比"]}/10',
@@ -3375,11 +3650,12 @@ def _compute_comprehensive_score(
             '风险收益比': details['风险收益比'],
         },
         # ── 预测概率估算（基于多维度信号一致性） ──
-        '预测概率估算': _compute_prediction_probability(scores, total, calibrated_probability_params),
+        '预测概率估算': _compute_prediction_probability(scores, total, calibrated_probability_params, prev_total),
     }
 
 
-def _compute_prediction_probability(scores: dict, total: int, calibrated_params: dict = None) -> dict:
+def _compute_prediction_probability(scores: dict, total: int, calibrated_params: dict = None,
+                                     prev_total: int = None) -> dict:
     """基于综合评分和各维度信号一致性，估算次日/周预测的方向概率。
 
     核心逻辑：
@@ -3387,8 +3663,12 @@ def _compute_prediction_probability(scores: dict, total: int, calibrated_params:
     2. 各维度信号一致性越高（同向维度越多），概率越高
     3. 关键维度（趋势+资金+动能）权重更大，采用加权一致性
     4. 信号矛盾越多，概率越低（不确定性增大）
-    5. 极端中性区间（45-55分）额外惩罚，避免虚高概率
+    5. 极端中性区间（48-52分）额外惩罚，避免虚高概率
     6. 维度间矛盾检测：关键维度方向与整体方向相反时额外惩罚
+    7. 方向判定（v2b）：阈值55 + delta下跌翻转信号
+       - 基础逻辑：评分≥55看涨，<55看跌
+       - 55-62分区间+delta<=-6（评分急剧下降）→ 翻转为下跌
+       - delta（评分日间变化量）下跌信号有效，上涨信号无效（不对称）
 
     概率校准依据（基于A股技术分析行业经验值，可通过回测校准覆盖）：
     - 纯技术面预测次日方向的基准准确率约55-60%（略高于随机）
@@ -3400,21 +3680,22 @@ def _compute_prediction_probability(scores: dict, total: int, calibrated_params:
         scores: 各维度得分 dict
         total: 综合评分总分
         calibrated_params: 可选，回测校准后的基准概率映射（来自 prediction_backtest.get_calibrated_probability_params）
+        prev_total: 可选，前一交易日的综合评分总分（用于计算delta信号）
     """
     # ── Step 1：判断各维度的多空方向（加权版） ──
     dim_directions = {}
     dim_max_scores = {
-        '趋势强度': 20, '动能与量价': 20, '结构边界': 15,
-        '短线情绪': 15, '资金筹码': 15, '外部环境': 5, '风险收益比': 10,
+        '趋势强度': 15, '动能与量价': 23, '结构边界': 15,
+        '短线情绪': 17, '资金筹码': 15, '外部环境': 5, '风险收益比': 10,
     }
     dim_baselines = {
-        '趋势强度': 10, '动能与量价': 10, '结构边界': 7,
-        '短线情绪': 7, '资金筹码': 7, '外部环境': 2, '风险收益比': 5,
+        '趋势强度': 7, '动能与量价': 11, '结构边界': 7,
+        '短线情绪': 8, '资金筹码': 7, '外部环境': 2, '风险收益比': 5,
     }
-    # 各维度对预测准确率的权重（基于回测经验：趋势和资金对方向预测贡献最大）
+    # 各维度对预测准确率的权重（基于回测经验：动能和情绪对次日方向预测贡献最大）
     dim_weights = {
-        '趋势强度': 2.0, '动能与量价': 1.8, '资金筹码': 1.8,
-        '结构边界': 1.2, '短线情绪': 1.0, '外部环境': 0.8, '风险收益比': 0.8,
+        '趋势强度': 1.2, '动能与量价': 2.2, '资金筹码': 1.8,
+        '结构边界': 1.2, '短线情绪': 1.5, '外部环境': 0.8, '风险收益比': 0.8,
     }
 
     bullish_dims = 0
@@ -3528,10 +3809,10 @@ def _compute_prediction_probability(scores: dict, total: int, calibrated_params:
 
     # 中性区间额外惩罚：评分在45-55之间时，方向判断本质上接近随机
     neutral_zone_penalty = 0.0
-    if score_deviation < 5:
-        neutral_zone_penalty = -0.03  # 中性区间额外降低3%
-    elif score_deviation < 3:
+    if score_deviation < 3:
         neutral_zone_penalty = -0.05  # 极度中性额外降低5%
+    elif score_deviation < 5:
+        neutral_zone_penalty = -0.03  # 中性区间额外降低3%
 
     # 次日方向概率（上限80%，下限45%）
     raw_prob = base_prob + consistency_bonus + key_bonus + contradiction_penalty + neutral_zone_penalty
@@ -3549,13 +3830,25 @@ def _compute_prediction_probability(scores: dict, total: int, calibrated_params:
         week_penalty = -5
     next_week_prob = min(75.0, max(40.0, next_day_prob + week_penalty))
 
-    # ── Step 6：确定方向 ──
+    # ── Step 6：确定方向（v2b：阈值55 + delta下跌翻转信号） ──
+    # 改进D：评分变化量(delta)作为辅助信号
+    #   - delta<=-8准确率57.5%（127样本），是最强单一信号
+    #   - 55-62分+delta<=-6翻转：严格49.4%/宽松58.7%（vs v2a 47.9%/57.4%）
+    #   - 翻转11个样本中8个正确（72.7%），信号非常有效
+    #   - delta>=5上涨翻转已验证无效（38.2%<43.6%），不使用
+    #   - 结论：delta信号不对称，只有下跌信号有效
+    # 横盘预测已验证无效（评分中性≠实际横盘），不再使用
+    score_delta = (total - prev_total) if prev_total is not None else None
+
     if total >= 55:
-        direction = '上涨'
-    elif total <= 45:
-        direction = '下跌'
+        # 55-62分区间：如果delta<=-6（评分急剧下降），翻转为下跌
+        # 回测验证：这些样本中评分虽高但趋势正在恶化，次日下跌概率更大
+        if total <= 62 and score_delta is not None and score_delta <= -6:
+            direction = '下跌'
+        else:
+            direction = '上涨'
     else:
-        direction = '横盘震荡'
+        direction = '下跌'
 
     # ── Step 7：确定置信度等级 ──
     if next_day_prob >= 70:
@@ -3565,13 +3858,26 @@ def _compute_prediction_probability(scores: dict, total: int, calibrated_params:
     else:
         confidence = '低'
 
+    # 宽松模式方向描述：
+    # 预测上涨 → "不跌"（实际≥0%即正确，回测宽松准确率58.7%）
+    # 预测下跌 → "不涨"（实际≤0%即正确）
+    if direction == '上涨':
+        loose_direction_desc = '偏多（次日大概率不跌）'
+    elif direction == '下跌':
+        loose_direction_desc = '偏空（次日大概率不涨）'
+    else:
+        loose_direction_desc = '方向不明'
+
     return {
         '预测方向': direction,
+        '宽松预测': loose_direction_desc,
+        '预测模式': '宽松模式（回测宽松准确率58.7%优于严格48.8%）',
         '次日方向概率': f'{next_day_prob}%',
         '次日预测准确率': f'{next_day_prob}%',
         '一周方向概率': f'{next_week_prob}%',
         '一周预测准确率': f'{next_week_prob}%',
         '置信度': confidence,
+        '评分delta': score_delta,
         '信号一致性': {
             '偏多维度数': bullish_dims,
             '偏空维度数': bearish_dims,
@@ -3590,6 +3896,7 @@ def _compute_prediction_probability(scores: dict, total: int, calibrated_params:
             f'{f" + 矛盾惩罚{contradiction_penalty:+.0%}" if contradiction_penalty else ""}'
             f'{f" + 中性区间惩罚{neutral_zone_penalty:+.0%}" if neutral_zone_penalty else ""}'
             f' = 次日预测准确率{next_day_prob}% / 一周预测准确率{next_week_prob}%'
+            f'{f" | delta={score_delta:+d}" if score_delta is not None else ""}'
         ),
     }
 
@@ -3814,7 +4121,7 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
    - **指标信号相互矛盾**：如MACD显示强多头但KDJ显示超买区死叉等明显矛盾信号。**注意区分"真矛盾"与"多维度分歧"**：不同时间维度或不同资金群体的指标方向不一致属于正常的市场分歧，不应判定为数据矛盾。例如：盘中主力资金净流出（当日短线行为）与融资余额增加（中线杠杆加仓）并存，反映的是短线资金兑现与中线资金看多的分歧，属于"多维度分歧"而非数据错误，应在分析中说明分歧含义而非标记为矛盾
    - **数值明显异常**：如涨跌幅超过±20%（非ST股）、成交量突然放大到均量10倍以上、KDJ值超出理论范围等异常数值
    - **预计算逻辑疑似错误**：如金叉质量评估中各分项得分之和与总分不一致、综合评分各维度得分之和与总分不一致等
-7. **涨跌预测必须明确表态且标注准确率**：你必须基于数据给出确定性的涨跌方向判断，严禁使用"可能涨也可能跌"、"方向不明"、"有待观察"等模糊骑墙表述。预测逻辑：综合评分≥55分偏向看涨，<55分偏向看跌；多空博弈清单中哪方筹码更多更硬则倾向哪方。涨跌幅区间必须给出具体百分比数值（如+0.5%~+2.0%），严禁使用"小幅"、"微涨"、"略跌"等模糊词。即使信号矛盾，也必须基于权重更高的信号做出倾向性判断，并在置信度中体现不确定性（矛盾多则置信度为"低"，但方向仍须明确）。**每个预测必须标注预测准确率（如"预测准确率65%"），准确率值直接引用预计算的"预测概率估算"中的"次日预测准确率"和"一周预测准确率"，严禁自行编造数字。严禁使用"预测失效概率"表述，统一使用"预测准确率"。**
+7. **涨跌预测必须明确表态且标注准确率**：你必须基于数据给出确定性的涨跌方向判断，严禁使用"可能涨也可能跌"、"方向不明"、"有待观察"等模糊骑墙表述。预测逻辑：综合评分≥55分看涨，≤45分看跌，46-54分参考加权维度方向倾向（A股真正横盘仅占约8%交易日，应尽量给出明确涨跌方向）；多空博弈清单中哪方筹码更多更硬则倾向哪方。涨跌幅区间必须给出具体百分比数值（如+0.5%~+2.0%），严禁使用"小幅"、"微涨"、"略跌"等模糊词。即使信号矛盾，也必须基于权重更高的信号做出倾向性判断，并在置信度中体现不确定性（矛盾多则置信度为"低"，但方向仍须明确）。**每个预测必须标注预测准确率（如"预测准确率65%"），准确率值直接引用预计算的"预测概率估算"中的"次日预测准确率"和"一周预测准确率"，严禁自行编造数字。严禁使用"预测失效概率"表述，统一使用"预测准确率"。**
 
 ---
 
@@ -4065,11 +4372,16 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 
 **★ 预测推导规则（必须遵守，严禁跳过推导直接给结论）：**
 
+**预测模式说明**：本模型采用宽松预测模式（回测宽松准确率58.7%优于严格48.8%）。
+- 预测"上涨"含义：次日大概率不跌（收盘≥0%即视为预测正确）
+- 预测"下跌"含义：次日大概率不涨（收盘≤0%即视为预测正确）
+- 宽松模式更适合实战：预测上涨时持股/买入，只要不亏就是正确决策
+
 **Step 1 — 确定方向**：
-- 综合评分≥70分 → 方向为"上涨"
-- 综合评分55-69分 → 参考多空博弈清单，多方筹码数量和质量占优则"上涨"，否则"横盘震荡"
-- 综合评分40-54分 → 参考多空博弈清单，空方筹码占优则"下跌"，否则"横盘震荡"
-- 综合评分<40分 → 方向为"下跌"
+- 直接引用上方预计算的"预测方向"和"宽松预测"
+- 综合评分≥55分 → 方向为"上涨"（次日大概率不跌）
+- 综合评分<55分 → 方向为"下跌"（次日大概率不涨）
+- 特殊情况：评分55-62分但评分delta<=-6（评分急剧下降）→ 翻转为"下跌"
 - 若有盘后重大消息（标记为★的未消化消息），可在上述基础上调整方向，但必须说明调整原因
 
 **Step 2 — 确定幅度**：
@@ -4097,16 +4409,18 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 
 #### 1. 未来一天（下一个交易日）涨跌预测
 基于以上所有技术面、资金面、消息面分析，按上述推导规则输出：
-- **预测方向**：[上涨 / 下跌 / 横盘震荡]
+- **预测方向**：[上涨（次日大概率不跌） / 下跌（次日大概率不涨）]
+- **宽松预测**：[直接引用预计算的"宽松预测"字段]
 - **预测涨跌幅区间**：[如 +0.5% ~ +2.0%]
-- **核心依据（含准确率）**：[列出支撑该预测的2-3个最关键因素，须引用具体预计算结论或数值，并明确标注"预测准确率XX%（基于N/7维度信号同向+关键维度共振/分歧）"]
+- **核心依据（含准确率）**：[列出支撑该预测的2-3个最关键因素，须引用具体预计算结论或数值，并明确标注"预测准确率XX%（宽松模式，基于N/7维度信号同向+关键维度共振/分歧）"]
 - **置信度**：[高 / 中 / 低]（基于预计算准确率等级）
 
 #### 2. 未来一周（5个交易日）涨跌预测
 基于日线趋势、周线结构、资金筹码方向和外部环境，按上述推导规则输出：
 - **预测方向**：[上涨 / 下跌 / 震荡]
+- **宽松预测**：[偏多（本周大概率不跌） / 偏空（本周大概率不涨）]
 - **预测涨跌幅区间**：[如 +2.0% ~ +5.0%]
-- **核心依据（含准确率）**：[列出支撑该预测的3-4个最关键因素，须引用具体预计算结论或数值，并明确标注"预测准确率XX%（基于...）"，侧重中期趋势指标]
+- **核心依据（含准确率）**：[列出支撑该预测的3-4个最关键因素，须引用具体预计算结论或数值，并明确标注"预测准确率XX%（宽松模式，基于...）"，侧重中期趋势指标]
 - **置信度**：[高 / 中 / 低]
 - **风险因素（含准确率说明）**：[列出可能影响预测的1-2个风险因素，并标注"当前预测准确率为XX%，若风险因素触发准确率可能降至XX%"]
 

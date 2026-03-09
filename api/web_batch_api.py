@@ -86,7 +86,7 @@ async def lifespan(application: FastAPI):
     async def _boot():
         # 无论调度器是否成功，都要确保 app_ready 被触发，否则页面会卡住
         try:
-            await start_scheduler()
+            # await start_scheduler()
             logger.info("[lifespan] K线调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动K线调度器异常: %s", e, exc_info=True)
@@ -751,6 +751,89 @@ async def get_probability_calibration(batch_id: int = Query(None)):
     except Exception as e:
         logger.error("概率校准失败: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/backtest/historical")
+async def historical_backtest(
+    start_date: str = Query('2024-06-01'),
+    end_date: str = Query('2026-03-01'),
+    max_stocks: int = Query(30),
+    max_samples: int = Query(20),
+    interval: int = Query(5),
+):
+    """基于历史K线数据的自动回测（不依赖LLM预测记录）"""
+    try:
+        from service.backtest.historical_backtest import run_historical_backtest
+        result = run_historical_backtest(
+            start_date=start_date,
+            end_date=end_date,
+            sample_interval=interval,
+            max_stocks=max_stocks,
+            max_samples_per_stock=max_samples,
+        )
+        return SafeJSONResponse(content={"success": True, "data": result})
+    except Exception as e:
+        logger.error("历史回测失败: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/backtest/historical_fund_flow")
+async def historical_backtest_with_fund_flow(
+    max_stocks: int = Query(15),
+    max_samples: int = Query(6),
+    interval: int = Query(3),
+):
+    """基于历史K线 + 同花顺真实资金流数据的增强回测"""
+    try:
+        from service.backtest.historical_backtest import run_historical_backtest_with_fund_flow
+        result = await run_historical_backtest_with_fund_flow(
+            max_stocks=max_stocks,
+            sample_interval=interval,
+            max_samples_per_stock=max_samples,
+        )
+        return SafeJSONResponse(content={"success": True, "data": result})
+    except Exception as e:
+        logger.error("资金流增强回测失败: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/backtest/full_model")
+async def full_model_backtest(
+    max_stocks: int = Query(50),
+    concurrency: int = Query(5),
+):
+    """完整7维度评分模型回测（实时API数据，验证线上评分逻辑准确性）"""
+    try:
+        from service.backtest.full_model_backtest import run_full_model_backtest
+        result = await run_full_model_backtest(
+            max_stocks=max_stocks,
+            concurrency=concurrency,
+        )
+        return SafeJSONResponse(content={"success": True, "data": result})
+    except Exception as e:
+        logger.error("完整模型回测失败: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/backtest/technical")
+async def technical_backtest(
+    stock_codes: str = Query("002008.SZ,300750.SZ", description="逗号分隔的股票代码"),
+    start_date: str = Query("2026-01-20"),
+    end_date: str = Query("2026-03-07"),
+):
+    """技术+资金流+盘口维度逐日回测（K线+同花顺历史资金流+K线模拟盘口）"""
+    try:
+        from service.backtest.technical_backtest import run_technical_backtest
+        codes = [c.strip() for c in stock_codes.split(',') if c.strip()]
+        result = await run_technical_backtest(
+            stock_codes=codes,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        return SafeJSONResponse(content={"success": True, "data": result})
+    except Exception as e:
+        logger.error("纯技术回测失败: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.get("/api/batch/{batch_id}/technical_score_execute")
