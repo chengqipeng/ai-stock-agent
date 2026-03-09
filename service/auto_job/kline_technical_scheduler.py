@@ -82,10 +82,11 @@ _job_status = {
 def get_score_job_status() -> dict:
     status = dict(_job_status)
     if status.get("running"):
-        sc = status.get("_score_counter") or {}
-        status["score_total"] = sc.get("total", 0)
-        status["score_success"] = sc.get("success", 0)
-        status["score_failed"] = sc.get("failed", 0)
+        sc = status.get("_score_counter")
+        if sc:
+            status["score_total"] = sc.get("total", 0)
+            status["score_success"] = sc.get("success", 0)
+            status["score_failed"] = sc.get("failed", 0)
     status.pop("_score_counter", None)
     return status
 
