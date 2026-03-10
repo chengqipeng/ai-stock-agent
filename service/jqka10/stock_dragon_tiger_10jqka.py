@@ -1,11 +1,9 @@
 """
 同花顺龙虎榜数据模块
 
-数据来源：https://data.10jqka.com.cn/market/lhb/
-页面 SSR 渲染龙虎榜数据表格，包含：
-  排名、代码、名称、收盘价、涨跌幅、龙虎榜净买额、龙虎榜买入额、龙虎榜卖出额、
-  龙虎榜成交额、市场总成交额、净买额占总成交比、成交额占总成交比、
-  换手率、流通市值、上榜原因
+数据来源：https://data.10jqka.com.cn/market/longhu/
+页面 SSR 渲染龙虎榜数据，每只上榜股票一个 div.stockcont 块，包含：
+  股票名称、代码、上榜原因、成交额、合计买入额、合计卖出额
 
 使用 curl_cffi 模拟浏览器 TLS 指纹绕过反爬，GBK 编码解析。
 """
@@ -21,25 +19,7 @@ from curl_cffi.requests import AsyncSession
 logger = logging.getLogger(__name__)
 
 IMPERSONATE = "chrome131"
-BASE_URL = "https://data.10jqka.com.cn/market/lhb"
-
-# 龙虎榜表格字段
-LHB_FIELDS = [
-    "rank", "stock_code", "stock_name", "close_price", "change_pct",
-    "net_buy_amount", "buy_amount", "sell_amount",
-    "lhb_turnover", "market_turnover", "net_buy_ratio", "turnover_ratio",
-    "turnover_rate", "circulating_market_cap", "reason",
-]
-
-FIELD_CN_MAP = {
-    "rank": "排名", "stock_code": "代码", "stock_name": "名称",
-    "close_price": "收盘价", "change_pct": "涨跌幅",
-    "net_buy_amount": "龙虎榜净买额", "buy_amount": "龙虎榜买入额",
-    "sell_amount": "龙虎榜卖出额", "lhb_turnover": "龙虎榜成交额",
-    "market_turnover": "市场总成交额", "net_buy_ratio": "净买额占总成交比",
-    "turnover_ratio": "成交额占总成交比", "turnover_rate": "换手率",
-    "circulating_market_cap": "流通市值", "reason": "上榜原因",
-}
+BASE_URL = "https://data.10jqka.com.cn/market/longhu"
 
 
 def _clean_html(raw_bytes: bytes) -> str:
@@ -50,137 +30,131 @@ def _clean_html(raw_bytes: bytes) -> str:
     return text
 
 
-def _clean_text(td) -> str:
-    a_tag = td.find("a")
-    if a_tag:
-        return a_tag.get_text(strip=True)
-    return td.get_text(strip=True)
-
-
-def _parse_total_pages(soup: BeautifulSoup) -> int:
-    page_info = soup.find("span", class_="page_info")
-    if page_info:
-        m = re.search(r"(\d+)/(\d+)", page_info.get_text())
-        if m:
-            return int(m.group(2))
-    return 1
-
-
-def _parse_lhb_table(html: str) -> tuple[list[dict], int]:
-    """解析龙虎榜 HTML 表格，返回 (rows, total_pages)"""
+def _parse_longhu_page(html: str) -> list[dict]:
+    """
+    解析龙虎榜页面，提取每只股票的摘要信息。
+    返回: [{"stock_code": "301638", "stock_name": "南网数字",
+            "reason": "...", "turnover": "12.45亿元",
+            "buy_amount": "6.13亿元", "sell_amount": "6.33亿元"}, ...]
+    """
     soup = BeautifulSoup(html, "html.parser")
-    total_pages = _parse_total_pages(soup)
+    blocks = soup.find_all("div", class_="stockcont")
 
-    table = soup.find("table")
-    if not table:
-        return [], total_pages
+    results = []
+    seen = set()  # 同一只股票可能因多个原因多次上榜，合并去重
 
-    rows = []
-    for tr in table.find_all("tr"):
-        tds = tr.find_all("td")
-        if not tds:
+    for block in blocks:
+        p = block.find("p")
+        if not p:
             continue
-        values = [_clean_text(td) for td in tds]
-        if len(values) < len(LHB_FIELDS):
-            values.extend([""] * (len(LHB_FIELDS) - len(values)))
-        row = dict(zip(LHB_FIELDS, values[:len(LHB_FIELDS)]))
-        rows.append(row)
+        title_text = p.get_text(strip=True)
 
-    return rows, total_pages
+        m = re.match(r"(.+?)\((\d+)\)明细[：:](.+)", title_text)
+        if not m:
+            continue
+
+        stock_name = m.group(1).strip()
+        stock_code = m.group(2).strip()
+        reason = m.group(3).strip()
+
+        # 成交额、买入、卖出
+        cell = block.find("div", class_="cell-cont")
+        cell_text = cell.get_text() if cell else ""
+
+        turnover = ""
+        buy_amount = ""
+        sell_amount = ""
+
+        tm = re.search(r"成交额[：:]([^\s]+)", cell_text)
+        if tm:
+            turnover = tm.group(1)
+        bm = re.search(r"合计买入[：:]([^\s]+)", cell_text)
+        if bm:
+            buy_amount = bm.group(1)
+        sm = re.search(r"合计卖出[：:]([^\s]+)", cell_text)
+        if sm:
+            sell_amount = sm.group(1)
+
+        # 同一只股票多次上榜时，reason 拼接，金额取第一次出现的
+        if stock_code in seen:
+            for r in results:
+                if r["stock_code"] == stock_code:
+                    if reason not in r["reason"]:
+                        r["reason"] += "；" + reason
+                    break
+        else:
+            seen.add(stock_code)
+            results.append({
+                "stock_code": stock_code,
+                "stock_name": stock_name,
+                "reason": reason,
+                "turnover": turnover,
+                "buy_amount": buy_amount,
+                "sell_amount": sell_amount,
+            })
+
+    return results
+
+
+async def fetch_dragon_tiger_all_pages(
+    trade_date: str | None = None,
+) -> list[dict]:
+    """
+    获取指定日期的龙虎榜数据。
+
+    Args:
+        trade_date: 交易日期 YYYY-MM-DD，默认当天
+
+    Returns:
+        [{"stock_code", "stock_name", "reason", "turnover", "buy_amount", "sell_amount"}, ...]
+    """
+    if trade_date is None:
+        trade_date = date.today().isoformat()
+
+    date_compact = trade_date.replace("-", "")
+    url = f"{BASE_URL}/scode/all/stype/all/date/{date_compact}/"
+
+    async with AsyncSession(impersonate=IMPERSONATE) as session:
+        resp = await session.get(url, timeout=15)
+        resp.raise_for_status()
+        html = _clean_html(resp.content)
+
+    rows = _parse_longhu_page(html)
+    logger.info("[龙虎榜] 日期=%s 获取%d只股票", trade_date, len(rows))
+    return rows
 
 
 async def fetch_dragon_tiger(
     trade_date: str | None = None,
     page: int = 1,
 ) -> dict:
-    """
-    获取龙虎榜数据（单页）。
-
-    Args:
-        trade_date: 交易日期，格式 YYYY-MM-DD，默认当天
-        page: 页码
-
-    Returns:
-        {"date": "2025-01-01", "page": 1, "total_pages": 3, "data": [...]}
-    """
-    if trade_date is None:
-        trade_date = date.today().isoformat()
-
-    date_compact = trade_date.replace("-", "")
-
-    if page == 1:
-        url = f"{BASE_URL}/scode/all/stype/all/date/{date_compact}/"
-    else:
-        url = f"{BASE_URL}/scode/all/stype/all/date/{date_compact}/field/lhbJme/order/desc/page/{page}/"
-
-    async with AsyncSession(impersonate=IMPERSONATE) as session:
-        resp = await session.get(url, timeout=15)
-        resp.raise_for_status()
-        html = _clean_html(resp.content)
-
-    rows, total_pages = _parse_lhb_table(html)
-    logger.info("[龙虎榜] 日期=%s 第%d/%d页，获取%d条", trade_date, page, total_pages, len(rows))
-
+    """兼容旧接口，返回 {"date", "page", "total_pages", "data"}"""
+    rows = await fetch_dragon_tiger_all_pages(trade_date)
     return {
-        "date": trade_date,
-        "page": page,
-        "total_pages": total_pages,
+        "date": trade_date or date.today().isoformat(),
+        "page": 1,
+        "total_pages": 1,
         "data": rows,
     }
 
 
-async def fetch_dragon_tiger_all_pages(
-    trade_date: str | None = None,
-    max_pages: int = 0,
-) -> list[dict]:
-    """获取龙虎榜全部页数据"""
-    if trade_date is None:
-        trade_date = date.today().isoformat()
-
-    date_compact = trade_date.replace("-", "")
-
-    async with AsyncSession(impersonate=IMPERSONATE) as session:
-        # 第1页
-        url = f"{BASE_URL}/scode/all/stype/all/date/{date_compact}/"
-        resp = await session.get(url, timeout=15)
-        resp.raise_for_status()
-        html = _clean_html(resp.content)
-        rows, total_pages = _parse_lhb_table(html)
-        all_rows = list(rows)
-
-        logger.info("[龙虎榜] 日期=%s 第1/%d页，获取%d条", trade_date, total_pages, len(rows))
-
-        if max_pages > 0:
-            total_pages = min(total_pages, max_pages)
-
-        for p in range(2, total_pages + 1):
-            try:
-                page_url = f"{BASE_URL}/scode/all/stype/all/date/{date_compact}/field/lhbJme/order/desc/page/{p}/"
-                page_resp = await session.get(page_url, timeout=15)
-                page_resp.raise_for_status()
-                page_html = _clean_html(page_resp.content)
-                page_rows, _ = _parse_lhb_table(page_html)
-                all_rows.extend(page_rows)
-                logger.info("[龙虎榜] 日期=%s 第%d/%d页，获取%d条", trade_date, p, total_pages, len(page_rows))
-            except Exception as e:
-                logger.error("[龙虎榜] 第%d页请求异常: %s", p, e)
-
-    logger.info("[龙虎榜] 日期=%s 共获取%d条（%d页）", trade_date, len(all_rows), total_pages)
-    return all_rows
-
-
 def to_cn_rows(rows: list[dict]) -> list[dict]:
     """将英文 key 转为中文 key"""
-    return [{FIELD_CN_MAP.get(k, k): v for k, v in row.items()} for row in rows]
+    cn_map = {
+        "stock_code": "代码", "stock_name": "名称",
+        "reason": "上榜原因", "turnover": "成交额",
+        "buy_amount": "买入额", "sell_amount": "卖出额",
+    }
+    return [{cn_map.get(k, k): v for k, v in row.items()} for row in rows]
 
 
 if __name__ == "__main__":
     import json
 
     async def main():
-        result = await fetch_dragon_tiger()
-        print(f"总页数: {result['total_pages']}, 本页: {len(result['data'])}条")
-        for row in result["data"][:5]:
+        rows = await fetch_dragon_tiger_all_pages("2026-03-07")
+        print(f"共 {len(rows)} 只股票")
+        for row in rows[:10]:
             print(json.dumps(row, ensure_ascii=False))
 
     asyncio.run(main())
