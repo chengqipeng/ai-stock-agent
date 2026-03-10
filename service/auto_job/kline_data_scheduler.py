@@ -460,7 +460,6 @@ async def _execute_job():
             "finance_total": finance_counter.get("total", 0),
             "finance_success": finance_counter.get("success", 0),
             "finance_failed": finance_counter.get("failed", 0),
-            "running": False,
             "_kline_counter": None,
             "_finance_counter": None,
         })
@@ -494,11 +493,14 @@ async def _execute_job():
         err_msg = f"任务异常终止: {type(e).__name__}: {e}"
         err_detail = f"{err_msg}\n{_tb.format_exc()}"
         logger.error("[定时调度] %s", err_msg, exc_info=True)
-        _job_status.update({"running": False, "error": err_msg, "_kline_counter": None, "_finance_counter": None})
+        _job_status.update({"error": err_msg, "_kline_counter": None, "_finance_counter": None})
         try:
             update_log(log_id, "failed", detail=err_detail)
         except Exception:
             pass
+    finally:
+        _job_status["running"] = False
+        _save_persisted_status(_job_status)
 
 
 async def _scheduler_loop():

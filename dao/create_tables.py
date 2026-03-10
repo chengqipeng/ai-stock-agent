@@ -228,6 +228,85 @@ _TABLES = [
         INDEX idx_ts_created (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
+    # ── stock_time_data（分时数据） ──
+    """
+    CREATE TABLE IF NOT EXISTS stock_time_data (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        stock_code VARCHAR(20) NOT NULL,
+        trade_date VARCHAR(20) NOT NULL,
+        `time` VARCHAR(10) NOT NULL,
+        close_price DOUBLE,
+        trading_amount DOUBLE,
+        avg_price DOUBLE,
+        trading_volume BIGINT,
+        change_percent DOUBLE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_code_date_time (stock_code, trade_date, `time`),
+        INDEX idx_stock_code (stock_code),
+        INDEX idx_trade_date (trade_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+
+    # ── stock_order_book（盘口数据） ──
+    """
+    CREATE TABLE IF NOT EXISTS stock_order_book (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        stock_code VARCHAR(20) NOT NULL,
+        trade_date VARCHAR(20) NOT NULL,
+        current_price DOUBLE,
+        open_price DOUBLE,
+        prev_close DOUBLE,
+        high_price DOUBLE,
+        low_price DOUBLE,
+        volume BIGINT COMMENT '成交量（手）',
+        amount VARCHAR(50) COMMENT '成交额',
+        buy1_price DOUBLE, buy1_vol INT,
+        buy2_price DOUBLE, buy2_vol INT,
+        buy3_price DOUBLE, buy3_vol INT,
+        buy4_price DOUBLE, buy4_vol INT,
+        buy5_price DOUBLE, buy5_vol INT,
+        sell1_price DOUBLE, sell1_vol INT,
+        sell2_price DOUBLE, sell2_vol INT,
+        sell3_price DOUBLE, sell3_vol INT,
+        sell4_price DOUBLE, sell4_vol INT,
+        sell5_price DOUBLE, sell5_vol INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_code_date (stock_code, trade_date),
+        INDEX idx_stock_code (stock_code),
+        INDEX idx_trade_date (trade_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+
+    # ── stock_dragon_tiger（龙虎榜数据） ──
+    """
+    CREATE TABLE IF NOT EXISTS stock_dragon_tiger (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        trade_date VARCHAR(20) NOT NULL,
+        `rank` INT,
+        stock_code VARCHAR(20) NOT NULL,
+        stock_name VARCHAR(100),
+        close_price VARCHAR(50),
+        change_pct VARCHAR(50),
+        net_buy_amount VARCHAR(50),
+        buy_amount VARCHAR(50),
+        sell_amount VARCHAR(50),
+        lhb_turnover VARCHAR(50),
+        market_turnover VARCHAR(50),
+        net_buy_ratio VARCHAR(50),
+        turnover_ratio VARCHAR(50),
+        turnover_rate VARCHAR(50),
+        circulating_market_cap VARCHAR(50),
+        reason VARCHAR(500),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_date_code (trade_date, stock_code),
+        INDEX idx_stock_code (stock_code),
+        INDEX idx_trade_date (trade_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+
     # ── stock_kline_screening_history（K线初筛历史记录，每次分析都产生新记录） ──
     """
     CREATE TABLE IF NOT EXISTS stock_kline_screening_history (

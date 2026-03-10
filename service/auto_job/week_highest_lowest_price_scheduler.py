@@ -273,8 +273,8 @@ async def _execute_job():
             update_log(log_id, "failed", detail=err_detail)
         except Exception:
             pass
-
-    _job_status["running"] = False
+    finally:
+        _job_status["running"] = False
 
 
 async def _scheduler_loop():

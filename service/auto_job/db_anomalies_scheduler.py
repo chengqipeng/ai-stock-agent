@@ -234,11 +234,13 @@ async def _execute_job():
         err_msg = f"任务异常终止: {type(e).__name__}: {e}"
         err_detail = f"{err_msg}\n{_tb.format_exc()}"
         logger.error("[数据异常检测] %s", err_msg, exc_info=True)
-        _job_status.update({"running": False, "error": err_msg, "_counter": None})
+        _job_status.update({"error": err_msg, "_counter": None})
         try:
             update_log(log_id, "failed", detail=err_detail)
         except Exception:
             pass
+    finally:
+        _job_status["running"] = False
 
 
 async def _scheduler_loop():
