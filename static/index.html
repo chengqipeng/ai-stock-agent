@@ -681,8 +681,8 @@
     </style>
 </head>
 <body>
-    <div class="header" style="display: grid; grid-template-columns: auto 1fr 1fr; grid-template-rows: auto auto auto auto; gap: 4px 8px; align-items: center;">
-        <h1 style="grid-row: 1 / 5;">📊 批量股票分析</h1>
+    <div class="header" style="display: grid; grid-template-columns: auto 1fr 1fr; grid-template-rows: auto auto auto; gap: 4px 8px; align-items: center;">
+        <h1 style="grid-row: 1 / 4;">📊 批量股票分析</h1>
         <div id="klineJobBanner" style="
             background: rgba(255,255,255,0.2);
             border-radius: 8px;
@@ -3552,7 +3552,15 @@
                     banner.style.background = 'rgba(255,255,255,0.2)';
                 }
             } catch (e) {
-                // 静默失败
+                // API 可能尚未就绪，显示默认等待状态
+                const banner = document.getElementById('marketDataJobBanner');
+                const icon = document.getElementById('marketDataJobIcon');
+                const text = document.getElementById('marketDataJobText');
+                if (banner && icon && text) {
+                    icon.textContent = '⏳';
+                    text.textContent = '盘后数据等待调度中（每个交易日16:00自动执行）';
+                    banner.style.background = 'rgba(255,255,255,0.2)';
+                }
             }
         }
     </script>
