@@ -202,6 +202,8 @@ async def _execute_job():
                            total_failed, total_skipped, detail)
             except Exception:
                 pass
+
+    except Exception as e:
         import traceback as _tb
         err_msg = f"任务异常终止: {type(e).__name__}: {e}"
         err_detail = f"{err_msg}\n{_tb.format_exc()}"

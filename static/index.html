@@ -681,8 +681,8 @@
     </style>
 </head>
 <body>
-    <div class="header" style="display: grid; grid-template-columns: auto 1fr 1fr; grid-template-rows: auto auto auto; gap: 4px 8px; align-items: center;">
-        <h1 style="grid-row: 1 / 4;">📊 批量股票分析</h1>
+    <div class="header" style="display: grid; grid-template-columns: auto 1fr 1fr; grid-template-rows: auto auto auto auto; gap: 4px 8px; align-items: center;">
+        <h1 style="grid-row: 1 / 5;">📊 批量股票分析</h1>
         <div id="klineJobBanner" style="
             background: rgba(255,255,255,0.2);
             border-radius: 8px;
@@ -792,6 +792,28 @@
             <button onclick="triggerJob('db_check')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
             <a href="/scheduler_logs?job_name=数据异常检测" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
             <div class="job-progress-bar"><div id="dbCheckJobProgress" class="job-progress-fill" style="width:0%"></div></div>
+        </div>
+        <div id="marketDataJobBanner" style="
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            position: relative;
+        ">
+            <span id="marketDataJobIcon" class="job-icon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
+            <span id="marketDataJobText" style="overflow: hidden; text-overflow: ellipsis;">盘后数据状态加载中<span class="job-dots"></span></span>
+            <span id="marketDataJobElapsed" class="job-elapsed"></span>
+            <button onclick="triggerJob('market_data')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
+            <a href="/scheduler_logs?job_name=盘后数据" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
+            <div class="job-progress-bar"><div id="marketDataJobProgress" class="job-progress-fill" style="width:0%"></div></div>
         </div>
     </div>
 
@@ -3040,7 +3062,7 @@
 
         // ─── 手动触发调度任务 ───
         async function triggerJob(jobType) {
-            const names = {kline:'日线数据',price:'最高最低价',score:'技术打分',kline_score:'K线初筛',db_check:'数据异常检测'};
+            const names = {kline:'日线数据',price:'最高最低价',score:'技术打分',kline_score:'K线初筛',db_check:'数据异常检测',market_data:'盘后数据'};
             if (!confirm('确认手动执行「' + names[jobType] + '」任务？')) return;
             try {
                 const resp = await fetch('/api/trigger_' + jobType + '_job', {method:'POST'});
@@ -3320,10 +3342,11 @@
                 pollPriceJobStatus(),
                 pollScoreJobStatus(),
                 pollKlineScoreJobStatus(),
-                pollDbCheckJobStatus()
+                pollDbCheckJobStatus(),
+                pollMarketDataJobStatus()
             ]);
             // 检测是否有任务在运行
-            const banners = ['klineJobBanner','priceJobBanner','scoreJobBanner','klineScoreJobBanner','dbCheckJobBanner'];
+            const banners = ['klineJobBanner','priceJobBanner','scoreJobBanner','klineScoreJobBanner','dbCheckJobBanner','marketDataJobBanner'];
             _anyJobRunning = banners.some(id => document.getElementById(id)?.classList.contains('banner-running'));
             // 动态调整轮询间隔
             clearTimeout(_pollTimer);
@@ -3449,6 +3472,83 @@
                 } else {
                     icon.textContent = '⏳';
                     text.textContent = '数据异常检测等待日线完成后自动执行';
+                    banner.style.background = 'rgba(255,255,255,0.2)';
+                }
+            } catch (e) {
+                // 静默失败
+            }
+        }
+
+        // ─── 盘后数据（分时/盘口/龙虎榜）状态轮询 ───
+        async function pollMarketDataJobStatus() {
+            try {
+                const resp = await fetch('/api/market_data_job_status');
+                const json = await resp.json();
+                if (!json.success) return;
+                const d = json.data;
+                const banner = document.getElementById('marketDataJobBanner');
+                const icon = document.getElementById('marketDataJobIcon');
+                const text = document.getElementById('marketDataJobText');
+                setBannerRunning(banner, d.running);
+
+                if (d.error && !d.running) {
+                    icon.textContent = '❌';
+                    text.textContent = '盘后数据执行异常: ' + d.error;
+                    banner.style.background = 'rgba(217,83,79,0.25)';
+                } else if (d.running) {
+                    const tTotal = d.time_data_total || 0;
+                    const tDone = (d.time_data_success || 0) + (d.time_data_failed || 0);
+                    const oTotal = d.order_book_total || 0;
+                    const oDone = (d.order_book_success || 0) + (d.order_book_failed || 0);
+                    const dtCount = d.dragon_tiger_count || 0;
+                    const totalAll = tTotal + oTotal;
+                    const doneAll = tDone + oDone;
+                    const totalFail = (d.time_data_failed || 0) + (d.order_book_failed || 0);
+                    const pct = totalAll > 0 ? Math.round((doneAll / totalAll) * 100) : 0;
+                    icon.textContent = '🔄';
+                    let msg = '盘后数据拉取中';
+                    if (totalAll > 0) {
+                        msg += '  ' + pct + '%  分时' + tDone + '/' + tTotal + '  盘口' + oDone + '/' + oTotal;
+                        if (dtCount > 0) msg += '  龙虎榜' + dtCount + '条';
+                        if (totalFail > 0) msg += '  失败' + totalFail;
+                    }
+                    text.textContent = msg;
+                    updateJobProgress('marketDataJobProgress', 'marketDataJobElapsed', doneAll, totalAll, d.start_time);
+                } else if (d.last_run_time) {
+                    const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
+                    const isToday = d.last_run_date === today;
+                    const tSuccess = d.time_data_success || 0;
+                    const tTotal = d.time_data_total || 0;
+                    const tFail = d.time_data_failed || 0;
+                    const oSuccess = d.order_book_success || 0;
+                    const oTotal = d.order_book_total || 0;
+                    const oFail = d.order_book_failed || 0;
+                    const dtCount = d.dragon_tiger_count || 0;
+                    const totalFail = tFail + oFail;
+                    if (isToday) {
+                        let detail = d.last_run_time + ' 盘后数据拉取完成';
+                        detail += '  分时' + tSuccess + '/' + tTotal;
+                        if (tFail > 0) detail += '(失败' + tFail + ')';
+                        detail += '  盘口' + oSuccess + '/' + oTotal;
+                        if (oFail > 0) detail += '(失败' + oFail + ')';
+                        detail += '  龙虎榜' + dtCount + '条';
+                        if (totalFail === 0) {
+                            icon.textContent = '✅';
+                            text.textContent = detail;
+                            banner.style.background = 'rgba(92,184,92,0.25)';
+                        } else {
+                            icon.textContent = '⚠️';
+                            text.textContent = detail;
+                            banner.style.background = 'rgba(217,83,79,0.25)';
+                        }
+                    } else {
+                        icon.textContent = '⏳';
+                        text.textContent = '盘后数据等待调度中（每个交易日16:00自动执行）  上次执行: ' + d.last_run_time;
+                        banner.style.background = 'rgba(255,255,255,0.2)';
+                    }
+                } else {
+                    icon.textContent = '⏳';
+                    text.textContent = '盘后数据等待调度中（每个交易日16:00自动执行）';
                     banner.style.background = 'rgba(255,255,255,0.2)';
                 }
             } catch (e) {
