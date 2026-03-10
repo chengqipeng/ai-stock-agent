@@ -681,8 +681,8 @@
     </style>
 </head>
 <body>
-    <div class="header" style="display: grid; grid-template-columns: auto 1fr 1fr; grid-template-rows: auto auto auto; gap: 4px 8px; align-items: center;">
-        <h1 style="grid-row: 1 / 4;">📊 批量股票分析</h1>
+    <div class="header" style="display: grid; grid-template-columns: auto 1fr 1fr; grid-template-rows: auto auto auto auto; gap: 4px 8px; align-items: center;">
+        <h1 style="grid-row: 1 / 5;">📊 批量股票分析</h1>
         <div id="klineJobBanner" style="
             background: rgba(255,255,255,0.2);
             border-radius: 8px;
@@ -814,6 +814,28 @@
             <button onclick="triggerJob('market_data')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
             <a href="/scheduler_logs?job_name=盘后数据" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
             <div class="job-progress-bar"><div id="marketDataJobProgress" class="job-progress-fill" style="width:0%"></div></div>
+        </div>
+        <div id="usMarketJobBanner" style="
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            position: relative;
+        ">
+            <span id="usMarketJobIcon" class="job-icon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
+            <span id="usMarketJobText" style="overflow: hidden; text-overflow: ellipsis;">海外数据状态加载中<span class="job-dots"></span></span>
+            <span id="usMarketJobElapsed" class="job-elapsed"></span>
+            <button onclick="triggerJob('us_market')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
+            <a href="/scheduler_logs?job_name=海外数据" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
+            <div class="job-progress-bar"><div id="usMarketJobProgress" class="job-progress-fill" style="width:0%"></div></div>
         </div>
     </div>
 
@@ -3062,7 +3084,7 @@
 
         // ─── 手动触发调度任务 ───
         async function triggerJob(jobType) {
-            const names = {kline:'日线数据',price:'最高最低价',score:'技术打分',kline_score:'K线初筛',db_check:'数据异常检测',market_data:'盘后数据'};
+            const names = {kline:'日线数据',price:'最高最低价',score:'技术打分',kline_score:'K线初筛',db_check:'数据异常检测',market_data:'盘后数据',us_market:'海外市场数据'};
             if (!confirm('确认手动执行「' + names[jobType] + '」任务？')) return;
             try {
                 const resp = await fetch('/api/trigger_' + jobType + '_job', {method:'POST'});
@@ -3343,10 +3365,11 @@
                 pollScoreJobStatus(),
                 pollKlineScoreJobStatus(),
                 pollDbCheckJobStatus(),
-                pollMarketDataJobStatus()
+                pollMarketDataJobStatus(),
+                pollUsMarketJobStatus()
             ]);
             // 检测是否有任务在运行
-            const banners = ['klineJobBanner','priceJobBanner','scoreJobBanner','klineScoreJobBanner','dbCheckJobBanner','marketDataJobBanner'];
+            const banners = ['klineJobBanner','priceJobBanner','scoreJobBanner','klineScoreJobBanner','dbCheckJobBanner','marketDataJobBanner','usMarketJobBanner'];
             _anyJobRunning = banners.some(id => document.getElementById(id)?.classList.contains('banner-running'));
             // 动态调整轮询间隔
             clearTimeout(_pollTimer);
@@ -3559,6 +3582,62 @@
                 if (banner && icon && text) {
                     icon.textContent = '⏳';
                     text.textContent = '盘后数据等待调度中（每个交易日16:00自动执行）';
+                    banner.style.background = 'rgba(255,255,255,0.2)';
+                }
+            }
+        }
+        // ─── 海外市场数据状态轮询 ───
+        async function pollUsMarketJobStatus() {
+            try {
+                const resp = await fetch('/api/us_market_job_status');
+                const json = await resp.json();
+                if (!json.success) return;
+                const d = json.data;
+                const banner = document.getElementById('usMarketJobBanner');
+                const icon = document.getElementById('usMarketJobIcon');
+                const text = document.getElementById('usMarketJobText');
+                setBannerRunning(banner, d.running);
+
+                if (d.error && !d.running) {
+                    icon.textContent = '❌';
+                    text.textContent = '海外数据执行异常: ' + d.error;
+                    banner.style.background = 'rgba(217,83,79,0.25)';
+                } else if (d.running) {
+                    const kline = d.kline_count || 0;
+                    const idx = d.index_realtime_count || 0;
+                    const rank = d.ranking_count || 0;
+                    icon.textContent = '🔄';
+                    let msg = '海外数据拉取中';
+                    if (kline + idx + rank > 0) {
+                        msg += '  K线' + kline + '  指数' + idx + '  涨幅榜' + rank;
+                    }
+                    text.textContent = msg;
+                    updateJobProgress('usMarketJobProgress', 'usMarketJobElapsed', kline + idx + rank, 572, d.last_run_time);
+                } else if (d.last_run_date) {
+                    const kline = d.kline_count || 0;
+                    const idx = d.index_realtime_count || 0;
+                    const rank = d.ranking_count || 0;
+                    if (d.last_success) {
+                        icon.textContent = '✅';
+                        text.textContent = (d.last_run_time || d.last_run_date) + ' 海外数据完成  K线' + kline + '  指数' + idx + '  涨幅榜' + rank;
+                        banner.style.background = 'rgba(92,184,92,0.25)';
+                    } else {
+                        icon.textContent = '⚠️';
+                        text.textContent = (d.last_run_time || d.last_run_date) + ' 海外数据部分失败';
+                        banner.style.background = 'rgba(240,173,78,0.25)';
+                    }
+                } else {
+                    icon.textContent = '⏳';
+                    text.textContent = '海外数据等待调度中（每天06:00自动执行）';
+                    banner.style.background = 'rgba(255,255,255,0.2)';
+                }
+            } catch (e) {
+                const banner = document.getElementById('usMarketJobBanner');
+                const icon = document.getElementById('usMarketJobIcon');
+                const text = document.getElementById('usMarketJobText');
+                if (banner && icon && text) {
+                    icon.textContent = '⏳';
+                    text.textContent = '海外数据等待调度中（每天06:00自动执行）';
                     banner.style.background = 'rgba(255,255,255,0.2)';
                 }
             }

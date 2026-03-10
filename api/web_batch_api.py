@@ -74,6 +74,8 @@ from service.auto_job.db_anomalies_scheduler import start_db_check_scheduler, ge
 from service.auto_job.db_anomalies_scheduler import _execute_job as _db_check_execute_job
 from service.auto_job.market_data_scheduler import start_market_data_scheduler, get_market_data_job_status
 from service.auto_job.market_data_scheduler import _execute_job as _market_data_execute_job
+from service.auto_job.us_market_data_scheduler import start_us_market_data_scheduler, get_us_market_job_status
+from service.auto_job.us_market_data_scheduler import _execute_job as _us_market_execute_job
 from service.batch_technical_score.batch_technical_score import analyze_stock as technical_analyze_stock
 
 GRADE_SCORE_MAP = {
@@ -122,6 +124,12 @@ async def lifespan(application: FastAPI):
             logger.info("[lifespan] 盘后数据调度器已激活（分时/盘口/龙虎榜）")
         except Exception as e:
             logger.error("[lifespan] 启动盘后数据调度器异常: %s", e, exc_info=True)
+
+        try:
+            await start_us_market_data_scheduler()
+            logger.info("[lifespan] 海外市场数据调度器已激活")
+        except Exception as e:
+            logger.error("[lifespan] 启动海外市场数据调度器异常: %s", e, exc_info=True)
 
         # 关键：app_ready 必须在 try 之外，确保一定会被 set
         app_ready.set()
@@ -264,6 +272,22 @@ async def trigger_market_data_job():
         return {"success": False, "message": "盘后数据任务正在执行中"}
     asyncio.create_task(_market_data_execute_job())
     return {"success": True, "message": "盘后数据任务已触发（分时/盘口/龙虎榜）"}
+
+
+@app.get("/api/us_market_job_status")
+async def us_market_job_status():
+    """获取海外市场数据定时任务状态"""
+    return {"success": True, "data": get_us_market_job_status()}
+
+
+@app.post("/api/trigger_us_market_job")
+async def trigger_us_market_job():
+    """手动触发海外市场数据拉取"""
+    status = get_us_market_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "海外市场数据任务正在执行中"}
+    asyncio.create_task(_us_market_execute_job())
+    return {"success": True, "message": "海外市场数据任务已触发（美股K线/全球指数/涨幅榜）"}
 
 
 @app.get("/api/stock_list")
