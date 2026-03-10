@@ -254,6 +254,10 @@ def extract_publish_datetime(html_text: str) -> str | None:
         match = pattern.search(text)
         if match:
             raw = match.group(1).replace('/', '-')
+            # 跳过明显无效的占位日期（如 00-00、0000-00-00 等）
+            if re.search(r'\b0+[-/]0+\b', raw):
+                logger.debug("跳过无效占位日期: %s", raw)
+                continue
             try:
                 dt = _dt.strptime(raw, fmt)
                 # 补全年份
