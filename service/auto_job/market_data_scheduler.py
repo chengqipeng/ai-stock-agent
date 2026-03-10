@@ -184,28 +184,28 @@ async def _fetch_order_book_for_stock(stock_code_normalize: str, trade_date: str
 
 # ─────────── 龙虎榜拉取 ───────────
 
-async def _fetch_dragon_tiger(trade_date: str) -> int:
-    """拉取龙虎榜数据并入库，返回记录数"""
+async def _fetch_dragon_tiger(trade_date: str) -> tuple[int, bool]:
+    """拉取龙虎榜数据并入库，返回 (记录数, 是否成功)"""
     try:
         rows = await fetch_dragon_tiger_all_pages(trade_date=trade_date)
         if not rows:
             logger.info("[龙虎榜] %s 无龙虎榜数据", trade_date)
-            return 0
+            return 0, True
 
         conn = get_connection()
         cursor = conn.cursor()
         try:
-            count = batch_upsert_dragon_tiger(trade_date, rows, cursor=cursor)
+            batch_upsert_dragon_tiger(trade_date, rows, cursor=cursor)
             conn.commit()
             logger.info("[龙虎榜] %s 写入%d条", trade_date, len(rows))
-            return len(rows)
+            return len(rows), True
         finally:
             cursor.close()
             conn.close()
 
     except Exception as e:
         logger.error("[龙虎榜] %s 异常: %s", trade_date, e)
-        return 0
+        return 0, False
 
 
 # ─────────── 主执行逻辑 ───────────
@@ -277,11 +277,23 @@ async def _execute_job():
 
         # 5. 拉取龙虎榜
         logger.info("[盘后数据调度] 开始拉取龙虎榜")
-        dt_count = await _fetch_dragon_tiger(today_str)
+        dt_count, dt_ok = await _fetch_dragon_tiger(today_str)
         _job_status["dragon_tiger_count"] = dt_count
         logger.info("[盘后数据调度] 龙虎榜完成: %d条", dt_count)
 
-        _job_status["last_success"] = True
+        # 判断整体是否成功：分时/盘口允许部分失败，但龙虎榜失败则标记不成功
+        has_failures = time_counter["failed"] > 0 or ob_counter["failed"] > 0 or not dt_ok
+        _job_status["last_success"] = not has_failures
+        if has_failures:
+            parts = []
+            if time_counter["failed"] > 0:
+                parts.append(f"分时失败{time_counter['failed']}")
+            if ob_counter["failed"] > 0:
+                parts.append(f"盘口失败{ob_counter['failed']}")
+            if not dt_ok:
+                parts.append("龙虎榜拉取失败")
+            _job_status["error"] = "部分失败: " + ", ".join(parts)
+            logger.warning("[盘后数据调度] 部分任务失败: %s", _job_status["error"])
         elapsed = (datetime.now(_CST) - start_time).total_seconds()
         logger.info("[盘后数据调度] ===== 执行完成，耗时%.1f秒 =====", elapsed)
 
