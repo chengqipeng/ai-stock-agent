@@ -3617,14 +3617,22 @@
                     const kline = d.kline_count || 0;
                     const idx = d.index_realtime_count || 0;
                     const rank = d.ranking_count || 0;
-                    if (d.last_success) {
-                        icon.textContent = '✅';
-                        text.textContent = (d.last_run_time || d.last_run_date) + ' 海外数据完成  K线' + kline + '  指数' + idx + '  涨幅榜' + rank;
-                        banner.style.background = 'rgba(92,184,92,0.25)';
+                    const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
+                    const isToday = d.last_run_date === today;
+                    if (isToday) {
+                        if (d.last_success) {
+                            icon.textContent = '✅';
+                            text.textContent = (d.last_run_time || d.last_run_date) + ' 海外数据完成  K线' + kline + '  指数' + idx + '  涨幅榜' + rank;
+                            banner.style.background = 'rgba(92,184,92,0.25)';
+                        } else {
+                            icon.textContent = '⚠️';
+                            text.textContent = (d.last_run_time || d.last_run_date) + ' 海外数据部分失败';
+                            banner.style.background = 'rgba(240,173,78,0.25)';
+                        }
                     } else {
-                        icon.textContent = '⚠️';
-                        text.textContent = (d.last_run_time || d.last_run_date) + ' 海外数据部分失败';
-                        banner.style.background = 'rgba(240,173,78,0.25)';
+                        icon.textContent = '⏳';
+                        text.textContent = '海外数据等待调度中（每天06:00自动执行）  上次执行: ' + (d.last_run_time || d.last_run_date);
+                        banner.style.background = 'rgba(255,255,255,0.2)';
                     }
                 } else {
                     icon.textContent = '⏳';

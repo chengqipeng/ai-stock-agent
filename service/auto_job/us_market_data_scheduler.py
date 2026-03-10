@@ -66,6 +66,7 @@ def _save_persisted_status(status: dict):
 _job_status = {
     "running": False,
     "last_run_date": None,
+    "last_run_time": None,
     "last_success": None,
     "error": None,
     "kline_count": 0,
