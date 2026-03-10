@@ -3613,25 +3613,26 @@
                     }
                     text.textContent = msg;
                     updateJobProgress('usMarketJobProgress', 'usMarketJobElapsed', kline + idx + rank, 572, d.last_run_time);
-                } else if (d.last_run_date) {
+                } else if (d.last_run_time) {
                     const kline = d.kline_count || 0;
                     const idx = d.index_realtime_count || 0;
                     const rank = d.ranking_count || 0;
                     const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
-                    const isToday = d.last_run_date === today;
+                    const runDate = d.last_run_time.substring(0, 10);
+                    const isToday = runDate === today;
                     if (isToday) {
                         if (d.last_success) {
                             icon.textContent = '✅';
-                            text.textContent = (d.last_run_time || d.last_run_date) + ' 海外数据完成  K线' + kline + '  指数' + idx + '  涨幅榜' + rank;
+                            text.textContent = d.last_run_time + ' 海外数据完成  K线' + kline + '  指数' + idx + '  涨幅榜' + rank;
                             banner.style.background = 'rgba(92,184,92,0.25)';
                         } else {
                             icon.textContent = '⚠️';
-                            text.textContent = (d.last_run_time || d.last_run_date) + ' 海外数据部分失败';
+                            text.textContent = d.last_run_time + ' 海外数据部分失败';
                             banner.style.background = 'rgba(240,173,78,0.25)';
                         }
                     } else {
                         icon.textContent = '⏳';
-                        text.textContent = '海外数据等待调度中（每天06:00自动执行）  上次执行: ' + (d.last_run_time || d.last_run_date);
+                        text.textContent = '海外数据等待调度中（每天06:00自动执行）  上次执行: ' + d.last_run_time;
                         banner.style.background = 'rgba(255,255,255,0.2)';
                     }
                 } else {
