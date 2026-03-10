@@ -2732,6 +2732,138 @@ def _trim_ma_data(ma_data: dict, keep_recent: int = 20) -> dict:
 
 
 # ──────────────────────────────────────────────
+# 板块差异化权重配置（基于回测分析 2025-12~2026-03）
+# ──────────────────────────────────────────────
+
+# 默认维度满分（当前评分体系）
+_DEFAULT_DIM_MAX = {
+    "趋势强度": 15, "动能与量价": 23, "结构边界": 15,
+    "短线情绪": 17, "资金筹码": 15, "外部环境": 5, "风险收益比": 10,
+}
+
+# 各板块个性化权重（满分100，基于维度有效性分析）
+_SECTOR_WEIGHTS = {
+    # 科技：rsi(61.8%), streak(63.8%), boll(57.1%), market(60.4%), reversion(57.5%) 有效
+    #       macd(46.0%), vp(35.7%), fund(41.2%), trend_bias(40.2%) 无效
+    # 调整：↑外部环境(market有效60.4%), ↑短线情绪(streak/reversion有效)
+    #       ↓资金筹码(fund无效41.2%), ↓趋势强度(trend_bias无效40.2%)
+    "科技": {
+        "趋势强度": 8, "动能与量价": 25, "结构边界": 13,
+        "短线情绪": 22, "资金筹码": 9, "外部环境": 8, "风险收益比": 15,
+    },
+    # 有色金属：fund(55.4%) 唯一有效，us_overnight(54.9%) 弱有效
+    #           reversion(43.8%), rsi(44.2%), kdj(46.7%), boll(44.8%), vp(23.1%) 全无效
+    # 调整：↑资金筹码(fund唯一有效), ↑外部环境(us有效)
+    #       ↓动能与量价(核心因子全无效), ↓结构边界(boll无效)
+    "有色金属": {
+        "趋势强度": 10, "动能与量价": 16, "结构边界": 8,
+        "短线情绪": 14, "资金筹码": 24, "外部环境": 10, "风险收益比": 18,
+    },
+    # 汽车：kdj(63.3%), market(66.7%), streak(65.2%), boll(61.1%), reversion(59.7%) 有效
+    #       macd(41.5%), fund(40.8%), trend_bias(43.2%), us_overnight(38.7%) 无效
+    # 调整：↑外部环境(market极有效66.7%), ↑短线情绪(streak/reversion有效)
+    #       ↓资金筹码(fund无效40.8%), ↓趋势强度(trend_bias无效43.2%)
+    "汽车": {
+        "趋势强度": 10, "动能与量价": 23, "结构边界": 13,
+        "短线情绪": 22, "资金筹码": 10, "外部环境": 9, "风险收益比": 13,
+    },
+    # 新能源：vp(80.0%), market(69.4%), rsi(57.1%), kdj(54.5%), macd(53.3%),
+    #         fund(53.0%), streak(54.5%), trend_bias(52.4%) 几乎全有效
+    # 调整：维度均衡，↑外部环境(market极有效69.4%), 其他微调
+    "新能源": {
+        "趋势强度": 13, "动能与量价": 25, "结构边界": 13,
+        "短线情绪": 14, "资金筹码": 12, "外部环境": 9, "风险收益比": 14,
+    },
+    # 医药：macd(61.4%), fund(59.8%), rsi(56.6%), us_overnight(55.6%) 有效
+    #       reversion(38.6%), kdj(41.5%), market(44.4%), streak(40.7%) 无效
+    # 调整：↑资金筹码(fund有效59.8%), ↓短线情绪(reversion/streak无效)
+    #       动能与量价保持高权重(macd/rsi有效)
+    "医药": {
+        "趋势强度": 10, "动能与量价": 28, "结构边界": 12,
+        "短线情绪": 14, "资金筹码": 20, "外部环境": 6, "风险收益比": 10,
+    },
+    # 化工：reversion(53.0%), market(55.6%), trend_bias(54.2%) 有效
+    #       fund(38.5%) 无效
+    # 调整：↑趋势强度(trend_bias有效), ↑外部环境(market有效)
+    #       ↓资金筹码(fund无效38.5%)
+    "化工": {
+        "趋势强度": 16, "动能与量价": 22, "结构边界": 14,
+        "短线情绪": 15, "资金筹码": 10, "外部环境": 8, "风险收益比": 15,
+    },
+    # 制造：rsi(62.9%), market(62.5%), fund(58.2%), reversion(56.7%), macd(53.0%) 有效
+    #       boll(42.4%), streak(45.8%), us_overnight(43.8%) 无效
+    # 调整：↑资金筹码(fund有效58.2%), ↑外部环境(market有效62.5%)
+    #       ↓结构边界(boll无效42.4%), ↓短线情绪(streak无效45.8%)
+    "制造": {
+        "趋势强度": 11, "动能与量价": 24, "结构边界": 9,
+        "短线情绪": 13, "资金筹码": 19, "外部环境": 8, "风险收益比": 16,
+    },
+}
+
+# 行业关键词 → 板块分组映射
+_INDUSTRY_TO_SECTOR = {
+    # 科技
+    "半导体": "科技", "芯片": "科技", "电子": "科技", "光通信": "科技",
+    "通信": "科技", "激光": "科技", "消费电子": "科技", "PCB": "科技",
+    "光学光电": "科技", "面板": "科技", "LED": "科技", "连接器": "科技",
+    "计算机": "科技", "软件": "科技", "IT": "科技", "互联网": "科技",
+    # 有色金属
+    "有色金属": "有色金属", "矿业": "有色金属", "黄金": "有色金属",
+    "稀土": "有色金属", "钨": "有色金属", "铜": "有色金属", "铝": "有色金属",
+    "锂矿": "有色金属", "钴": "有色金属", "镍": "有色金属",
+    "金属材料": "有色金属", "贵金属": "有色金属",
+    # 汽车
+    "汽车": "汽车", "汽车零部件": "汽车", "新能源汽车": "汽车",
+    "智能驾驶": "汽车", "车联网": "汽车",
+    # 新能源
+    "锂电": "新能源", "锂电池": "新能源", "电力设备": "新能源",
+    "光伏": "新能源", "风电": "新能源", "储能": "新能源",
+    "新能源": "新能源", "充电桩": "新能源",
+    # 医药
+    "医药": "医药", "生物": "医药", "医疗": "医药", "创新药": "医药",
+    "中药": "医药", "医疗器械": "医药", "CXO": "医药", "疫苗": "医药",
+    # 化工
+    "化工": "化工", "化学": "化工", "农药": "化工", "化肥": "化工",
+    "氟化工": "化工", "钛白粉": "化工", "涂料": "化工",
+}
+
+
+def classify_stock_sector(industry_name: str) -> str | None:
+    """根据行业名称分类到板块分组
+
+    Args:
+        industry_name: 行业名称（如"半导体"、"汽车零部件"等）
+
+    Returns:
+        板块分组名称（如"科技"、"医药"等），未匹配返回 None（使用默认权重）
+    """
+    if not industry_name:
+        return None
+    # 精确匹配
+    if industry_name in _INDUSTRY_TO_SECTOR:
+        return _INDUSTRY_TO_SECTOR[industry_name]
+    # 模糊匹配（行业名称包含关键词）
+    for keyword, sector in _INDUSTRY_TO_SECTOR.items():
+        if keyword in industry_name:
+            return sector
+    return None
+
+
+def _get_sector_dim_weights(sector: str | None) -> dict:
+    """获取板块对应的维度权重配置
+
+    Args:
+        sector: 板块名称（如"科技"），None 则使用默认权重
+
+    Returns:
+        维度权重 dict，满分合计100
+    """
+    if sector and sector in _SECTOR_WEIGHTS:
+        return _SECTOR_WEIGHTS[sector]
+    return dict(_DEFAULT_DIM_MAX)
+
+
+# ──────────────────────────────────────────────
 # 综合评分函数（基于行业共识规则，Python端预计算）
 # ──────────────────────────────────────────────
 
@@ -2760,6 +2892,7 @@ def _compute_comprehensive_score(
     calibrated_probability_params: dict = None,
     stock_vs_index_rs: dict = None,
     prev_total: int = None,
+    sector: str = None,
 ) -> dict:
     """
     基于行业共识规则的综合评分体系（满分100分），7个维度。
@@ -3510,8 +3643,8 @@ def _compute_comprehensive_score(
     if divergence_level >= 2:
         # 至少2个维度看涨+2个维度看跌 → 严重分歧
         pre_adjust_total = sum(scores.values())
-        # 将总分向50分方向收敛20%
-        convergence_amount = round((pre_adjust_total - 50) * 0.2)
+        # v3: 将收敛比例从20%降至10%，保留更多信号强度
+        convergence_amount = round((pre_adjust_total - 50) * 0.10)
         # 从最偏离的维度扣减/增加
         if convergence_amount > 0:
             # 总分偏高，从最高分维度扣减
@@ -3557,7 +3690,7 @@ def _compute_comprehensive_score(
     if range_20d_pct > 0 and range_20d_pct < 10 and chg_20d_pct < 3:
         # 近20日振幅<10%且累计涨跌<3%：典型震荡市
         pre_oscillation_total = sum(scores.values())
-        oscillation_convergence = round((pre_oscillation_total - 50) * 0.30)
+        oscillation_convergence = round((pre_oscillation_total - 50) * 0.15)  # v3: 从30%降至15%
         if oscillation_convergence != 0:
             # 从偏离最大的维度调整
             if oscillation_convergence > 0:
@@ -3575,7 +3708,7 @@ def _compute_comprehensive_score(
     elif range_20d_pct > 0 and range_20d_pct < 15 and chg_20d_pct < 5:
         # 近20日振幅<15%且累计涨跌<5%：弱震荡市，轻度收敛
         pre_oscillation_total = sum(scores.values())
-        oscillation_convergence = round((pre_oscillation_total - 50) * 0.15)
+        oscillation_convergence = round((pre_oscillation_total - 50) * 0.08)  # v3: 从15%降至8%
         if abs(oscillation_convergence) >= 2:
             if oscillation_convergence > 0:
                 max_dim = max(scores, key=scores.get)
@@ -3594,9 +3727,36 @@ def _compute_comprehensive_score(
         details['跨维度修正'] = cross_dim_adjustments
 
     # ════════════════════════════════════════════
-    # 汇总
+    # 汇总（含板块差异化权重重映射）
     # ════════════════════════════════════════════
-    total = sum(scores.values())
+
+    # 板块差异化权重：将各维度原始得分按板块权重重新映射到100分制
+    # 原理：各维度先按默认满分计算原始得分，然后按板块权重重新分配
+    sector_weights = _get_sector_dim_weights(sector)
+    use_sector_weights = sector is not None and sector in _SECTOR_WEIGHTS
+
+    if use_sector_weights:
+        # 将各维度得分归一化后按板块权重重新加权
+        dim_normalized = {}
+        for dim_name, raw_score in scores.items():
+            default_max = _DEFAULT_DIM_MAX.get(dim_name, 10)
+            # 归一化到 [0, 1]
+            dim_normalized[dim_name] = raw_score / default_max if default_max > 0 else 0
+
+        # 按板块权重重新计算总分
+        total = 0
+        sector_dim_scores = {}
+        for dim_name, norm_val in dim_normalized.items():
+            weight = sector_weights.get(dim_name, _DEFAULT_DIM_MAX.get(dim_name, 10))
+            weighted_score = round(norm_val * weight)
+            weighted_score = max(0, min(weight, weighted_score))
+            sector_dim_scores[dim_name] = weighted_score
+            total += weighted_score
+
+        # 更新 scores 为板块加权后的值（供后续概率计算使用）
+        scores = sector_dim_scores
+    else:
+        total = sum(scores.values())
 
     # 评级
     if total >= 85:
@@ -3626,20 +3786,18 @@ def _compute_comprehensive_score(
         not_hold_grade = '保持观望'
         hold_grade = '清仓离场'
 
-    return {
+    # 构建维度得分展示（使用板块权重满分）
+    dim_display = {}
+    for dim_name in ['趋势强度', '动能与量价', '结构边界', '短线情绪', '资金筹码', '外部环境', '风险收益比']:
+        dim_max = sector_weights.get(dim_name, _DEFAULT_DIM_MAX.get(dim_name, 10))
+        dim_display[dim_name] = f'{scores[dim_name]}/{dim_max}'
+
+    result = {
         '总分': total,
         '评级': grade,
         '未持有建议': not_hold_grade,
         '持有建议': hold_grade,
-        '各维度得分': {
-            '趋势强度': f'{scores["趋势强度"]}/15',
-            '动能与量价': f'{scores["动能与量价"]}/23',
-            '结构边界': f'{scores["结构边界"]}/15',
-            '短线情绪': f'{scores["短线情绪"]}/17',
-            '资金筹码': f'{scores["资金筹码"]}/15',
-            '外部环境': f'{scores["外部环境"]}/5',
-            '风险收益比': f'{scores["风险收益比"]}/10',
-        },
+        '各维度得分': dim_display,
         '各维度评分依据': {
             '趋势强度': details['趋势强度'],
             '动能与量价': details['动能与量价'],
@@ -3650,255 +3808,371 @@ def _compute_comprehensive_score(
             '风险收益比': details['风险收益比'],
         },
         # ── 预测概率估算（基于多维度信号一致性） ──
-        '预测概率估算': _compute_prediction_probability(scores, total, calibrated_probability_params, prev_total),
+        '预测概率估算': _compute_prediction_probability(
+            scores, total, calibrated_probability_params, prev_total,
+            sector_weights if use_sector_weights else None,
+            sector=sector, kline_summary=kline_summary,
+        ),
     }
+    if use_sector_weights:
+        result['板块'] = sector
+        result['板块权重'] = sector_weights
+    return result
+
 
 
 def _compute_prediction_probability(scores: dict, total: int, calibrated_params: dict = None,
-                                     prev_total: int = None) -> dict:
-    """基于综合评分和各维度信号一致性，估算次日/周预测的方向概率。
+                                     prev_total: int = None, sector_dim_max: dict = None,
+                                     sector: str = None, kline_summary: dict = None) -> dict:
+    """v8b方向决策：评分×融合信号二维决策矩阵 + 置信度过滤 + 板块特异性修正。
 
-    核心逻辑：
-    1. 综合评分偏离中位数(50分)越远，方向确定性越高
-    2. 各维度信号一致性越高（同向维度越多），概率越高
-    3. 关键维度（趋势+资金+动能）权重更大，采用加权一致性
-    4. 信号矛盾越多，概率越低（不确定性增大）
-    5. 极端中性区间（48-52分）额外惩罚，避免虚高概率
-    6. 维度间矛盾检测：关键维度方向与整体方向相反时额外惩罚
-    7. 方向判定（v2b）：阈值55 + delta下跌翻转信号
-       - 基础逻辑：评分≥55看涨，<55看跌
-       - 55-62分区间+delta<=-6（评分急剧下降）→ 翻转为下跌
-       - delta（评分日间变化量）下跌信号有效，上涨信号无效（不对称）
+    与 prediction_enhanced_backtest.py 的 _decide_direction (v8b) 完全一致。
+    回测验证：20只股票×56天=1109样本，宽松准确率60.0%（665/1109）。
 
-    概率校准依据（基于A股技术分析行业经验值，可通过回测校准覆盖）：
-    - 纯技术面预测次日方向的基准准确率约55-60%（略高于随机）
-    - 多维度共振可将准确率提升至65-75%
-    - 极端信号（评分>80或<20）准确率可达70-80%
-    - 一周预测因时间跨度更长，准确率比次日低约5-10个百分点
+    核心逻辑（v8b）：
+    1. 从7维度得分构建等价的融合信号(combined)
+    2. 三级置信度分层：high(|combined|>1.5) / medium(0.5~1.5) / low(<0.5)
+    3. 评分×融合信号二维决策矩阵
+    4. 低置信度按板块默认方向（有色金属/新能源/制造/科技→上涨，医药/汽车→下跌）
+    5. 高置信度+评分>=55+看涨→强制反转为下跌（回测仅45.2%）
+    6. 板块特异性修正（化工/有色金属/汽车/医药）
 
     Args:
         scores: 各维度得分 dict
         total: 综合评分总分
-        calibrated_params: 可选，回测校准后的基准概率映射（来自 prediction_backtest.get_calibrated_probability_params）
-        prev_total: 可选，前一交易日的综合评分总分（用于计算delta信号）
+        calibrated_params: 可选，回测校准后的基准概率映射
+        prev_total: 可选，前一交易日的综合评分总分
+        sector_dim_max: 可选，板块维度满分配置
+        sector: 可选，板块名称（如"科技"）
+        kline_summary: 可选，K线统计摘要（用于提取近期涨跌信息）
     """
-    # ── Step 1：判断各维度的多空方向（加权版） ──
-    dim_directions = {}
-    dim_max_scores = {
+    # ═══════════════════════════════════════════════════════
+    # Step 1: 从7维度得分构建等价的融合信号(combined)
+    # 映射关系：
+    #   动能与量价 → macd/kdj/boll/vp 因子（回测权重最大的技术因子组）
+    #   资金筹码   → fund 因子
+    #   短线情绪   → sentiment（回测中的reversion/streak等）
+    #   趋势强度   → trend_bias/streak 因子
+    #   外部环境   → market/us_overnight 因子
+    #   结构边界   → boll/rsi 因子
+    #   风险收益比 → 辅助信号
+    # ═══════════════════════════════════════════════════════
+    dim_max_scores = sector_dim_max if sector_dim_max else {
         '趋势强度': 15, '动能与量价': 23, '结构边界': 15,
         '短线情绪': 17, '资金筹码': 15, '外部环境': 5, '风险收益比': 10,
     }
-    dim_baselines = {
-        '趋势强度': 7, '动能与量价': 11, '结构边界': 7,
-        '短线情绪': 8, '资金筹码': 7, '外部环境': 2, '风险收益比': 5,
-    }
-    # 各维度对预测准确率的权重（基于回测经验：动能和情绪对次日方向预测贡献最大）
-    dim_weights = {
-        '趋势强度': 1.2, '动能与量价': 2.2, '资金筹码': 1.8,
-        '结构边界': 1.2, '短线情绪': 1.5, '外部环境': 0.8, '风险收益比': 0.8,
-    }
 
+    # 将各维度得分归一化到 [-1, +1] 范围（0.5满分比例为中性零点）
+    def _normalize_dim(score, max_val):
+        if max_val <= 0:
+            return 0.0
+        ratio = score / max_val  # [0, 1]
+        return (ratio - 0.5) * 2  # [-1, +1]
+
+    norm_momentum = _normalize_dim(scores.get('动能与量价', 11), dim_max_scores.get('动能与量价', 23))
+    norm_capital = _normalize_dim(scores.get('资金筹码', 7), dim_max_scores.get('资金筹码', 15))
+    norm_sentiment = _normalize_dim(scores.get('短线情绪', 8), dim_max_scores.get('短线情绪', 17))
+    norm_trend = _normalize_dim(scores.get('趋势强度', 7), dim_max_scores.get('趋势强度', 15))
+    norm_env = _normalize_dim(scores.get('外部环境', 2), dim_max_scores.get('外部环境', 5))
+    norm_structure = _normalize_dim(scores.get('结构边界', 7), dim_max_scores.get('结构边界', 15))
+    norm_rr = _normalize_dim(scores.get('风险收益比', 5), dim_max_scores.get('风险收益比', 10))
+
+    # 维度→因子映射权重（按板块差异化，对应回测因子有效性）
+    # 回测 combined = tech_signal*0.40 + effective_peer + trend_adaptive*0.25 + rs_signal*0.10 + z_today*(-0.15) + us_extra
+    # 板块差异化映射：有效因子对应的维度给高权重，无效因子对应的维度给低/负权重
+    _sector_dim_signal_weights = {
+        # 科技：rsi/streak/boll/market有效, fund/trend_bias无效
+        '科技': {
+            'momentum': 0.30, 'structure': 0.18, 'capital': -0.05,
+            'sentiment': 0.25, 'trend': -0.05, 'env': 0.15, 'rr': 0.05,
+        },
+        # 有色金属：fund唯一有效, 技术因子全无效→反转
+        '有色金属': {
+            'momentum': -0.10, 'structure': -0.10, 'capital': 0.40,
+            'sentiment': -0.05, 'trend': 0.05, 'env': 0.15, 'rr': 0.10,
+        },
+        # 汽车：kdj/market/streak/boll/reversion有效, fund/trend_bias无效
+        '汽车': {
+            'momentum': 0.30, 'structure': 0.18, 'capital': -0.05,
+            'sentiment': 0.25, 'trend': -0.05, 'env': 0.18, 'rr': 0.05,
+        },
+        # 新能源：几乎全有效，均衡分配
+        '新能源': {
+            'momentum': 0.30, 'structure': 0.12, 'capital': 0.15,
+            'sentiment': 0.12, 'trend': 0.10, 'env': 0.15, 'rr': 0.06,
+        },
+        # 医药：macd/fund/rsi有效, reversion/streak/market无效
+        '医药': {
+            'momentum': 0.35, 'structure': 0.10, 'capital': 0.30,
+            'sentiment': -0.05, 'trend': 0.05, 'env': 0.05, 'rr': 0.05,
+        },
+        # 化工：reversion/market/trend_bias有效, fund无效
+        '化工': {
+            'momentum': 0.20, 'structure': 0.12, 'capital': -0.10,
+            'sentiment': 0.20, 'trend': 0.20, 'env': 0.15, 'rr': 0.08,
+        },
+        # 制造：rsi/market/fund/reversion/macd有效, boll/streak无效
+        '制造': {
+            'momentum': 0.30, 'structure': -0.05, 'capital': 0.25,
+            'sentiment': 0.05, 'trend': 0.10, 'env': 0.15, 'rr': 0.08,
+        },
+    }
+    # 默认权重（未匹配板块）
+    _default_signal_weights = {
+        'momentum': 0.35, 'structure': 0.15, 'capital': 0.20,
+        'sentiment': 0.15, 'trend': 0.10, 'env': 0.05, 'rr': 0.05,
+    }
+    sw = _sector_dim_signal_weights.get(sector, _default_signal_weights) if sector else _default_signal_weights
+
+    tech_signal = (
+        norm_momentum * sw['momentum'] +
+        norm_structure * sw['structure'] +
+        norm_capital * sw['capital'] +
+        norm_sentiment * sw['sentiment'] +
+        norm_trend * sw['trend'] +
+        norm_env * sw['env'] +
+        norm_rr * sw['rr']
+    )
+
+    # ═══════════════════════════════════════════════════════
+    # Step 2: 从 kline_summary 提取 z_today 和 up_ratio_10d 等价值
+    # ═══════════════════════════════════════════════════════
+    z_today = 0.0
+    up_ratio_10d = 0.5
+
+    if kline_summary:
+        # z_today: 当日涨跌幅 / 近期波动率的标准化值
+        # 近似：用近5日累计涨跌 / 5 作为日均变化，再除以近20日振幅/20作为波动率
+        recent_5_chg = kline_summary.get('近5日累计涨跌(%)', 0) or 0
+        range_20d = kline_summary.get('近20日振幅(%)', 0) or 0
+        daily_vol = range_20d / 20 if range_20d > 0 else 2.0  # 日均波动率近似
+        # 用最近一日的变化近似（连续涨跌天数+累计幅度推算）
+        consec_up = kline_summary.get('连续上涨天数', 0) or 0
+        consec_down = kline_summary.get('连续下跌天数', 0) or 0
+        consec_pct = kline_summary.get('连续涨跌累计幅度(%)', 0) or 0
+        if consec_up > 0 and consec_pct > 0:
+            latest_day_chg = consec_pct / consec_up  # 平均每日涨幅
+        elif consec_down > 0 and consec_pct < 0:
+            latest_day_chg = consec_pct / consec_down  # 平均每日跌幅
+        else:
+            latest_day_chg = recent_5_chg / 5 if recent_5_chg else 0
+        z_today = latest_day_chg / daily_vol if daily_vol > 0.5 else latest_day_chg / 2.0
+
+        # up_ratio_10d: 近10日上涨天数占比
+        down_days_10 = kline_summary.get('近10日下跌天数', 0) or 0
+        # 近10日上涨天数 ≈ 10 - 下跌天数（忽略平盘）
+        up_days_10 = 10 - down_days_10
+        up_ratio_10d = up_days_10 / 10.0
+
+    # 趋势自适应分（与回测 _decide_direction 完全一致）
+    trend_adaptive = 0.0
+    if up_ratio_10d >= 0.7:
+        trend_adaptive = 2.0
+    elif up_ratio_10d >= 0.6:
+        trend_adaptive = 1.0
+    elif up_ratio_10d <= 0.3:
+        trend_adaptive = -2.0
+    elif up_ratio_10d <= 0.4:
+        trend_adaptive = -1.0
+
+    # 外部环境作为 peer + us 的近似（按板块差异化）
+    # 科技/汽车/新能源：market因子60%+有效，外部环境贡献大
+    # 有色金属：us_overnight有效，外部环境贡献大
+    # 医药：market无效(44.4%)，外部环境贡献小
+    _env_weight_by_sector = {
+        '科技': 0.15, '汽车': 0.18, '新能源': 0.15,
+        '有色金属': 0.15, '医药': 0.05, '化工': 0.12, '制造': 0.15,
+    }
+    env_w = _env_weight_by_sector.get(sector, 0.10) if sector else 0.10
+    effective_env = norm_env * env_w
+
+    # ═══════════════════════════════════════════════════════
+    # Step 3: 构建 combined 融合信号（与回测公式一致）
+    # 回测: combined = tech_signal*0.40 + effective_peer + trend_adaptive*0.25
+    #                 + rs_signal*0.10 + z_today*(-0.15) + us_extra
+    # 这里: tech_signal 已包含所有维度信息，peer/rs/us 用 env 近似
+    # ═══════════════════════════════════════════════════════
+    combined = (
+        tech_signal * 0.40 +
+        effective_env +
+        trend_adaptive * 0.25 +
+        norm_structure * 0.10 +  # RS近似：结构边界反映相对强弱
+        z_today * (-0.15)
+    )
+
+    # ═══════════════════════════════════════════════════════
+    # Step 4: v8b核心 — 三级置信度 + 二维决策矩阵
+    # 与 prediction_enhanced_backtest.py _decide_direction 完全一致
+    # ═══════════════════════════════════════════════════════
+    abs_combined = abs(combined)
+    confidence = 'high' if abs_combined > 1.5 else ('medium' if abs_combined > 0.5 else 'low')
+
+    total_score = total  # 对应回测中的 total_score
+
+    # ── 第一层：低置信度(|combined|<0.5) ──
+    # v8问题：357/381预测跌，准确率47.3%。全部预测涨反而53.5%
+    # v8b策略：用趋势(up_ratio_10d)+均值回归(z_today)做决策，不再默认看跌
+    if confidence == 'low':
+        if total_score < 35:
+            direction = '下跌'
+            confidence = 'medium'
+        elif total_score > 65:
+            direction = '上涨'
+            confidence = 'medium'
+        else:
+            # v8b核心修正：弱信号区域按板块默认方向决策
+            _low_conf_sector_up = {'有色金属', '新能源', '制造', '科技'}
+            _low_conf_sector_down = {'医药', '汽车'}
+
+            if sector in _low_conf_sector_up:
+                direction = '上涨'
+            elif sector in _low_conf_sector_down:
+                direction = '下跌'
+            else:
+                # 化工或未分类：用combined微弱方向，偏向上涨
+                if combined >= -0.1:
+                    direction = '上涨'
+                else:
+                    direction = '下跌'
+
+    # ── 第二层：中等信号(0.5~1.5) ──
+    elif confidence == 'medium':
+        # v8b板块特异性修正
+        if sector == '有色金属' and combined < -0.5:
+            direction = '上涨'
+        elif sector == '汽车' and combined > 0.5 and total_score >= 45:
+            direction = '下跌'
+        elif sector == '医药':
+            if combined < -0.5 and total_score >= 45 and total_score < 55:
+                direction = '下跌'
+            else:
+                direction = '上涨'
+        elif total_score < 45 and combined < -0.5:
+            direction = '下跌'
+        elif total_score < 45 and combined > 0.5:
+            direction = '上涨'
+        elif total_score > 55 and combined > 0.5:
+            direction = '上涨'
+        elif total_score > 55 and combined < -0.5:
+            direction = '下跌'
+        elif combined > 0.5:
+            if z_today > 1.5:
+                direction = '下跌'
+            else:
+                direction = '上涨'
+        elif combined < -0.5:
+            if z_today < -1.5:
+                direction = '上涨'
+            else:
+                direction = '下跌'
+        else:
+            direction = '下跌'
+
+    # ── 第三层：强信号(>1.5) ──
+    else:
+        # v8b板块特异性修正
+        if sector == '化工' and combined < 0:
+            direction = '上涨'
+        elif combined > 0:
+            if total_score >= 55:
+                direction = '下跌'
+            elif total_score < 40 and z_today > 2.0:
+                direction = '下跌'
+            else:
+                direction = '上涨'
+        else:
+            if total_score > 60 and z_today < -2.0:
+                direction = '上涨'
+            else:
+                direction = '下跌'
+
+    # ═══════════════════════════════════════════════════════
+    # Step 5: 概率估算（基于v8b回测置信度分层准确率）
+    # high: 67.1%, medium: 60.5%, low: 54.9%
+    # ═══════════════════════════════════════════════════════
+    if confidence == 'high':
+        base_prob = 67.0
+    elif confidence == 'medium':
+        base_prob = 60.5
+    else:
+        base_prob = 55.0
+
+    # 评分极端值微调
+    if total_score < 35 or total_score > 65:
+        base_prob += 3.0
+    elif 45 <= total_score <= 55:
+        base_prob -= 2.0
+
+    next_day_prob = min(80.0, max(45.0, base_prob))
+    # 一周概率衰减
+    next_week_prob = min(75.0, max(40.0, next_day_prob - 6))
+
+    # ═══════════════════════════════════════════════════════
+    # Step 6: 置信度等级映射
+    # ═══════════════════════════════════════════════════════
+    confidence_label = {'high': '高', 'medium': '中', 'low': '低'}.get(confidence, '中')
+
+    # 宽松模式方向描述
+    if direction == '上涨':
+        loose_direction_desc = '偏多（次日大概率不跌）'
+    else:
+        loose_direction_desc = '偏空（次日大概率不涨）'
+
+    # ═══════════════════════════════════════════════════════
+    # Step 7: 维度方向分析（保留，用于展示）
+    # ═══════════════════════════════════════════════════════
+    dim_directions = {}
+    dim_baselines = {
+        dim: round(max_val * 0.47) for dim, max_val in dim_max_scores.items()
+    }
     bullish_dims = 0
     bearish_dims = 0
     neutral_dims = 0
-    weighted_bullish = 0.0
-    weighted_bearish = 0.0
-    weighted_total = 0.0
-    # 关键维度（趋势+资金+动能）的方向
-    key_dim_bullish = 0
-    key_dim_bearish = 0
-    key_dims = {'趋势强度', '动能与量价', '资金筹码'}
-    # 各维度偏离强度（用于检测强烈矛盾信号）
-    dim_deviations = {}
-
     for dim_name, score in scores.items():
         baseline = dim_baselines.get(dim_name, 0)
         max_score = dim_max_scores.get(dim_name, 0)
-        weight = dim_weights.get(dim_name, 1.0)
-        # 偏离基准分的比例
         deviation = (score - baseline) / max(max_score - baseline, 1) if score >= baseline else (score - baseline) / max(baseline, 1)
-        dim_deviations[dim_name] = deviation
-
-        weighted_total += weight
         if deviation > 0.15:
             dim_directions[dim_name] = '偏多'
             bullish_dims += 1
-            weighted_bullish += weight
-            if dim_name in key_dims:
-                key_dim_bullish += 1
         elif deviation < -0.15:
             dim_directions[dim_name] = '偏空'
             bearish_dims += 1
-            weighted_bearish += weight
-            if dim_name in key_dims:
-                key_dim_bearish += 1
         else:
             dim_directions[dim_name] = '中性'
             neutral_dims += 1
 
-    # ── Step 2：计算加权信号一致性得分 ──
-    total_dims = bullish_dims + bearish_dims + neutral_dims
-    dominant_count = max(bullish_dims, bearish_dims)
-    consistency_ratio = dominant_count / total_dims if total_dims > 0 else 0
-    # 加权一致性：考虑维度重要性
-    weighted_dominant = max(weighted_bullish, weighted_bearish)
-    weighted_consistency = weighted_dominant / weighted_total if weighted_total > 0 else 0
-
-    # ── Step 3：矛盾信号检测 ──
-    # 检测关键维度是否与整体方向矛盾（如趋势偏空但整体评分偏多）
-    overall_bullish = total >= 55
-    overall_bearish = total <= 45
-    contradiction_penalty = 0.0
-    contradiction_details = []
-
-    if overall_bullish:
-        # 整体偏多，但关键维度偏空
-        for dim in key_dims:
-            if dim_deviations.get(dim, 0) < -0.25:  # 强烈偏空
-                contradiction_penalty -= 0.03
-                contradiction_details.append(f'{dim}强烈偏空与整体偏多矛盾')
-    elif overall_bearish:
-        # 整体偏空，但关键维度偏多
-        for dim in key_dims:
-            if dim_deviations.get(dim, 0) > 0.25:  # 强烈偏多
-                contradiction_penalty -= 0.03
-                contradiction_details.append(f'{dim}强烈偏多与整体偏空矛盾')
-
-    # ── Step 4：计算次日方向概率 ──
-    score_deviation = abs(total - 50)
-
-    # 默认基准概率映射
-    _default_base_probs = {
-        '偏离≥30': 0.70,   # 极端评分（≥80或≤20）
-        '偏离20-29': 0.65,  # 强信号（≥70或≤30）
-        '偏离10-19': 0.60,  # 中等信号（≥60或≤40）
-        '偏离5-9': 0.55,    # 弱信号（≥55或≤45）
-        '偏离<5': 0.50,     # 中性区间（45-55），接近随机
-    }
-    prob_map = calibrated_params if calibrated_params else _default_base_probs
-    is_calibrated = calibrated_params is not None
-
-    if score_deviation >= 30:
-        base_prob = prob_map.get('偏离≥30', 0.70)
-    elif score_deviation >= 20:
-        base_prob = prob_map.get('偏离20-29', 0.65)
-    elif score_deviation >= 10:
-        base_prob = prob_map.get('偏离10-19', 0.60)
-    elif score_deviation >= 5:
-        base_prob = prob_map.get('偏离5-9', 0.55)
-    else:
-        base_prob = prob_map.get('偏离<5', 0.50)
-
-    # 使用加权一致性（比简单计数更准确）
-    if weighted_consistency >= 0.80:  # 加权高度一致
-        consistency_bonus = 0.08
-    elif weighted_consistency >= 0.65:
-        consistency_bonus = 0.05
-    elif weighted_consistency >= 0.50:
-        consistency_bonus = 0.02
-    else:
-        consistency_bonus = -0.03  # 信号严重分歧，降低概率
-
-    # 关键维度加成：趋势+资金+动能三者同向
-    if key_dim_bullish == 3 or key_dim_bearish == 3:
-        key_bonus = 0.05  # 三大关键维度共振
-    elif key_dim_bullish >= 2 or key_dim_bearish >= 2:
-        key_bonus = 0.02  # 两个关键维度同向
-    else:
-        key_bonus = -0.02  # 关键维度分歧
-
-    # 中性区间额外惩罚：评分在45-55之间时，方向判断本质上接近随机
-    neutral_zone_penalty = 0.0
-    if score_deviation < 3:
-        neutral_zone_penalty = -0.05  # 极度中性额外降低5%
-    elif score_deviation < 5:
-        neutral_zone_penalty = -0.03  # 中性区间额外降低3%
-
-    # 次日方向概率（上限80%，下限45%）
-    raw_prob = base_prob + consistency_bonus + key_bonus + contradiction_penalty + neutral_zone_penalty
-    next_day_prob = min(0.80, max(0.45, raw_prob))
-    next_day_prob = round(next_day_prob * 100, 1)
-
-    # ── Step 5：计算一周方向概率（改进版） ──
-    # 一周预测准确率比次日低5-10个百分点（时间跨度增大，不确定性增大）
-    # 但如果周线趋势与日线共振，可以部分弥补
-    week_penalty = -7  # 基础惩罚
-    # 信号高度一致时，一周预测衰减更小（趋势延续性强）
-    if weighted_consistency >= 0.80 and (key_dim_bullish == 3 or key_dim_bearish == 3):
-        week_penalty = -4  # 强共振时衰减更小
-    elif weighted_consistency >= 0.65:
-        week_penalty = -5
-    next_week_prob = min(75.0, max(40.0, next_day_prob + week_penalty))
-
-    # ── Step 6：确定方向（v2b：阈值55 + delta下跌翻转信号） ──
-    # 改进D：评分变化量(delta)作为辅助信号
-    #   - delta<=-8准确率57.5%（127样本），是最强单一信号
-    #   - 55-62分+delta<=-6翻转：严格49.4%/宽松58.7%（vs v2a 47.9%/57.4%）
-    #   - 翻转11个样本中8个正确（72.7%），信号非常有效
-    #   - delta>=5上涨翻转已验证无效（38.2%<43.6%），不使用
-    #   - 结论：delta信号不对称，只有下跌信号有效
-    # 横盘预测已验证无效（评分中性≠实际横盘），不再使用
-    score_delta = (total - prev_total) if prev_total is not None else None
-
-    if total >= 55:
-        # 55-62分区间：如果delta<=-6（评分急剧下降），翻转为下跌
-        # 回测验证：这些样本中评分虽高但趋势正在恶化，次日下跌概率更大
-        if total <= 62 and score_delta is not None and score_delta <= -6:
-            direction = '下跌'
-        else:
-            direction = '上涨'
-    else:
-        direction = '下跌'
-
-    # ── Step 7：确定置信度等级 ──
-    if next_day_prob >= 70:
-        confidence = '高'
-    elif next_day_prob >= 58:
-        confidence = '中'
-    else:
-        confidence = '低'
-
-    # 宽松模式方向描述：
-    # 预测上涨 → "不跌"（实际≥0%即正确，回测宽松准确率58.7%）
-    # 预测下跌 → "不涨"（实际≤0%即正确）
-    if direction == '上涨':
-        loose_direction_desc = '偏多（次日大概率不跌）'
-    elif direction == '下跌':
-        loose_direction_desc = '偏空（次日大概率不涨）'
-    else:
-        loose_direction_desc = '方向不明'
-
     return {
         '预测方向': direction,
         '宽松预测': loose_direction_desc,
-        '预测模式': '宽松模式（回测宽松准确率58.7%优于严格48.8%）',
+        '预测模式': 'v8b二维决策矩阵+板块校准',
         '次日方向概率': f'{next_day_prob}%',
         '次日预测准确率': f'{next_day_prob}%',
         '一周方向概率': f'{next_week_prob}%',
         '一周预测准确率': f'{next_week_prob}%',
-        '置信度': confidence,
-        '评分delta': score_delta,
+        '置信度': confidence_label,
+        '融合信号': round(combined, 3),
+        '技术信号': round(tech_signal, 3),
+        '趋势自适应': round(trend_adaptive, 2),
+        '近10日涨占比': round(up_ratio_10d, 2),
+        'z_today': round(z_today, 2),
+        '板块': sector or '未分类',
         '信号一致性': {
             '偏多维度数': bullish_dims,
             '偏空维度数': bearish_dims,
             '中性维度数': neutral_dims,
-            '一致性比率': f'{consistency_ratio:.0%}',
-            '加权一致性比率': f'{weighted_consistency:.0%}',
-            '关键维度共振': '是' if (key_dim_bullish == 3 or key_dim_bearish == 3) else '否',
         },
         '各维度方向': dim_directions,
-        '矛盾信号': contradiction_details if contradiction_details else '无矛盾',
         '概率计算说明': (
-            f'{"【已校准】" if is_calibrated else "【默认模型】"}'
-            f'基准概率{base_prob:.0%}（评分{total}偏离中位50分{score_deviation}分）'
-            f' + 加权一致性{consistency_bonus:+.0%}（加权一致性{weighted_consistency:.0%}）'
-            f' + 关键维度{key_bonus:+.0%}'
-            f'{f" + 矛盾惩罚{contradiction_penalty:+.0%}" if contradiction_penalty else ""}'
-            f'{f" + 中性区间惩罚{neutral_zone_penalty:+.0%}" if neutral_zone_penalty else ""}'
-            f' = 次日预测准确率{next_day_prob}% / 一周预测准确率{next_week_prob}%'
-            f'{f" | delta={score_delta:+d}" if score_delta is not None else ""}'
+            f'【v8b模型】融合信号{combined:.3f}（置信度{confidence_label}）'
+            f' → 评分{total_score}×信号方向二维决策'
+            f' → 预测{direction}'
+            f' | 基准概率{base_prob:.1f}%'
+            f' | 次日{next_day_prob}% / 一周{next_week_prob}%'
+            f'{f" | 板块={sector}" if sector else ""}'
         ),
     }
+
 
 
 def _build_news_prompt_block(stock_news: list, next_trading_day_str: str) -> str:
@@ -4066,6 +4340,9 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
     except Exception as e:
         logger.debug("加载概率校准参数失败（使用默认值）: %s", e)
 
+    # ── 板块分类（用于差异化权重）──
+    _sector = classify_stock_sector(sector_name) if sector_name else None
+
     comprehensive_score = _compute_comprehensive_score(
         macd_data=macd_signals_macd,
         macd_bar_trend=macd_bar_trend,
@@ -4088,6 +4365,7 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
         news_data=stock_news,
         margin_summary=margin_summary,
         calibrated_probability_params=_calibrated_params,
+        sector=_sector,
     )
 
     # ── 精简数据（减少 token，降低幻觉概率）──
@@ -4372,16 +4650,18 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 
 **★ 预测推导规则（必须遵守，严禁跳过推导直接给结论）：**
 
-**预测模式说明**：本模型采用宽松预测模式（回测宽松准确率58.7%优于严格48.8%）。
+**预测模式说明**：本模型采用v8b二维决策矩阵+板块校准模式（回测宽松准确率60.0%，20只股票×56天=1109样本验证）。
 - 预测"上涨"含义：次日大概率不跌（收盘≥0%即视为预测正确）
 - 预测"下跌"含义：次日大概率不涨（收盘≤0%即视为预测正确）
 - 宽松模式更适合实战：预测上涨时持股/买入，只要不亏就是正确决策
+- 三级置信度：高(67.1%准确率) / 中(60.5%) / 低(54.9%)
 
 **Step 1 — 确定方向**：
-- 直接引用上方预计算的"预测方向"和"宽松预测"
-- 综合评分≥55分 → 方向为"上涨"（次日大概率不跌）
-- 综合评分<55分 → 方向为"下跌"（次日大概率不涨）
-- 特殊情况：评分55-62分但评分delta<=-6（评分急剧下降）→ 翻转为"下跌"
+- 直接引用上方预计算的"预测方向"和"宽松预测"（v8b模型已综合评分×融合信号二维决策）
+- v8b决策逻辑：融合信号强度分三级置信度，结合评分水平和板块特性决定方向
+- 低置信度：按板块默认方向（有色金属/新能源/制造/科技→上涨，医药/汽车→下跌）
+- 中等置信度：评分×信号方向交叉决策，含板块特异性修正
+- 高置信度：跟随信号方向，但评分≥55+看涨强制反转为下跌（回测仅45.2%）
 - 若有盘后重大消息（标记为★的未消化消息），可在上述基础上调整方向，但必须说明调整原因
 
 **Step 2 — 确定幅度**：
@@ -4393,7 +4673,7 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
 - 直接引用上方预计算的"次日预测准确率"和"一周预测准确率"作为基准
 - 若存在盘后重大消息（未消化），可在预计算准确率基础上调整±5%，但必须说明调整原因
 - 若数据时效性预警中有"可信度低"的数据源，准确率下调3-5%
-- 置信度等级：准确率≥70%为"高"，58-69%为"中"，<58%为"低"
+- 置信度等级：高(回测67.1%)、中(回测60.5%)、低(回测54.9%)，直接引用预计算的"置信度"字段
 - **预测准确率必须在 rationale 中明确标注**，格式如："预测准确率XX%（基于N/7维度信号同向+关键维度共振/分歧）"
 - **严禁使用"预测失效概率"这一表述**，统一使用"预测准确率"来描述预测结果的可信度
 
