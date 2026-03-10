@@ -156,3 +156,190 @@ def batch_upsert_index_kline(cursor, index_code: str, kline_list: list[dict]):
         ))
     if rows:
         cursor.executemany(_UPSERT_KLINE_SQL, rows)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 写入 — 全球指数当日行情（按日期 upsert）
+# ═══════════════════════════════════════════════════════════════
+
+_UPSERT_REALTIME_SQL = """
+INSERT INTO global_index_realtime
+    (index_code, index_name, region, trade_date, latest_price, change_pct, change_amt,
+     volume, amount, open_price, prev_close, high_price, low_price, updated_at)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE
+    index_name   = VALUES(index_name),
+    region       = VALUES(region),
+    latest_price = VALUES(latest_price),
+    change_pct   = VALUES(change_pct),
+    change_amt   = VALUES(change_amt),
+    volume       = VALUES(volume),
+    amount       = VALUES(amount),
+    open_price   = VALUES(open_price),
+    prev_close   = VALUES(prev_close),
+    high_price   = VALUES(high_price),
+    low_price    = VALUES(low_price),
+    updated_at   = VALUES(updated_at)
+"""
+
+
+def batch_upsert_global_index_realtime(cursor, region: str, trade_date: str, items: list[dict]):
+    """批量写入全球指数行情（按 index_code + trade_date 覆盖）"""
+    now = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
+    rows = []
+    for item in items:
+        vol = item.get("成交量")
+        rows.append((
+            item.get("代码") or item.get("指数代码", ""),
+            item.get("名称") or item.get("指数名称", ""),
+            region,
+            trade_date,
+            item.get("最新价"),
+            item.get("涨跌幅(%)"),
+            item.get("涨跌额"),
+            int(vol) if vol is not None and vol != "-" else None,
+            str(item.get("成交额", "")) if item.get("成交额") != "-" else None,
+            item.get("今开") or item.get("open_price"),
+            item.get("昨收") or item.get("prev_close"),
+            item.get("最高") or item.get("high_price"),
+            item.get("最低") or item.get("low_price"),
+            now,
+        ))
+    if rows:
+        cursor.executemany(_UPSERT_REALTIME_SQL, rows)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 写入 — 涨幅榜快照（按日期 + 分类 upsert）
+# ═══════════════════════════════════════════════════════════════
+
+_UPSERT_RANKING_SQL = """
+INSERT INTO us_stock_ranking
+    (trade_date, category, stock_code, stock_name, latest_price, change_pct, change_amt,
+     volume, amount, open_price, prev_close, high_price, low_price, rank_order, updated_at)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE
+    stock_name   = VALUES(stock_name),
+    latest_price = VALUES(latest_price),
+    change_pct   = VALUES(change_pct),
+    change_amt   = VALUES(change_amt),
+    volume       = VALUES(volume),
+    amount       = VALUES(amount),
+    open_price   = VALUES(open_price),
+    prev_close   = VALUES(prev_close),
+    high_price   = VALUES(high_price),
+    low_price    = VALUES(low_price),
+    rank_order   = VALUES(rank_order),
+    updated_at   = VALUES(updated_at)
+"""
+
+
+def batch_upsert_stock_ranking(cursor, category: str, trade_date: str, items: list[dict]):
+    """批量写入涨幅榜数据（按 trade_date + category + stock_code 覆盖）"""
+    now = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
+    rows = []
+    for idx, item in enumerate(items, 1):
+        rows.append((
+            trade_date,
+            category,
+            item.get("代码", ""),
+            item.get("名称", ""),
+            item.get("最新价"),
+            item.get("涨跌幅(%)"),
+            item.get("涨跌额"),
+            item.get("成交量"),
+            item.get("成交额"),
+            item.get("今开"),
+            item.get("昨收"),
+            item.get("最高"),
+            item.get("最低"),
+            idx,
+            now,
+        ))
+    if rows:
+        cursor.executemany(_UPSERT_RANKING_SQL, rows)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 查询接口
+# ═══════════════════════════════════════════════════════════════
+
+def get_us_index_kline(index_code: str, limit: int = 120) -> list[dict]:
+    """查询美股指数日K线（由新到旧）"""
+    conn = get_connection(use_dict_cursor=True)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT trade_date, open_price, close_price, high_price, low_price, "
+            "       volume, amount, amplitude, change_pct, change_amt, turnover "
+            "FROM us_index_kline "
+            "WHERE index_code = %s ORDER BY trade_date DESC LIMIT %s",
+            (index_code, limit),
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_global_index_realtime(trade_date: str, region: str = None) -> list[dict]:
+    """查询全球指数当日行情，可按地区过滤"""
+    conn = get_connection(use_dict_cursor=True)
+    cursor = conn.cursor()
+    try:
+        if region:
+            cursor.execute(
+                "SELECT index_code, index_name, region, trade_date, latest_price, "
+                "       change_pct, change_amt, volume, amount, open_price, prev_close, "
+                "       high_price, low_price "
+                "FROM global_index_realtime "
+                "WHERE trade_date = %s AND region = %s ORDER BY change_pct DESC",
+                (trade_date, region),
+            )
+        else:
+            cursor.execute(
+                "SELECT index_code, index_name, region, trade_date, latest_price, "
+                "       change_pct, change_amt, volume, amount, open_price, prev_close, "
+                "       high_price, low_price "
+                "FROM global_index_realtime "
+                "WHERE trade_date = %s ORDER BY change_pct DESC",
+                (trade_date,),
+            )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_us_stock_ranking(trade_date: str, category: str, limit: int = 50) -> list[dict]:
+    """查询涨幅榜数据"""
+    conn = get_connection(use_dict_cursor=True)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT stock_code, stock_name, latest_price, change_pct, change_amt, "
+            "       volume, amount, open_price, prev_close, high_price, low_price, rank_order "
+            "FROM us_stock_ranking "
+            "WHERE trade_date = %s AND category = %s ORDER BY rank_order ASC LIMIT %s",
+            (trade_date, category, limit),
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_latest_trade_date_for_index(index_code: str = "NDX") -> str | None:
+    """获取指定指数最新的交易日期"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT MAX(trade_date) FROM us_index_kline WHERE index_code = %s",
+            (index_code,),
+        )
+        row = cursor.fetchone()
+        return str(row[0]) if row and row[0] else None
+    finally:
+        cursor.close()
+        conn.close()
