@@ -3618,8 +3618,7 @@
                     const idx = d.index_realtime_count || 0;
                     const rank = d.ranking_count || 0;
                     const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
-                    const runDate = d.last_run_time.substring(0, 10);
-                    const isToday = runDate === today;
+                    const isToday = d.last_run_date === today;
                     if (isToday) {
                         if (d.last_success) {
                             icon.textContent = '✅';
