@@ -243,32 +243,36 @@ async def _execute_job():
         # 3. 拉取分时数据
         logger.info("[盘后数据调度] 开始拉取分时数据，共%d只股票", total)
         _job_status["time_data_total"] = total
+        _job_status["time_data_success"] = 0
+        _job_status["time_data_failed"] = 0
         time_counter = {"success": 0, "failed": 0}
         sem = asyncio.Semaphore(3)
 
         async def _time_task(s):
             async with sem:
                 await _fetch_time_data_for_stock(s["code"], today_str, time_counter)
+                _job_status["time_data_success"] = time_counter["success"]
+                _job_status["time_data_failed"] = time_counter["failed"]
                 await asyncio.sleep(0.5)
 
         await asyncio.gather(*[_time_task(s) for s in stocks])
-        _job_status["time_data_success"] = time_counter["success"]
-        _job_status["time_data_failed"] = time_counter["failed"]
         logger.info("[盘后数据调度] 分时数据完成: 成功%d 失败%d", time_counter["success"], time_counter["failed"])
 
         # 4. 拉取盘口数据
         logger.info("[盘后数据调度] 开始拉取盘口数据，共%d只股票", total)
         _job_status["order_book_total"] = total
+        _job_status["order_book_success"] = 0
+        _job_status["order_book_failed"] = 0
         ob_counter = {"success": 0, "failed": 0}
 
         async def _ob_task(s):
             async with sem:
                 await _fetch_order_book_for_stock(s["code"], today_str, ob_counter)
+                _job_status["order_book_success"] = ob_counter["success"]
+                _job_status["order_book_failed"] = ob_counter["failed"]
                 await asyncio.sleep(0.5)
 
         await asyncio.gather(*[_ob_task(s) for s in stocks])
-        _job_status["order_book_success"] = ob_counter["success"]
-        _job_status["order_book_failed"] = ob_counter["failed"]
         logger.info("[盘后数据调度] 盘口数据完成: 成功%d 失败%d", ob_counter["success"], ob_counter["failed"])
 
         # 5. 拉取龙虎榜
