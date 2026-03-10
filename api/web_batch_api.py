@@ -86,7 +86,7 @@ async def lifespan(application: FastAPI):
     async def _boot():
         # 无论调度器是否成功，都要确保 app_ready 被触发，否则页面会卡住
         try:
-            # await start_scheduler()
+            await start_scheduler()
             logger.info("[lifespan] K线调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动K线调度器异常: %s", e, exc_info=True)
