@@ -13,16 +13,29 @@ _HEADERS = {
 }
 
 
-async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None) -> list[dict]:
+async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None, max_retries: int = 3) -> list[dict]:
     """
     从同花顺获取当日分时数据，返回列表（由旧到新）。
     每条记录包含：time, close_price, trading_amount, avg_price, trading_volume, change_percent
     """
     code = stock_info.stock_code
     url = f"https://d.10jqka.com.cn/v6/time/hs_{code}/defer/last.js"
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-        async with session.get(url, headers=_HEADERS) as resp:
-            text = await resp.text()
+
+    text = ""
+    for attempt in range(1, max_retries + 1):
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
+                async with session.get(url, headers=_HEADERS) as resp:
+                    text = await resp.text()
+            break
+        except (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError, asyncio.TimeoutError) as e:
+            if attempt < max_retries:
+                wait = 1.5 * attempt
+                logger.warning("[%s] 分时数据第%d次请求失败，%.1f秒后重试: %s", code, attempt, wait, e)
+                await asyncio.sleep(wait)
+            else:
+                logger.error("[%s] 分时数据重试%d次后仍失败: %s", code, max_retries, e)
+                return []
 
     json_text = re.sub(r"^\w+\(", "", text)
     json_text = re.sub(r"\);?\s*$", "", json_text)

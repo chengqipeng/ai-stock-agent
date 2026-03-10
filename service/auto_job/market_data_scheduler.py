@@ -123,32 +123,39 @@ def _already_done_today() -> bool:
 async def _fetch_time_data_for_stock(stock_code_normalize: str, trade_date: str, counter: dict):
     """拉取单只股票的分时数据并入库"""
     stock_code = stock_code_normalize.split(".")[0]
-    try:
-        stock_info = get_stock_info_by_code(stock_code_normalize)
-        if not stock_info:
-            logger.warning("[分时数据] 无法获取股票信息: %s", stock_code_normalize)
-            counter["failed"] += 1
-            return
-
-        data_list = await get_stock_time_kline_10jqka(stock_info)
-        if not data_list:
-            logger.debug("[分时数据] %s 无分时数据", stock_code)
-            counter["success"] += 1
-            return
-
-        conn = get_connection()
-        cursor = conn.cursor()
+    max_retries = 2
+    for attempt in range(1, max_retries + 1):
         try:
-            batch_upsert_time_data(stock_code, trade_date, data_list, cursor=cursor)
-            conn.commit()
-            counter["success"] += 1
-        finally:
-            cursor.close()
-            conn.close()
+            stock_info = get_stock_info_by_code(stock_code_normalize)
+            if not stock_info:
+                logger.warning("[分时数据] 无法获取股票信息: %s", stock_code_normalize)
+                counter["failed"] += 1
+                return
 
-    except Exception as e:
-        logger.error("[分时数据] %s 异常: %s", stock_code, e)
-        counter["failed"] += 1
+            data_list = await get_stock_time_kline_10jqka(stock_info)
+            if not data_list:
+                logger.debug("[分时数据] %s 无分时数据", stock_code)
+                counter["success"] += 1
+                return
+
+            conn = get_connection()
+            cursor = conn.cursor()
+            try:
+                batch_upsert_time_data(stock_code, trade_date, data_list, cursor=cursor)
+                conn.commit()
+                counter["success"] += 1
+            finally:
+                cursor.close()
+                conn.close()
+            return
+
+        except Exception as e:
+            if attempt < max_retries:
+                logger.warning("[分时数据] %s 第%d次异常，2秒后重试: %s", stock_code, attempt, e)
+                await asyncio.sleep(2)
+            else:
+                logger.error("[分时数据] %s 异常: %s", stock_code, e)
+                counter["failed"] += 1
 
 
 # ─────────── 盘口数据拉取 ───────────
@@ -156,30 +163,37 @@ async def _fetch_time_data_for_stock(stock_code_normalize: str, trade_date: str,
 async def _fetch_order_book_for_stock(stock_code_normalize: str, trade_date: str, counter: dict):
     """拉取单只股票的盘口数据并入库"""
     stock_code = stock_code_normalize.split(".")[0]
-    try:
-        stock_info = get_stock_info_by_code(stock_code_normalize)
-        if not stock_info:
-            counter["failed"] += 1
-            return
-
-        data = await get_order_book_10jqka(stock_info)
-        if not data:
-            counter["success"] += 1
-            return
-
-        conn = get_connection()
-        cursor = conn.cursor()
+    max_retries = 2
+    for attempt in range(1, max_retries + 1):
         try:
-            upsert_order_book(stock_code, trade_date, data, cursor=cursor)
-            conn.commit()
-            counter["success"] += 1
-        finally:
-            cursor.close()
-            conn.close()
+            stock_info = get_stock_info_by_code(stock_code_normalize)
+            if not stock_info:
+                counter["failed"] += 1
+                return
 
-    except Exception as e:
-        logger.error("[盘口数据] %s 异常: %s", stock_code, e)
-        counter["failed"] += 1
+            data = await get_order_book_10jqka(stock_info)
+            if not data:
+                counter["success"] += 1
+                return
+
+            conn = get_connection()
+            cursor = conn.cursor()
+            try:
+                upsert_order_book(stock_code, trade_date, data, cursor=cursor)
+                conn.commit()
+                counter["success"] += 1
+            finally:
+                cursor.close()
+                conn.close()
+            return
+
+        except Exception as e:
+            if attempt < max_retries:
+                logger.warning("[盘口数据] %s 第%d次异常，2秒后重试: %s", stock_code, attempt, e)
+                await asyncio.sleep(2)
+            else:
+                logger.error("[盘口数据] %s 异常: %s", stock_code, e)
+                counter["failed"] += 1
 
 
 # ─────────── 龙虎榜拉取 ───────────
