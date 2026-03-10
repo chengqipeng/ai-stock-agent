@@ -95,10 +95,22 @@ async def extract_main_content(url: str, use_proxy: bool = False, timeout: int =
         logger.info("extract_main_content 跳过付费墙/强反爬网站: %s", url)
         return ""
 
-    text = await _fetch_html(url, use_proxy=use_proxy, timeout=timeout)
-    if not text and not use_proxy:
-        logger.info("extract_main_content 直连失败，尝试代理重试: %s", url)
-        text = await _fetch_html(url, use_proxy=True, timeout=timeout)
+    proxy_available = _is_proxy_available()
+
+    # 决定首次请求是否走代理：调用方要求代理 且 代理确实可用时才走代理
+    first_use_proxy = use_proxy and proxy_available
+    text = await _fetch_html(url, use_proxy=first_use_proxy, timeout=timeout)
+
+    if not text:
+        if first_use_proxy:
+            # 代理请求失败 → 回退直连
+            logger.info("extract_main_content 代理失败，回退直连: %s", url)
+            text = await _fetch_html(url, use_proxy=False, timeout=timeout)
+        elif not use_proxy and proxy_available:
+            # 直连失败 且 代理可用 → 尝试代理
+            logger.info("extract_main_content 直连失败，代理可用，尝试代理重试: %s", url)
+            text = await _fetch_html(url, use_proxy=True, timeout=timeout)
+
     if not text:
         return ""
 
@@ -283,14 +295,21 @@ async def extract_content_with_datetime(url: str, use_proxy: bool = False, timeo
         dict: {'content': str, 'publish_time': str|None}
               publish_time 格式为 'YYYY-MM-DD HH:MM'，提取失败为 None。
     """
-    proxy = CLASHX_PROXY if use_proxy and _is_proxy_available() else None
+    proxy_available = _is_proxy_available()
 
-    async with AsyncSession(impersonate=IMPERSONATE) as session:
-        response = await session.get(url, proxy=proxy, timeout=timeout, headers=_build_headers())
-        if response.status_code == 403:
-            return {'content': '', 'publish_time': None}
-        response.raise_for_status()
-        raw_html = response.text
+    first_use_proxy = use_proxy and proxy_available
+    raw_html = await _fetch_html(url, use_proxy=first_use_proxy, timeout=timeout)
+
+    if not raw_html:
+        if first_use_proxy:
+            logger.info("extract_content_with_datetime 代理失败，回退直连: %s", url)
+            raw_html = await _fetch_html(url, use_proxy=False, timeout=timeout)
+        elif not use_proxy and proxy_available:
+            logger.info("extract_content_with_datetime 直连失败，代理可用，尝试代理重试: %s", url)
+            raw_html = await _fetch_html(url, use_proxy=True, timeout=timeout)
+
+    if not raw_html:
+        return {'content': '', 'publish_time': None}
 
     # 提取发布时间
     publish_time = extract_publish_datetime(raw_html)
