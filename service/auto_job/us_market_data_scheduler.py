@@ -89,9 +89,10 @@ def _is_us_trading_day(d: date) -> bool:
 def _get_us_trade_date() -> str:
     """获取最近一个美股交易日日期（北京时间06:00前视为前一天的交易日）"""
     now = datetime.now(_CST)
-    # 北京时间06:00之前，美股当天还在交易或刚收盘，取当天对应的美股日期
-    # 美东时间 = 北京时间 - 13h，所以北京06:00 = 美东17:00（收盘后）
     d = now.date()
+    # 北京时间06:00之前，美股当天可能还在交易或刚收盘，应取前一天
+    if now.time() < dtime(6, 0):
+        d -= timedelta(days=1)
     # 如果是周末则回退到周五
     while d.weekday() >= 5:
         d -= timedelta(days=1)
