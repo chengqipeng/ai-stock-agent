@@ -76,6 +76,8 @@ from service.auto_job.market_data_scheduler import start_market_data_scheduler, 
 from service.auto_job.market_data_scheduler import _execute_job as _market_data_execute_job
 from service.auto_job.us_market_data_scheduler import start_us_market_data_scheduler, get_us_market_job_status
 from service.auto_job.us_market_data_scheduler import _execute_job as _us_market_execute_job
+from service.auto_job.fund_flow_scheduler import start_fund_flow_scheduler, get_fund_flow_job_status
+from service.auto_job.fund_flow_scheduler import _execute_job as _fund_flow_execute_job
 from service.batch_technical_score.batch_technical_score import analyze_stock as technical_analyze_stock
 
 GRADE_SCORE_MAP = {
@@ -130,6 +132,12 @@ async def lifespan(application: FastAPI):
             logger.info("[lifespan] 海外市场数据调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动海外市场数据调度器异常: %s", e, exc_info=True)
+
+        try:
+            await start_fund_flow_scheduler()
+            logger.info("[lifespan] 资金流向调度器已激活")
+        except Exception as e:
+            logger.error("[lifespan] 启动资金流向调度器异常: %s", e, exc_info=True)
 
         # 关键：app_ready 必须在 try 之外，确保一定会被 set
         app_ready.set()
@@ -288,6 +296,22 @@ async def trigger_us_market_job():
         return {"success": False, "message": "海外市场数据任务正在执行中"}
     asyncio.create_task(_us_market_execute_job())
     return {"success": True, "message": "海外市场数据任务已触发（美股K线/全球指数/涨幅榜）"}
+
+
+@app.get("/api/fund_flow_job_status")
+async def fund_flow_job_status():
+    """获取资金流向定时任务状态"""
+    return {"success": True, "data": get_fund_flow_job_status()}
+
+
+@app.post("/api/trigger_fund_flow_job")
+async def trigger_fund_flow_job():
+    """手动触发资金流向数据拉取"""
+    status = get_fund_flow_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "资金流向任务正在执行中"}
+    asyncio.create_task(_fund_flow_execute_job())
+    return {"success": True, "message": "资金流向数据任务已触发"}
 
 
 @app.get("/api/stock_list")
