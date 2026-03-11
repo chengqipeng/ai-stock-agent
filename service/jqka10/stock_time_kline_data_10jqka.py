@@ -52,6 +52,8 @@ async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None, 
     # 格式化日期: "20260311" → "2026-03-11"
     if trade_date and len(trade_date) == 8:
         trade_date = f"{trade_date[:4]}-{trade_date[4:6]}-{trade_date[6:]}"
+    if not trade_date:
+        logger.warning("[%s] 分时数据API未返回date字段，_trade_date将为空，调用方需自行确定交易日期", code)
     name = stock_info.stock_name
     if not pre_close:
         logger.error("[%s] 分时数据昨收价为空或为0，inner keys=%s", code, list(inner.keys()))

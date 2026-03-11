@@ -263,7 +263,15 @@ async def _execute_job():
     _job_status["error"] = None
     start_time = datetime.now(_CST)
     _job_status["start_time"] = start_time.isoformat()
-    today_str = start_time.date().isoformat()
+
+    # 确定目标交易日：如果当前时间在15:00之前（尚未收盘），使用上一个交易日
+    target_date = start_time.date()
+    if start_time.time() < dtime(15, 0) or not is_a_share_trading_day(target_date):
+        target_date = target_date - timedelta(days=1)
+        while not is_a_share_trading_day(target_date):
+            target_date = target_date - timedelta(days=1)
+    today_str = target_date.isoformat()
+
     _job_status["last_run_time"] = start_time.strftime("%Y-%m-%d %H:%M:%S")
     _job_status["last_run_date"] = today_str
 
