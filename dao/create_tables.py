@@ -298,6 +298,30 @@ _TABLES = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 
+    # ── stock_fund_flow（历史资金流向数据） ──
+    """
+    CREATE TABLE IF NOT EXISTS stock_fund_flow (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        stock_code VARCHAR(20) NOT NULL,
+        `date` VARCHAR(20) NOT NULL,
+        close_price DOUBLE,
+        change_pct DOUBLE,
+        net_flow DOUBLE COMMENT '资金净流入(万元)',
+        main_net_5day DOUBLE COMMENT '5日主力净额(万元)',
+        big_net DOUBLE COMMENT '大单(主力)净额(万元)',
+        big_net_pct DOUBLE COMMENT '大单净占比',
+        mid_net DOUBLE COMMENT '中单净额(万元)',
+        mid_net_pct DOUBLE COMMENT '中单净占比',
+        small_net DOUBLE COMMENT '小单净额(万元)',
+        small_net_pct DOUBLE COMMENT '小单净占比',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_code_date (stock_code, `date`),
+        INDEX idx_stock_code (stock_code),
+        INDEX idx_date (`date`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+
     # ── stock_kline_screening_history（K线初筛历史记录，每次分析都产生新记录） ──
     """
     CREATE TABLE IF NOT EXISTS stock_kline_screening_history (
