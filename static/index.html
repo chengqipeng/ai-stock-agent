@@ -837,6 +837,28 @@
             <a href="/scheduler_logs?job_name=海外数据" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
             <div class="job-progress-bar"><div id="usMarketJobProgress" class="job-progress-fill" style="width:0%"></div></div>
         </div>
+        <div id="fundFlowJobBanner" style="
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            position: relative;
+        ">
+            <span id="fundFlowJobIcon" class="job-icon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
+            <span id="fundFlowJobText" style="overflow: hidden; text-overflow: ellipsis;">资金流向状态加载中<span class="job-dots"></span></span>
+            <span id="fundFlowJobElapsed" class="job-elapsed"></span>
+            <button onclick="triggerJob('fund_flow')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
+            <a href="/scheduler_logs?job_name=资金流向" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
+            <div class="job-progress-bar"><div id="fundFlowJobProgress" class="job-progress-fill" style="width:0%"></div></div>
+        </div>
     </div>
 
     <!-- 技术指标自动打分进度条 -->
@@ -3084,7 +3106,7 @@
 
         // ─── 手动触发调度任务 ───
         async function triggerJob(jobType) {
-            const names = {kline:'日线数据',price:'最高最低价',score:'技术打分',kline_score:'K线初筛',db_check:'数据异常检测',market_data:'盘后数据',us_market:'海外市场数据'};
+            const names = {kline:'日线数据',price:'最高最低价',score:'技术打分',kline_score:'K线初筛',db_check:'数据异常检测',market_data:'盘后数据',us_market:'海外市场数据',fund_flow:'资金流向'};
             if (!confirm('确认手动执行「' + names[jobType] + '」任务？')) return;
             try {
                 const resp = await fetch('/api/trigger_' + jobType + '_job', {method:'POST'});
@@ -3366,10 +3388,11 @@
                 pollKlineScoreJobStatus(),
                 pollDbCheckJobStatus(),
                 pollMarketDataJobStatus(),
-                pollUsMarketJobStatus()
+                pollUsMarketJobStatus(),
+                pollFundFlowJobStatus()
             ]);
             // 检测是否有任务在运行
-            const banners = ['klineJobBanner','priceJobBanner','scoreJobBanner','klineScoreJobBanner','dbCheckJobBanner','marketDataJobBanner','usMarketJobBanner'];
+            const banners = ['klineJobBanner','priceJobBanner','scoreJobBanner','klineScoreJobBanner','dbCheckJobBanner','marketDataJobBanner','usMarketJobBanner','fundFlowJobBanner'];
             _anyJobRunning = banners.some(id => document.getElementById(id)?.classList.contains('banner-running'));
             // 动态调整轮询间隔
             clearTimeout(_pollTimer);
@@ -3648,6 +3671,64 @@
                     text.textContent = '海外数据等待调度中（每天06:00自动执行）';
                     banner.style.background = 'rgba(255,255,255,0.2)';
                 }
+            }
+        }
+
+        // ─── 资金流向状态轮询 ───
+        async function pollFundFlowJobStatus() {
+            try {
+                const resp = await fetch('/api/fund_flow_job_status');
+                const json = await resp.json();
+                if (!json.success) return;
+                const d = json.data;
+                const banner = document.getElementById('fundFlowJobBanner');
+                const icon = document.getElementById('fundFlowJobIcon');
+                const text = document.getElementById('fundFlowJobText');
+                setBannerRunning(banner, d.running);
+
+                if (d.error && !d.running) {
+                    icon.textContent = '❌';
+                    text.textContent = '资金流向执行异常: ' + d.error;
+                    banner.style.background = 'rgba(217,83,79,0.25)';
+                } else if (d.running) {
+                    const sTotal = d.total || 0;
+                    const sSuccess = d.success || 0;
+                    const sFailed = d.failed || 0;
+                    const done = sSuccess + sFailed;
+                    const pct = sTotal > 0 ? Math.round((done / sTotal) * 100) : 0;
+                    icon.textContent = '🔄';
+                    let msg = '资金流向拉取中';
+                    if (sTotal > 0) {
+                        msg += '  ' + pct + '%  ' + done + '/' + sTotal;
+                        if (sFailed > 0) msg += '  失败' + sFailed;
+                    }
+                    text.textContent = msg;
+                    updateJobProgress('fundFlowJobProgress', 'fundFlowJobElapsed', done, sTotal, d.last_run_time);
+                } else if (d.last_run_time) {
+                    const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
+                    const isToday = d.last_run_date === today;
+                    if (isToday) {
+                        if (d.last_success) {
+                            icon.textContent = '✅';
+                            text.textContent = d.last_run_time + ' 资金流向完成  成功' + (d.success || 0);
+                            banner.style.background = 'rgba(92,184,92,0.25)';
+                        } else {
+                            icon.textContent = '⚠️';
+                            text.textContent = d.last_run_time + ' 资金流向部分失败  ' + (d.error || '');
+                            banner.style.background = 'rgba(240,173,78,0.25)';
+                        }
+                    } else {
+                        icon.textContent = '⏳';
+                        text.textContent = '资金流向等待调度（每天16:30自动执行）  上次: ' + d.last_run_time;
+                        banner.style.background = 'rgba(255,255,255,0.2)';
+                    }
+                } else {
+                    icon.textContent = '⏳';
+                    text.textContent = '资金流向等待调度（每天16:30自动执行）';
+                    banner.style.background = 'rgba(255,255,255,0.2)';
+                }
+            } catch (e) {
+                // 静默失败
             }
         }
     </script>
