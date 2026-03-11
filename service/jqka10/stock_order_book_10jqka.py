@@ -102,6 +102,11 @@ def _parse_fields(fields: list[str]) -> dict:
     from common.utils.amount_utils import convert_amount_unit
     amount_yuan = _f(9)
 
+    # 新浪字段30是日期(YYYY-MM-DD)，31是时间(HH:MM:SS)
+    trade_date = ""
+    if len(fields) > 30:
+        trade_date = fields[30].strip()
+
     result = {
         "current_price": _f(3),
         "open_price": _f(1),
@@ -111,6 +116,9 @@ def _parse_fields(fields: list[str]) -> dict:
         "volume": _vol(8),
         "amount": convert_amount_unit(amount_yuan),
     }
+
+    if trade_date:
+        result["_trade_date"] = trade_date
 
     # 五档买盘：(量idx, 价idx)
     for i in range(5):

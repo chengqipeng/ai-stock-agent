@@ -124,11 +124,6 @@ async def _fetch_time_data_for_stock(stock_code_normalize: str, trade_date: str,
     """拉取单只股票的分时数据并入库"""
     stock_code = stock_code_normalize.split(".")[0]
 
-    # 当天数据已存在则跳过
-    if has_time_data(stock_code, trade_date):
-        counter["success"] += 1
-        return
-
     max_retries = 2
     for attempt in range(1, max_retries + 1):
         try:
@@ -144,10 +139,25 @@ async def _fetch_time_data_for_stock(stock_code_normalize: str, trade_date: str,
                 counter["success"] += 1
                 return
 
+            # 使用API返回的真实交易日期，而非调度器当前日期
+            actual_trade_date = data_list[0].get("_trade_date", trade_date)
+            if actual_trade_date != trade_date:
+                logger.info("[分时数据] %s API返回日期=%s 与调度日期=%s 不同，使用API日期",
+                            stock_code, actual_trade_date, trade_date)
+
+            # 当天数据已存在则跳过
+            if has_time_data(stock_code, actual_trade_date):
+                counter["success"] += 1
+                return
+
+            # 写入前清除 _trade_date 辅助字段
+            for item in data_list:
+                item.pop("_trade_date", None)
+
             conn = get_connection()
             cursor = conn.cursor()
             try:
-                batch_upsert_time_data(stock_code, trade_date, data_list, cursor=cursor)
+                batch_upsert_time_data(stock_code, actual_trade_date, data_list, cursor=cursor)
                 conn.commit()
                 counter["success"] += 1
             finally:
@@ -170,11 +180,6 @@ async def _fetch_order_book_for_stock(stock_code_normalize: str, trade_date: str
     """拉取单只股票的盘口数据并入库"""
     stock_code = stock_code_normalize.split(".")[0]
 
-    # 当天数据已存在则跳过
-    if has_order_book(stock_code, trade_date):
-        counter["success"] += 1
-        return
-
     max_retries = 2
     for attempt in range(1, max_retries + 1):
         try:
@@ -188,10 +193,21 @@ async def _fetch_order_book_for_stock(stock_code_normalize: str, trade_date: str
                 counter["success"] += 1
                 return
 
+            # 使用API返回的真实交易日期
+            actual_trade_date = data.pop("_trade_date", trade_date)
+            if actual_trade_date != trade_date:
+                logger.info("[盘口数据] %s API返回日期=%s 与调度日期=%s 不同，使用API日期",
+                            stock_code, actual_trade_date, trade_date)
+
+            # 数据已存在则跳过
+            if has_order_book(stock_code, actual_trade_date):
+                counter["success"] += 1
+                return
+
             conn = get_connection()
             cursor = conn.cursor()
             try:
-                upsert_order_book(stock_code, trade_date, data, cursor=cursor)
+                upsert_order_book(stock_code, actual_trade_date, data, cursor=cursor)
                 conn.commit()
                 counter["success"] += 1
             finally:

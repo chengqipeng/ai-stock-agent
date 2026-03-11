@@ -49,6 +49,9 @@ async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None, 
     pre_close = float(inner.get("pre", 0) or 0)
     data_str = inner.get("data", "")
     trade_date = inner.get("date", "")  # 分时数据对应的交易日期
+    # 格式化日期: "20260311" → "2026-03-11"
+    if trade_date and len(trade_date) == 8:
+        trade_date = f"{trade_date[:4]}-{trade_date[4:6]}-{trade_date[6:]}"
     name = stock_info.stock_name
     if not pre_close:
         logger.error("[%s] 分时数据昨收价为空或为0，inner keys=%s", code, list(inner.keys()))
@@ -116,7 +119,12 @@ async def get_stock_time_kline_10jqka(stock_info: StockInfo, limit: int = None, 
             "change_percent":  change_pct,
         })
 
-    return result if limit is None else result[-limit:]
+    final = result if limit is None else result[-limit:]
+    # 将API返回的真实交易日期附加到结果上，供调用方使用
+    if final and trade_date:
+        for item in final:
+            item["_trade_date"] = trade_date
+    return final
 
 
 async def get_stock_time_kline_cn_10jqka(stock_info: StockInfo, limit: int = None) -> list[dict]:
