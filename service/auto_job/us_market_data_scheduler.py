@@ -3,6 +3,7 @@
 
 - 每个交易日 06:00（北京时间，对应美东收盘后）自动触发
 - 拉取美股指数日K线、全球指数行情、中概股/知名美股/互联网中国涨幅榜
+- 拉取美股半导体龙头个股日K线（18只）+ SOXX半导体ETF
 - 所有按天存储的数据直接覆盖（upsert）
 - 项目启动时检查当天是否已完成，未完成则补拉
 """
@@ -19,6 +20,7 @@ from dao.us_market_dao import (
     batch_upsert_index_kline,
     batch_upsert_global_index_realtime,
     batch_upsert_stock_ranking,
+    batch_upsert_stock_kline,
 )
 from service.auto_job.kline_data_scheduler import app_ready
 from service.eastmoney.indices.us_market_indices import (
@@ -32,6 +34,11 @@ from service.eastmoney.indices.us_market_indices import (
     get_famous_us_stock_ranking,
     get_internet_china_stock_ranking,
     US_INDEX_MAP,
+)
+from service.eastmoney.indices.us_stock_kline import (
+    get_us_stock_day_kline,
+    get_sox_index_day_kline,
+    US_SEMI_STOCK_MAP,
 )
 
 _CST = ZoneInfo("Asia/Shanghai")
@@ -72,6 +79,7 @@ _job_status = {
     "kline_count": 0,
     "index_realtime_count": 0,
     "ranking_count": 0,
+    "us_stock_kline_count": 0,
 }
 _persisted = _load_persisted_status()
 _job_status.update(_persisted)
@@ -224,10 +232,50 @@ async def _execute_job():
             await asyncio.sleep(0.3)
         _job_status["ranking_count"] = ranking_total
 
+        # 4. 美股半导体龙头个股日K线 + SOXX半导体ETF
+        stock_kline_total = 0
+        for code, info in US_SEMI_STOCK_MAP.items():
+            try:
+                klines = await get_us_stock_day_kline(code, limit=120)
+                conn = get_connection()
+                cursor = conn.cursor()
+                try:
+                    batch_upsert_stock_kline(
+                        cursor, code, info["name"], info["sector"], klines,
+                    )
+                    conn.commit()
+                    stock_kline_total += len(klines)
+                    logger.info("[海外数据调度] %s(%s) 个股K线写入 %d 条",
+                                code, info["name"], len(klines))
+                finally:
+                    cursor.close()
+                    conn.close()
+            except Exception as e:
+                logger.error("[海外数据调度] %s 个股K线失败: %s", code, e)
+            await asyncio.sleep(0.3)
+
+        # SOXX 半导体ETF（写入 us_index_kline 表，与 NDX/SPX/DJIA 同表）
+        try:
+            soxx_klines = await get_sox_index_day_kline(limit=120)
+            conn = get_connection()
+            cursor = conn.cursor()
+            try:
+                batch_upsert_index_kline(cursor, "SOXX", soxx_klines)
+                conn.commit()
+                stock_kline_total += len(soxx_klines)
+                logger.info("[海外数据调度] SOXX 半导体ETF K线写入 %d 条", len(soxx_klines))
+            finally:
+                cursor.close()
+                conn.close()
+        except Exception as e:
+            logger.error("[海外数据调度] SOXX K线失败: %s", e)
+
+        _job_status["us_stock_kline_count"] = stock_kline_total
+
         _job_status["last_success"] = True
         elapsed = (datetime.now(_CST) - start_time).total_seconds()
-        logger.info("[海外数据调度] ===== 执行完成，耗时%.1f秒 K线%d 指数%d 涨幅榜%d =====",
-                    elapsed, kline_total, realtime_total, ranking_total)
+        logger.info("[海外数据调度] ===== 执行完成，耗时%.1f秒 K线%d 指数%d 涨幅榜%d 个股K线%d =====",
+                    elapsed, kline_total, realtime_total, ranking_total, stock_kline_total)
 
     except Exception as e:
         _job_status["last_success"] = False

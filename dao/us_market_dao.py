@@ -23,7 +23,7 @@ _CST = ZoneInfo("Asia/Shanghai")
 DDL_US_INDEX_KLINE = """
 CREATE TABLE IF NOT EXISTS us_index_kline (
     id            BIGINT AUTO_INCREMENT PRIMARY KEY,
-    index_code    VARCHAR(20)    NOT NULL COMMENT '指数代码 NDX/DJIA/SPX',
+    index_code    VARCHAR(20)    NOT NULL COMMENT '指数代码 NDX/DJIA/SPX/SOXX',
     trade_date    DATE           NOT NULL COMMENT '交易日期',
     open_price    DECIMAL(16,4)  DEFAULT NULL,
     close_price   DECIMAL(16,4)  DEFAULT NULL,

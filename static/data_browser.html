@@ -41,6 +41,23 @@ tbody tr:hover { background: rgba(102,126,234,0.08); }
 .empty { text-align: center; padding: 60px; color: rgba(255,255,255,0.3); font-size: 14px; }
 .num-positive { color: #e74c3c; }
 .num-negative { color: #2ecc71; }
+
+/* 分时数据专用面板 */
+.time-panel { display: none; margin-bottom: 16px; padding: 16px; background: rgba(255,255,255,0.04); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); }
+.time-panel.visible { display: block; }
+.time-panel .tp-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.time-panel label { font-size: 12px; color: rgba(255,255,255,0.5); }
+.time-panel input, .time-panel select { padding: 6px 10px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(255,255,255,0.08); color: #e0e6ed; font-size: 13px; outline: none; }
+.time-panel input:focus, .time-panel select:focus { border-color: #667eea; }
+.time-panel button { padding: 6px 16px; border: none; border-radius: 6px; background: #667eea; color: #fff; cursor: pointer; font-size: 13px; }
+.time-panel button:hover { background: #5a6fd6; }
+.time-panel .tp-hint { font-size: 11px; color: rgba(255,255,255,0.3); }
+.time-chart-wrap { position: relative; width: 100%; height: 360px; background: rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden; }
+.time-chart-wrap canvas { width: 100%; height: 100%; }
+.time-stats { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; }
+.time-stats .stat-item { display: flex; gap: 4px; }
+.time-stats .stat-label { color: rgba(255,255,255,0.4); }
+.time-stats .stat-val { color: #e0e6ed; font-weight: 500; }
 </style>
 </head>
 <body>
@@ -65,6 +82,22 @@ tbody tr:hover { background: rgba(102,126,234,0.08); }
             <option value="200">200</option>
         </select>
         <button onclick="doQuery(1)">查询</button>
+    </div>
+    <!-- 分时数据专用查询面板 -->
+    <div class="time-panel" id="timePanel">
+        <div class="tp-row">
+            <label>股票代码</label>
+            <input type="text" id="tpCode" placeholder="如 002440" style="width:120px">
+            <button onclick="loadTimeDates()">查询可用日期</button>
+            <label>交易日期</label>
+            <select id="tpDate" style="width:150px"><option value="">请先查询日期</option></select>
+            <button onclick="loadTimeData()">查看分时图</button>
+            <span class="tp-hint" id="tpHint"></span>
+        </div>
+        <div class="time-chart-wrap" id="timeChartWrap" style="display:none;">
+            <canvas id="timeChart"></canvas>
+        </div>
+        <div class="time-stats" id="timeStats"></div>
     </div>
     <div class="data-info" id="dataInfo"></div>
     <div class="table-wrap"><table><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table></div>
@@ -107,6 +140,7 @@ function selectTable(table) {
     currentOrderBy = null;
     currentOrderDir = 'DESC';
     document.querySelectorAll('.table-btn').forEach(b => b.classList.toggle('active', b.dataset.table === table));
+    toggleTimePanel();
     doQuery(1);
 }
 
@@ -208,6 +242,237 @@ function renderPagination(page, totalPages, total) {
 
 // Enter key triggers query
 document.getElementById('filterCode').addEventListener('keydown', e => { if (e.key === 'Enter') doQuery(1); });
+document.getElementById('tpCode').addEventListener('keydown', e => { if (e.key === 'Enter') loadTimeDates(); });
+
+// ========== 分时数据专用逻辑 ==========
+function toggleTimePanel() {
+    const panel = document.getElementById('timePanel');
+    panel.classList.toggle('visible', currentTable === 'stock_time_data');
+}
+
+async function loadTimeDates() {
+    const code = document.getElementById('tpCode').value.trim();
+    if (!code) { document.getElementById('tpHint').textContent = '请输入股票代码'; return; }
+    document.getElementById('tpHint').textContent = '查询中...';
+    try {
+        const resp = await fetch('/api/data_browser/time_data_dates?stock_code=' + encodeURIComponent(code));
+        const json = await resp.json();
+        if (!json.success) { document.getElementById('tpHint').textContent = '查询失败'; return; }
+        const sel = document.getElementById('tpDate');
+        sel.innerHTML = '';
+        if (json.dates.length === 0) {
+            sel.innerHTML = '<option value="">无数据</option>';
+            document.getElementById('tpHint').textContent = '该股票暂无分时数据';
+            return;
+        }
+        json.dates.forEach(d => { const o = document.createElement('option'); o.value = d; o.textContent = d; sel.appendChild(o); });
+        document.getElementById('tpHint').textContent = '共 ' + json.dates.length + ' 个交易日';
+    } catch (e) { document.getElementById('tpHint').textContent = '请求失败: ' + e.message; }
+}
+
+let _timeChartData = null;
+
+async function loadTimeData() {
+    const code = document.getElementById('tpCode').value.trim();
+    const date = document.getElementById('tpDate').value;
+    if (!code || !date) { document.getElementById('tpHint').textContent = '请选择股票和日期'; return; }
+    document.getElementById('tpHint').textContent = '加载分时数据...';
+    try {
+        const resp = await fetch('/api/data_browser/time_data?stock_code=' + encodeURIComponent(code) + '&trade_date=' + date);
+        const json = await resp.json();
+        if (!json.success || json.data.length === 0) { document.getElementById('tpHint').textContent = '无分时数据'; return; }
+        _timeChartData = json.data;
+        document.getElementById('tpHint').textContent = code + ' ' + date + ' 共 ' + json.data.length + ' 条';
+        document.getElementById('timeChartWrap').style.display = 'block';
+        renderTimeChart(json.data, code, date);
+        renderTimeStats(json.data);
+    } catch (e) { document.getElementById('tpHint').textContent = '请求失败: ' + e.message; }
+}
+
+function renderTimeChart(data, code, date) {
+    const canvas = document.getElementById('timeChart');
+    const wrap = document.getElementById('timeChartWrap');
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = wrap.clientWidth * dpr;
+    canvas.height = wrap.clientHeight * dpr;
+    canvas.style.width = wrap.clientWidth + 'px';
+    canvas.style.height = wrap.clientHeight + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    const padL = 60, padR = 20, padT = 30, padB = 50;
+    const chartW = W - padL - padR, chartH = H - padT - padB;
+
+    ctx.clearRect(0, 0, W, H);
+
+    const prices = data.map(d => d.close_price).filter(v => v != null);
+    const avgPrices = data.map(d => d.avg_price).filter(v => v != null);
+    const volumes = data.map(d => d.trading_volume || 0);
+    if (prices.length === 0) return;
+
+    const allPrices = prices.concat(avgPrices.length ? avgPrices : []);
+    const minP = Math.min(...allPrices), maxP = Math.max(...allPrices);
+    const pRange = maxP - minP || 1;
+    const maxV = Math.max(...volumes) || 1;
+    const volH = chartH * 0.22;
+    const priceH = chartH - volH - 10;
+
+    // 背景网格
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = padT + (priceH / 4) * i;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + chartW, y); ctx.stroke();
+    }
+
+    // 价格Y轴标签
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+        const y = padT + (priceH / 4) * i;
+        const val = maxP - (pRange / 4) * i;
+        ctx.fillText(val.toFixed(2), padL - 6, y + 4);
+    }
+
+    // X轴时间标签
+    ctx.textAlign = 'center';
+    const step = Math.max(1, Math.floor(data.length / 8));
+    for (let i = 0; i < data.length; i += step) {
+        const x = padL + (i / (data.length - 1)) * chartW;
+        ctx.fillText(data[i].time, x, H - padB + 16);
+    }
+
+    // 成交量柱状图
+    const volTop = padT + priceH + 10;
+    const barW = Math.max(1, chartW / data.length - 1);
+    data.forEach((d, i) => {
+        const x = padL + (i / (data.length - 1)) * chartW - barW / 2;
+        const h = (d.trading_volume || 0) / maxV * volH;
+        const chg = d.change_percent || 0;
+        ctx.fillStyle = chg >= 0 ? 'rgba(231,76,60,0.5)' : 'rgba(46,204,113,0.5)';
+        ctx.fillRect(x, volTop + volH - h, barW, h);
+    });
+
+    // 价格折线
+    function drawLine(arr, color, lineW) {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineW;
+        let started = false;
+        data.forEach((d, i) => {
+            const val = d[arr];
+            if (val == null) return;
+            const x = padL + (i / (data.length - 1)) * chartW;
+            const y = padT + (1 - (val - minP) / pRange) * priceH;
+            if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+    }
+    drawLine('close_price', '#667eea', 1.5);
+    if (avgPrices.length) drawLine('avg_price', '#f0ad4e', 1);
+
+    // 价格区域填充
+    ctx.beginPath();
+    ctx.fillStyle = 'rgba(102,126,234,0.08)';
+    let firstX = padL;
+    data.forEach((d, i) => {
+        if (d.close_price == null) return;
+        const x = padL + (i / (data.length - 1)) * chartW;
+        const y = padT + (1 - (d.close_price - minP) / pRange) * priceH;
+        if (i === 0) { firstX = x; ctx.moveTo(x, y); } else ctx.lineTo(x, y);
+    });
+    ctx.lineTo(padL + chartW, padT + priceH);
+    ctx.lineTo(firstX, padT + priceH);
+    ctx.closePath();
+    ctx.fill();
+
+    // 图例
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#667eea';
+    ctx.textAlign = 'left';
+    ctx.fillText('● 价格', padL + 10, padT - 10);
+    if (avgPrices.length) { ctx.fillStyle = '#f0ad4e'; ctx.fillText('● 均价', padL + 70, padT - 10); }
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText(code + ' ' + date, padL + 150, padT - 10);
+
+    // 鼠标悬停十字线
+    canvas.onmousemove = function(e) {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        if (mx < padL || mx > padL + chartW || my < padT || my > padT + chartH) { renderTimeChart(data, code, date); canvas.onmousemove = arguments.callee; return; }
+        const idx = Math.round((mx - padL) / chartW * (data.length - 1));
+        if (idx < 0 || idx >= data.length) return;
+        // 重绘
+        renderTimeChart(data, code, date);
+        canvas.onmousemove = arguments.callee;
+        const ctx2 = canvas.getContext('2d');
+        ctx2.save();
+        ctx2.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const cx = padL + (idx / (data.length - 1)) * chartW;
+        ctx2.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx2.lineWidth = 0.5;
+        ctx2.setLineDash([4, 3]);
+        ctx2.beginPath(); ctx2.moveTo(cx, padT); ctx2.lineTo(cx, padT + chartH); ctx2.stroke();
+        ctx2.beginPath(); ctx2.moveTo(padL, my); ctx2.lineTo(padL + chartW, my); ctx2.stroke();
+        ctx2.setLineDash([]);
+        // tooltip
+        const d = data[idx];
+        const lines = [
+            d.time,
+            '价格: ' + (d.close_price != null ? d.close_price.toFixed(2) : '-'),
+            '均价: ' + (d.avg_price != null ? d.avg_price.toFixed(2) : '-'),
+            '成交量: ' + (d.trading_volume != null ? d.trading_volume.toLocaleString() : '-'),
+            '涨跌: ' + (d.change_percent != null ? d.change_percent.toFixed(2) + '%' : '-'),
+        ];
+        const tw = 150, th = lines.length * 18 + 10;
+        let tx = cx + 12, ty = my - th / 2;
+        if (tx + tw > W - padR) tx = cx - tw - 12;
+        if (ty < padT) ty = padT;
+        ctx2.fillStyle = 'rgba(20,30,45,0.92)';
+        ctx2.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx2.lineWidth = 1;
+        ctx2.beginPath(); ctx2.roundRect(tx, ty, tw, th, 6); ctx2.fill(); ctx2.stroke();
+        ctx2.font = '11px sans-serif';
+        ctx2.fillStyle = '#e0e6ed';
+        lines.forEach((l, li) => { ctx2.fillText(l, tx + 8, ty + 16 + li * 18); });
+        ctx2.restore();
+    };
+}
+
+function renderTimeStats(data) {
+    const wrap = document.getElementById('timeStats');
+    if (!data.length) { wrap.innerHTML = ''; return; }
+    const prices = data.map(d => d.close_price).filter(v => v != null);
+    const vols = data.map(d => d.trading_volume || 0);
+    const amounts = data.map(d => d.trading_amount || 0);
+    const open = prices[0], close = prices[prices.length - 1];
+    const high = Math.max(...prices), low = Math.min(...prices);
+    const totalVol = vols.reduce((a, b) => a + b, 0);
+    const totalAmt = amounts.reduce((a, b) => a + b, 0);
+    const chg = ((close - open) / open * 100);
+    const chgClass = chg >= 0 ? 'num-positive' : 'num-negative';
+    wrap.innerHTML = [
+        stat('开盘', open.toFixed(2)),
+        stat('收盘', close.toFixed(2)),
+        stat('最高', high.toFixed(2)),
+        stat('最低', low.toFixed(2)),
+        stat('涨跌幅', '<span class="' + chgClass + '">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%</span>'),
+        stat('总成交量', totalVol.toLocaleString()),
+        stat('总成交额', formatAmount(totalAmt)),
+    ].join('');
+}
+
+function stat(label, val) {
+    return '<div class="stat-item"><span class="stat-label">' + label + ':</span><span class="stat-val">' + val + '</span></div>';
+}
+
+function formatAmount(v) {
+    if (v >= 1e8) return (v / 1e8).toFixed(2) + '亿';
+    if (v >= 1e4) return (v / 1e4).toFixed(2) + '万';
+    return v.toFixed(2);
+}
+
 loadTables();
 </script>
 </body>

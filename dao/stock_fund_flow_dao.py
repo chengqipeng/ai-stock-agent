@@ -120,3 +120,19 @@ def get_fund_flow_latest_date(stock_code: str, cursor=None) -> str | None:
         cursor.close()
         conn.close()
     return row[0] if row else None
+
+def get_fund_flow_count(stock_code: str, cursor=None) -> int:
+    """查询某只股票的历史资金流向记录条数"""
+    sql = f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE stock_code = %s"
+    own = cursor is None
+    if own:
+        conn = get_connection()
+        cursor = conn.cursor()
+    cursor.execute(sql, (stock_code,))
+    row = cursor.fetchone()
+    if own:
+        cursor.close()
+        conn.close()
+    return row[0] if row else 0
+
+

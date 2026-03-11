@@ -93,3 +93,17 @@ def get_dragon_tiger_by_date(trade_date: str, cursor=None) -> list[dict]:
         cursor.close()
         conn.close()
     return result
+
+
+def has_dragon_tiger(trade_date: str) -> bool:
+    """检查某天是否已有龙虎榜数据"""
+    sql = f"SELECT 1 FROM {TABLE_NAME} WHERE trade_date = %s LIMIT 1"
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(sql, (trade_date,))
+        return cursor.fetchone() is not None
+    finally:
+        cursor.close()
+        conn.close()
+

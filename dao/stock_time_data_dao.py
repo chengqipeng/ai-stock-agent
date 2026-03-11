@@ -101,3 +101,17 @@ def get_time_data(stock_code: str, trade_date: str, cursor=None) -> list[dict]:
         cursor.close()
         conn.close()
     return result
+
+
+def has_time_data(stock_code: str, trade_date: str) -> bool:
+    """检查某只股票某天是否已有分时数据"""
+    sql = f"SELECT 1 FROM {TABLE_NAME} WHERE stock_code = %s AND trade_date = %s LIMIT 1"
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(sql, (stock_code, trade_date))
+        return cursor.fetchone() is not None
+    finally:
+        cursor.close()
+        conn.close()
+

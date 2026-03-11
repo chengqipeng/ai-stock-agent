@@ -126,3 +126,18 @@ def get_order_book(stock_code: str, trade_date: str, cursor=None) -> dict | None
         cursor.close()
         conn.close()
     return result
+
+
+def has_order_book(stock_code: str, trade_date: str) -> bool:
+    """检查某只股票某天是否已有有效的盘口数据（prev_close > 0 表示数据有效）"""
+    sql = (f"SELECT 1 FROM {TABLE_NAME} "
+           f"WHERE stock_code = %s AND trade_date = %s AND prev_close > 0 LIMIT 1")
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(sql, (stock_code, trade_date))
+        return cursor.fetchone() is not None
+    finally:
+        cursor.close()
+        conn.close()
+

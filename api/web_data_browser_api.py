@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
 from dao import get_connection
+from dao.stock_time_data_dao import get_time_data
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,48 @@ async def data_browser_tables():
             result.append({"table": t, "count": row["cnt"]})
         return {"success": True, "data": result}
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@router.get("/api/data_browser/time_data")
+async def data_browser_time_data(
+    stock_code: str = Query(..., description="股票代码"),
+    trade_date: str = Query(..., description="交易日期 YYYY-MM-DD"),
+):
+    """查询某只股票某天的分时数据，用于分时图展示"""
+    try:
+        rows = get_time_data(stock_code, trade_date)
+        # 转换 Decimal / date 等类型
+        for row in rows:
+            for k, v in row.items():
+                if isinstance(v, (_dt.datetime, _dt.date)):
+                    row[k] = v.isoformat()
+        return {"success": True, "stock_code": stock_code, "trade_date": trade_date, "data": rows}
+    except Exception as e:
+        logger.error("分时数据查询失败: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/data_browser/time_data_dates")
+async def data_browser_time_data_dates(
+    stock_code: str = Query(..., description="股票代码"),
+):
+    """查询某只股票有分时数据的日期列表（最近30天）"""
+    conn = get_connection(use_dict_cursor=True)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT DISTINCT trade_date FROM stock_time_data "
+            "WHERE stock_code = %s ORDER BY trade_date DESC LIMIT 30",
+            (stock_code,),
+        )
+        dates = [r["trade_date"] for r in cursor.fetchall()]
+        return {"success": True, "stock_code": stock_code, "dates": dates}
+    except Exception as e:
+        logger.error("分时日期查询失败: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         cursor.close()

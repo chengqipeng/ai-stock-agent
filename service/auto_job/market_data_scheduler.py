@@ -17,9 +17,9 @@ from chinese_calendar import is_workday
 from common.constants.stocks_data import MAIN_STOCK
 from common.utils.stock_info_utils import get_stock_info_by_code
 from dao import get_connection
-from dao.stock_time_data_dao import create_time_data_table, batch_upsert_time_data
-from dao.stock_order_book_dao import create_order_book_table, upsert_order_book
-from dao.stock_dragon_tiger_dao import create_dragon_tiger_table, batch_upsert_dragon_tiger
+from dao.stock_time_data_dao import create_time_data_table, batch_upsert_time_data, has_time_data
+from dao.stock_order_book_dao import create_order_book_table, upsert_order_book, has_order_book
+from dao.stock_dragon_tiger_dao import create_dragon_tiger_table, batch_upsert_dragon_tiger, has_dragon_tiger
 from service.jqka10.stock_time_kline_data_10jqka import get_stock_time_kline_10jqka
 from service.jqka10.stock_order_book_10jqka import get_order_book_10jqka
 from service.jqka10.stock_dragon_tiger_10jqka import fetch_dragon_tiger_all_pages
@@ -123,6 +123,12 @@ def _already_done_today() -> bool:
 async def _fetch_time_data_for_stock(stock_code_normalize: str, trade_date: str, counter: dict):
     """拉取单只股票的分时数据并入库"""
     stock_code = stock_code_normalize.split(".")[0]
+
+    # 当天数据已存在则跳过
+    if has_time_data(stock_code, trade_date):
+        counter["success"] += 1
+        return
+
     max_retries = 2
     for attempt in range(1, max_retries + 1):
         try:
@@ -163,6 +169,12 @@ async def _fetch_time_data_for_stock(stock_code_normalize: str, trade_date: str,
 async def _fetch_order_book_for_stock(stock_code_normalize: str, trade_date: str, counter: dict):
     """拉取单只股票的盘口数据并入库"""
     stock_code = stock_code_normalize.split(".")[0]
+
+    # 当天数据已存在则跳过
+    if has_order_book(stock_code, trade_date):
+        counter["success"] += 1
+        return
+
     max_retries = 2
     for attempt in range(1, max_retries + 1):
         try:
@@ -200,6 +212,11 @@ async def _fetch_order_book_for_stock(stock_code_normalize: str, trade_date: str
 
 async def _fetch_dragon_tiger(trade_date: str) -> tuple[int, bool]:
     """拉取龙虎榜数据并入库，返回 (记录数, 是否成功)"""
+    # 当天数据已存在则跳过
+    if has_dragon_tiger(trade_date):
+        logger.info("[龙虎榜] %s 数据已存在，跳过", trade_date)
+        return 0, True
+
     try:
         rows = await fetch_dragon_tiger_all_pages(trade_date=trade_date)
         if not rows:
