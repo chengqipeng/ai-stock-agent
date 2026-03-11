@@ -110,7 +110,7 @@ async def lifespan(application: FastAPI):
             logger.error("[lifespan] 启动技术打分调度器异常: %s", e, exc_info=True)
 
         try:
-            await start_kline_score_scheduler()
+            #await start_kline_score_scheduler()
             logger.info("[lifespan] K线初筛调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动K线初筛调度器异常: %s", e, exc_info=True)
