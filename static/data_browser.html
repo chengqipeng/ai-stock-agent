@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>调度数据浏览器</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1923; color: #e0e6ed; min-height: 100vh; }
+.header { background: linear-gradient(135deg, #1a2a3a 0%, #0d1b2a 100%); padding: 16px 24px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.header h1 { font-size: 18px; font-weight: 600; color: #fff; }
+.header a { color: rgba(255,255,255,0.6); text-decoration: none; font-size: 13px; }
+.header a:hover { color: #fff; }
+.container { max-width: 1400px; margin: 0 auto; padding: 16px; }
+.sidebar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.table-btn { padding: 8px 16px; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; background: rgba(255,255,255,0.05); color: #b0bec5; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+.table-btn:hover { background: rgba(102,126,234,0.15); border-color: rgba(102,126,234,0.4); color: #fff; }
+.table-btn.active { background: rgba(102,126,234,0.25); border-color: #667eea; color: #fff; }
+.table-btn .count { font-size: 11px; color: rgba(255,255,255,0.4); margin-left: 4px; }
+.filters { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; padding: 12px 16px; background: rgba(255,255,255,0.04); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); }
+.filters label { font-size: 12px; color: rgba(255,255,255,0.5); }
+.filters input, .filters select { padding: 6px 10px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(255,255,255,0.08); color: #e0e6ed; font-size: 13px; outline: none; }
+.filters input:focus { border-color: #667eea; }
+.filters button { padding: 6px 16px; border: none; border-radius: 6px; background: #667eea; color: #fff; cursor: pointer; font-size: 13px; }
+.filters button:hover { background: #5a6fd6; }
+.data-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px; color: rgba(255,255,255,0.5); }
+.table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th { background: rgba(255,255,255,0.06); padding: 10px 12px; text-align: left; font-weight: 500; color: rgba(255,255,255,0.7); border-bottom: 1px solid rgba(255,255,255,0.1); white-space: nowrap; cursor: pointer; user-select: none; position: sticky; top: 0; }
+thead th:hover { color: #fff; background: rgba(102,126,234,0.15); }
+thead th.sorted { color: #667eea; }
+tbody td { padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); white-space: nowrap; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+tbody tr:hover { background: rgba(102,126,234,0.08); }
+.pagination { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 16px; }
+.pagination button { padding: 6px 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(255,255,255,0.05); color: #b0bec5; cursor: pointer; font-size: 13px; }
+.pagination button:hover:not(:disabled) { background: rgba(102,126,234,0.2); color: #fff; }
+.pagination button:disabled { opacity: 0.3; cursor: default; }
+.pagination button.active { background: #667eea; color: #fff; border-color: #667eea; }
+.pagination span { font-size: 13px; color: rgba(255,255,255,0.5); }
+.loading { text-align: center; padding: 40px; color: rgba(255,255,255,0.4); }
+.empty { text-align: center; padding: 60px; color: rgba(255,255,255,0.3); font-size: 14px; }
+.num-positive { color: #e74c3c; }
+.num-negative { color: #2ecc71; }
+</style>
+</head>
+<body>
+<div class="header">
+    <a href="/">← 返回首页</a>
+    <h1>📊 调度数据浏览器</h1>
+</div>
+<div class="container">
+    <div class="sidebar" id="tableBtns"></div>
+    <div class="filters">
+        <label>股票代码</label>
+        <input type="text" id="filterCode" placeholder="如 002440 或 .SZ" style="width:140px">
+        <label>日期从</label>
+        <input type="date" id="filterDateFrom">
+        <label>至</label>
+        <input type="date" id="filterDateTo">
+        <label>每页</label>
+        <select id="filterPageSize">
+            <option value="30">30</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+        </select>
+        <button onclick="doQuery(1)">查询</button>
+    </div>
+    <div class="data-info" id="dataInfo"></div>
+    <div class="table-wrap"><table><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table></div>
+    <div class="pagination" id="pagination"></div>
+</div>
+<script>
+const TABLE_LABELS = {
+    stock_kline: '日线K线', stock_finance: '财报数据', stock_highest_lowest_price: '最高最低价',
+    stock_batch_technical_score: '技术打分', stock_time_data: '分时数据',
+    stock_order_book: '盘口数据', stock_dragon_tiger: '龙虎榜', stock_fund_flow: '资金流向',
+};
+let currentTable = '';
+let currentPage = 1;
+let currentOrderBy = null;
+let currentOrderDir = 'DESC';
+let tableColumns = [];
+
+async function loadTables() {
+    try {
+        const resp = await fetch('/api/data_browser/tables');
+        const json = await resp.json();
+        if (!json.success) return;
+        const wrap = document.getElementById('tableBtns');
+        wrap.innerHTML = '';
+        json.data.forEach(t => {
+            const btn = document.createElement('button');
+            btn.className = 'table-btn';
+            btn.innerHTML = (TABLE_LABELS[t.table] || t.table) + '<span class="count">' + t.count.toLocaleString() + '</span>';
+            btn.onclick = () => selectTable(t.table);
+            btn.dataset.table = t.table;
+            wrap.appendChild(btn);
+        });
+        if (json.data.length > 0) selectTable(json.data[0].table);
+    } catch (e) { console.error(e); }
+}
+
+function selectTable(table) {
+    currentTable = table;
+    currentPage = 1;
+    currentOrderBy = null;
+    currentOrderDir = 'DESC';
+    document.querySelectorAll('.table-btn').forEach(b => b.classList.toggle('active', b.dataset.table === table));
+    doQuery(1);
+}
+
+async function doQuery(page) {
+    currentPage = page;
+    const code = document.getElementById('filterCode').value.trim();
+    const dateFrom = document.getElementById('filterDateFrom').value;
+    const dateTo = document.getElementById('filterDateTo').value;
+    const pageSize = document.getElementById('filterPageSize').value;
+    let url = '/api/data_browser/query?table=' + currentTable + '&page=' + page + '&page_size=' + pageSize;
+    if (code) url += '&stock_code=' + encodeURIComponent(code);
+    if (dateFrom) url += '&date_from=' + dateFrom;
+    if (dateTo) url += '&date_to=' + dateTo;
+    if (currentOrderBy) url += '&order_by=' + currentOrderBy + '&order_dir=' + currentOrderDir;
+
+    document.getElementById('tableBody').innerHTML = '<tr><td colspan="20" class="loading">加载中...</td></tr>';
+    try {
+        const resp = await fetch(url);
+        const json = await resp.json();
+        if (!json.success) { document.getElementById('tableBody').innerHTML = '<tr><td class="empty">查询失败</td></tr>'; return; }
+        tableColumns = json.columns;
+        renderHead(json.columns);
+        renderBody(json.data, json.columns);
+        renderPagination(json.page, json.total_pages, json.total);
+        document.getElementById('dataInfo').textContent =
+            (TABLE_LABELS[currentTable] || currentTable) + '  共 ' + json.total.toLocaleString() + ' 条  第 ' + json.page + '/' + json.total_pages + ' 页';
+    } catch (e) {
+        document.getElementById('tableBody').innerHTML = '<tr><td class="empty">请求失败: ' + e.message + '</td></tr>';
+    }
+}
+
+function renderHead(columns) {
+    const tr = document.createElement('tr');
+    // 隐藏过长的字段
+    const hide = new Set(['created_at','updated_at','id']);
+    columns.forEach(col => {
+        if (hide.has(col)) return;
+        const th = document.createElement('th');
+        th.textContent = col;
+        if (currentOrderBy === col) { th.classList.add('sorted'); th.textContent += currentOrderDir === 'ASC' ? ' ▲' : ' ▼'; }
+        th.onclick = () => { if (currentOrderBy === col) { currentOrderDir = currentOrderDir === 'ASC' ? 'DESC' : 'ASC'; } else { currentOrderBy = col; currentOrderDir = 'DESC'; } doQuery(1); };
+        tr.appendChild(th);
+    });
+    document.getElementById('tableHead').innerHTML = '';
+    document.getElementById('tableHead').appendChild(tr);
+}
+
+function renderBody(data, columns) {
+    const hide = new Set(['created_at','updated_at','id']);
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '';
+    if (data.length === 0) { tbody.innerHTML = '<tr><td colspan="' + columns.length + '" class="empty">暂无数据</td></tr>'; return; }
+    data.forEach(row => {
+        const tr = document.createElement('tr');
+        columns.forEach(col => {
+            if (hide.has(col)) return;
+            const td = document.createElement('td');
+            let val = row[col];
+            if (val === null || val === undefined) { td.textContent = '-'; td.style.color = 'rgba(255,255,255,0.2)'; }
+            else if (typeof val === 'number') {
+                td.textContent = Number.isInteger(val) ? val.toLocaleString() : val.toFixed(2);
+                if (col.includes('pct') || col.includes('change') || col.includes('percent')) {
+                    if (val > 0) td.className = 'num-positive';
+                    else if (val < 0) td.className = 'num-negative';
+                }
+            } else if (typeof val === 'string' && val.length > 80) {
+                td.textContent = val.substring(0, 80) + '...';
+                td.title = val;
+            } else { td.textContent = val; }
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+}
+
+function renderPagination(page, totalPages, total) {
+    const wrap = document.getElementById('pagination');
+    wrap.innerHTML = '';
+    if (totalPages <= 1) return;
+    const addBtn = (text, p, disabled, active) => {
+        const btn = document.createElement('button');
+        btn.textContent = text;
+        btn.disabled = disabled;
+        if (active) btn.className = 'active';
+        btn.onclick = () => doQuery(p);
+        wrap.appendChild(btn);
+    };
+    addBtn('«', 1, page === 1);
+    addBtn('‹', page - 1, page === 1);
+    // Show page numbers around current
+    let start = Math.max(1, page - 3);
+    let end = Math.min(totalPages, page + 3);
+    if (start > 1) { addBtn('1', 1, false, page === 1); if (start > 2) { const s = document.createElement('span'); s.textContent = '...'; wrap.appendChild(s); } }
+    for (let i = start; i <= end; i++) addBtn(String(i), i, false, i === page);
+    if (end < totalPages) { if (end < totalPages - 1) { const s = document.createElement('span'); s.textContent = '...'; wrap.appendChild(s); } addBtn(String(totalPages), totalPages, false, page === totalPages); }
+    addBtn('›', page + 1, page === totalPages);
+    addBtn('»', totalPages, page === totalPages);
+}
+
+// Enter key triggers query
+document.getElementById('filterCode').addEventListener('keydown', e => { if (e.key === 'Enter') doQuery(1); });
+loadTables();
+</script>
+</body>
+</html>

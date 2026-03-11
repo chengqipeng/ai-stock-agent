@@ -150,6 +150,10 @@ async def lifespan(application: FastAPI):
 
 app = FastAPI(title="AI Stock Agent", default_response_class=SafeJSONResponse, lifespan=lifespan)
 
+# 挂载数据浏览器路由
+from api.web_data_browser_api import router as data_browser_router
+app.include_router(data_browser_router)
+
 @app.get("/.well-known/appspecific/com.chrome.devtools.json")
 async def chrome_devtools():
     return {}
