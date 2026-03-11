@@ -128,7 +128,7 @@ async def _analyze_single_stock(stock, db_manager, counter, done_stock_ids):
                     stock_name, not_hold_grade)
     except Exception as e:
         counter["failed"] += 1
-        logger.error("[K线初筛调度] %s 失败: %s", stock_name, e)
+        logger.error("[K线初筛调度] %s 失败: %r", stock_name, e, exc_info=True)
 
 
 async def _execute_job():
@@ -230,13 +230,18 @@ async def _execute_job():
 
             logger.warning("[K线初筛调度] 有 %d 只失败，%d秒后重试", total_failed, _RETRY_INTERVAL)
             if attempt >= _MAX_RETRY:
-                err_msg = f"达到最大重试次数({_MAX_RETRY})，仍有{total_failed}只失败"
-                logger.error("[K线初筛调度] %s", err_msg)
-                _job_status["error"] = err_msg
+                # 达到最大重试次数，跳过失败的股票，视为部分成功完成
+                warn_msg = (f"达到最大重试次数({_MAX_RETRY})，跳过{total_failed}只失败股票，"
+                            f"其余{counter.get('success', 0)}只已完成")
+                logger.warning("[K线初筛调度] %s", warn_msg)
+                _job_status["error"] = warn_msg
+                _job_status["last_success"] = True  # 标记为完成，避免阻塞后续流程
+                _job_status["done_stock_ids"] = []
+                _save_persisted_status(_job_status)
                 detail = (f"总{counter['total']}只 成功{counter['success']}只 "
-                          f"失败{total_failed}只 跳过(已完成){total_skipped}只 重试{attempt}次 (达到上限)")
+                          f"失败{total_failed}只 跳过(已完成){total_skipped}只 重试{attempt}次 (跳过失败)")
                 try:
-                    update_log(log_id, "failed", counter["total"], counter["success"],
+                    update_log(log_id, "partial_success", counter["total"], counter["success"],
                                total_failed, total_skipped, detail)
                 except Exception:
                     pass
