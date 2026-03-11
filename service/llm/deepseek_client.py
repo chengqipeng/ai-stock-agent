@@ -44,7 +44,10 @@ class DeepSeekClient:
                         return await response.json()
             except (aiohttp.ClientPayloadError, aiohttp.ClientError, ConnectionResetError) as e:
                 if attempt == 2:
-                    raise e
+                    raise type(e)(
+                        f"{type(e).__name__}: {e or '(no message)'} "
+                        f"[model={model}, 重试3次均失败]"
+                    ) from e
                 logger.warning("DeepSeekClient.chat 请求失败 (attempt %d): %s", attempt + 1, e)
                 await asyncio.sleep(2 ** attempt)
     
@@ -103,7 +106,10 @@ class DeepSeekClient:
             except (aiohttp.ClientPayloadError, aiohttp.ClientError, 
                     ConnectionResetError, asyncio.TimeoutError) as e:
                 if attempt == 2:
-                    raise e
+                    raise type(e)(
+                        f"{type(e).__name__}: {e or '(no message)'} "
+                        f"[model={model}, 已接收{len(accumulated)}段, 重试3次均失败]"
+                    ) from e
                 logger.warning(
                     "DeepSeekClient.chat_stream 请求失败 (attempt %d, 已接收%d段): %s", 
                     attempt + 1, len(accumulated), e

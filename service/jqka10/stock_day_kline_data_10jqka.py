@@ -42,9 +42,16 @@ _DAY_KLINE_REQUIRED_FIELDS = ("date", "open_price", "close_price", "high_price",
 
 def _validate_raw_response(data: dict, stock_code: str, label: str = "日K") -> bool:
     """校验同花顺原始响应是否包含必要字段，异常时记录错误日志"""
-    missing = [f for f in ("priceFactor", "sortYear", "dates", "price", "volumn") if not data.get(f)]
-    if missing:
-        logger.error("[%s] %s 原始响应缺少关键字段 %s，data keys=%s", stock_code, label, missing, list(data.keys()))
+    required = ("priceFactor", "sortYear", "dates", "price", "volumn")
+    absent = [f for f in required if f not in data]
+    empty  = [f for f in required if f in data and not data[f]]
+    if absent or empty:
+        detail = []
+        if absent:
+            detail.append(f"缺失={absent}")
+        if empty:
+            detail.append(f"空值={empty}")
+        logger.error("[%s] %s 原始响应字段异常：%s，data keys=%s", stock_code, label, "，".join(detail), list(data.keys()))
         return False
     return True
 
