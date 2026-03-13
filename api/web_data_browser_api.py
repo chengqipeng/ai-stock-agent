@@ -1,6 +1,7 @@
 """数据浏览器 API — 调度数据分页查询"""
 import datetime as _dt
 import logging
+from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -14,8 +15,10 @@ router = APIRouter()
 
 _BROWSABLE_TABLES = {
     "stock_kline", "stock_finance", "stock_highest_lowest_price",
-    "stock_batch_technical_score", "stock_time_data", "stock_order_book",
+    "stock_time_data", "stock_order_book",
     "stock_dragon_tiger", "stock_fund_flow",
+    "stock_concept_board", "stock_concept_board_stock", "concept_board_kline",
+    "us_index_kline", "global_index_realtime", "us_stock_ranking", "us_stock_kline",
 }
 
 
@@ -62,6 +65,8 @@ async def data_browser_time_data(
             for k, v in row.items():
                 if isinstance(v, (_dt.datetime, _dt.date)):
                     row[k] = v.isoformat()
+                elif isinstance(v, Decimal):
+                    row[k] = float(v)
         return {"success": True, "stock_code": stock_code, "trade_date": trade_date, "data": rows}
     except Exception as e:
         logger.error("分时数据查询失败: %s", e, exc_info=True)
@@ -114,8 +119,15 @@ async def data_browser_query(
         conditions = []
         params = []
         if stock_code:
-            conditions.append("stock_code LIKE %s")
-            params.append(f"%{stock_code}%")
+            # 自适应代码列：优先 stock_code，其次 board_code / index_code / board_name
+            code_col = None
+            for candidate in ("stock_code", "board_code", "index_code", "board_name"):
+                if candidate in columns:
+                    code_col = candidate
+                    break
+            if code_col:
+                conditions.append(f"{code_col} LIKE %s")
+                params.append(f"%{stock_code}%")
 
         date_col = None
         if "date" in columns:
@@ -154,6 +166,8 @@ async def data_browser_query(
             for k, v in row.items():
                 if isinstance(v, (_dt.datetime, _dt.date)):
                     row[k] = v.isoformat()
+                elif isinstance(v, Decimal):
+                    row[k] = float(v)
 
         return {
             "success": True, "table": table, "columns": columns,
