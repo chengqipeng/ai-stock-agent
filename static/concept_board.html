@@ -33,3 +33,480 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .stock-header .search-stock{padding:6px 10px;border:1px solid rgba(255,255,255,0.15);border-radius:6px;background:rgba(255,255,255,0.06);color:#e0e6ed;font-size:13px;outline:none;margin-left:auto;width:180px}
 .stock-header .search-stock:focus{border-color:#667eea}
 </style>
+<style>
+/* 标签页切换 */
+.tab-bar{display:flex;gap:0;padding:0 20px;border-bottom:1px solid rgba(255,255,255,0.06)}
+.tab-btn{padding:10px 20px;font-size:13px;font-weight:500;color:rgba(255,255,255,0.5);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .15s}
+.tab-btn:hover{color:rgba(255,255,255,0.8)}
+.tab-btn.active{color:#667eea;border-bottom-color:#667eea}
+.tab-content{display:none;flex:1;overflow-y:auto}
+.tab-content.visible{display:flex;flex-direction:column}
+/* 板块详情信息条 */
+.board-info-bar{display:flex;gap:16px;flex-wrap:wrap;padding:12px 20px;background:rgba(255,255,255,0.03);border-bottom:1px solid rgba(255,255,255,0.06)}
+.info-item{display:flex;flex-direction:column;gap:2px;min-width:80px}
+.info-item .il{font-size:10px;color:rgba(255,255,255,0.35);letter-spacing:.3px}
+.info-item .iv{font-size:14px;font-weight:600;color:#e0e6ed}
+.info-item .iv.up{color:#e74c3c}
+.info-item .iv.down{color:#2ecc71}
+/* K线图区域 */
+.kline-wrap{position:relative;width:100%;flex:1;min-height:360px;background:rgba(0,0,0,0.15);margin:0}
+.kline-wrap canvas{width:100%;height:100%}
+.kline-controls{display:flex;gap:6px;padding:10px 20px;align-items:center}
+.kline-controls .kc-btn{padding:4px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:6px;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.5);cursor:pointer;font-size:12px;transition:all .15s}
+.kline-controls .kc-btn:hover{border-color:rgba(102,126,234,0.4);color:#fff}
+.kline-controls .kc-btn.active{border-color:#667eea;color:#667eea;background:rgba(102,126,234,0.12)}
+.kline-controls .kc-label{font-size:11px;color:rgba(255,255,255,0.35);margin-left:8px}
+/* K线表格 */
+.kline-table-wrap{overflow-x:auto;padding:0 20px 16px}
+.kline-table{width:100%;border-collapse:collapse;font-size:12px}
+.kline-table thead th{background:rgba(255,255,255,0.05);padding:8px 10px;text-align:right;font-weight:500;color:rgba(255,255,255,0.5);border-bottom:1px solid rgba(255,255,255,0.08);white-space:nowrap;position:sticky;top:0}
+.kline-table thead th:first-child{text-align:left}
+.kline-table tbody td{padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:right;white-space:nowrap}
+.kline-table tbody td:first-child{text-align:left;color:rgba(255,255,255,0.6)}
+.kline-table tbody tr:hover{background:rgba(102,126,234,0.08)}
+</style>
+<style>
+/* 成分股 */
+.stock-grid{flex:1;overflow-y:auto;padding:16px 20px}
+.stock-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.stock-card{display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:8px;cursor:pointer;transition:all .15s}
+.stock-card:hover{background:rgba(102,126,234,0.1);border-color:rgba(102,126,234,0.3);transform:translateY(-1px)}
+.stock-card .code{font-size:14px;font-weight:600;color:#667eea;font-family:'SF Mono',Menlo,monospace}
+.stock-card .sname{font-size:13px;color:#e0e6ed;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:rgba(255,255,255,0.3);font-size:14px;gap:8px}
+.empty-state .icon{font-size:48px;opacity:0.3}
+/* 弹窗 */
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.visible{display:flex}
+.modal{background:#1a2a3a;border:1px solid rgba(255,255,255,0.1);border-radius:12px;width:520px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+.modal-head{padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;gap:10px}
+.modal-head h3{font-size:15px;color:#fff;flex:1}
+.modal-head .close-btn{width:28px;height:28px;border:none;border-radius:6px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+.modal-head .close-btn:hover{background:rgba(255,255,255,0.15);color:#fff}
+.modal-body{flex:1;overflow-y:auto;padding:12px 20px}
+.modal-board-item{display:flex;align-items:center;padding:10px 12px;border-radius:8px;cursor:pointer;transition:all .15s;gap:10px;margin-bottom:4px}
+.modal-board-item:hover{background:rgba(102,126,234,0.12)}
+.modal-board-item .bname{flex:1;font-size:13px;color:#e0e6ed}
+.modal-board-item .bcount{font-size:12px;color:rgba(255,255,255,0.4)}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2)}
+</style>
+</head>
+<body>
+<div class="header">
+    <a href="/">← 首页</a>
+    <h1>🧩 概念板块浏览器</h1>
+    <div class="stats" id="globalStats"></div>
+</div>
+<div class="container">
+    <div class="board-panel">
+        <div class="search-box">
+            <input type="text" id="boardSearch" placeholder="搜索概念板块..." autocomplete="off">
+        </div>
+        <div class="board-list" id="boardList"></div>
+    </div>
+    <div class="stock-panel">
+        <div class="stock-header" id="stockHeader" style="display:none">
+            <h2 id="boardTitle"></h2>
+            <span class="badge" id="boardBadge"></span>
+            <input type="text" class="search-stock" id="stockSearch" placeholder="搜索股票代码/名称..." autocomplete="off">
+        </div>
+        <!-- 标签页 -->
+        <div class="tab-bar" id="tabBar" style="display:none">
+            <button class="tab-btn active" data-tab="kline" onclick="switchTab('kline')">📈 K线走势</button>
+            <button class="tab-btn" data-tab="stocks" onclick="switchTab('stocks')">📋 成分股</button>
+        </div>
+        <!-- K线走势 tab -->
+        <div class="tab-content visible" id="tabKline">
+            <div class="board-info-bar" id="boardInfoBar" style="display:none"></div>
+            <div class="kline-controls" id="klineControls" style="display:none">
+                <button class="kc-btn" onclick="loadKline(30)">30日</button>
+                <button class="kc-btn active" onclick="loadKline(60)">60日</button>
+                <button class="kc-btn" onclick="loadKline(120)">120日</button>
+                <button class="kc-btn" onclick="loadKline(250)">1年</button>
+                <button class="kc-btn" onclick="loadKline(500)">2年</button>
+                <span class="kc-label" id="klineHint"></span>
+            </div>
+            <div class="kline-wrap" id="klineWrap" style="display:none"><canvas id="klineCanvas"></canvas></div>
+            <div class="kline-table-wrap" id="klineTableWrap" style="display:none"></div>
+            <div class="empty-state" id="klineEmpty"><div class="icon">📈</div><div>请从左侧选择一个概念板块查看K线</div></div>
+        </div>
+        <!-- 成分股 tab -->
+        <div class="tab-content" id="tabStocks">
+            <div class="stock-grid" id="stockGrid">
+                <div class="empty-state"><div class="icon">🧩</div><div>请从左侧选择一个概念板块</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- 弹窗 -->
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+        <div class="modal-head">
+            <h3 id="modalTitle">所属概念板块</h3>
+            <button class="close-btn" onclick="closeModal()">✕</button>
+        </div>
+        <div class="modal-body" id="modalBody"></div>
+    </div>
+</div>
+<script>
+let allBoards = [], currentBoard = null, allStocks = [], klineData = [], klineLimit = 60;
+
+async function loadBoards() {
+    try {
+        const resp = await fetch('/api/concept_board/list');
+        const json = await resp.json();
+        if (!json.success) return;
+        allBoards = json.data;
+        renderBoards(allBoards);
+        const totalStocks = allBoards.reduce((a, b) => a + (b.stock_count || 0), 0);
+        document.getElementById('globalStats').textContent = json.total + ' 个板块 · ' + totalStocks.toLocaleString() + ' 条关联记录';
+    } catch (e) { console.error(e); }
+}
+
+function renderBoards(boards) {
+    const wrap = document.getElementById('boardList');
+    wrap.innerHTML = '';
+    boards.forEach(b => {
+        const div = document.createElement('div');
+        div.className = 'board-item' + (currentBoard && currentBoard.board_code === b.board_code ? ' active' : '');
+        div.innerHTML = '<span class="name">' + esc(b.board_name) + '</span><span class="count">' + (b.stock_count || 0) + '只</span>';
+        div.onclick = () => selectBoard(b);
+        wrap.appendChild(div);
+    });
+}
+
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.getElementById('tabKline').classList.toggle('visible', tab === 'kline');
+    document.getElementById('tabStocks').classList.toggle('visible', tab === 'stocks');
+}
+
+async function selectBoard(board) {
+    currentBoard = board;
+    renderBoards(allBoards.filter(b => matchBoard(b)));
+    document.getElementById('stockHeader').style.display = 'flex';
+    document.getElementById('tabBar').style.display = 'flex';
+    document.getElementById('boardTitle').textContent = board.board_name;
+    document.getElementById('boardBadge').textContent = board.board_code;
+    document.getElementById('stockSearch').value = '';
+    // 同时加载K线和成分股
+    loadKline(klineLimit);
+    loadStocks(board.board_code);
+}
+
+async function loadStocks(boardCode) {
+    document.getElementById('stockGrid').innerHTML = '<div class="empty-state">加载中...</div>';
+    try {
+        const resp = await fetch('/api/concept_board/stocks?board_code=' + boardCode);
+        const json = await resp.json();
+        if (!json.success) { document.getElementById('stockGrid').innerHTML = '<div class="empty-state">加载失败</div>'; return; }
+        allStocks = json.data;
+        document.getElementById('boardBadge').textContent = currentBoard.board_code + ' · ' + json.total + '只';
+        renderStocks(allStocks);
+    } catch (e) { document.getElementById('stockGrid').innerHTML = '<div class="empty-state">请求失败</div>'; }
+}
+
+function renderStocks(stocks) {
+    const wrap = document.getElementById('stockGrid');
+    if (!stocks.length) { wrap.innerHTML = '<div class="empty-state">暂无成分股数据</div>'; return; }
+    wrap.innerHTML = '<div class="stock-cards" id="stockCards"></div>';
+    const cards = document.getElementById('stockCards');
+    stocks.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'stock-card';
+        div.innerHTML = '<span class="code">' + esc(s.stock_code) + '</span><span class="sname">' + esc(s.stock_name) + '</span>';
+        div.onclick = () => showStockBoards(s.stock_code, s.stock_name);
+        cards.appendChild(div);
+    });
+}
+</script>
+<script>
+// ========== K线加载与渲染 ==========
+async function loadKline(limit) {
+    if (!currentBoard) return;
+    klineLimit = limit;
+    document.querySelectorAll('.kc-btn').forEach(b => b.classList.toggle('active', parseInt(b.textContent) === limit || (b.textContent === '1年' && limit === 250) || (b.textContent === '2年' && limit === 500)));
+    document.getElementById('klineEmpty').style.display = 'none';
+    document.getElementById('klineControls').style.display = 'flex';
+    document.getElementById('klineHint').textContent = '加载中...';
+    try {
+        const resp = await fetch('/api/concept_board/kline?board_code=' + currentBoard.board_code + '&limit=' + limit);
+        const json = await resp.json();
+        if (!json.success || !json.data.length) {
+            document.getElementById('klineHint').textContent = '暂无K线数据';
+            document.getElementById('klineWrap').style.display = 'none';
+            document.getElementById('klineTableWrap').style.display = 'none';
+            document.getElementById('boardInfoBar').style.display = 'none';
+            return;
+        }
+        klineData = json.data;
+        document.getElementById('klineHint').textContent = json.data.length + ' 条 (' + json.data[0].date + ' ~ ' + json.data[json.data.length-1].date + ')';
+        renderBoardInfo(json.data);
+        document.getElementById('klineWrap').style.display = 'block';
+        renderKlineChart(json.data);
+        renderKlineTable(json.data);
+    } catch (e) {
+        document.getElementById('klineHint').textContent = '请求失败: ' + e.message;
+    }
+}
+
+function renderBoardInfo(data) {
+    const bar = document.getElementById('boardInfoBar');
+    bar.style.display = 'flex';
+    const last = data[data.length - 1];
+    const prev = data.length > 1 ? data[data.length - 2] : null;
+    const chg = last.change_percent || 0;
+    const cls = chg >= 0 ? 'up' : 'down';
+    const first = data[0];
+    const totalChg = first.close_price ? ((last.close_price - first.close_price) / first.close_price * 100) : 0;
+    const totalCls = totalChg >= 0 ? 'up' : 'down';
+    const maxHigh = Math.max(...data.map(d => d.high_price || 0));
+    const minLow = Math.min(...data.filter(d => d.low_price > 0).map(d => d.low_price));
+    const avgVol = data.reduce((s, d) => s + (d.trading_volume || 0), 0) / data.length;
+    bar.innerHTML = [
+        infoItem('最新收盘', last.close_price.toFixed(2)),
+        infoItem('涨跌幅', (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%', cls),
+        infoItem('涨跌额', (last.change_amount >= 0 ? '+' : '') + (last.change_amount || 0).toFixed(2), cls),
+        infoItem('振幅', (last.amplitude || 0).toFixed(2) + '%'),
+        infoItem('换手率', last.change_hand != null ? last.change_hand.toFixed(2) + '%' : '-'),
+        infoItem('区间涨幅', (totalChg >= 0 ? '+' : '') + totalChg.toFixed(2) + '%', totalCls),
+        infoItem('区间最高', maxHigh.toFixed(2)),
+        infoItem('区间最低', minLow.toFixed(2)),
+        infoItem('日均成交量', fmtVol(avgVol)),
+    ].join('');
+}
+function infoItem(label, val, cls) {
+    return '<div class="info-item"><span class="il">' + label + '</span><span class="iv' + (cls ? ' ' + cls : '') + '">' + val + '</span></div>';
+}
+function fmtVol(v) {
+    if (v >= 1e8) return (v/1e8).toFixed(2) + '亿';
+    if (v >= 1e4) return (v/1e4).toFixed(0) + '万';
+    return Math.round(v).toLocaleString();
+}
+</script>
+<script>
+// ========== K线蜡烛图绘制 ==========
+function renderKlineChart(data) {
+    const wrap = document.getElementById('klineWrap');
+    const canvas = document.getElementById('klineCanvas');
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = wrap.clientWidth * dpr;
+    canvas.height = wrap.clientHeight * dpr;
+    canvas.style.width = wrap.clientWidth + 'px';
+    canvas.style.height = wrap.clientHeight + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    const padL = 65, padR = 20, padT = 20, padB = 50;
+    const chartW = W - padL - padR, chartH = H - padT - padB;
+    const volH = chartH * 0.2, priceH = chartH - volH - 8;
+    ctx.clearRect(0, 0, W, H);
+
+    const prices = data.flatMap(d => [d.high_price, d.low_price]).filter(v => v > 0);
+    const minP = Math.min(...prices), maxP = Math.max(...prices);
+    const pRange = maxP - minP || 1;
+    const maxV = Math.max(...data.map(d => d.trading_volume || 0)) || 1;
+    const n = data.length;
+    const barW = Math.max(1, (chartW / n) * 0.7);
+    const gap = chartW / n;
+
+    // 网格
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = padT + (priceH / 4) * i;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + chartW, y); ctx.stroke();
+    }
+    // Y轴价格
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+        const y = padT + (priceH / 4) * i;
+        ctx.fillText((maxP - (pRange / 4) * i).toFixed(2), padL - 6, y + 4);
+    }
+    // X轴日期
+    ctx.textAlign = 'center';
+    const step = Math.max(1, Math.floor(n / 8));
+    for (let i = 0; i < n; i += step) {
+        const x = padL + i * gap + gap / 2;
+        ctx.fillText(data[i].date.slice(5), x, H - padB + 16);
+    }
+
+    // 蜡烛图
+    const volTop = padT + priceH + 8;
+    data.forEach((d, i) => {
+        const cx = padL + i * gap + gap / 2;
+        const isUp = d.close_price >= d.open_price;
+        const color = isUp ? 'rgba(231,76,60,0.85)' : 'rgba(46,204,113,0.85)';
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        // 影线
+        const hy = padT + (1 - (d.high_price - minP) / pRange) * priceH;
+        const ly = padT + (1 - (d.low_price - minP) / pRange) * priceH;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(cx, hy); ctx.lineTo(cx, ly); ctx.stroke();
+        // 实体
+        const oy = padT + (1 - (d.open_price - minP) / pRange) * priceH;
+        const cy = padT + (1 - (d.close_price - minP) / pRange) * priceH;
+        const bodyH = Math.max(1, Math.abs(cy - oy));
+        if (isUp) { ctx.fillRect(cx - barW/2, cy, barW, bodyH); }
+        else { ctx.fillRect(cx - barW/2, oy, barW, bodyH); }
+        // 成交量
+        const vh = (d.trading_volume || 0) / maxV * volH;
+        ctx.globalAlpha = 0.5;
+        ctx.fillRect(cx - barW/2, volTop + volH - vh, barW, vh);
+        ctx.globalAlpha = 1;
+    });
+
+    // MA5 / MA20
+    drawMA(ctx, data, 5, '#f0ad4e', padL, padT, gap, priceH, minP, pRange);
+    drawMA(ctx, data, 20, '#667eea', padL, padT, gap, priceH, minP, pRange);
+    // 图例
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#f0ad4e'; ctx.fillText('— MA5', padL + 8, padT - 4);
+    ctx.fillStyle = '#667eea'; ctx.fillText('— MA20', padL + 60, padT - 4);
+
+    // 鼠标十字线
+    canvas.onmousemove = function(e) {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        if (mx < padL || mx > padL + chartW) return;
+        const idx = Math.min(n - 1, Math.max(0, Math.floor((mx - padL) / gap)));
+        renderKlineChart(data);
+        canvas.onmousemove = arguments.callee;
+        const ctx2 = canvas.getContext('2d');
+        ctx2.save(); ctx2.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const cx = padL + idx * gap + gap / 2;
+        ctx2.strokeStyle = 'rgba(255,255,255,0.25)'; ctx2.lineWidth = 0.5; ctx2.setLineDash([4,3]);
+        ctx2.beginPath(); ctx2.moveTo(cx, padT); ctx2.lineTo(cx, padT + chartH); ctx2.stroke();
+        ctx2.setLineDash([]);
+        const d = data[idx];
+        const chg = d.change_percent || 0;
+        const lines = [d.date, '开:' + d.open_price.toFixed(2), '高:' + d.high_price.toFixed(2), '低:' + d.low_price.toFixed(2), '收:' + d.close_price.toFixed(2), '涨跌:' + (chg>=0?'+':'') + chg.toFixed(2) + '%', '量:' + fmtVol(d.trading_volume||0)];
+        const tw = 130, th = lines.length * 17 + 8;
+        let tx = cx + 12; if (tx + tw > W - padR) tx = cx - tw - 12;
+        ctx2.fillStyle = 'rgba(15,25,35,0.92)'; ctx2.strokeStyle = 'rgba(255,255,255,0.15)'; ctx2.lineWidth = 1;
+        ctx2.beginPath(); ctx2.roundRect(tx, padT, tw, th, 6); ctx2.fill(); ctx2.stroke();
+        ctx2.font = '11px sans-serif'; ctx2.fillStyle = '#e0e6ed';
+        lines.forEach((l, li) => { ctx2.fillText(l, tx + 8, padT + 14 + li * 17); });
+        ctx2.restore();
+    };
+}
+
+function drawMA(ctx, data, period, color, padL, padT, gap, priceH, minP, pRange) {
+    if (data.length < period) return;
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.globalAlpha = 0.8;
+    let started = false;
+    for (let i = period - 1; i < data.length; i++) {
+        let sum = 0;
+        for (let j = i - period + 1; j <= i; j++) sum += data[j].close_price;
+        const ma = sum / period;
+        const x = padL + i * gap + gap / 2;
+        const y = padT + (1 - (ma - minP) / pRange) * priceH;
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }
+    ctx.stroke(); ctx.globalAlpha = 1;
+}
+</script>
+<script>
+// ========== K线数据表格 ==========
+function renderKlineTable(data) {
+    const wrap = document.getElementById('klineTableWrap');
+    wrap.style.display = 'block';
+    const recent = data.slice().reverse().slice(0, 30);
+    let html = '<table class="kline-table"><thead><tr><th>日期</th><th>开盘</th><th>收盘</th><th>最高</th><th>最低</th><th>涨跌幅</th><th>涨跌额</th><th>振幅</th><th>换手率</th><th>成交量</th><th>成交额</th></tr></thead><tbody>';
+    recent.forEach(d => {
+        const chg = d.change_percent || 0;
+        const cls = chg > 0 ? 'num-positive' : chg < 0 ? 'num-negative' : '';
+        html += '<tr>'
+            + '<td>' + d.date + '</td>'
+            + '<td>' + d.open_price.toFixed(2) + '</td>'
+            + '<td class="' + cls + '">' + d.close_price.toFixed(2) + '</td>'
+            + '<td>' + d.high_price.toFixed(2) + '</td>'
+            + '<td>' + d.low_price.toFixed(2) + '</td>'
+            + '<td class="' + cls + '">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%</td>'
+            + '<td class="' + cls + '">' + ((d.change_amount||0) >= 0 ? '+' : '') + (d.change_amount||0).toFixed(2) + '</td>'
+            + '<td>' + (d.amplitude||0).toFixed(2) + '%</td>'
+            + '<td>' + (d.change_hand != null ? d.change_hand.toFixed(2) + '%' : '-') + '</td>'
+            + '<td>' + fmtVol(d.trading_volume||0) + '</td>'
+            + '<td>' + (d.trading_amount != null ? fmtAmt(d.trading_amount) : '-') + '</td>'
+            + '</tr>';
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+}
+function fmtAmt(v) {
+    if (v == null) return '-';
+    if (v >= 1e8) return (v/1e8).toFixed(2) + '亿';
+    if (v >= 1e4) return (v/1e4).toFixed(0) + '万';
+    return v.toFixed(2);
+}
+
+// ========== 弹窗：股票所属板块 ==========
+async function showStockBoards(code, name) {
+    document.getElementById('modalTitle').textContent = code + ' ' + name + ' 所属概念板块';
+    document.getElementById('modalBody').innerHTML = '<div style="padding:20px;text-align:center;color:rgba(255,255,255,0.4)">加载中...</div>';
+    document.getElementById('modalOverlay').classList.add('visible');
+    try {
+        const resp = await fetch('/api/concept_board/stock_boards?stock_code=' + code);
+        const json = await resp.json();
+        if (!json.success || !json.data.length) {
+            document.getElementById('modalBody').innerHTML = '<div style="padding:20px;text-align:center;color:rgba(255,255,255,0.4)">暂无数据</div>';
+            return;
+        }
+        const body = document.getElementById('modalBody');
+        body.innerHTML = '';
+        json.data.forEach(b => {
+            const div = document.createElement('div');
+            div.className = 'modal-board-item';
+            div.innerHTML = '<span class="bname">' + esc(b.board_name) + '</span><span class="bcount">' + (b.stock_count||0) + '只</span>';
+            div.onclick = () => { closeModal(); selectBoard({board_code:b.board_code,board_name:b.board_name,stock_count:b.stock_count}); };
+            body.appendChild(div);
+        });
+    } catch (e) {
+        document.getElementById('modalBody').innerHTML = '<div style="padding:20px;text-align:center;color:rgba(255,255,255,0.4)">请求失败</div>';
+    }
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('visible'); }
+document.getElementById('modalOverlay').onclick = function(e) { if (e.target === this) closeModal(); };
+
+function matchBoard(b) {
+    const kw = document.getElementById('boardSearch').value.trim().toLowerCase();
+    if (!kw) return true;
+    return b.board_name.toLowerCase().includes(kw) || b.board_code.includes(kw);
+}
+
+// 板块搜索
+let _boardTimer;
+document.getElementById('boardSearch').addEventListener('input', function() {
+    clearTimeout(_boardTimer);
+    _boardTimer = setTimeout(() => {
+        const kw = this.value.trim();
+        renderBoards(kw ? allBoards.filter(b => matchBoard(b)) : allBoards);
+    }, 200);
+});
+// 股票搜索
+let _stockTimer;
+document.getElementById('stockSearch').addEventListener('input', function() {
+    clearTimeout(_stockTimer);
+    _stockTimer = setTimeout(() => {
+        const kw = this.value.trim().toLowerCase();
+        if (!kw) { renderStocks(allStocks); return; }
+        renderStocks(allStocks.filter(s => s.stock_code.includes(kw) || s.stock_name.toLowerCase().includes(kw)));
+    }, 200);
+});
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// 窗口resize重绘K线
+window.addEventListener('resize', () => { if (klineData.length) renderKlineChart(klineData); });
+
+loadBoards();
+</script>
+</body>
+</html>
