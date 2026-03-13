@@ -322,6 +322,37 @@ _TABLES = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 
+    # ── stock_concept_board（概念板块列表） ──
+    """
+    CREATE TABLE IF NOT EXISTS stock_concept_board (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        board_code VARCHAR(20) NOT NULL COMMENT '板块代码',
+        board_name VARCHAR(100) NOT NULL COMMENT '板块名称',
+        board_url VARCHAR(500) COMMENT '板块详情URL',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_board_code (board_code),
+        INDEX idx_board_name (board_name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+
+    # ── stock_concept_board_stock（概念板块成分股） ──
+    """
+    CREATE TABLE IF NOT EXISTS stock_concept_board_stock (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        board_code VARCHAR(20) NOT NULL COMMENT '板块代码',
+        board_name VARCHAR(100) NOT NULL COMMENT '板块名称',
+        stock_code VARCHAR(20) NOT NULL COMMENT '股票代码',
+        stock_name VARCHAR(100) NOT NULL COMMENT '股票名称',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_board_stock (board_code, stock_code),
+        INDEX idx_board_code (board_code),
+        INDEX idx_stock_code (stock_code),
+        INDEX idx_board_name (board_name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+
     # ── stock_kline_screening_history（K线初筛历史记录，每次分析都产生新记录） ──
     """
     CREATE TABLE IF NOT EXISTS stock_kline_screening_history (
