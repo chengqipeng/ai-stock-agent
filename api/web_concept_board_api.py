@@ -123,3 +123,98 @@ async def stock_concept_boards(
     finally:
         cur.close()
         conn.close()
+
+@router.get("/api/concept_board/kline")
+async def concept_board_kline(
+    board_code: str = Query(..., description="板块代码"),
+    limit: int = Query(120, ge=1, le=800, description="K线条数"),
+):
+    """获取某个概念板块的日K线数据（由旧到新）"""
+    import datetime as _dt
+    from decimal import Decimal
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+    try:
+        # 板块名称
+        cur.execute(
+            "SELECT board_name FROM stock_concept_board WHERE board_code = %s",
+            (board_code,),
+        )
+        board = cur.fetchone()
+        board_name = board["board_name"] if board else board_code
+
+        cur.execute(
+            "SELECT * FROM concept_board_kline WHERE board_code = %s "
+            "ORDER BY `date` DESC LIMIT %s",
+            (board_code, limit),
+        )
+        rows = list(reversed(cur.fetchall()))
+        for row in rows:
+            for k, v in row.items():
+                if isinstance(v, (_dt.datetime, _dt.date)):
+                    row[k] = v.isoformat()
+                elif isinstance(v, Decimal):
+                    row[k] = float(v)
+        return {
+            "success": True,
+            "board_code": board_code,
+            "board_name": board_name,
+            "data": rows,
+            "total": len(rows),
+        }
+    except Exception as e:
+        logger.error("板块K线查询失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+    finally:
+        cur.close()
+        conn.close()
+
+@router.get("/concept_board/strength", response_class=HTMLResponse)
+async def concept_board_strength_page():
+    """概念板块个股强弱势分析页面"""
+    with open("static/concept_stock_strength.html", "r", encoding="utf-8") as f:
+        content = f.read()
+    return HTMLResponse(content=content, headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache", "Expires": "0",
+    })
+
+
+@router.get("/api/concept_board/strength")
+async def concept_board_strength(
+    board_code: str = Query(..., description="板块代码"),
+    days: int = Query(60, ge=5, le=250, description="分析天数"),
+):
+    """分析概念板块内个股相对强弱势"""
+    from service.analysis.concept_stock_strength import analyze_board_stock_strength
+    result = analyze_board_stock_strength(board_code, days=days)
+    # 前端不需要每日明细（太大），单独接口获取
+    if result.get("success") and result.get("stocks"):
+        for s in result["stocks"]:
+            s.pop("daily_excess", None)
+    return result
+
+
+@router.get("/api/concept_board/strength/detail")
+async def concept_board_strength_detail(
+    board_code: str = Query(..., description="板块代码"),
+    stock_code: str = Query(..., description="股票代码"),
+    days: int = Query(60, ge=5, le=250, description="分析天数"),
+):
+    """获取单只股票相对板块的每日超额收益明细"""
+    from service.analysis.concept_stock_strength import analyze_board_stock_strength
+    result = analyze_board_stock_strength(board_code, days=days)
+    if not result.get("success"):
+        return result
+    for s in result["stocks"]:
+        if s["stock_code"] == stock_code:
+            return {
+                "success": True,
+                "board": result["board"],
+                "period": result["period"],
+                "stock": s,
+            }
+    return {"success": False, "error": "该股票不在板块成分股中"}
+
+
+

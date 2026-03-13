@@ -311,6 +311,7 @@ function renderPagination(page, totalPages, total) {
 // Enter key triggers query
 document.getElementById('filterCode').addEventListener('keydown', e => { if (e.key === 'Enter') doQuery(1); });
 document.getElementById('tpCode').addEventListener('keydown', e => { if (e.key === 'Enter') loadTimeDates(); });
+document.getElementById('cpBoardInput').addEventListener('keydown', e => { if (e.key === 'Enter') { cpRenderDropdown(); document.getElementById('cpBoardList').classList.add('open'); } });
 
 // ========== 分时数据专用逻辑 ==========
 function toggleTimePanel() {
@@ -541,6 +542,9 @@ function formatAmount(v) {
     if (v >= 1e4) return (v / 1e4).toFixed(2) + '万';
     return v.toFixed(2);
 }
+
+// ========== 工具函数 ==========
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 // ========== 概念板块专用逻辑 ==========
 const CONCEPT_TABLES = new Set(['stock_concept_board', 'stock_concept_board_stock', 'concept_board_kline']);
@@ -853,9 +857,6 @@ function cpRenderKlineStats(data) {
         stat('K线数', data.length + '条'),
     ].join('');
 }
-
-// 修改 toggleTimePanel 和 selectTable 以支持概念板块面板
-const _origToggleTimePanel = toggleTimePanel;
 
 loadTables();
 </script>
