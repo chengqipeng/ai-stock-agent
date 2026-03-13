@@ -68,8 +68,8 @@ tbody tr:hover { background: rgba(102,126,234,0.08); }
 <div class="container">
     <div class="sidebar" id="tableBtns"></div>
     <div class="filters">
-        <label>股票代码</label>
-        <input type="text" id="filterCode" placeholder="如 002440 或 .SZ" style="width:140px">
+        <label>代码/名称</label>
+        <input type="text" id="filterCode" placeholder="如 002440 或 NDX" style="width:140px">
         <label>日期从</label>
         <input type="date" id="filterDateFrom">
         <label>至</label>
@@ -106,8 +106,10 @@ tbody tr:hover { background: rgba(102,126,234,0.08); }
 <script>
 const TABLE_LABELS = {
     stock_kline: '日线K线', stock_finance: '财报数据', stock_highest_lowest_price: '最高最低价',
-    stock_batch_technical_score: '技术打分', stock_time_data: '分时数据',
+    stock_time_data: '分时数据',
     stock_order_book: '盘口数据', stock_dragon_tiger: '龙虎榜', stock_fund_flow: '资金流向',
+    stock_concept_board: '概念板块', stock_concept_board_stock: '板块成分股', concept_board_kline: '板块K线',
+    us_index_kline: '美股指数K线', global_index_realtime: '全球指数行情', us_stock_ranking: '美股涨幅榜', us_stock_kline: '美股个股K线',
 };
 let currentTable = '';
 let currentPage = 1;
