@@ -12,8 +12,11 @@ Usage:
     # 抓取单个板块的成分股
     python -m service.jqka10.concept_board_stocks_10jqka 309264
 
-    # 抓取所有板块的成分股
+    # 抓取所有板块的成分股（跳过已有数据的板块）
     python -m service.jqka10.concept_board_stocks_10jqka --all
+
+    # 强制重新抓取所有板块
+    python -m service.jqka10.concept_board_stocks_10jqka --force
 """
 import logging
 import random
@@ -167,51 +170,73 @@ def fetch_and_save_board_stocks(board_code: str, board_name: str = "",
 
 
 def fetch_and_save_all_boards_stocks(delay_page: float = 0.2,
-                                     delay_board: float = 0.8) -> dict:
+                                     delay_board: float = 0.8,
+                                     force: bool = False) -> dict:
     """
     遍历数据库中所有概念板块，抓取每个板块的成分股并写入。
 
+    Args:
+        delay_page: 页间延迟（秒）
+        delay_board: 板块间延迟（秒）
+        force: 是否强制重新抓取已有数据的板块
+
     Returns:
-        {"total_boards": N, "success": N, "total_stocks": N}
+        {"total_boards": N, "success": N, "skipped": N, "total_stocks": N}
     """
     from dao.stock_concept_board_dao import (
-        get_all_concept_boards, batch_upsert_board_stocks
+        get_all_concept_boards, batch_upsert_board_stocks, get_board_stock_count
     )
 
     boards = get_all_concept_boards()
     total = len(boards)
     success = 0
+    skipped = 0
     total_stocks = 0
+    failed = 0
 
-    print(f"[板块成分股] 共 {total} 个板块待抓取")
+    print(f"[板块成分股] 共 {total} 个板块待处理 (force={force})")
 
     for i, board in enumerate(boards):
         board_code = board["board_code"]
         board_name = board["board_name"]
 
+        # 跳过已有数据的板块（除非 force）
+        if not force:
+            existing = get_board_stock_count(board_code)
+            if existing > 0:
+                skipped += 1
+                total_stocks += existing
+                print(f"  [{i+1}/{total}] {board_code} {board_name} -> "
+                      f"已有{existing}只, 跳过")
+                continue
+
         stocks = fetch_board_stocks(board_code, delay=delay_page)
         if stocks:
-            count = batch_upsert_board_stocks(board_code, board_name, stocks)
+            batch_upsert_board_stocks(board_code, board_name, stocks)
             success += 1
             total_stocks += len(stocks)
             print(f"  [{i+1}/{total}] {board_code} {board_name} -> "
-                  f"{len(stocks)}只成分股, 写入{count}条")
+                  f"{len(stocks)}只成分股")
         else:
-            print(f"  [{i+1}/{total}] {board_code} {board_name} -> 无数据")
+            failed += 1
+            print(f"  [{i+1}/{total}] {board_code} {board_name} -> 抓取失败")
 
         if i < total - 1:
             time.sleep(delay_board + random.uniform(0, 0.3))
 
-    return {"total_boards": total, "success": success, "total_stocks": total_stocks}
+    return {"total_boards": total, "success": success, "skipped": skipped,
+            "failed": failed, "total_stocks": total_stocks}
 
 
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    if len(sys.argv) > 1 and sys.argv[1] == "--all":
-        result = fetch_and_save_all_boards_stocks()
-        print(f"\n完成: {result['success']}/{result['total_boards']}个板块, "
-              f"共{result['total_stocks']}只成分股")
+    if len(sys.argv) > 1 and sys.argv[1] in ("--all", "--force"):
+        force = "--force" in sys.argv
+        result = fetch_and_save_all_boards_stocks(force=force)
+        print(f"\n完成: 新抓取{result['success']}个, 跳过{result['skipped']}个, "
+              f"失败{result['failed']}个 / 共{result['total_boards']}个板块, "
+              f"累计{result['total_stocks']}只成分股")
     else:
         board_code = sys.argv[1] if len(sys.argv) > 1 else "309264"
         print(f"抓取板块 {board_code} 的成分股...")

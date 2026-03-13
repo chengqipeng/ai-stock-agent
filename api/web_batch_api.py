@@ -104,7 +104,7 @@ async def lifespan(application: FastAPI):
             logger.error("[lifespan] 启动最高最低价调度器异常: %s", e, exc_info=True)
 
         try:
-            await start_score_scheduler()
+            #await start_score_scheduler()
             logger.info("[lifespan] 技术打分调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动技术打分调度器异常: %s", e, exc_info=True)
@@ -153,6 +153,10 @@ app = FastAPI(title="AI Stock Agent", default_response_class=SafeJSONResponse, l
 # 挂载数据浏览器路由
 from api.web_data_browser_api import router as data_browser_router
 app.include_router(data_browser_router)
+
+# 挂载概念板块浏览路由
+from api.web_concept_board_api import router as concept_board_router
+app.include_router(concept_board_router)
 
 @app.get("/.well-known/appspecific/com.chrome.devtools.json")
 async def chrome_devtools():

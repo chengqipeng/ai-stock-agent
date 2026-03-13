@@ -1,7 +1,7 @@
 """
 历史资金流向定时调度模块
 - 每个A股交易日 16:30 自动触发
-- 遍历股票列表，从同花顺抓取历史资金流向并入库
+- 遍历股票列表，从东方财富抓取历史资金流向并入库
 - 项目启动时检查当天是否已完成，未完成则补拉
 """
 import asyncio
@@ -15,14 +15,71 @@ from common.constants.stocks_data import MAIN_STOCK
 from common.utils.stock_info_utils import get_stock_info_by_code
 from dao import get_connection
 from dao.stock_fund_flow_dao import create_fund_flow_table, batch_upsert_fund_flow
-from service.jqka10.stock_history_fund_flow_10jqka import get_fund_flow_history
 from service.auto_job.kline_data_scheduler import app_ready, is_a_share_trading_day
+from service.jqka10.stock_history_fund_flow_10jqka import get_fund_flow_history
 
 _CST = ZoneInfo("Asia/Shanghai")
 logger = logging.getLogger(__name__)
 _project_root = Path(__file__).parent.parent.parent
 _INDEX_CODES = {s["code"] for s in MAIN_STOCK}
 _STATUS_FILE = _project_root / "data_results" / ".fund_flow_scheduler_status.json"
+
+
+def _convert_em_klines_to_dicts(klines: list[str]) -> list[dict]:
+    """将东方财富 kline 字符串列表转为 batch_upsert_fund_flow 所需的 dict 列表（万元单位）。
+
+    东方财富 kline 字段顺序（逗号分隔，共15个字段）：
+      0:日期, 1:主力净流入, 2:小单净流入, 3:中单净流入, 4:大单净流入,
+      5:超大单净流入, 6:主力净占比, 7:小单净占比, 8:中单净占比, 9:大单净占比,
+      10:超大单净占比, 11:收盘价, 12:涨跌幅, 13:(?), 14:(?)
+    金额单位为元，需转为万元存入数据库。
+    main_net_5day（5日主力净额）通过滑动窗口累加最近5天主力净流入计算得出。
+    注意：东方财富返回的 klines 已按日期倒序排列（最新在前）。
+    """
+
+    def _float(v):
+        return float(v) if v and v != "-" else 0
+
+    def _pct(v):
+        return round(float(v), 2) if v and v != "-" else None
+
+    # 第一遍：解析所有行，提取主力净流入（万元）
+    parsed = []
+    for kline in klines:
+        f = kline.split(",")
+        if len(f) < 13:
+            continue
+        main_net_wan = round(_float(f[1]) / 10000, 2)
+        parsed.append((f, main_net_wan))
+
+    # 第二遍：计算5日主力净额并构建结果
+    # klines 按日期倒序，索引 i 对应的5日窗口为 [i, i+1, i+2, i+3, i+4]
+    result = []
+    for i, (f, main_net_wan) in enumerate(parsed):
+        big_net_yuan = _float(f[4])
+        mid_net_yuan = _float(f[3])
+        small_net_yuan = _float(f[2])
+
+        # 5日主力净额：当天及之后4天（更早的4天）的主力净流入之和
+        if i + 5 <= len(parsed):
+            main_net_5day = round(sum(p[1] for p in parsed[i:i + 5]), 2)
+        else:
+            main_net_5day = None
+
+        result.append({
+            "date":         f[0],
+            "close_price":  round(float(f[11]), 2) if f[11] and f[11] != "-" else None,
+            "change_pct":   _pct(f[12]),
+            "net_flow":     main_net_wan,
+            "main_net_5day": main_net_5day,
+            "big_net":      round(big_net_yuan / 10000, 2),
+            "big_net_pct":  _pct(f[9]),
+            "mid_net":      round(mid_net_yuan / 10000, 2),
+            "mid_net_pct":  _pct(f[8]),
+            "small_net":    round(small_net_yuan / 10000, 2),
+            "small_net_pct": _pct(f[7]),
+        })
+    return result
 
 
 def _load_persisted_status():
@@ -90,7 +147,12 @@ async def _fetch_fund_flow_for_stock(code, counter):
             if not stock_info:
                 counter["failed"] += 1
                 return
-            data_list = await get_fund_flow_history(stock_info)
+            klines = await get_fund_flow_history(stock_info)
+            print(f"{code} success {len(klines)}")
+            if not klines:
+                counter["success"] += 1
+                return
+            data_list = _convert_em_klines_to_dicts(klines)
             if not data_list:
                 counter["success"] += 1
                 return
@@ -199,3 +261,8 @@ async def start_fund_flow_scheduler():
         asyncio.create_task(_scheduler_loop())
     asyncio.create_task(_deferred_start())
     logger.info("[资金流调度] 调度器已注册")
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    asyncio.run(_execute_job())

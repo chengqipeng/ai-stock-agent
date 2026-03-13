@@ -329,6 +329,7 @@ _TABLES = [
         board_code VARCHAR(20) NOT NULL COMMENT '板块代码',
         board_name VARCHAR(100) NOT NULL COMMENT '板块名称',
         board_url VARCHAR(500) COMMENT '板块详情URL',
+        board_index_code VARCHAR(20) COMMENT '板块指数代码(885xxx/886xxx)',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY uk_board_code (board_code),
@@ -350,6 +351,32 @@ _TABLES = [
         INDEX idx_board_code (board_code),
         INDEX idx_stock_code (stock_code),
         INDEX idx_board_name (board_name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+
+    # ── concept_board_kline（概念板块日K线） ──
+    """
+    CREATE TABLE IF NOT EXISTS concept_board_kline (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        board_code VARCHAR(20) NOT NULL COMMENT '板块代码(30xxxx)',
+        board_index_code VARCHAR(20) COMMENT '板块指数代码(885xxx/886xxx)',
+        `date` VARCHAR(20) NOT NULL COMMENT '交易日期',
+        open_price DOUBLE COMMENT '开盘价',
+        close_price DOUBLE COMMENT '收盘价',
+        high_price DOUBLE COMMENT '最高价',
+        low_price DOUBLE COMMENT '最低价',
+        trading_volume DOUBLE COMMENT '成交量(手)',
+        trading_amount DOUBLE COMMENT '成交额',
+        change_percent DOUBLE COMMENT '涨跌幅(%)',
+        change_amount DOUBLE COMMENT '涨跌额',
+        amplitude DOUBLE COMMENT '振幅(%)',
+        change_hand DOUBLE COMMENT '换手率(%)',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_board_date (board_code, `date`),
+        INDEX idx_board_code (board_code),
+        INDEX idx_board_index_code (board_index_code),
+        INDEX idx_date (`date`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 
@@ -425,7 +452,7 @@ _INDEX_MIGRATIONS = [
 
 
 def _migrate_indexes(cursor):
-    """安全地为已存在的表添加缺失索引，索引已存在则跳过"""
+    """安全地为已存在的表添加缺失索引和列"""
     for table, idx_name, idx_def in _INDEX_MIGRATIONS:
         try:
             cursor.execute(
@@ -440,6 +467,23 @@ def _migrate_indexes(cursor):
                 logger.debug("  索引已存在: %s.%s", table, idx_name)
         except Exception as e:
             logger.warning("  添加索引失败 %s.%s: %s", table, idx_name, e)
+
+    # 为 stock_concept_board 添加 board_index_code 列（如果不存在）
+    try:
+        cursor.execute(
+            "SELECT COUNT(*) FROM information_schema.columns "
+            "WHERE table_schema = DATABASE() AND table_name = 'stock_concept_board' "
+            "AND column_name = 'board_index_code'"
+        )
+        if cursor.fetchone()[0] == 0:
+            cursor.execute(
+                "ALTER TABLE stock_concept_board ADD COLUMN "
+                "board_index_code VARCHAR(20) COMMENT '板块指数代码(885xxx/886xxx)' "
+                "AFTER board_url"
+            )
+            logger.info("  已添加列: stock_concept_board.board_index_code")
+    except Exception as e:
+        logger.warning("  添加列失败 stock_concept_board.board_index_code: %s", e)
 
 
 if __name__ == "__main__":

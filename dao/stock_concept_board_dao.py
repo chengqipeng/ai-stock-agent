@@ -15,6 +15,7 @@ def create_concept_board_table(cursor=None):
             board_code VARCHAR(20) NOT NULL COMMENT '板块代码',
             board_name VARCHAR(100) NOT NULL COMMENT '板块名称',
             board_url VARCHAR(500) COMMENT '板块详情URL',
+            board_index_code VARCHAR(20) COMMENT '板块指数代码(885xxx/886xxx)',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             UNIQUE KEY uk_board_code (board_code),
@@ -102,6 +103,45 @@ def get_concept_board_count(cursor=None) -> int:
         cursor.close()
         conn.close()
     return row[0] if row else 0
+
+def update_board_index_code(board_code: str, board_index_code: str,
+                            cursor=None) -> int:
+    """更新板块的指数代码(885xxx/886xxx)"""
+    sql = f"""
+        UPDATE {TABLE_NAME}
+        SET board_index_code = %s
+        WHERE board_code = %s
+    """
+    own = cursor is None
+    if own:
+        conn = get_connection()
+        cursor = conn.cursor()
+    cursor.execute(sql, (board_index_code, board_code))
+    count = cursor.rowcount
+    if own:
+        conn.commit()
+        cursor.close()
+        conn.close()
+    return count
+
+
+def get_boards_without_index_code(cursor=None) -> list[dict]:
+    """查询没有指数代码的板块"""
+    sql = (f"SELECT * FROM {TABLE_NAME} "
+           f"WHERE board_index_code IS NULL OR board_index_code = '' "
+           f"ORDER BY board_code")
+    own = cursor is None
+    if own:
+        conn = get_connection(use_dict_cursor=True)
+        cursor = conn.cursor()
+    cursor.execute(sql)
+    result = cursor.fetchall()
+    if own:
+        cursor.close()
+        conn.close()
+    return result
+
+
 
 
 # ── stock_concept_board_stock（概念板块成分股） ──
