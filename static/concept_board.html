@@ -12,8 +12,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .header a{color:rgba(255,255,255,0.6);text-decoration:none;font-size:13px}
 .header a:hover{color:#fff}
 .header .stats{margin-left:auto;font-size:13px;color:rgba(255,255,255,0.5)}
-.container{display:flex;height:calc(100vh - 57px)}
-.board-panel{width:340px;min-width:280px;border-right:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;background:rgba(255,255,255,0.02)}
+.container{display:flex;height:calc(100vh - 57px);position:relative}
+.board-panel{width:340px;min-width:0;border-right:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;background:rgba(255,255,255,0.02);transition:width .3s,min-width .3s,padding .3s;overflow:hidden}
+.board-panel.collapsed{width:0;min-width:0;border-right:none;padding:0}
+.board-panel.collapsed .search-box,.board-panel.collapsed .board-list{display:none}
+.sidebar-toggle{position:absolute;left:340px;top:50%;transform:translateY(-50%);z-index:50;width:20px;height:56px;background:rgba(102,126,234,0.6);border:none;border-radius:0 8px 8px 0;color:#fff;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:left .3s,background .15s;backdrop-filter:blur(8px)}
+.sidebar-toggle:hover{background:rgba(102,126,234,0.85)}
+.sidebar-toggle.collapsed{left:0}
 .search-box{padding:12px;border-bottom:1px solid rgba(255,255,255,0.06)}
 .search-box input{width:100%;padding:8px 12px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:rgba(255,255,255,0.06);color:#e0e6ed;font-size:13px;outline:none}
 .search-box input:focus{border-color:#667eea}
@@ -101,12 +106,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <div class="stats" id="globalStats"></div>
 </div>
 <div class="container">
-    <div class="board-panel">
+    <div class="board-panel" id="boardPanel">
         <div class="search-box">
             <input type="text" id="boardSearch" placeholder="搜索概念板块..." autocomplete="off">
         </div>
         <div class="board-list" id="boardList"></div>
     </div>
+    <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="折叠/展开">◀</button>
     <div class="stock-panel">
         <div class="stock-header" id="stockHeader" style="display:none">
             <h2 id="boardTitle"></h2>
@@ -502,6 +508,17 @@ document.getElementById('stockSearch').addEventListener('input', function() {
 });
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// 左侧面板折叠
+function toggleSidebar() {
+    const panel = document.getElementById('boardPanel');
+    const btn = document.getElementById('sidebarToggle');
+    const collapsed = panel.classList.toggle('collapsed');
+    btn.classList.toggle('collapsed', collapsed);
+    btn.textContent = collapsed ? '▶' : '◀';
+    // 延迟重绘K线以等待过渡动画完成
+    setTimeout(() => { if (klineData.length) renderKlineChart(klineData); }, 320);
+}
 
 // 窗口resize重绘K线
 window.addEventListener('resize', () => { if (klineData.length) renderKlineChart(klineData); });
