@@ -42,6 +42,40 @@ tbody tr:hover { background: rgba(102,126,234,0.08); }
 .num-positive { color: #e74c3c; }
 .num-negative { color: #2ecc71; }
 
+/* 概念板块专用面板 */
+.concept-panel { display: none; margin-bottom: 16px; padding: 16px; background: rgba(255,255,255,0.04); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); }
+.concept-panel.visible { display: block; }
+.concept-panel .cp-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.concept-panel label { font-size: 12px; color: rgba(255,255,255,0.5); }
+.concept-panel input, .concept-panel select { padding: 6px 10px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(255,255,255,0.08); color: #e0e6ed; font-size: 13px; outline: none; }
+.concept-panel input:focus, .concept-panel select:focus { border-color: #667eea; }
+.concept-panel button { padding: 6px 16px; border: none; border-radius: 6px; background: #667eea; color: #fff; cursor: pointer; font-size: 13px; }
+.concept-panel button:hover { background: #5a6fd6; }
+.concept-panel .cp-hint { font-size: 11px; color: rgba(255,255,255,0.3); }
+.cp-board-dropdown { position: relative; }
+.cp-board-dropdown input { width: 240px; }
+.cp-board-list { display: none; position: absolute; top: 100%; left: 0; width: 340px; max-height: 320px; overflow-y: auto; background: #1a2a3a; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; z-index: 50; margin-top: 4px; box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
+.cp-board-list.open { display: block; }
+.cp-board-opt { display: flex; align-items: center; padding: 8px 12px; cursor: pointer; gap: 8px; font-size: 13px; }
+.cp-board-opt:hover { background: rgba(102,126,234,0.15); }
+.cp-board-opt .bname { flex: 1; color: #e0e6ed; }
+.cp-board-opt .bcode { font-size: 11px; color: rgba(255,255,255,0.3); font-family: monospace; }
+.cp-board-opt .bcnt { font-size: 11px; color: rgba(255,255,255,0.4); }
+.cp-stocks-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; max-height: 120px; overflow-y: auto; }
+.cp-stock-tag { padding: 4px 10px; background: rgba(102,126,234,0.1); border: 1px solid rgba(102,126,234,0.2); border-radius: 6px; font-size: 12px; color: #b0bec5; cursor: pointer; }
+.cp-stock-tag:hover { background: rgba(102,126,234,0.2); color: #fff; }
+.cp-stock-tag .stcode { color: #667eea; margin-right: 4px; font-family: monospace; }
+.cp-kline-wrap { position: relative; width: 100%; height: 400px; background: rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden; margin-top: 12px; }
+.cp-kline-wrap canvas { width: 100%; height: 100%; }
+.cp-kline-stats { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; }
+.cp-kline-stats .stat-item { display: flex; gap: 4px; }
+.cp-kline-stats .stat-label { color: rgba(255,255,255,0.4); }
+.cp-kline-stats .stat-val { color: #e0e6ed; font-weight: 500; }
+.cp-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.cp-tab { padding: 6px 14px; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.5); cursor: pointer; font-size: 12px; }
+.cp-tab:hover { background: rgba(102,126,234,0.1); color: #fff; }
+.cp-tab.active { background: rgba(102,126,234,0.2); border-color: #667eea; color: #fff; }
+
 /* 分时数据专用面板 */
 .time-panel { display: none; margin-bottom: 16px; padding: 16px; background: rgba(255,255,255,0.04); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); }
 .time-panel.visible { display: block; }
@@ -82,6 +116,38 @@ tbody tr:hover { background: rgba(102,126,234,0.08); }
             <option value="200">200</option>
         </select>
         <button onclick="doQuery(1)">查询</button>
+    </div>
+    <!-- 概念板块专用查询面板 -->
+    <div class="concept-panel" id="conceptPanel">
+        <div class="cp-row">
+            <label>概念板块</label>
+            <div class="cp-board-dropdown" id="cpDropdown">
+                <input type="text" id="cpBoardInput" placeholder="搜索板块名称..." autocomplete="off">
+                <div class="cp-board-list" id="cpBoardList"></div>
+            </div>
+            <span class="cp-hint" id="cpBoardHint"></span>
+            <button onclick="cpLoadKline()" style="margin-left:auto">查看K线图</button>
+            <label>K线数</label>
+            <select id="cpKlineLimit">
+                <option value="60">60</option>
+                <option value="120" selected>120</option>
+                <option value="250">250</option>
+                <option value="500">500</option>
+            </select>
+        </div>
+        <div class="cp-tabs" id="cpTabs">
+            <div class="cp-tab active" data-tab="kline" onclick="cpSwitchTab('kline')">📈 K线图</div>
+            <div class="cp-tab" data-tab="stocks" onclick="cpSwitchTab('stocks')">📋 成分股</div>
+        </div>
+        <div id="cpTabKline">
+            <div class="cp-kline-wrap" id="cpKlineWrap" style="display:none;">
+                <canvas id="cpKlineCanvas"></canvas>
+            </div>
+            <div class="cp-kline-stats" id="cpKlineStats"></div>
+        </div>
+        <div id="cpTabStocks" style="display:none;">
+            <div class="cp-stocks-wrap" id="cpStocksWrap"></div>
+        </div>
     </div>
     <!-- 分时数据专用查询面板 -->
     <div class="time-panel" id="timePanel">
@@ -250,6 +316,7 @@ document.getElementById('tpCode').addEventListener('keydown', e => { if (e.key =
 function toggleTimePanel() {
     const panel = document.getElementById('timePanel');
     panel.classList.toggle('visible', currentTable === 'stock_time_data');
+    toggleConceptPanel();
 }
 
 async function loadTimeDates() {
@@ -474,6 +541,321 @@ function formatAmount(v) {
     if (v >= 1e4) return (v / 1e4).toFixed(2) + '万';
     return v.toFixed(2);
 }
+
+// ========== 概念板块专用逻辑 ==========
+const CONCEPT_TABLES = new Set(['stock_concept_board', 'stock_concept_board_stock', 'concept_board_kline']);
+let cpAllBoards = [];
+let cpSelectedBoard = null;
+let cpKlineData = null;
+
+function toggleConceptPanel() {
+    const panel = document.getElementById('conceptPanel');
+    panel.classList.toggle('visible', CONCEPT_TABLES.has(currentTable));
+    if (CONCEPT_TABLES.has(currentTable) && cpAllBoards.length === 0) cpLoadBoards();
+}
+
+async function cpLoadBoards() {
+    try {
+        const resp = await fetch('/api/concept_board/list');
+        const json = await resp.json();
+        if (!json.success) return;
+        cpAllBoards = json.data;
+        document.getElementById('cpBoardHint').textContent = '共 ' + json.total + ' 个板块';
+    } catch (e) { console.error(e); }
+}
+
+// 板块搜索下拉
+const cpInput = document.getElementById('cpBoardInput');
+const cpList = document.getElementById('cpBoardList');
+let _cpTimer;
+
+cpInput.addEventListener('focus', () => { cpRenderDropdown(); cpList.classList.add('open'); });
+cpInput.addEventListener('input', () => {
+    clearTimeout(_cpTimer);
+    _cpTimer = setTimeout(() => cpRenderDropdown(), 150);
+});
+document.addEventListener('click', (e) => {
+    if (!document.getElementById('cpDropdown').contains(e.target)) cpList.classList.remove('open');
+});
+
+function cpRenderDropdown() {
+    const kw = cpInput.value.trim().toLowerCase();
+    const filtered = kw ? cpAllBoards.filter(b => b.board_name.toLowerCase().includes(kw) || b.board_code.includes(kw)) : cpAllBoards.slice(0, 50);
+    cpList.innerHTML = '';
+    filtered.slice(0, 50).forEach(b => {
+        const div = document.createElement('div');
+        div.className = 'cp-board-opt';
+        div.innerHTML = '<span class="bname">' + esc(b.board_name) + '</span><span class="bcode">' + b.board_code + '</span><span class="bcnt">' + (b.stock_count||0) + '只</span>';
+        div.onclick = () => cpSelectBoard(b);
+        cpList.appendChild(div);
+    });
+    if (filtered.length > 50) {
+        const more = document.createElement('div');
+        more.className = 'cp-board-opt';
+        more.innerHTML = '<span class="bname" style="color:rgba(255,255,255,0.3)">还有 ' + (filtered.length - 50) + ' 个板块，请输入更精确的关键词...</span>';
+        cpList.appendChild(more);
+    }
+}
+
+function cpSelectBoard(board) {
+    cpSelectedBoard = board;
+    cpInput.value = board.board_name;
+    cpList.classList.remove('open');
+    document.getElementById('cpBoardHint').textContent = board.board_code + ' · ' + (board.stock_count||0) + '只成分股';
+    // 自动加载成分股
+    cpLoadStocks(board.board_code);
+    // 自动加载K线
+    cpLoadKline();
+}
+
+async function cpLoadStocks(boardCode) {
+    const wrap = document.getElementById('cpStocksWrap');
+    wrap.innerHTML = '<span class="cp-hint">加载中...</span>';
+    try {
+        const resp = await fetch('/api/concept_board/stocks?board_code=' + boardCode);
+        const json = await resp.json();
+        if (!json.success) { wrap.innerHTML = '<span class="cp-hint">加载失败</span>'; return; }
+        wrap.innerHTML = '';
+        json.data.forEach(s => {
+            const tag = document.createElement('span');
+            tag.className = 'cp-stock-tag';
+            tag.innerHTML = '<span class="stcode">' + s.stock_code + '</span>' + esc(s.stock_name);
+            tag.title = '点击在代码筛选框中填入此股票';
+            tag.onclick = () => {
+                document.getElementById('filterCode').value = s.stock_code;
+                doQuery(1);
+            };
+            wrap.appendChild(tag);
+        });
+        if (json.data.length === 0) wrap.innerHTML = '<span class="cp-hint">暂无成分股数据</span>';
+    } catch (e) { wrap.innerHTML = '<span class="cp-hint">请求失败</span>'; }
+}
+
+async function cpLoadKline() {
+    if (!cpSelectedBoard) { document.getElementById('cpBoardHint').textContent = '请先选择板块'; return; }
+    const limit = document.getElementById('cpKlineLimit').value;
+    document.getElementById('cpBoardHint').textContent = '加载K线...';
+    try {
+        const resp = await fetch('/api/concept_board/kline?board_code=' + cpSelectedBoard.board_code + '&limit=' + limit);
+        const json = await resp.json();
+        if (!json.success || json.data.length === 0) {
+            document.getElementById('cpBoardHint').textContent = '暂无K线数据';
+            document.getElementById('cpKlineWrap').style.display = 'none';
+            return;
+        }
+        cpKlineData = json.data;
+        document.getElementById('cpBoardHint').textContent = cpSelectedBoard.board_name + ' · ' + json.total + ' 条K线';
+        document.getElementById('cpKlineWrap').style.display = 'block';
+        cpSwitchTab('kline');
+        cpRenderKlineChart(json.data, json.board_name);
+        cpRenderKlineStats(json.data);
+    } catch (e) { document.getElementById('cpBoardHint').textContent = '请求失败: ' + e.message; }
+}
+
+function cpSwitchTab(tab) {
+    document.querySelectorAll('.cp-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    document.getElementById('cpTabKline').style.display = tab === 'kline' ? 'block' : 'none';
+    document.getElementById('cpTabStocks').style.display = tab === 'stocks' ? 'block' : 'none';
+}
+
+function cpRenderKlineChart(data, boardName) {
+    const canvas = document.getElementById('cpKlineCanvas');
+    const wrap = document.getElementById('cpKlineWrap');
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = wrap.clientWidth * dpr;
+    canvas.height = wrap.clientHeight * dpr;
+    canvas.style.width = wrap.clientWidth + 'px';
+    canvas.style.height = wrap.clientHeight + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    const padL = 70, padR = 20, padT = 30, padB = 50;
+    const chartW = W - padL - padR, chartH = H - padT - padB;
+    ctx.clearRect(0, 0, W, H);
+
+    const closes = data.map(d => d.close_price).filter(v => v != null);
+    const highs = data.map(d => d.high_price).filter(v => v != null);
+    const lows = data.map(d => d.low_price).filter(v => v != null);
+    const volumes = data.map(d => d.trading_volume || 0);
+    if (closes.length === 0) return;
+
+    const minP = Math.min(...lows, ...closes), maxP = Math.max(...highs, ...closes);
+    const pRange = maxP - minP || 1;
+    const maxV = Math.max(...volumes) || 1;
+    const volH = chartH * 0.2;
+    const priceH = chartH - volH - 10;
+    const barW = Math.max(1, chartW / data.length * 0.7);
+    const gap = chartW / data.length;
+
+    // 背景网格
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = padT + (priceH / 4) * i;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + chartW, y); ctx.stroke();
+    }
+
+    // Y轴标签
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+        const y = padT + (priceH / 4) * i;
+        const val = maxP - (pRange / 4) * i;
+        ctx.fillText(val.toFixed(2), padL - 6, y + 4);
+    }
+
+    // X轴日期
+    ctx.textAlign = 'center';
+    const step = Math.max(1, Math.floor(data.length / 10));
+    for (let i = 0; i < data.length; i += step) {
+        const x = padL + i * gap + gap / 2;
+        const dateStr = data[i].date || '';
+        ctx.fillText(dateStr.slice(5), x, H - padB + 16);
+    }
+
+    // 成交量
+    const volTop = padT + priceH + 10;
+    data.forEach((d, i) => {
+        const x = padL + i * gap + (gap - barW) / 2;
+        const h = (d.trading_volume || 0) / maxV * volH;
+        const chg = d.change_percent || 0;
+        ctx.fillStyle = chg >= 0 ? 'rgba(231,76,60,0.5)' : 'rgba(46,204,113,0.5)';
+        ctx.fillRect(x, volTop + volH - h, barW, h);
+    });
+
+    // K线蜡烛图
+    data.forEach((d, i) => {
+        const cx = padL + i * gap + gap / 2;
+        const o = d.open_price, c = d.close_price, hi = d.high_price, lo = d.low_price;
+        if (o == null || c == null) return;
+        const isUp = c >= o;
+        const color = isUp ? '#e74c3c' : '#2ecc71';
+        const yO = padT + (1 - (o - minP) / pRange) * priceH;
+        const yC = padT + (1 - (c - minP) / pRange) * priceH;
+        const yH = hi != null ? padT + (1 - (hi - minP) / pRange) * priceH : Math.min(yO, yC);
+        const yL = lo != null ? padT + (1 - (lo - minP) / pRange) * priceH : Math.max(yO, yC);
+
+        // 上下影线
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, yH);
+        ctx.lineTo(cx, yL);
+        ctx.stroke();
+
+        // 实体
+        const bodyTop = Math.min(yO, yC);
+        const bodyH = Math.max(Math.abs(yO - yC), 1);
+        if (isUp) {
+            ctx.fillStyle = color;
+            ctx.fillRect(cx - barW / 2, bodyTop, barW, bodyH);
+        } else {
+            ctx.fillStyle = color;
+            ctx.fillRect(cx - barW / 2, bodyTop, barW, bodyH);
+        }
+    });
+
+    // MA5 / MA20
+    function drawMA(period, color) {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        let started = false;
+        for (let i = period - 1; i < data.length; i++) {
+            let sum = 0, cnt = 0;
+            for (let j = i - period + 1; j <= i; j++) {
+                if (data[j].close_price != null) { sum += data[j].close_price; cnt++; }
+            }
+            if (cnt < period) continue;
+            const ma = sum / cnt;
+            const x = padL + i * gap + gap / 2;
+            const y = padT + (1 - (ma - minP) / pRange) * priceH;
+            if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+    }
+    drawMA(5, '#f0ad4e');
+    drawMA(20, '#667eea');
+
+    // 图例
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#f0ad4e'; ctx.fillText('● MA5', padL + 10, padT - 10);
+    ctx.fillStyle = '#667eea'; ctx.fillText('● MA20', padL + 70, padT - 10);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillText(boardName, padL + 140, padT - 10);
+
+    // 鼠标悬停十字线
+    canvas.onmousemove = function(e) {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        if (mx < padL || mx > padL + chartW || my < padT || my > padT + chartH) {
+            cpRenderKlineChart(data, boardName);
+            canvas.onmousemove = arguments.callee;
+            return;
+        }
+        const idx = Math.min(data.length - 1, Math.max(0, Math.floor((mx - padL) / gap)));
+        cpRenderKlineChart(data, boardName);
+        canvas.onmousemove = arguments.callee;
+        const ctx2 = canvas.getContext('2d');
+        ctx2.save();
+        ctx2.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const cx2 = padL + idx * gap + gap / 2;
+        ctx2.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx2.lineWidth = 0.5;
+        ctx2.setLineDash([4, 3]);
+        ctx2.beginPath(); ctx2.moveTo(cx2, padT); ctx2.lineTo(cx2, padT + chartH); ctx2.stroke();
+        ctx2.beginPath(); ctx2.moveTo(padL, my); ctx2.lineTo(padL + chartW, my); ctx2.stroke();
+        ctx2.setLineDash([]);
+        const d = data[idx];
+        const lines = [
+            d.date || '',
+            '开: ' + (d.open_price != null ? d.open_price.toFixed(2) : '-'),
+            '高: ' + (d.high_price != null ? d.high_price.toFixed(2) : '-'),
+            '低: ' + (d.low_price != null ? d.low_price.toFixed(2) : '-'),
+            '收: ' + (d.close_price != null ? d.close_price.toFixed(2) : '-'),
+            '涨跌: ' + (d.change_percent != null ? (d.change_percent >= 0 ? '+' : '') + d.change_percent.toFixed(2) + '%' : '-'),
+            '成交量: ' + (d.trading_volume != null ? formatAmount(d.trading_volume) : '-'),
+        ];
+        const tw = 160, th = lines.length * 18 + 10;
+        let tx = cx2 + 12, ty = my - th / 2;
+        if (tx + tw > W - padR) tx = cx2 - tw - 12;
+        if (ty < padT) ty = padT;
+        ctx2.fillStyle = 'rgba(20,30,45,0.92)';
+        ctx2.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx2.lineWidth = 1;
+        ctx2.beginPath(); ctx2.roundRect(tx, ty, tw, th, 6); ctx2.fill(); ctx2.stroke();
+        ctx2.font = '11px sans-serif';
+        ctx2.fillStyle = '#e0e6ed';
+        lines.forEach((l, li) => { ctx2.fillText(l, tx + 8, ty + 16 + li * 18); });
+        ctx2.restore();
+    };
+}
+
+function cpRenderKlineStats(data) {
+    const wrap = document.getElementById('cpKlineStats');
+    if (!data.length) { wrap.innerHTML = ''; return; }
+    const last = data[data.length - 1];
+    const first = data[0];
+    const closes = data.map(d => d.close_price).filter(v => v != null);
+    const high = Math.max(...data.map(d => d.high_price).filter(v => v != null));
+    const low = Math.min(...data.map(d => d.low_price).filter(v => v != null));
+    const totalChg = first.close_price ? ((last.close_price - first.close_price) / first.close_price * 100) : 0;
+    const chgClass = totalChg >= 0 ? 'num-positive' : 'num-negative';
+    const avgVol = data.reduce((a, d) => a + (d.trading_volume || 0), 0) / data.length;
+    wrap.innerHTML = [
+        stat('最新收盘', last.close_price != null ? last.close_price.toFixed(2) : '-'),
+        stat('最新日期', last.date || '-'),
+        stat('区间最高', high.toFixed(2)),
+        stat('区间最低', low.toFixed(2)),
+        stat('区间涨幅', '<span class="' + chgClass + '">' + (totalChg >= 0 ? '+' : '') + totalChg.toFixed(2) + '%</span>'),
+        stat('日均成交量', formatAmount(avgVol)),
+        stat('K线数', data.length + '条'),
+    ].join('');
+}
+
+// 修改 toggleTimePanel 和 selectTable 以支持概念板块面板
+const _origToggleTimePanel = toggleTimePanel;
 
 loadTables();
 </script>
