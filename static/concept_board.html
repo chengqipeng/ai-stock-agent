@@ -235,7 +235,16 @@ function renderBoards(boards) {
     boards.forEach(b => {
         const div = document.createElement('div');
         div.className = 'board-item' + (currentBoard && currentBoard.board_code === b.board_code ? ' active' : '');
-        div.innerHTML = '<span class="name">' + esc(b.board_name) + '</span><span class="count">' + (b.stock_count || 0) + '只</span>';
+        const score = b.market_strength_score;
+        let scoreBadge = '';
+        if (score != null) {
+            const sc = parseFloat(score);
+            const color = sc >= 60 ? '#f75555' : sc >= 40 ? 'rgba(255,255,255,0.5)' : '#4ecdc4';
+            scoreBadge = '<span style="font-size:11px;font-weight:600;color:' + color + ';min-width:32px;text-align:right;flex-shrink:0">' + sc.toFixed(1) + '</span>';
+        } else {
+            scoreBadge = '<span style="font-size:11px;color:rgba(255,255,255,0.2);min-width:32px;text-align:right;flex-shrink:0">-</span>';
+        }
+        div.innerHTML = '<span class="name">' + esc(b.board_name) + '</span>' + scoreBadge + '<span class="count">' + (b.stock_count || 0) + '只</span>';
         div.onclick = () => selectBoard(b);
         wrap.appendChild(div);
     });
@@ -281,15 +290,37 @@ async function loadStocks(boardCode) {
 function renderStocks(stocks) {
     const wrap = document.getElementById('stockGrid');
     if (!stocks.length) { wrap.innerHTML = '<div class="empty-state">暂无成分股数据</div>'; return; }
-    wrap.innerHTML = '<div class="stock-cards" id="stockCards"></div>';
-    const cards = document.getElementById('stockCards');
-    stocks.forEach(s => {
-        const div = document.createElement('div');
-        div.className = 'stock-card';
-        div.innerHTML = '<span class="code">' + esc(s.stock_code) + '</span><span class="sname">' + esc(s.stock_name) + '</span>';
-        div.onclick = () => showStockBoards(s.stock_code, s.stock_name);
-        cards.appendChild(div);
+    let html = '<table class="str-table" style="margin-top:0"><thead><tr>' +
+        '<th style="width:40px">#</th>' +
+        '<th>代码</th><th>名称</th>' +
+        '<th>强弱势</th><th>评分</th>' +
+        '<th>区间涨幅</th><th>总超额</th><th>胜率</th>' +
+        '<th style="font-size:11px;color:rgba(255,255,255,0.35)">评分日期</th>' +
+        '</tr></thead><tbody>';
+    stocks.forEach((s, i) => {
+        const score = s.strength_score;
+        const hasScore = score != null;
+        const sc = hasScore ? parseFloat(score) : null;
+        const levelCls = s.strength_level === '强势' ? 'strong' : s.strength_level === '弱势' ? 'weak' : 'neutral';
+        const retCls = s.total_return >= 0 ? 'up' : 'down';
+        const exCls = s.excess_total >= 0 ? 'up' : 'down';
+        const scorePct = hasScore ? Math.min(Math.max(sc, 0), 100) : 0;
+        const barW = Math.round(scorePct * 0.6);
+        const barColor = scorePct >= 50 ? 'rgba(247,85,85,0.5)' : 'rgba(78,205,196,0.5)';
+        html += '<tr style="cursor:pointer" onclick="showStockBoards(\'' + s.stock_code + '\',\'' + esc(s.stock_name) + '\')">' +
+            '<td style="color:rgba(255,255,255,0.3)">' + (i + 1) + '</td>' +
+            '<td style="font-family:monospace;color:#667eea">' + esc(s.stock_code) + '</td>' +
+            '<td>' + esc(s.stock_name) + '</td>' +
+            '<td>' + (hasScore ? '<span class="tag-s ' + levelCls + '">' + s.strength_level + '</span>' : '<span style="color:rgba(255,255,255,0.2)">-</span>') + '</td>' +
+            '<td>' + (hasScore ? sc.toFixed(1) + '<span class="score-bar-s" style="width:' + barW + 'px;background:' + barColor + '"></span>' : '<span style="color:rgba(255,255,255,0.2)">-</span>') + '</td>' +
+            '<td class="' + (hasScore ? retCls : '') + '">' + (s.total_return != null ? (s.total_return > 0 ? '+' : '') + parseFloat(s.total_return).toFixed(2) + '%' : '-') + '</td>' +
+            '<td class="' + (hasScore ? exCls : '') + '">' + (s.excess_total != null ? (s.excess_total > 0 ? '+' : '') + parseFloat(s.excess_total).toFixed(2) + '%' : '-') + '</td>' +
+            '<td>' + (s.win_rate != null ? (parseFloat(s.win_rate) * 100).toFixed(1) + '%' : '-') + '</td>' +
+            '<td style="font-size:11px;color:rgba(255,255,255,0.25)">' + (s.score_date || '-') + '</td>' +
+            '</tr>';
     });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
 }
 </script>
 <script>

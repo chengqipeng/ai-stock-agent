@@ -75,6 +75,8 @@ from service.auto_job.us_market_data_scheduler import start_us_market_data_sched
 from service.auto_job.us_market_data_scheduler import _execute_job as _us_market_execute_job
 from service.auto_job.fund_flow_scheduler import start_fund_flow_scheduler, get_fund_flow_job_status
 from service.auto_job.fund_flow_scheduler import _execute_job as _fund_flow_execute_job
+from service.auto_job.concept_strength_scheduler import start_concept_strength_scheduler, get_concept_strength_job_status
+from service.auto_job.concept_strength_scheduler import _execute_job as _concept_strength_execute_job
 
 GRADE_SCORE_MAP = {
     '积极买入': 95, '逢低建仓': 75, '持股待涨': 60,
@@ -122,6 +124,12 @@ async def lifespan(application: FastAPI):
             logger.info("[lifespan] 资金流向调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动资金流向调度器异常: %s", e, exc_info=True)
+
+        try:
+            await start_concept_strength_scheduler()
+            logger.info("[lifespan] 概念板块强弱势调度器已激活")
+        except Exception as e:
+            logger.error("[lifespan] 启动概念板块强弱势调度器异常: %s", e, exc_info=True)
 
         # 关键：app_ready 必须在 try 之外，确保一定会被 set
         app_ready.set()
@@ -289,6 +297,22 @@ async def trigger_fund_flow_job():
         return {"success": False, "message": "资金流向任务正在执行中"}
     asyncio.create_task(_fund_flow_execute_job())
     return {"success": True, "message": "资金流向数据任务已触发"}
+
+
+@app.get("/api/concept_strength_job_status")
+async def concept_strength_job_status():
+    """获取概念板块强弱势定时任务状态"""
+    return {"success": True, "data": get_concept_strength_job_status()}
+
+
+@app.post("/api/trigger_concept_strength_job")
+async def trigger_concept_strength_job():
+    """手动触发概念板块强弱势计算"""
+    status = get_concept_strength_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "概念板块强弱势任务正在执行中"}
+    asyncio.create_task(_concept_strength_execute_job())
+    return {"success": True, "message": "概念板块强弱势任务已触发（板块大盘强弱势 + 个股板块强弱势）"}
 
 
 @app.get("/api/stock_list")

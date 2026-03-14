@@ -23,25 +23,53 @@ async def concept_board_page():
 
 @router.get("/api/concept_board/list")
 async def concept_board_list(keyword: str = Query("", description="搜索关键词")):
-    """获取所有概念板块（含成分股数量）"""
+    """获取所有概念板块（含成分股数量和大盘强弱势评分）"""
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
     try:
-        sql = """
-            SELECT b.board_code, b.board_name, b.board_url,
-                   IFNULL(s.stock_count, 0) AS stock_count
-            FROM stock_concept_board b
-            LEFT JOIN (
-                SELECT board_code, COUNT(*) AS stock_count
-                FROM stock_concept_board_stock
-                GROUP BY board_code
-            ) s ON b.board_code = s.board_code
-        """
+        # 检查 market_strength_score 列是否存在
+        cur.execute(
+            "SELECT COUNT(*) AS cnt FROM information_schema.columns "
+            "WHERE table_schema = DATABASE() AND table_name = 'stock_concept_board' "
+            "AND column_name = 'market_strength_score'"
+        )
+        has_score_col = cur.fetchone()["cnt"] > 0
+
+        if has_score_col:
+            sql = """
+                SELECT b.board_code, b.board_name, b.board_url,
+                       IFNULL(s.stock_count, 0) AS stock_count,
+                       b.market_strength_score
+                FROM stock_concept_board b
+                LEFT JOIN (
+                    SELECT board_code, COUNT(*) AS stock_count
+                    FROM stock_concept_board_stock
+                    GROUP BY board_code
+                ) s ON b.board_code = s.board_code
+            """
+        else:
+            sql = """
+                SELECT b.board_code, b.board_name, b.board_url,
+                       IFNULL(s.stock_count, 0) AS stock_count,
+                       NULL AS market_strength_score
+                FROM stock_concept_board b
+                LEFT JOIN (
+                    SELECT board_code, COUNT(*) AS stock_count
+                    FROM stock_concept_board_stock
+                    GROUP BY board_code
+                ) s ON b.board_code = s.board_code
+            """
+
         params = []
         if keyword:
             sql += " WHERE b.board_name LIKE %s"
             params.append(f"%{keyword}%")
-        sql += " ORDER BY IFNULL(s.stock_count, 0) DESC, b.board_code"
+
+        if has_score_col:
+            sql += " ORDER BY b.market_strength_score IS NULL, b.market_strength_score DESC, IFNULL(s.stock_count, 0) DESC, b.board_code"
+        else:
+            sql += " ORDER BY IFNULL(s.stock_count, 0) DESC, b.board_code"
+
         cur.execute(sql, params)
         boards = cur.fetchall()
         return {"success": True, "data": boards, "total": len(boards)}
@@ -58,7 +86,7 @@ async def concept_board_stocks(
     board_code: str = Query(..., description="板块代码"),
     keyword: str = Query("", description="股票搜索关键词"),
 ):
-    """获取某个概念板块的所有成分股"""
+    """获取某个概念板块的所有成分股（含个股强弱势评分）"""
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
     try:
@@ -71,16 +99,45 @@ async def concept_board_stocks(
         if not board:
             return {"success": False, "error": "板块不存在"}
 
-        sql = """
-            SELECT s.stock_code, s.stock_name
-            FROM stock_concept_board_stock s
-            WHERE s.board_code = %s
-        """
+        # 检查 stock_concept_strength 表是否存在
+        cur.execute(
+            "SELECT COUNT(*) AS cnt FROM information_schema.tables "
+            "WHERE table_schema = DATABASE() AND table_name = 'stock_concept_strength'"
+        )
+        has_strength_table = cur.fetchone()["cnt"] > 0
+
+        if has_strength_table:
+            sql = """
+                SELECT s.stock_code, s.stock_name,
+                       cs.strength_score, cs.strength_level,
+                       cs.rank_in_board, cs.board_total_stocks,
+                       cs.total_return, cs.excess_total, cs.win_rate,
+                       cs.score_date
+                FROM stock_concept_board_stock s
+                LEFT JOIN stock_concept_strength cs
+                    ON s.stock_code = cs.stock_code AND s.board_code = cs.board_code
+                WHERE s.board_code = %s
+            """
+        else:
+            sql = """
+                SELECT s.stock_code, s.stock_name,
+                       NULL AS strength_score, NULL AS strength_level,
+                       NULL AS rank_in_board, NULL AS board_total_stocks,
+                       NULL AS total_return, NULL AS excess_total, NULL AS win_rate,
+                       NULL AS score_date
+                FROM stock_concept_board_stock s
+                WHERE s.board_code = %s
+            """
         params = [board_code]
         if keyword:
             sql += " AND (s.stock_code LIKE %s OR s.stock_name LIKE %s)"
             params.extend([f"%{keyword}%", f"%{keyword}%"])
-        sql += " ORDER BY s.stock_code"
+
+        if has_strength_table:
+            sql += " ORDER BY cs.strength_score IS NULL, cs.strength_score DESC, s.stock_code"
+        else:
+            sql += " ORDER BY s.stock_code"
+
         cur.execute(sql, params)
         stocks = cur.fetchall()
 
