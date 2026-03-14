@@ -918,7 +918,7 @@ async def get_batch_finance_growth(batch_id: int):
     """获取批次中所有股票最近3期财报增长数据（营收同比/环比、扣非同比/环比）"""
     try:
         from dao.stock_finance_dao import get_finance_from_db
-        from dao.stock_technical_score_dao import get_batch_stock_list
+        from dao.stock_can_slim_dao import get_batch_stock_list
         stocks = get_batch_stock_list(batch_id)
         result = {}
         growth_keys = [

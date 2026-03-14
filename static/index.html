@@ -731,28 +731,6 @@
             <a href="/scheduler_logs?job_name=最高最低价" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
             <div class="job-progress-bar"><div id="priceJobProgress" class="job-progress-fill" style="width:0%"></div></div>
         </div>
-        <div id="scoreJobBanner" style="
-            background: rgba(255,255,255,0.2);
-            border-radius: 8px;
-            padding: 4px 8px;
-            font-size: 11px;
-            color: rgba(255,255,255,0.9);
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            min-width: 0;
-            position: relative;
-        ">
-            <span id="scoreJobIcon" class="job-icon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
-            <span id="scoreJobText" style="overflow: hidden; text-overflow: ellipsis;">技术打分状态加载中<span class="job-dots"></span></span>
-            <span id="scoreJobElapsed" class="job-elapsed"></span>
-            <button onclick="triggerJob('score')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
-            <a href="/scheduler_logs?job_name=技术打分" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
-            <div class="job-progress-bar"><div id="scoreJobProgress" class="job-progress-fill" style="width:0%"></div></div>
-        </div>
         <div id="klineScoreJobBanner" style="
             background: rgba(255,255,255,0.2);
             border-radius: 8px;
@@ -865,30 +843,6 @@
         </div>
     </div>
 
-    <!-- 技术指标自动打分进度条 -->
-    <div id="autoScoreProgressBanner" style="
-        display: none;
-        background: linear-gradient(135deg, rgba(102,126,234,0.12) 0%, rgba(118,75,162,0.08) 100%);
-        border: 1px solid rgba(102,126,234,0.2);
-        border-radius: 10px;
-        margin: 8px 8px 0 8px;
-        padding: 10px 16px;
-        align-items: center;
-        gap: 12px;
-    ">
-        <span style="font-size: 14px; flex-shrink: 0;">🔧</span>
-        <div style="flex: 1; min-width: 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <span id="autoScoreProgressTitle" style="font-size: 13px; font-weight: 600; color: #1d1d1f;">技术指标自动打分执行中</span>
-                <span id="autoScoreProgressPct" style="font-size: 12px; font-weight: 600; color: #667eea;">0%</span>
-            </div>
-            <div style="width: 100%; height: 6px; background: rgba(0,0,0,0.06); border-radius: 3px; overflow: hidden;">
-                <div id="autoScoreProgressFill" style="height: 100%; width: 0%; background: linear-gradient(135deg, rgba(102,126,234,0.9), rgba(118,75,162,0.9)); border-radius: 3px; transition: width 0.5s ease;"></div>
-            </div>
-            <div id="autoScoreProgressDetail" style="font-size: 11px; color: #86868b; margin-top: 4px;">准备中...</div>
-        </div>
-    </div>
-
     <div class="container" id="mainContainer">
         <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="折叠/展开侧栏">◀</button>
         <div class="left-column" id="leftColumn">
@@ -934,7 +888,6 @@
                     <button id="addStockToBatchBtn" class="btn btn-primary" disabled onclick="openAddStockPanel()" style="position:relative;">+ 添加股票</button>
                     <button id="batchPrescreeningBtn" class="btn" style="background:#e67e22;" disabled onclick="batchPrescreeningUpdate()">涨跌分析 (<span id="batchPrescreeningCount">0</span>)</button>
                     <button id="batchKlineBtn" class="btn btn-success" disabled onclick="batchKlineUpdate()">K线分析 (<span id="batchKlineCount">0</span>)</button>
-                    <button id="batchTechScoreBtn" class="btn" style="background:#26a69a;" disabled onclick="batchTechnicalScore()">技术打分 (<span id="batchTechScoreCount">0</span>)</button>
                     <button id="batchCanslimBtn" class="btn" style="background:#5c6bc0;" disabled onclick="batchCanslimPrescreening()">CAN SLIM C&A分析 (<span id="batchCanslimCount">0</span>)</button>
                     <button id="batchActionsBar" class="btn btn-success" disabled onclick="batchDeepAnalysis()">CAN SLIM深度分析 (<span id="batchSelectedCount">0</span>)</button>
                     <button class="fullscreen-btn" onclick="toggleFullscreen(this.closest('.panel'))">⛶ 全屏</button>
@@ -944,7 +897,6 @@
                 <span class="sort-bar-label">排序：</span>
                 <button class="sort-btn" onclick="toggleSort('change_pct')">涨跌幅<span class="sort-arrow"></span></button>
                 <button class="sort-btn" onclick="toggleSort('kline_total_score')">K线分<span class="sort-arrow"></span></button>
-                <button class="sort-btn" onclick="toggleSort('tech_total_score')">技术分<span class="sort-arrow"></span></button>
                 <span class="sort-bar-label" style="margin-left:6px;">CAN SLIM：</span>
                 <button class="sort-btn" onclick="toggleSort('c_score')">C<span class="sort-arrow"></span></button>
                 <button class="sort-btn" onclick="toggleSort('a_score')">A<span class="sort-arrow"></span></button>
