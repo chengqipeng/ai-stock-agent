@@ -119,6 +119,10 @@ def batch_upsert_strength(rows: list[dict], cursor=None) -> int:
         conn.close()
 
     logger.info("[概念强弱DAO] 写入 %d 条评分记录", count)
+    if count == 0 and rows:
+        board_info = {(r["board_code"], r["board_name"]) for r in rows}
+        for bc, bn in board_info:
+            logger.warning("[概念强弱DAO] 写入0条 板块: %s(%s), 传入rows=%d", bn, bc, len(rows))
     return count
 
 

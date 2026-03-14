@@ -11,6 +11,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .header h1{font-size:18px;font-weight:600;color:#fff}
 .header a{color:rgba(255,255,255,0.6);text-decoration:none;font-size:13px}
 .header a:hover{color:#fff}
+.help-btn{padding:6px 14px;border:1px solid rgba(102,126,234,0.4);border-radius:8px;background:rgba(102,126,234,0.1);color:#667eea;font-size:13px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.help-btn:hover{background:rgba(102,126,234,0.25);border-color:#667eea;color:#fff}
 .header .stats{margin-left:auto;font-size:13px;color:rgba(255,255,255,0.5)}
 .container{display:flex;height:calc(100vh - 57px);position:relative}
 .board-panel{width:340px;min-width:120px;max-width:600px;border-right:none;display:flex;flex-direction:column;background:rgba(255,255,255,0.02);overflow:hidden;flex-shrink:0}
@@ -133,6 +135,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <a href="/">← 首页</a>
     <h1>🧩 概念板块浏览器</h1>
     <div class="stats" id="globalStats"></div>
+    <button class="help-btn" onclick="showIndicatorHelp()">❓ 指标说明</button>
 </div>
 <div class="container">
     <div class="board-panel" id="boardPanel">
@@ -196,6 +199,141 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
         </div>
     </div>
 </div>
+<!-- 指标说明弹窗 -->
+<div class="modal-overlay" id="helpOverlay" onclick="if(event.target===this)closeHelp()">
+    <div class="modal" style="width:820px;max-height:85vh">
+        <div class="modal-head">
+            <h3>📖 指标说明</h3>
+            <button class="close-btn" onclick="closeHelp()">✕</button>
+        </div>
+        <div class="modal-body" style="padding:20px;font-size:13px;line-height:1.8;color:rgba(255,255,255,0.8)">
+            <!-- 板块列表指标 -->
+            <div style="margin-bottom:24px">
+                <div style="font-size:15px;font-weight:600;color:#667eea;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(102,126,234,0.2)">📋 左侧板块列表指标</div>
+                <div style="display:grid;gap:12px">
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:14px">
+                        <div style="font-weight:600;color:#fff;margin-bottom:6px">强弱评分（0-100分）</div>
+                        <div>板块相对大盘（上证指数）的综合强弱势评分，由5个维度加权计算：</div>
+                        <div style="margin:8px 0 0 12px;color:rgba(255,255,255,0.6)">
+                            • <span style="color:#f0ad4e">超额收益得分（30分）</span>：区间累计超额收益，[-20%,+20%] 经 Sigmoid 映射<br>
+                            • <span style="color:#f0ad4e">短期动量得分（25分）</span>：近5日超额收益，[-5%,+5%] 经 Sigmoid 映射<br>
+                            • <span style="color:#f0ad4e">中期趋势得分（20分）</span>：近20日超额收益，[-10%,+10%] 经 Sigmoid 映射<br>
+                            • <span style="color:#f0ad4e">胜率得分（15分）</span>：跑赢大盘天数占比，[30%,70%] 线性映射<br>
+                            • <span style="color:#f0ad4e">回撤控制得分（10分）</span>：超额收益最大回撤越小越好
+                        </div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:14px">
+                        <div style="font-weight:600;color:#fff;margin-bottom:6px">板块涨幅</div>
+                        <div>板块在分析区间内的累计涨跌幅（复合收益率），<span class="up">红色</span>为正，<span class="down">绿色</span>为负</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:14px">
+                        <div style="font-weight:600;color:#fff;margin-bottom:6px">超额收益</div>
+                        <div>板块涨幅 - 大盘涨幅（上证指数），反映板块相对大盘的超额表现。正值表示跑赢大盘</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:14px">
+                        <div style="font-weight:600;color:#fff;margin-bottom:6px">胜率</div>
+                        <div>板块日涨跌幅跑赢大盘的交易日占比。50%以上表示多数交易日跑赢大盘</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- K线走势 tab 指标 -->
+            <div style="margin-bottom:24px">
+                <div style="font-size:15px;font-weight:600;color:#667eea;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(102,126,234,0.2)">📈 K线走势指标</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                        <span style="color:#fff;font-weight:500">最新收盘</span>：板块最新收盘价
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                        <span style="color:#fff;font-weight:500">涨跌幅</span>：最新交易日涨跌百分比
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                        <span style="color:#fff;font-weight:500">涨跌额</span>：最新交易日价格变动绝对值
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                        <span style="color:#fff;font-weight:500">振幅</span>：(最高-最低)/昨收 × 100%
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                        <span style="color:#fff;font-weight:500">换手率</span>：当日成交量/流通股本 × 100%
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                        <span style="color:#fff;font-weight:500">区间涨幅</span>：选定周期内的累计涨跌幅
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                        <span style="color:#fff;font-weight:500">区间最高/最低</span>：选定周期内的最高价和最低价
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                        <span style="color:#fff;font-weight:500">日均成交量</span>：选定周期内的平均每日成交量
+                    </div>
+                </div>
+            </div>
+
+            <!-- 成分股强弱势 tab 指标 -->
+            <div style="margin-bottom:24px">
+                <div style="font-size:15px;font-weight:600;color:#667eea;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(102,126,234,0.2)">📊 成分股强弱势指标</div>
+                <div style="display:grid;gap:12px">
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:14px">
+                        <div style="font-weight:600;color:#fff;margin-bottom:6px">强弱势评分（0-100分）</div>
+                        <div>个股相对所属板块的综合强弱势评分。计算公式：</div>
+                        <div style="margin:8px 0;padding:10px 14px;background:rgba(102,126,234,0.08);border-radius:6px;font-family:monospace;color:#f0ad4e">
+                            综合评分 = 短期超额(5日) × 0.40 + 中期超额(20日) × 0.35 + 长期超额(全区间) × 0.25
+                        </div>
+                        <div style="color:rgba(255,255,255,0.6)">
+                            每个维度的超额收益先计算日均值，再以 <code style="color:#f0ad4e">50 + 日均超额% × 50</code> 映射到评分。<br>
+                            日均超额 +1% 对应 100分，-1% 对应 0分，0% 对应 50分。
+                        </div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:14px">
+                        <div style="font-weight:600;color:#fff;margin-bottom:6px">强弱势分类</div>
+                        <div>按评分排名分为三档：</div>
+                        <div style="margin:6px 0 0 12px">
+                            • <span class="up" style="font-weight:600">强势</span>：排名前30%的个股<br>
+                            • <span style="color:rgba(255,255,255,0.6);font-weight:600">中性</span>：排名30%-70%的个股<br>
+                            • <span class="down" style="font-weight:600">弱势</span>：排名后30%的个股
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                            <span style="color:#fff;font-weight:500">区间涨幅</span>：个股在分析周期内的累计涨跌幅（复合收益率）
+                        </div>
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                            <span style="color:#fff;font-weight:500">5日超额%</span>：近5个交易日个股涨幅 - 板块涨幅的累计值
+                        </div>
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                            <span style="color:#fff;font-weight:500">20日超额%</span>：近20个交易日个股涨幅 - 板块涨幅的累计值
+                        </div>
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                            <span style="color:#fff;font-weight:500">总超额</span>：全区间个股涨幅 - 板块涨幅的累计值
+                        </div>
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                            <span style="color:#fff;font-weight:500">胜率</span>：个股日涨幅跑赢板块的交易日占比
+                        </div>
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                            <span style="color:#fff;font-weight:500">评分日期</span>：评分计算的截止日期
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 超额收益详情弹窗 -->
+            <div>
+                <div style="font-size:15px;font-weight:600;color:#667eea;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(102,126,234,0.2)">🔍 超额收益详情（点击个股行查看）</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                        <span style="color:#fff;font-weight:500">综合评分</span>：同上述强弱势评分
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                        <span style="color:#fff;font-weight:500">跑赢天数占比</span>：同胜率，个股日涨幅 > 板块日涨幅的天数比例
+                    </div>
+                    <div style="grid-column:1/-1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+                        <span style="color:#fff;font-weight:500">每日超额收益走势图</span>：柱状图展示每日超额收益（个股日涨幅 - 板块日涨幅），<span class="up">红色</span>为正超额，<span class="down">绿色</span>为负超额
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 弹窗 -->
 <div class="modal-overlay" id="modalOverlay">
     <div class="modal">
@@ -880,6 +1018,10 @@ document.getElementById('strengthSearch').addEventListener('input', function () 
 
 // 窗口resize重绘K线
 window.addEventListener('resize', () => { if (klineData.length) renderKlineChart(klineData); });
+
+// 指标说明弹窗
+function showIndicatorHelp() { document.getElementById('helpOverlay').classList.add('visible'); }
+function closeHelp() { document.getElementById('helpOverlay').classList.remove('visible'); }
 
 loadBoards();
 </script>

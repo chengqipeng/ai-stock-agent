@@ -119,8 +119,14 @@ def analyze_board_stock_strength(
         normalized_codes = [_normalize_stock_code(c) for c in codes]
         norm_to_raw = {_normalize_stock_code(c): c for c in codes}
 
+        logger.debug("[概念强弱] board=%s 成分股%d只, 板块日期范围=%s~%s, "
+                     "样本codes[:3]=%s, normalized[:3]=%s",
+                     board_code, len(codes), start_date, end_date,
+                     codes[:3], normalized_codes[:3])
+
         # 分批查询（避免 IN 子句过长）
         stock_klines = {}  # raw_code -> {date: change_percent}
+        _total_kline_rows = 0
         batch_size = 50
         for i in range(0, len(normalized_codes), batch_size):
             batch = normalized_codes[i:i + batch_size]
@@ -132,6 +138,7 @@ def analyze_board_stock_strength(
                 batch + [start_date, end_date],
             )
             for r in cur.fetchall():
+                _total_kline_rows += 1
                 norm_code = r["stock_code"]
                 raw_code = norm_to_raw.get(norm_code, norm_code)
                 if raw_code not in stock_klines:
@@ -141,6 +148,11 @@ def analyze_board_stock_strength(
                     stock_klines[raw_code][r["date"]] = cp
 
         # 5. 计算每只股票的强弱指标
+        logger.info("[概念强弱] board=%s 成分股%d, 查到K线行数=%d, "
+                    "有K线的股票=%d",
+                    board_code, len(codes), _total_kline_rows,
+                    len(stock_klines))
+
         board_total_return = _compound_return(
             [board_klines.get(d, 0) for d in trade_dates]
         )
@@ -321,6 +333,9 @@ def compute_and_save_all_boards(days: int = 60, progress_callback=None) -> dict:
             else:
                 logger.warning("[概念强弱] 板块 %s(%s) success但stocks为空 (total=%s)",
                                board_code, board_name, result.get("total", "N/A"))
+            if i < 3:
+                logger.info("[概念强弱] 前3板块诊断 %s: %s", board_code,
+                            {k: v for k, v in result.items() if k != 'stocks'})
         else:
             stocks = result["stocks"]
             board_total = result["total"]
