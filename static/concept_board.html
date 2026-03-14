@@ -315,12 +315,19 @@ function renderStocks(stocks) {
         strengthData.stocks.forEach(s => { strMap[s.stock_code] = s; });
     }
 
+    const hasRt = !!strengthData;
+    const colCount = hasRt ? 11 : 9;
+    // Build period label for 区间涨幅 column
+    let periodLabel = '区间涨幅';
+    if (hasRt && strengthData.period) {
+        periodLabel = '涨幅(' + strengthData.period.start_date.slice(5) + '~' + strengthData.period.end_date.slice(5) + ')';
+    }
     let html = '<table class="str-table" style="margin-top:0"><thead><tr>' +
         '<th style="width:40px" onclick="strSort(\'rank\')">#</th>' +
         '<th onclick="strSort(\'stock_code\')">代码</th><th onclick="strSort(\'stock_name\')">名称</th>' +
         '<th onclick="strSort(\'strength_level\')">强弱势</th><th class="' + (strSortCol === 'strength_score' ? (strSortDir === 'asc' ? 'sa' : 'sd') : '') + '" onclick="strSort(\'strength_score\')">评分</th>' +
-        '<th onclick="strSort(\'total_return\')">区间涨幅</th>' +
-        (strengthData ? '<th onclick="strSort(\'excess_5d\')">5日超额%</th><th onclick="strSort(\'excess_20d\')">20日超额%</th>' : '') +
+        '<th onclick="strSort(\'total_return\')">' + periodLabel + '</th>' +
+        (hasRt ? '<th onclick="strSort(\'excess_5d\')">5日超额%</th><th onclick="strSort(\'excess_20d\')">20日超额%</th>' : '') +
         '<th onclick="strSort(\'excess_total\')">总超额</th><th onclick="strSort(\'win_rate\')">胜率</th>' +
         '<th style="font-size:11px;color:rgba(255,255,255,0.35)">评分日期</th>' +
         '</tr></thead><tbody>';
@@ -332,6 +339,8 @@ function renderStocks(stocks) {
         const totalReturn = rt ? rt.total_return : s.total_return;
         const excessTotal = rt ? rt.excess_total : s.excess_total;
         const winRate = rt ? rt.win_rate : s.win_rate;
+        const excess5d = rt ? rt.excess_5d : s.excess_5d;
+        const excess20d = rt ? rt.excess_20d : s.excess_20d;
         const scoreDate = rt ? (strengthData.period ? strengthData.period.end_date : '') : s.score_date;
 
         const hasScore = score != null;
@@ -350,16 +359,40 @@ function renderStocks(stocks) {
             '<td>' + (hasScore ? '<span class="tag-s ' + levelCls + '">' + level + '</span>' : '<span style="color:rgba(255,255,255,0.2)">-</span>') + '</td>' +
             '<td>' + (hasScore ? sc.toFixed(1) + '<span class="score-bar-s" style="width:' + barW + 'px;background:' + barColor + '"></span>' : '<span style="color:rgba(255,255,255,0.2)">-</span>') + '</td>' +
             '<td class="' + (hasScore ? retCls : '') + '">' + (totalReturn != null ? (totalReturn > 0 ? '+' : '') + parseFloat(totalReturn).toFixed(2) + '%' : '-') + '</td>';
-        if (strengthData) {
-            const e5 = rt ? rt.excess_5d : null;
-            const e20 = rt ? rt.excess_20d : null;
-            html += '<td class="' + (e5 != null && e5 >= 0 ? 'up' : 'down') + '">' + (e5 != null ? (e5 > 0 ? '+' : '') + e5 + '%' : '-') + '</td>';
-            html += '<td class="' + (e20 != null && e20 >= 0 ? 'up' : 'down') + '">' + (e20 != null ? (e20 > 0 ? '+' : '') + e20 + '%' : '-') + '</td>';
+        if (hasRt) {
+            html += '<td class="' + (excess5d != null && excess5d >= 0 ? 'up' : 'down') + '">' + (excess5d != null ? (excess5d > 0 ? '+' : '') + excess5d + '%' : '-') + '</td>';
+            html += '<td class="' + (excess20d != null && excess20d >= 0 ? 'up' : 'down') + '">' + (excess20d != null ? (excess20d > 0 ? '+' : '') + excess20d + '%' : '-') + '</td>';
         }
         html += '<td class="' + (hasScore ? exCls : '') + '">' + (excessTotal != null ? (excessTotal > 0 ? '+' : '') + parseFloat(excessTotal).toFixed(2) + '%' : '-') + '</td>' +
             '<td>' + (winRate != null ? (parseFloat(winRate) * 100).toFixed(1) + '%' : '-') + '</td>' +
             '<td style="font-size:11px;color:rgba(255,255,255,0.25)">' + (scoreDate || '-') + '</td>' +
             '</tr>';
+
+        // Reason row: scoring breakdown
+        if (hasScore) {
+            const e5 = excess5d != null ? parseFloat(excess5d) : null;
+            const e20 = excess20d != null ? parseFloat(excess20d) : null;
+            const et = excessTotal != null ? parseFloat(excessTotal) : null;
+            const wr = winRate != null ? parseFloat(winRate) : null;
+            const tr = totalReturn != null ? parseFloat(totalReturn) : null;
+            const parts = [];
+            // Period info
+            if (rt && strengthData.period) {
+                parts.push('<span>' + strengthData.period.trade_days + '日(' + strengthData.period.start_date.slice(5) + '~' + strengthData.period.end_date.slice(5) + ')</span>');
+            } else if (s.analysis_days && s.score_date) {
+                parts.push('<span>' + s.analysis_days + '日(截至' + s.score_date + ')</span>');
+            }
+            if (e5 != null) parts.push('<span style="color:' + (e5 >= 0 ? '#f75555' : '#4ecdc4') + '">5日超额' + (e5 >= 0 ? '+' : '') + e5.toFixed(2) + '%<span style="color:rgba(255,255,255,0.25)">(×0.4)</span></span>');
+            if (e20 != null) parts.push('<span style="color:' + (e20 >= 0 ? '#f75555' : '#4ecdc4') + '">20日超额' + (e20 >= 0 ? '+' : '') + e20.toFixed(2) + '%<span style="color:rgba(255,255,255,0.25)">(×0.35)</span></span>');
+            if (et != null) parts.push('<span style="color:' + (et >= 0 ? '#f75555' : '#4ecdc4') + '">总超额' + (et >= 0 ? '+' : '') + et.toFixed(2) + '%<span style="color:rgba(255,255,255,0.25)">(×0.25)</span></span>');
+            if (wr != null) parts.push('<span>胜率' + (wr * 100).toFixed(0) + '%</span>');
+            if (tr != null) parts.push('<span style="color:' + (tr >= 0 ? '#f75555' : '#4ecdc4') + '">个股涨幅' + (tr >= 0 ? '+' : '') + tr.toFixed(2) + '%</span>');
+            if (parts.length) {
+                html += '<tr><td></td><td colspan="' + (colCount - 1) + '" style="padding:2px 12px 8px;border-bottom:1px solid rgba(255,255,255,0.06)"><div style="font-size:11px;color:rgba(255,255,255,0.35);display:flex;gap:8px;flex-wrap:wrap">' +
+                    '📊 ' + parts.join('<span style="color:rgba(255,255,255,0.15)">|</span>') +
+                    '</div></td></tr>';
+            }
+        }
     });
     html += '</tbody></table>';
     wrap.innerHTML = html;

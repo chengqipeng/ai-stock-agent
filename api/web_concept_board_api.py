@@ -117,7 +117,9 @@ async def concept_board_stocks(
                 SELECT s.stock_code, s.stock_name,
                        cs.strength_score, cs.strength_level,
                        cs.rank_in_board, cs.board_total_stocks,
-                       cs.total_return, cs.excess_total, cs.win_rate,
+                       cs.total_return, cs.excess_5d, cs.excess_20d,
+                       cs.excess_total, cs.win_rate,
+                       cs.trade_days, cs.analysis_days,
                        cs.score_date
                 FROM stock_concept_board_stock s
                 LEFT JOIN stock_concept_strength cs
@@ -129,7 +131,9 @@ async def concept_board_stocks(
                 SELECT s.stock_code, s.stock_name,
                        NULL AS strength_score, NULL AS strength_level,
                        NULL AS rank_in_board, NULL AS board_total_stocks,
-                       NULL AS total_return, NULL AS excess_total, NULL AS win_rate,
+                       NULL AS total_return, NULL AS excess_5d, NULL AS excess_20d,
+                       NULL AS excess_total, NULL AS win_rate,
+                       NULL AS trade_days, NULL AS analysis_days,
                        NULL AS score_date
                 FROM stock_concept_board_stock s
                 WHERE s.board_code = %s
