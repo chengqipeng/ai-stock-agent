@@ -248,9 +248,14 @@ async def _ssr_fetch_page(session: AsyncSession, board_code: str,
         try:
             resp = await session.get(url, timeout=20)
             if resp.status_code in (403, 401):
+                body = (resp.content or b"").lower()
+                if b"nginx" in body or b"forbidden" in body:
+                    raise NginxForbiddenError(f"SSR {resp.status_code} board={board_code} page={page}")
                 return None
             resp.raise_for_status()
             return _clean_html(resp.content)
+        except NginxForbiddenError:
+            raise
         except Exception as e:
             if attempt < retries:
                 await asyncio.sleep(1.0 + random.uniform(0, 0.5))
@@ -272,8 +277,12 @@ async def _ssr_fetch_all(board_code: str,
             f = field_code if field_idx > 0 else ""
 
             for page in range(1, _MAX_SSR_PAGES + 1):
-                html = await _ssr_fetch_page(
-                    session, board_code, page, "desc", f)
+                try:
+                    html = await _ssr_fetch_page(
+                        session, board_code, page, "desc", f)
+                except NginxForbiddenError:
+                    logger.warning("[板块成分股] SSR desc page=%d 遇到403, 跳过字段[%s]", page, field_name)
+                    html = None
                 if not html:
                     break
                 if page == 1 and field_idx == 0:
@@ -288,8 +297,12 @@ async def _ssr_fetch_all(board_code: str,
                 break
 
             for page in range(1, _MAX_SSR_PAGES + 1):
-                html = await _ssr_fetch_page(
-                    session, board_code, page, "asc", f)
+                try:
+                    html = await _ssr_fetch_page(
+                        session, board_code, page, "asc", f)
+                except NginxForbiddenError:
+                    logger.warning("[板块成分股] SSR asc page=%d 遇到403, 跳过字段[%s]", page, field_name)
+                    html = None
                 if not html:
                     break
                 for code, name in _parse_stocks(html):
@@ -329,6 +342,8 @@ def _curl_ajax_fetch(board_code: str, page: int, order: str,
     try:
         result = subprocess.run(cmd, capture_output=True, timeout=25)
         raw = result.stdout
+        if raw and (b"nginx" in raw.lower() or b"forbidden" in raw.lower()):
+            raise NginxForbiddenError(f"curl 403 board={board_code} page={page}")
         if len(raw) < 500:
             return None
         try:
@@ -361,8 +376,12 @@ def _ajax_fetch_all_pages(board_code: str, total_pages: int,
     for page in range(start_page, total_pages + 1):
         if len(all_stocks) >= expected:
             return total_pages + 1
-        html = _curl_ajax_fetch(board_code, page, "desc",
-                                cookie_str, hexin_v)
+        try:
+            html = _curl_ajax_fetch(board_code, page, "desc",
+                                    cookie_str, hexin_v)
+        except NginxForbiddenError:
+            logger.warning("[板块成分股] curl-ajax page=%d 遇到Nginx封禁, 停止当前批次", page)
+            return page
         if not html:
             logger.info("[板块成分股] AJAX page %d 无数据，v可能已过期", page)
             return page
@@ -400,9 +419,14 @@ async def _cffi_ajax_fetch_page(session: AsyncSession, board_code: str,
         resp = await session.get(url, headers=headers,
                                  cookies=cookies, timeout=20)
         if resp.status_code in (403, 401):
+            body = (resp.content or b"").lower()
+            if b"nginx" in body or b"forbidden" in body:
+                raise NginxForbiddenError(f"cffi-ajax {resp.status_code} board={board_code} page={page}")
             return None
         resp.raise_for_status()
         return _clean_html(resp.content)
+    except NginxForbiddenError:
+        raise
     except Exception as e:
         logger.warning("[板块成分股] cffi-ajax异常 board=%s page=%d: %s",
                        board_code, page, e)
@@ -542,14 +566,33 @@ def fetch_board_stocks(board_code: str, delay: float = 0.3) -> list[dict]:
 
 def fetch_and_save_board_stocks(board_code: str, board_name: str = "",
                                 delay: float = 0.3,
-                                stocks: list[dict] | None = None) -> int:
-    """抓取板块成分股并写入数据库。"""
+                                stocks: list[dict] | None = None,
+                                sync_stocks: bool = True) -> int:
+    """抓取板块成分股并写入数据库，同时同步新股到系统。"""
     from dao.stock_concept_board_dao import batch_upsert_board_stocks
     if stocks is None:
         stocks = fetch_board_stocks(board_code, delay=delay)
     if not stocks:
         return 0
-    return batch_upsert_board_stocks(board_code, board_name, stocks)
+    count = batch_upsert_board_stocks(board_code, board_name, stocks)
+
+    # 同步新股到 stocks_data.py / score_list / K线
+    if sync_stocks and stocks:
+        try:
+            from service.jqka10.stock_sync_service import sync_new_stocks
+            asyncio.run(sync_new_stocks(stocks, fetch_kline=True, kline_delay=2.0))
+        except Exception as e:
+            logger.error("[板块成分股] 新股同步失败: %s", e)
+
+    return count
+
+
+class NginxForbiddenError(Exception):
+    """同花顺 Nginx 返回 403 封禁时抛出。"""
+    pass
+
+_FORBIDDEN_WAIT = 300       # 5分钟
+_FORBIDDEN_MAX_RETRIES = 10
 
 
 def fetch_and_save_all_boards_stocks(delay_page: float = 0.3,
@@ -564,11 +607,14 @@ def fetch_and_save_all_boards_stocks(delay_page: float = 0.3,
     boards = get_all_concept_boards()
     total = len(boards)
     success = skipped = total_stocks = failed = 0
+    forbidden_retries = 0
 
     mode = "force" if force else ("incomplete" if incomplete_only else "normal")
     print(f"[板块成分股] 共 {total} 个板块待处理 (mode={mode})")
 
-    for i, board in enumerate(boards):
+    i = 0
+    while i < total:
+        board = boards[i]
         board_code = board["board_code"]
         board_name = board["board_name"]
         existing = get_board_stock_count(board_code)
@@ -578,6 +624,7 @@ def fetch_and_save_all_boards_stocks(delay_page: float = 0.3,
                 if existing != 100:
                     skipped += 1
                     total_stocks += existing
+                    i += 1
                     continue
                 print(f"  [{i+1}/{total}] {board_code} {board_name} -> "
                       f"当前{existing}只, 补全中...")
@@ -587,23 +634,47 @@ def fetch_and_save_all_boards_stocks(delay_page: float = 0.3,
                     total_stocks += existing
                     print(f"  [{i+1}/{total}] {board_code} {board_name} -> "
                           f"已有{existing}只, 跳过")
+                    i += 1
                     continue
 
-        stocks = fetch_board_stocks(board_code, delay=delay_page)
-        if stocks:
-            batch_upsert_board_stocks(board_code, board_name, stocks)
-            success += 1
-            total_stocks += len(stocks)
-            gained = len(stocks) - existing if existing else len(stocks)
-            print(f"  [{i+1}/{total}] {board_code} {board_name} -> "
-                  f"{len(stocks)}只成分股"
-                  f"{f' (+{gained}新增)' if gained > 0 else ''}")
-        else:
-            failed += 1
-            print(f"  [{i+1}/{total}] {board_code} {board_name} -> 抓取失败")
+        try:
+            stocks = fetch_board_stocks(board_code, delay=delay_page)
+            forbidden_retries = 0  # 成功请求，重置封禁计数
+
+            if stocks:
+                batch_upsert_board_stocks(board_code, board_name, stocks)
+                success += 1
+                total_stocks += len(stocks)
+                gained = len(stocks) - existing if existing else len(stocks)
+                print(f"  [{i+1}/{total}] {board_code} {board_name} -> "
+                      f"{len(stocks)}只成分股"
+                      f"{f' (+{gained}新增)' if gained > 0 else ''}")
+
+                # 同步新股到 stocks_data / score_list / K线
+                try:
+                    from service.jqka10.stock_sync_service import sync_new_stocks
+                    asyncio.run(sync_new_stocks(stocks, fetch_kline=True, kline_delay=2.0))
+                except Exception as e:
+                    logger.error("[板块成分股] 新股同步失败: %s", e)
+            else:
+                failed += 1
+                print(f"  [{i+1}/{total}] {board_code} {board_name} -> 抓取失败")
+
+        except NginxForbiddenError:
+            forbidden_retries += 1
+            if forbidden_retries > _FORBIDDEN_MAX_RETRIES:
+                print(f"\n  ✖ Nginx封禁重试已达{_FORBIDDEN_MAX_RETRIES}次上限，终止")
+                break
+            wait = _FORBIDDEN_WAIT
+            print(f"\n  ⚠ Nginx forbidden! IP被封禁，"
+                  f"等待{wait // 60}分钟后重试 "
+                  f"({forbidden_retries}/{_FORBIDDEN_MAX_RETRIES})...")
+            time.sleep(wait)
+            continue  # 不递增 i，重试当前板块
 
         if i < total - 1:
-            time.sleep(delay_board + random.uniform(0, 0.3))
+            time.sleep(delay_board + random.uniform(0, 3.0))
+        i += 1
 
     return {"total_boards": total, "success": success, "skipped": skipped,
             "failed": failed, "total_stocks": total_stocks}
