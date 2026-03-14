@@ -465,13 +465,12 @@
         .dim-btn.danger { background: #ff6b6b; }
         .dim-btn.success { background: #4caf50; }
         .row-change { background: rgba(255,248,225,0.5); }
-        .row-kline { background: rgba(237,233,254,0.45); }
         .row-canslim { background: rgba(232,240,254,0.45); }
         .row-canslim .data-metric { min-width: 80px; padding: 5px 10px; }
         .row-canslim .data-section-items { flex-wrap: nowrap; }
         .row-canslim .dm-label { font-size: 13px; font-weight: 600; }
         .row-canslim .dm-value { font-size: 20px; }
-        .row-canslim .dim-btn, .row-kline .dim-btn { padding: 4px 10px; font-size: 11px; }
+        .row-canslim .dim-btn { padding: 4px 10px; font-size: 11px; }
         .sort-bar {
             display: flex;
             flex-wrap: wrap;
@@ -865,7 +864,6 @@
                 <div style="display:flex;gap:6px;align-items:center;">
                     <button id="addStockToBatchBtn" class="btn btn-primary" disabled onclick="openAddStockPanel()" style="position:relative;">+ 添加股票</button>
                     <button id="batchPrescreeningBtn" class="btn" style="background:#e67e22;" disabled onclick="batchPrescreeningUpdate()">涨跌分析 (<span id="batchPrescreeningCount">0</span>)</button>
-                    <button id="batchKlineBtn" class="btn btn-success" disabled onclick="batchKlineUpdate()">K线分析 (<span id="batchKlineCount">0</span>)</button>
                     <button id="batchCanslimBtn" class="btn" style="background:#5c6bc0;" disabled onclick="batchCanslimPrescreening()">CAN SLIM C&A分析 (<span id="batchCanslimCount">0</span>)</button>
                     <button id="batchActionsBar" class="btn btn-success" disabled onclick="batchDeepAnalysis()">CAN SLIM深度分析 (<span id="batchSelectedCount">0</span>)</button>
                     <button class="fullscreen-btn" onclick="toggleFullscreen(this.closest('.panel'))">⛶ 全屏</button>
@@ -874,7 +872,6 @@
             <div class="sort-bar" id="sortBar" style="display:none;">
                 <span class="sort-bar-label">排序：</span>
                 <button class="sort-btn" onclick="toggleSort('change_pct')">涨跌幅<span class="sort-arrow"></span></button>
-                <button class="sort-btn" onclick="toggleSort('kline_total_score')">K线分<span class="sort-arrow"></span></button>
                 <span class="sort-bar-label" style="margin-left:6px;">CAN SLIM：</span>
                 <button class="sort-btn" onclick="toggleSort('c_score')">C<span class="sort-arrow"></span></button>
                 <button class="sort-btn" onclick="toggleSort('a_score')">A<span class="sort-arrow"></span></button>
@@ -949,7 +946,7 @@
 
     <div class="progress-modal" id="progressModal">
         <div class="progress-modal-content">
-            <div class="progress-modal-title" id="progressModalTitle">正在执行K线批量分析...</div>
+            <div class="progress-modal-title" id="progressModalTitle">正在执行批量分析...</div>
             <div class="progress-modal-bar">
                 <div class="progress-modal-fill" id="progressModalFill" style="width: 0%"></div>
                 <div class="progress-modal-text">
@@ -1365,34 +1362,18 @@
                     <div class="scode">${stockDisplayCode}</div>
                     <div class="stime">${formatBeijingTime(stock.completed_at || stock.created_at)}</div>
                     <button class="sbtn" onclick="showHistory('${stock.stock_name}')">CAN SLIM历史</button>
-                    <button class="sbtn" style="background:linear-gradient(135deg,rgba(118,75,162,0.7),rgba(118,75,162,0.9));" onclick="showKlineHistory(${stock.id},'${stockDisplayName}')">K线分析历史</button>
                     <button class="sbtn" style="background:linear-gradient(135deg,rgba(255,152,0,0.7),rgba(255,152,0,0.9));" onclick="showFinanceData('${stockDisplayCode}','${stockDisplayName}')">财报数据</button>
                 </td>`;
                 const checkCell = (rowspan) => `<td class="stock-check-cell" rowspan="${rowspan}">
                     <input type="checkbox" class="stock-checkbox" data-stock-id="${stock.id}" onchange="updateBatchSelection()" style="cursor:pointer;">
                 </td>`;
 
-                const klineMetric = (label, scoreVal, resultKey, promptKey) => {
-                    if (!scoreVal) return `<div class="data-metric">
-                        <span class="dm-label">${label}</span>
-                        <span class="dm-value empty">-</span>
-                    </div>`;
-                    return `<div class="data-metric" style="min-width:100px;">
-                        <span class="dm-label">${label}</span>
-                        <span class="dm-value" style="color:#667eea;">${scoreVal}</span>
-                        <div class="dm-actions">
-                            <span style="cursor:pointer;color:#8e8e93;text-decoration:underline;font-size:9px;" onclick="showPrompt('${stockKey}','${resultKey}','K线(${label})')">结果</span>
-                            <span style="cursor:pointer;color:#aeaeb2;text-decoration:underline;font-size:9px;" onclick="showPrompt('${stockKey}','${promptKey}','K线(${label})')">提示词</span>
-                        </div>
-                    </div>`;
-                };
-
                 const changePctClass = stock.change_pct == null ? 'empty' : stock.change_pct >= 0 ? 'positive' : 'negative';
                 const changePctVal = stock.change_pct != null ? stock.change_pct + '%' : '-';
 
                 const row1 = `<tr class="stock-group-row row-change">
-                    ${checkCell(5)}
-                    ${nameCell(5)}
+                    ${checkCell(3)}
+                    ${nameCell(3)}
                     <td class="data-row"><div class="data-section">
                         <span class="data-section-label">📈 涨跌幅</span>
                         <div class="data-section-items">
@@ -1403,62 +1384,6 @@
                         </div>
                     </div></td>
                 </tr>`;
-
-                const row2 = (() => {
-                    // 解析预测数据
-                    const parsePred = (raw) => {
-                        if (!raw) return null;
-                        if (typeof raw === 'string') { try { return JSON.parse(raw); } catch(e) { return null; } }
-                        return raw;
-                    };
-                    const dayPred = parsePred(stock.next_day_prediction);
-                    const weekPred = parsePred(stock.next_week_prediction);
-                    const predColor = (dir) => {
-                        if (!dir) return '#999';
-                        if (dir.includes('涨')) return '#e53935';
-                        if (dir.includes('跌')) return '#4caf50';
-                        return '#fb8c00';
-                    };
-                    const predTag = (pred, label) => {
-                        if (!pred) return '';
-                        const dir = pred.direction || '';
-                        const range = pred.range || '';
-                        const conf = pred.confidence || '';
-                        const rationale = pred.rationale || '';
-                        const riskFactors = pred.risk_factors || '';
-                        const color = predColor(dir);
-                        const confBadge = conf ? `<span style="font-size:8px;color:#999;margin-left:2px;">[${conf}]</span>` : '';
-                        const hasDetail = rationale || riskFactors;
-                        const escAttr = s => s ? s.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n') : '';
-                        return `<div class="data-metric" style="min-width:90px;">
-                            <span class="dm-label">${label}</span>
-                            <span class="dm-value" style="color:${color};font-size:12px;font-weight:600;">${dir}${confBadge}</span>
-                            ${range ? `<span style="font-size:9px;color:#666;">${range}</span>` : ''}
-                            ${hasDetail ? `<div class="dm-actions">
-                                ${rationale ? `<span style="cursor:pointer;color:#8e8e93;text-decoration:underline;font-size:9px;" onclick="showPredictionDetail('${label} - 预测依据','${escAttr(rationale)}')">依据</span>` : ''}
-                                ${riskFactors ? `<span style="cursor:pointer;color:#aeaeb2;text-decoration:underline;font-size:9px;" onclick="showPredictionDetail('${label} - 风险因素','${escAttr(riskFactors)}')">风险</span>` : ''}
-                            </div>` : ''}
-                        </div>`;
-                    };
-                    const predHtml = (dayPred || weekPred) ? `<div style="display:flex;gap:2px;border-left:2px solid rgba(102,126,234,0.2);padding-left:10px;margin-left:4px;">
-                        ${predTag(dayPred, '🔮 明日预测')}
-                        ${predTag(weekPred, '📅 一周预测')}
-                    </div>` : '';
-                    return `<tr class="row-kline">
-                    <td class="data-row"><div class="data-section">
-                        <span class="data-section-label">📊 K线</span>
-                        <div class="data-section-items">
-                            ${stock.kline_total_score != null ? `<div class="data-metric" style="min-width:70px;border-right:2px solid rgba(102,126,234,0.2);padding-right:10px;">
-                                <span class="dm-label">综合分</span>
-                                <span class="dm-value" style="color:${getScoreColor(stock.kline_total_score)};font-size:16px;">${stock.kline_total_score}</span>
-                            </div>` : ''}
-                            ${klineMetric('未持有', stock.kline_score, 'kline', 'kline_score_prompt')}
-                            ${klineMetric('持有', stock.kline_hold_score, 'kline_hold', 'kline_score_prompt')}
-                            ${predHtml}
-                        </div>
-                    </div></td>
-                </tr>`;
-                })();
 
                 const row3 = `<tr class="row-canslim">
                     <td class="data-row"><div class="data-section">
@@ -1507,7 +1432,7 @@
                     </div></td>
                 </tr>`;
 
-                return row1 + row2 + row_finance + row3;
+                return row1 + row_finance + row3;
             }).join('');
         }
 
@@ -1569,19 +1494,6 @@
                     
                     content += '</div>';
                     
-                    // K线分析
-                    if (stock.kline_score || stock.kline_prompt) {
-                        content += `
-                            <div class="kline-section" style="border: 1px solid rgba(0,0,0,0.06); border-radius: 12px; padding: 15px; margin-bottom: 15px; background: rgba(230,238,255,0.35);">
-                                <h4 style="margin: 0 0 10px 0; color: #667eea; font-size: 14px;">
-                                    K线技术分析 
-                                    ${stock.kline_score ? `<span style="color: #4caf50; font-weight: 600;">(${stock.kline_score}分)</span>` : '<span style="color: #999;">(未分析)</span>'}
-                                </h4>
-                                ${stock.kline_prompt ? `<details><summary style="cursor: pointer; font-size: 11px; color: #667eea;">查看分析详情</summary><pre style="margin: 5px 0 0 0; font-size: 10px; background: rgba(255,255,255,0.5); padding: 8px; border-radius: 8px; max-height: 200px; overflow-y: auto; white-space: pre-wrap;">${stock.kline_prompt}</pre></details>` : ''}
-                            </div>
-                        `;
-                    }
-
                     // 数据质量反馈
                     if (stock.data_issues && stock.data_issues !== '无') {
                         content += `
@@ -1667,7 +1579,6 @@
             copyToClipboard(window.currentPrompts[type]).then(() => {
                 const labels = {
                     'can_slim_prompt': 'CAN SLIM评分提示词',
-                    'technical_prompt': 'K线技术提示词',
                     'full_prompt': '完整CAN SLIM提示词'
                 };
                 alert((labels[type] || '内容') + '已复制到剪贴板');
@@ -1682,8 +1593,8 @@
                 const response = await fetch(`/api/batch/stock/${stockId}`);
                 const data = await response.json();
                 if (data.success) {
-                    const reason = type === 'can_slim' ? data.data.reason : data.data.technical_reason;
-                    const title = type === 'can_slim' ? 'CAN SLIM推理过程' : 'K线分析推理';
+                    const reason = data.data.reason;
+                    const title = 'CAN SLIM推理过程';
                     if (reason) {
                         alert(title + '：\n\n' + reason);
                     } else {
@@ -1800,7 +1711,6 @@
                 } else if (dimKey.endsWith('_deep_score_prompt')) { type = 'deep'; dim = dimKey.replace('_deep_score_prompt', ''); }
                 else if (dimKey.endsWith('_score_prompt')) { type = 'score'; dim = dimKey.replace('_score_prompt', ''); }
                 else if (dimKey.endsWith('_deep')) { type = 'deep_prompt'; dim = dimKey.replace('_deep', ''); }
-                else if (dimKey === 'kline_hold') { type = 'prompt'; dim = 'kline_hold'; }
                 else { type = 'prompt'; dim = dimKey; }
                 try {
                     const resp = await fetch(`/api/batch/stock/${promptData.stock_id}/prompt?dim=${dim}&type=${type}`);
@@ -1859,25 +1769,6 @@
                 content = `<div class="markdown-body">${marked.parse(cleanPrompt)}</div>`;
             }
             
-            // 追加数据质量反馈（仅K线结果弹窗底部，按需加载）
-            if ((dimKey === 'kline' || dimKey === 'kline_hold') && !overrideType) {
-                let issuesText = promptData._data_issues;
-                if (issuesText === undefined) {
-                    try {
-                        const diResp = await fetch(`/api/batch/stock/${promptData.stock_id}/prompt?dim=kline&type=data_issues`);
-                        const diResult = await diResp.json();
-                        issuesText = diResult.data || '';
-                        promptData._data_issues = issuesText; // 缓存
-                    } catch (e) { issuesText = ''; }
-                }
-                if (issuesText && issuesText !== '无') {
-                    content += `<div style="margin-top:16px; border:1px solid rgba(255,152,0,0.3); border-radius:12px; padding:15px; background:rgba(255,248,225,0.5);">
-                        <h4 style="margin:0 0 10px 0; color:#e65100; font-size:14px;">⚠️ 数据质量反馈</h4>
-                        <div class="markdown-body">${marked.parse(issuesText)}</div>
-                    </div>`;
-                }
-            }
-
             document.getElementById('modalContent').innerHTML = content;
             document.getElementById('detailModal').classList.add('show');
         }
@@ -2076,8 +1967,6 @@
             document.getElementById('batchActionsBar').disabled = count === 0;
             document.getElementById('batchPrescreeningBtn').disabled = count === 0;
             document.getElementById('batchPrescreeningCount').textContent = count;
-            document.getElementById('batchKlineBtn').disabled = count === 0;
-            document.getElementById('batchKlineCount').textContent = count;
             document.getElementById('batchCanslimBtn').disabled = count === 0;
             document.getElementById('batchCanslimCount').textContent = count;
             
@@ -2189,161 +2078,10 @@
             }
         }
 
-        async function batchKlineUpdate() {
-            if (!currentBatchId || batchSelectedStockIds.size === 0) {
-                alert('请先选择批次并勾选股票');
-                return;
-            }
-            showProgressModal('正在执行K线分析更新...');
-            disableUI();
-            try {
-                const ids = Array.from(batchSelectedStockIds).join(',');
-                await new Promise((resolve, reject) => {
-                    const url = `/api/batch/${currentBatchId}/kline_execute_update?stock_ids=${ids}`;
-                    const eventSource = new EventSource(url);
-                    eventSource.onmessage = (event) => {
-                        try {
-                            const data = JSON.parse(event.data);
-                            if (data.stage === 'start') {
-                                updateProgressModal(data.completed, data.total, '开始K线分析...');
-                            } else if (data.stage === 'progress') {
-                                const info = data.error
-                                    ? `❌ ${data.stock_name} 失败`
-                                    : `✅ ${data.stock_name} 完成 (${data.score})`;
-                                updateProgressModal(data.completed, data.total, info);
-                            } else if (data.stage === 'done') {
-                                eventSource.close();
-                                updateProgressModal(data.completed, data.total, '✅ K线分析全部完成');
-                                resolve();
-                            } else if (data.stage === 'error') {
-                                eventSource.close();
-                                reject(new Error(data.message));
-                            }
-                        } catch(e) { console.error('解析事件失败:', e); }
-                    };
-                    eventSource.onerror = () => { eventSource.close(); reject(new Error('连接失败')); };
-                });
-                await loadBatchStocks(currentBatchId);
-            } catch(e) {
-                updateProgressModal(0, 100, '❌ 失败: ' + e.message);
-            } finally {
-                hideProgressModal();
-                enableUI();
-            }
-        }
-
         async function clearHistory_dim(stockName) {
             if (!confirm(`确定要清空「${stockName}」的所有历史执行记录？`)) return;
             await fetch(`/api/stock/history/${encodeURIComponent(stockName)}`, { method: 'DELETE' });
             showHistory(stockName);
-        }
-
-        async function deleteKlineHistory(historyId, stockId, stockName) {
-            if (!confirm('确定要删除这条K线分析记录？')) return;
-            try {
-                const resp = await fetch(`/api/kline_screening_history/${historyId}`, { method: 'DELETE' });
-                const data = await resp.json();
-                if (data.success) {
-                    showKlineHistory(stockId, stockName);
-                } else {
-                    alert('删除失败');
-                }
-            } catch(e) {
-                alert('删除失败: ' + e.message);
-            }
-        }
-
-        async function showKlineHistory(stockId, stockName) {
-            if (!currentBatchId) { alert('请先选择批次'); return; }
-            document.getElementById('historyModalTitle').textContent = stockName + ' - K线分析历史';
-            document.getElementById('historyModalContent').innerHTML = '加载中...';
-            document.getElementById('historyModal').classList.add('show');
-            try {
-                const resp = await fetch(`/api/batch/${currentBatchId}/kline_screening_history/${stockId}`);
-                const data = await resp.json();
-                if (!data.success || data.data.length === 0) {
-                    document.getElementById('historyModalContent').innerHTML = '<p style="color:#999;text-align:center;">暂无K线分析历史记录</p>';
-                    return;
-                }
-                const records = data.data;
-                const escHtml = s => s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>') : '';
-                const parsePred = (raw) => {
-                    if (!raw) return null;
-                    if (typeof raw === 'string') { try { return JSON.parse(raw); } catch(e) { return null; } }
-                    return raw;
-                };
-                const predDirColor = (dir) => {
-                    if (!dir) return '#999';
-                    if (dir.includes('涨')) return '#e53935';
-                    if (dir.includes('跌')) return '#4caf50';
-                    return '#fb8c00';
-                };
-                const predCell = (pred, rowIdx, type) => {
-                    if (!pred) return '<span style="color:#ccc;">-</span>';
-                    const dir = pred.direction || '';
-                    const range = pred.range || '';
-                    const conf = pred.confidence || '';
-                    const rationale = pred.rationale || '';
-                    const riskFactors = pred.risk_factors || '';
-                    const color = predDirColor(dir);
-                    const hasDetail = rationale || riskFactors;
-                    const typeLabel = type === 'day' ? '🔮 明日预测' : '📅 一周预测';
-                    const escAttr = s => s ? s.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n') : '';
-                    let h = `<span style="color:${color};font-weight:600;">${dir}</span>${range ? `<br><span style="font-size:9px;color:#666;">${range}</span>` : ''}${conf ? `<br><span style="font-size:8px;color:#999;">[${conf}]</span>` : ''}`;
-                    if (hasDetail) {
-                        h += `<br><span style="display:inline-flex;gap:4px;margin-top:2px;">`;
-                        if (rationale) h += `<span style="cursor:pointer;color:#8e8e93;text-decoration:underline;font-size:9px;" onclick="showPredictionDetail('${typeLabel} - 预测依据','${escAttr(rationale)}')">依据</span>`;
-                        if (riskFactors) h += `<span style="cursor:pointer;color:#aeaeb2;text-decoration:underline;font-size:9px;" onclick="showPredictionDetail('${typeLabel} - 风险因素','${escAttr(riskFactors)}')">风险</span>`;
-                        h += `</span>`;
-                    }
-                    return h;
-                };
-                let html = `<table style="width:100%;border-collapse:collapse;font-size:12px;">
-                    <thead><tr style="background:rgba(118,75,162,0.1);">
-                        <th style="padding:8px;text-align:left;">日期</th>
-                        <th style="padding:8px;text-align:center;">未持仓评级</th>
-                        <th style="padding:8px;text-align:center;">持仓评级</th>
-                        <th style="padding:8px;text-align:center;">综合分</th>
-                        <th style="padding:8px;text-align:center;">🔮明日预测</th>
-                        <th style="padding:8px;text-align:center;">📅一周预测</th>
-                        <th style="padding:8px;text-align:center;">数据问题</th>
-                        <th style="padding:8px;text-align:center;">分析内容</th>
-                        <th style="padding:8px;text-align:right;font-size:10px;">记录时间</th>
-                        <th style="padding:8px;text-align:center;">操作</th>
-                    </tr></thead><tbody>`;
-                records.forEach((r, idx) => {
-                    const scoreColor = r.kline_total_score >= 70 ? '#e53935' : r.kline_total_score >= 40 ? '#fb8c00' : '#4caf50';
-                    const hasIssues = !!r.data_issues;
-                    const hasPrompt = r.kline_prompt || r.kline_hold_prompt;
-                    const dayPred = parsePred(r.next_day_prediction);
-                    const weekPred = parsePred(r.next_week_prediction);
-                    html += `<tr style="border-bottom:1px solid #eee;">
-                        <td style="padding:6px 8px;font-weight:600;">${r.screen_date || '-'}</td>
-                        <td style="padding:6px 8px;text-align:center;">${r.kline_score || '-'}</td>
-                        <td style="padding:6px 8px;text-align:center;">${r.kline_hold_score || '-'}</td>
-                        <td style="padding:6px 8px;text-align:center;font-weight:700;color:${scoreColor};font-size:14px;">${r.kline_total_score ?? '-'}</td>
-                        <td style="padding:6px 8px;text-align:center;font-size:11px;">${predCell(dayPred, idx, 'day')}</td>
-                        <td style="padding:6px 8px;text-align:center;font-size:11px;">${predCell(weekPred, idx, 'week')}</td>
-                        <td style="padding:6px 8px;text-align:center;">${hasIssues ? `<span style="cursor:pointer;color:#f44336;text-decoration:underline;font-size:10px;" onclick="document.getElementById('kh_issues_${idx}').style.display=document.getElementById('kh_issues_${idx}').style.display==='none'?'table-row':'none'">查看</span>` : '-'}</td>
-                        <td style="padding:6px 8px;text-align:center;">${hasPrompt ? `<span style="cursor:pointer;color:#667eea;text-decoration:underline;font-size:10px;" onclick="document.getElementById('kh_content_${idx}').style.display=document.getElementById('kh_content_${idx}').style.display==='none'?'table-row':'none'">查看</span>` : '-'}</td>
-                        <td style="padding:6px 8px;text-align:right;color:#999;font-size:10px;">${formatBeijingTime(r.created_at)}</td>
-                        <td style="padding:6px 8px;text-align:center;"><button onclick="deleteKlineHistory(${r.id},${stockId},'${stockName.replace(/'/g,"\\'")}')" style="padding:2px 8px;background:#f44336;color:white;border:none;border-radius:3px;cursor:pointer;font-size:10px;">删除</button></td>
-                    </tr>`;
-                    if (r.data_issues) {
-                        html += `<tr id="kh_issues_${idx}" style="display:none;"><td colspan="10" style="padding:10px 12px;background:rgba(255,235,235,0.4);font-size:11px;color:#666;line-height:1.6;word-break:break-all;">${escHtml(r.data_issues)}</td></tr>`;
-                    }
-                    if (hasPrompt) {
-                        html += `<tr id="kh_content_${idx}" style="display:none;"><td colspan="10" style="padding:10px 12px;background:rgba(237,233,254,0.3);font-size:11px;color:#333;line-height:1.6;">`;
-                        if (r.kline_prompt) html += `<div style="margin-bottom:8px;"><b style="color:#667eea;">未持仓分析：</b><br>${escHtml(r.kline_prompt)}</div>`;
-                        if (r.kline_hold_prompt) html += `<div><b style="color:#e67e22;">持仓分析：</b><br>${escHtml(r.kline_hold_prompt)}</div>`;
-                        html += `</td></tr>`;
-                    }
-                });
-                html += '</tbody></table>';
-                document.getElementById('historyModalContent').innerHTML = html;
-            } catch(e) {
-                document.getElementById('historyModalContent').innerHTML = '<p style="color:red;">加载失败: ' + e.message + '</p>';
-            }
         }
 
         async function showHistory(stockName) {
@@ -2650,31 +2388,10 @@
             return sum;
         }
 
-        const GRADE_SCORE_MAP = {
-            '积极买入': 95, '逢低建仓': 75, '持股待涨': 60,
-            '逢高减仓': 40, '清仓离场': 20, '保持观望': 50
-        };
-
-        function getScoreColor(score) {
-            if (score == null) return '#c7c7cc';
-            if (score >= 70) return '#e53935';
-            if (score >= 55) return '#ff9800';
-            if (score >= 40) return '#48484a';
-            return '#2e7d32';
-        }
-
         function getSortValue(stock, field) {
             if (field === 'canslim_total') return getCanslimTotal(stock);
-            if (field === 'kline_total_score') {
-                const val = stock.kline_total_score;
-                return (val != null && val !== '') ? Number(val) : -Infinity;
-            }
             const val = stock[field];
             if (val == null || val === '' || val === '-') return -Infinity;
-            if (field === 'kline_score' || field === 'kline_hold_score') {
-                const trimmed = String(val).trim();
-                return GRADE_SCORE_MAP[trimmed] ?? -Infinity;
-            }
             const num = parseFloat(val);
             return isNaN(num) ? -Infinity : num;
         }

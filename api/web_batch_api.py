@@ -405,8 +405,8 @@ async def get_batch_stocks(batch_id: int):
         for stock in stocks:
             scores = [stock.get(f'{dim}_score') for dim in ['c', 'a', 'n', 's', 'l', 'i', 'm'] if stock.get(f'{dim}_score')]
             stock['score'] = round(sum(scores) / len(scores)) if scores else None
-            stock['technical_score'] = stock.get('kline_score')
-            stock['technical_hold_score'] = stock.get('kline_hold_score')
+            # stock['technical_score'] = stock.get('kline_score')  # K线初筛已禁用
+            # stock['technical_hold_score'] = stock.get('kline_hold_score')  # K线初筛已禁用
             # has_overall 已在SQL中计算
             stock['has_overall'] = bool(stock.get('has_overall'))
             # 注入最新预测数据
@@ -435,26 +435,27 @@ async def add_stocks_to_batch(batch_id: int, request: BatchRequest):
 
 
 
-@app.get("/api/batch/{batch_id}/kline_screening_history/{stock_id}")
-async def get_kline_screening_history(batch_id: int, stock_id: int):
-    """获取某只股票在某批次下的K线初筛历史记录（按ID倒序）"""
-    try:
-        records = db_manager.get_kline_screening_history(batch_id, stock_id)
-        return SafeJSONResponse(content={"success": True, "data": records})
-    except Exception as e:
-        logger.error("获取K线初筛历史失败 batch_id=%s, stock_id=%s: %s", batch_id, stock_id, e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+# --- K线初筛历史API已禁用 ---
+# @app.get("/api/batch/{batch_id}/kline_screening_history/{stock_id}")
+# async def get_kline_screening_history(batch_id: int, stock_id: int):
+#     """获取某只股票在某批次下的K线初筛历史记录（按ID倒序）"""
+#     try:
+#         records = db_manager.get_kline_screening_history(batch_id, stock_id)
+#         return SafeJSONResponse(content={"success": True, "data": records})
+#     except Exception as e:
+#         logger.error("获取K线初筛历史失败 batch_id=%s, stock_id=%s: %s", batch_id, stock_id, e, exc_info=True)
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/api/kline_screening_history/{history_id}")
-async def delete_kline_screening_history(history_id: int):
-    """删除单条K线初筛历史记录"""
-    try:
-        db_manager.delete_kline_screening_history(history_id)
-        return SafeJSONResponse(content={"success": True})
-    except Exception as e:
-        logger.error("删除K线初筛历史失败 id=%s: %s", history_id, e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+# @app.delete("/api/kline_screening_history/{history_id}")
+# async def delete_kline_screening_history(history_id: int):
+#     """删除单条K线初筛历史记录"""
+#     try:
+#         db_manager.delete_kline_screening_history(history_id)
+#         return SafeJSONResponse(content={"success": True})
+#     except Exception as e:
+#         logger.error("删除K线初筛历史失败 id=%s: %s", history_id, e, exc_info=True)
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/backtest/predictions")
@@ -608,10 +609,10 @@ async def get_stock_prompt(stock_id: int, dim: str, type: str = "score"):
             'overall_prompt': 'overall_prompt',
             'overall_result': 'overall_analysis',
         }
-        # kline_hold 维度映射到 kline_hold_prompt
-        if dim == 'kline_hold' and type == 'prompt':
-            field = 'kline_hold_prompt'
-        elif type == 'data_issues':
+        # kline_hold 维度映射到 kline_hold_prompt（K线初筛已禁用）
+        # if dim == 'kline_hold' and type == 'prompt':
+        #     field = 'kline_hold_prompt'
+        if type == 'data_issues':
             field = 'data_issues'
         else:
             field = field_map.get(type, f'{dim}_score_prompt')
