@@ -1,0 +1,21 @@
+{
+  "_comment": "同花顺登录cookie，用于访问需要登录的页面（如概念板块成分股排序字段页）。cookie会过期，需要定期更新。从浏览器开发者工具中复制cookie值。",
+  "v": "",
+  "user": "MDpteF80ODgxMjY2OTQ6Ok5vbmU6NTAwOjQ5ODEyNjY5NDo3LDExMTExMTExMTExLDQwOzQ0LDExLDQwOzYsMSw0MDs1LDEsNDA7MSwxMDEsNDA7MiwxLDQwOzMsMSw0MDs1LDEsNDA7OCwwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMSw0MDsxMDIsMSw0MDoxNjo6OjQ4ODEyNjY5NDoxNzczNDk0MjMwOjo6MTU1ODQxMzQyMDo2MDQ4MDA6MDoxYTQyZTViOTFlZTFkYjJkMWRlYWUzYjQ4MzNjODFjMTA6ZGVmYXVsdF81OjA=",
+  "ticket": "493a27197a52dc20f23fe4d92f043bf0",
+  "userid": "488126694",
+  "u_name": "mx_488126694",
+  "escapename": "mx_488126694",
+  "u_ttype": "WEB",
+  "ttype": "WEB",
+  "u_ukey": "A10702B8689642C6BE607730E11E6E4A",
+  "u_uver": "1.0.0",
+  "u_dpass": "0KnMXHmb5M7oIWAHENGrMhdfU8fMsl6E0HXFaSDIaa90resyiz2bZgA/DXnpFFORHi80LrSsTFH9a+6rtRvqGg==",
+  "u_did": "29F4B5BEB68F41A396E09A0D6A7777F8",
+  "user_status": "0",
+  "utk": "c6458a2bbda7dcaf03485289308c195f",
+  "sess_tk": "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6InNlc3NfdGtfMSIsImJ0eSI6InNlc3NfdGsifQ.eyJqdGkiOiIxMDFjYzgzMzQ4M2JhZWRlZDFiMjFkZWU5MTViMmVhNDEiLCJpYXQiOjE3NzM0OTQyMzAsImV4cCI6MTc3NDA5OTAzMCwic3ViIjoiNDg4MTI2Njk0IiwiaXNzIjoidXBhc3MuMTBqcWthLmNvbS5jbiIsImF1ZCI6IjIwMjAxMTE4NTI4ODkwNzIiLCJhY3QiOiJvZmMiLCJjdWhzIjoiMTc2YWUzZjdjMjEyYTcyZjRjYTgwMjZmOWYyYzc2MGUzM2E3NWMzOWMwMzVmOTc3MDBlZWVmYzgzN2FiMTU0NSJ9.jtpo0Atb-nqLcoBxucCe8_Hv-uq-XHZS4sLy_-0rY5xgl-78jhfm6_78vIgKk2nhTDSdyFTh-eg6l8Xkim54ZA",
+  "cuc": "yppnbuluzkzi",
+  "spversion": "20130314",
+  "historystock": "002371|*|601868|*|600183|*|000028"
+}
