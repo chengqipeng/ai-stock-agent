@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from datetime import datetime
 from collections import defaultdict
-from service.backtest.prediction_enhanced_backtest import _compute_weekly_predictions
+from day_week_predicted.backtest.prediction_enhanced_backtest import _compute_weekly_predictions
 
 # 加载已有回测结果
 with open('data_results/backtest_prediction_enhanced_v9_50stocks_result.json') as f:

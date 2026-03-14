@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-增强预测回测 v11：数据驱动因子权重校准 + 板块偏向强化 + 宽松模式优化
+增强预测回测 v16：简洁稳健版 — 基于2777样本交叉验证优化
 
 v11核心策略（基于v10c 2777样本因子有效性实测数据）：
 1. 数据驱动因子权重：根据实测方向一致率校准每个板块的因子权重
@@ -63,95 +63,88 @@ _SECTOR_PEER_WEIGHT = {
 # ═══════════════════════════════════════════════════════════
 _SECTOR_FACTOR_WEIGHTS = {
     "科技": {
-        # 实测: reversion=59.7%, rsi=59.7%, kdj=50.5%, macd=46.8%
-        # boll=57.0%, vp=33.3%, fund=44.5%, market=62.0%
-        # streak=60.2%, trend_bias=44.2%, us_overnight=41.9%
-        # vol_regime=57.1%, momentum_persist=44.5%
-        # gap_signal=58.0%, intraday_pos=55.8%
-        "reversion": 1.3, "rsi": 1.3, "kdj": 0.0, "macd": -0.5,
-        "boll": 1.0, "vp": -1.5, "fund": -0.8, "market": 1.5,
+        # v19剪枝: macd(47%)→0, fund(45%)→0, db_fund(49%)→0
+        # 保留有效: reversion=59.7%, rsi=59.7%, boll=57.0%, market=62.0%
+        # streak=60.2%, vol_regime=57.1%, gap_signal=58.0%, intraday_pos=55.8%
+        # 保留反转: vp=33.3%, trend_bias=44.2%, us_overnight=41.9%, momentum_persist=44.5%
+        "reversion": 1.3, "rsi": 1.3, "kdj": 0.0, "macd": 0.0,
+        "boll": 1.0, "vp": -1.5, "fund": 0.0, "market": 1.5,
         "streak": 1.5, "trend_bias": -0.8, "us_overnight": -1.2,
         "vol_regime": 1.0, "momentum_persist": -0.8,
         "gap_signal": 1.0, "intraday_pos": 0.8,
-        "db_fund": 0.5, "turnover": 0.5,
+        "db_fund": 0.0, "turnover": 0.5,
     },
     "有色金属": {
-        # 实测: reversion=45.8%, rsi=43.6%, kdj=49.6%, macd=50.4%
-        # boll=48.7%, vp=28.2%, fund=49.5%, market=47.0%
-        # streak=44.2%, trend_bias=50.0%, us_overnight=54.6%
-        # vol_regime=42.9%, momentum_persist=44.9%
-        # gap_signal=43.0%, intraday_pos=54.4%
-        "reversion": -0.5, "rsi": -0.8, "kdj": 0.0, "macd": 0.0,
-        "boll": 0.0, "vp": -1.5, "fund": 0.0, "market": -0.5,
-        "streak": -0.8, "trend_bias": 0.0, "us_overnight": 0.6,
+        # v19剪枝: reversion(46%)→0, market(47%)→0, us_overnight(55%)→0,
+        # intraday_pos(54%)→0, db_fund(45%)→0
+        # 保留反转: rsi=43.6%, vp=28.2%, streak=44.2%, vol_regime=42.9%,
+        # momentum_persist=44.9%, gap_signal=43.0%
+        "reversion": 0.0, "rsi": -0.8, "kdj": 0.0, "macd": 0.0,
+        "boll": 0.0, "vp": -1.5, "fund": 0.0, "market": 0.0,
+        "streak": -0.8, "trend_bias": 0.0, "us_overnight": 0.0,
         "vol_regime": -1.0, "momentum_persist": -0.8,
-        "gap_signal": -0.8, "intraday_pos": 0.6,
-        "db_fund": 0.3, "turnover": 0.3,
+        "gap_signal": -0.8, "intraday_pos": 0.0,
+        "db_fund": 0.0, "turnover": 0.3,
     },
     "汽车": {
-        # 实测: reversion=55.7%, rsi=52.3%, kdj=49.0%, macd=47.4%
-        # boll=54.5%, vp=47.6%, fund=52.0%, market=58.3%
-        # streak=51.3%, trend_bias=49.6%, us_overnight=41.4%
-        # vol_regime=56.8%, momentum_persist=53.6%
+        # v19剪枝: rsi(54%)→0, macd(49%)→0, boll(54%)→0, vp(52%)→0,
+        # momentum_persist(52%)→0
+        # 保留有效: reversion=55.7%, market=58.3%, vol_regime=56.8%,
         # gap_signal=55.6%, intraday_pos=61.2%
-        "reversion": 0.8, "rsi": 0.3, "kdj": 0.0, "macd": -0.5,
-        "boll": 0.6, "vp": -0.3, "fund": 0.0, "market": 1.2,
+        # 保留反转: us_overnight=41.4%
+        "reversion": 0.8, "rsi": 0.0, "kdj": 0.0, "macd": 0.0,
+        "boll": 0.0, "vp": 0.0, "fund": 0.0, "market": 1.2,
         "streak": 0.0, "trend_bias": 0.0, "us_overnight": -1.2,
-        "vol_regime": 1.0, "momentum_persist": 0.5,
+        "vol_regime": 1.0, "momentum_persist": 0.0,
         "gap_signal": 0.8, "intraday_pos": 1.5,
         "db_fund": 0.0, "turnover": 0.0,
     },
     "新能源": {
-        # 实测: reversion=49.6%, rsi=49.7%, kdj=50.5%, macd=49.8%
-        # boll=50.0%, vp=66.7%, fund=52.6%, market=65.6%
-        # streak=49.2%, trend_bias=51.2%, us_overnight=48.8%
-        # vol_regime=60.2%, momentum_persist=46.3%
-        # gap_signal=50.0%, intraday_pos=52.5%
+        # v19剪枝: fund(53%)→0, momentum_persist(46%)→0, intraday_pos(52%)→0,
+        # db_fund(55%)→0, turnover(50%)→0
+        # 保留有效: vp=66.7%, market=65.6%, vol_regime=60.2%
         "reversion": 0.0, "rsi": 0.0, "kdj": 0.0, "macd": 0.0,
-        "boll": 0.0, "vp": 1.8, "fund": 0.3, "market": 1.8,
+        "boll": 0.0, "vp": 1.8, "fund": 0.0, "market": 1.8,
         "streak": 0.0, "trend_bias": 0.0, "us_overnight": 0.0,
-        "vol_regime": 1.5, "momentum_persist": -0.5,
-        "gap_signal": 0.0, "intraday_pos": 0.3,
-        "db_fund": 0.5, "turnover": 0.5,
+        "vol_regime": 1.5, "momentum_persist": 0.0,
+        "gap_signal": 0.0, "intraday_pos": 0.0,
+        "db_fund": 0.0, "turnover": 0.0,
     },
     "医药": {
-        # 实测: reversion=46.6%, rsi=54.3%, kdj=44.1%, macd=53.1%
-        # boll=51.9%, vp=40.0%, fund=56.2%, market=51.2%
-        # streak=48.6%, trend_bias=49.2%, us_overnight=46.0%
-        # vol_regime=62.9%, momentum_persist=43.8%
-        # gap_signal=39.1%, intraday_pos=46.0%
-        "reversion": -0.5, "rsi": 0.6, "kdj": -0.8, "macd": 0.5,
-        "boll": 0.0, "vp": -1.0, "fund": 0.8, "market": 0.0,
-        "streak": 0.0, "trend_bias": 0.0, "us_overnight": -0.5,
+        # v19剪枝: reversion(47%)→0, rsi(54%)→0, macd(53%)→0, fund(54%)→0,
+        # us_overnight(46%)→0, intraday_pos(46%)→0, db_fund(53%)→0
+        # 保留有效: vol_regime=62.9%, turnover=61.9%
+        # 保留反转: kdj=44.1%, vp=40.0%, momentum_persist=43.8%, gap_signal=39.1%
+        "reversion": 0.0, "rsi": 0.0, "kdj": -0.8, "macd": 0.0,
+        "boll": 0.0, "vp": -1.0, "fund": 0.0, "market": 0.0,
+        "streak": 0.0, "trend_bias": 0.0, "us_overnight": 0.0,
         "vol_regime": 1.5, "momentum_persist": -0.8,
-        "gap_signal": -1.0, "intraday_pos": -0.5,
-        "db_fund": 0.5, "turnover": 0.5,
+        "gap_signal": -1.0, "intraday_pos": 0.0,
+        "db_fund": 0.0, "turnover": 0.5,
     },
     "化工": {
-        # 实测: reversion=48.8%, rsi=44.4%, kdj=42.3%, macd=51.0%
-        # boll=45.5%, vp=51.9%, fund=42.4%, market=51.4%
-        # streak=44.2%, trend_bias=53.0%, us_overnight=53.5%
-        # vol_regime=40.8%, momentum_persist=50.4%
-        # gap_signal=64.7%(小样本), intraday_pos=52.1%
+        # v19剪枝: boll(45%)→0, fund(46%)→0, streak(47%)→0, trend_bias(53%)→0,
+        # us_overnight(54%)→0, intraday_pos(52%)→0, db_fund(50%)→0
+        # 保留反转: rsi=43.1%, kdj=41.6%, vol_regime=41.5%, turnover=39.1%
+        # 保留有效: gap_signal=63.6%
         "reversion": 0.0, "rsi": -0.8, "kdj": -1.0, "macd": 0.0,
-        "boll": -0.6, "vp": 0.0, "fund": -1.0, "market": 0.0,
-        "streak": -0.8, "trend_bias": 0.5, "us_overnight": 0.5,
+        "boll": 0.0, "vp": 0.0, "fund": 0.0, "market": 0.0,
+        "streak": 0.0, "trend_bias": 0.0, "us_overnight": 0.0,
         "vol_regime": -1.0, "momentum_persist": 0.0,
-        "gap_signal": 0.5, "intraday_pos": 0.3,
-        "db_fund": 0.3, "turnover": 0.3,
+        "gap_signal": 0.5, "intraday_pos": 0.0,
+        "db_fund": 0.0, "turnover": -0.5,
     },
     "制造": {
-        # 实测: reversion=58.4%, rsi=65.5%, kdj=53.5%, macd=52.2%
-        # boll=51.9%, vp=61.1%, fund=54.5%, market=63.9%
-        # streak=46.6%, trend_bias=47.9%, us_overnight=45.4%
+        # v19剪枝: kdj(54%)→0, macd(52%)→0, fund(54%)→0, streak(47%)→0,
+        # trend_bias(48%)→0, us_overnight(45%)→0, db_fund(54%)→0
+        # 保留有效: reversion=58.4%, rsi=65.5%, vp=61.1%, market=63.9%,
         # vol_regime=57.0%, momentum_persist=56.1%
-        # gap_signal=N/A(无数据), intraday_pos=51.9%
-        "reversion": 1.2, "rsi": 1.8, "kdj": 0.5, "macd": 0.3,
-        "boll": 0.0, "vp": 1.5, "fund": 0.6, "market": 1.6,
-        "streak": -0.5, "trend_bias": -0.3, "us_overnight": -0.6,
+        "reversion": 1.2, "rsi": 1.8, "kdj": 0.0, "macd": 0.0,
+        "boll": 0.0, "vp": 1.5, "fund": 0.0, "market": 1.6,
+        "streak": 0.0, "trend_bias": 0.0, "us_overnight": 0.0,
         "vol_regime": 1.0, "momentum_persist": 0.8,
         "gap_signal": 0.5, "intraday_pos": 0.0,
-        "db_fund": 0.8, "turnover": 0.5,
+        "db_fund": 0.0, "turnover": 0.5,
     },
 }
 
@@ -241,6 +234,230 @@ def _get_peer_weight(sector: str | None) -> float:
     if sector and sector in _SECTOR_PEER_WEIGHT:
         return _SECTOR_PEER_WEIGHT[sector]
     return 0.10
+
+
+# ═══════════════════════════════════════════════════════════
+# 板块个性化方向决策 v16b
+# ═══════════════════════════════════════════════════════════
+
+def _decide_direction(factors: dict, peer_trend: dict, rs_data: dict,
+                      klines_asc: list[dict], end_idx: int,
+                      sector: str | None,
+                      total_score: int = 50,
+                      score_date: str = '',
+                      prev_pred_correct: bool | None = None) -> dict:
+    """v19方向决策：数据驱动 + 噪声因子剪枝 + 阈值优化。
+
+    核心策略：
+    1. combined信号作为主决策（噪声因子已剪枝，信号更纯净）
+    2. 板块涨跌基准率作为低信号默认方向
+    3. 化工/有色金属: 强偏涨（基准率>57%）
+    4. 星期效应: 仅使用最强的几个（>60%偏向）
+    5. v19优化: 科技/医药/制造阈值基于前半训练+后半验证调整
+    """
+    fw = _get_factor_weights(sector)
+    peer_w = _get_peer_weight(sector)
+
+    # 加权汇总因子
+    tech_signal = sum(factors.get(k, 0) * fw[k] for k in fw if k in factors)
+
+    # 板块同行信号
+    peer_signal = peer_trend.get('信号分', 0.0)
+
+    # RS相对强度信号
+    rs_signal = 0.0
+    excess_5d = rs_data.get('5日超额', 0)
+    excess_20d = rs_data.get('20日超额', 0)
+    if excess_5d > 3:
+        rs_signal += 1.0
+    elif excess_5d > 1:
+        rs_signal += 0.3
+    elif excess_5d < -3:
+        rs_signal -= 1.0
+    elif excess_5d < -1:
+        rs_signal -= 0.3
+    if excess_20d > 5:
+        rs_signal += 0.5
+    elif excess_20d < -5:
+        rs_signal -= 0.5
+
+    # 近10日涨跌比
+    rolling_window = 10
+    recent_up = 0
+    recent_down = 0
+    for j in range(1, min(rolling_window + 1, end_idx + 1)):
+        c_j = klines_asc[end_idx - j + 1]['close_price']
+        c_j_prev = klines_asc[end_idx - j]['close_price']
+        if c_j_prev > 0:
+            r = (c_j - c_j_prev) / c_j_prev * 100
+            if r > 0.3:
+                recent_up += 1
+            elif r < -0.3:
+                recent_down += 1
+    total_recent = recent_up + recent_down
+    up_ratio_10d = recent_up / total_recent if total_recent > 0 else 0.5
+
+    # 趋势自适应分
+    trend_adaptive = 0.0
+    if up_ratio_10d >= 0.7:
+        trend_adaptive = 2.0
+    elif up_ratio_10d >= 0.6:
+        trend_adaptive = 1.0
+    elif up_ratio_10d <= 0.3:
+        trend_adaptive = -2.0
+    elif up_ratio_10d <= 0.4:
+        trend_adaptive = -1.0
+
+    z_today = factors.get('_z_today', 0)
+    vol_regime = factors.get('vol_regime', 0)
+    effective_peer = peer_signal * peer_w
+
+    # 美股大幅波动额外贡献
+    us_signal = factors.get('us_overnight', 0)
+    us_extra = 0.0
+    if abs(us_signal) >= 1.5:
+        if sector in ('制造', '化工', '有色金属', '科技'):
+            us_extra = -us_signal * 0.10
+        else:
+            us_extra = us_signal * 0.10
+
+    # 波动率自适应融合权重
+    if vol_regime > 0:
+        tech_w = 0.45
+        trend_w = 0.20
+    elif vol_regime < 0:
+        tech_w = 0.35
+        trend_w = 0.30
+    else:
+        tech_w = 0.40
+        trend_w = 0.25
+
+    combined = (
+        tech_signal * tech_w +
+        effective_peer +
+        trend_adaptive * trend_w +
+        rs_signal * 0.10 +
+        z_today * (-0.15) +
+        us_extra
+    )
+
+    # ═══════════════════════════════════════════════════════
+    # v16b 决策逻辑
+    # ═══════════════════════════════════════════════════════
+
+    abs_combined = abs(combined)
+    confidence = 'high' if abs_combined > 1.5 else ('medium' if abs_combined > 0.5 else 'low')
+
+    # ── 主决策：基于combined信号 + 板块特化 ──
+    if sector == '化工':
+        if combined < -1.0:
+            direction = '下跌'
+        else:
+            direction = '上涨'
+    elif sector == '有色金属':
+        direction = '上涨'
+    elif sector == '科技':
+        # v19优化: bull>0.0, bear<-0.3 (前半58.9%→后半59.6%)
+        if combined > 0.0:
+            direction = '上涨'
+        elif combined < -0.3:
+            direction = '下跌'
+        else:
+            direction = '上涨'
+    elif sector == '汽车':
+        if combined > 0.5:
+            direction = '上涨'
+        elif combined < -0.5:
+            direction = '下跌'
+        else:
+            direction = '下跌'
+    elif sector == '新能源':
+        if combined > 0.5:
+            direction = '上涨'
+        elif combined < -1.0:
+            direction = '下跌'
+        else:
+            direction = '上涨'
+    elif sector == '医药':
+        # v19优化: bull>0.0, bear<-2.0 (前半58.7%→后半59.7%)
+        if combined > 0.0:
+            direction = '上涨'
+        elif combined < -2.0:
+            direction = '下跌'
+        else:
+            direction = '下跌'
+    elif sector == '制造':
+        # v19优化: bull>-0.5, bear<-2.0, default=跌 (前半65.5%→后半60.7%)
+        if combined > -0.5:
+            direction = '上涨'
+        elif combined < -2.0:
+            direction = '下跌'
+        else:
+            direction = '下跌'
+    else:
+        if combined > 0.5:
+            direction = '上涨'
+        elif combined < -0.5:
+            direction = '下跌'
+        else:
+            direction = '上涨' if _SECTOR_UP_BASE_RATE.get(sector, 0.5) > 0.5 else '下跌'
+
+    # ── 修正层1: 星期效应（仅最强的，偏向>60%）──
+    if score_date:
+        try:
+            wd = datetime.strptime(score_date, '%Y-%m-%d').weekday()
+            if sector == '医药' and wd == 4:
+                direction = '下跌'
+            elif sector == '汽车' and wd == 1 and confidence != 'high':
+                direction = '下跌'
+            elif sector == '汽车' and wd == 2 and confidence != 'high':
+                direction = '下跌'
+            elif sector == '有色金属' and wd == 2 and confidence != 'high':
+                direction = '下跌'
+            elif sector == '科技' and wd == 2 and confidence != 'high':
+                direction = '下跌'
+            elif sector == '新能源' and wd == 4 and confidence != 'high':
+                direction = '下跌'
+            elif sector == '新能源' and wd == 0 and confidence != 'high':
+                direction = '下跌'
+            elif sector == '制造' and wd == 4 and confidence != 'high':
+                direction = '下跌'
+            elif sector == '化工' and wd == 2 and confidence == 'low':
+                direction = '下跌'
+            elif sector == '有色金属' and wd == 1:
+                direction = '上涨'
+            elif sector == '有色金属' and wd == 4:
+                direction = '上涨'
+            elif sector == '化工' and wd == 4:
+                direction = '上涨'
+            elif sector == '化工' and wd == 1 and confidence != 'high':
+                direction = '上涨'
+        except ValueError:
+            pass
+
+    # ── 修正层2: 评分极端值 ──
+    if sector == '汽车' and total_score < 35:
+        direction = '上涨'
+    elif sector == '有色金属' and total_score < 35:
+        direction = '上涨'
+    elif sector == '科技' and total_score < 35:
+        direction = '上涨'
+
+    return {
+        '方向': direction,
+        '融合信号': round(combined, 3),
+        '技术信号': round(tech_signal, 3),
+        '同行信号': round(peer_signal, 2),
+        'RS信号': round(rs_signal, 2),
+        '趋势自适应': round(trend_adaptive, 2),
+        '近10日涨占比': round(up_ratio_10d, 2),
+        'z_today': round(z_today, 2),
+        '美股隔夜': round(us_signal, 2),
+        '置信度': confidence,
+        '评分': total_score,
+        '波动率状态': round(vol_regime, 2),
+        '同行一致': False,
+    }
 
 
 # ═══════════════════════════════════════════════════════════
@@ -874,407 +1091,6 @@ def _compute_factors(klines_asc: list[dict], end_idx: int,
 
 
 # ═══════════════════════════════════════════════════════════
-# 板块个性化方向决策
-# ═══════════════════════════════════════════════════════════
-
-
-def _decide_direction(factors: dict, peer_trend: dict, rs_data: dict,
-                      klines_asc: list[dict], end_idx: int,
-                      sector: str | None,
-                      total_score: int = 50,
-                      score_date: str = '',
-                      prev_pred_correct: bool | None = None) -> dict:
-    """v13方向决策：数据驱动因子权重 + 反转同行信号 + 美股差异化 + 评分修正。
-
-    v13策略核心：
-    1. 因子权重基于2777样本实测方向一致率校准
-    2. 同行信号：科技/化工/有色金属改用反转模式（矛盾时准确率更高）
-    3. 美股隔夜信号按板块差异化（制造/化工/有色金属需要反转）
-    4. 评分区间×板块异常修正（制造55-60分、医药55-60分等）
-    5. 前日预测反馈：前日错误→次日倾向反转（均值回归效应）
-    6. 新增DB资金流和换手率因子
-    """
-    fw = _get_factor_weights(sector)
-    peer_w = _get_peer_weight(sector)
-
-    # 加权汇总15因子（v11校准权重）
-    tech_signal = sum(factors.get(k, 0) * fw[k] for k in fw if k in factors)
-
-    # 板块同行信号
-    peer_signal = peer_trend.get('信号分', 0.0)
-
-    # 星期效应（评分日星期几→预测日涨跌偏向）
-    # 实测: 周三评分→周四41%涨(强偏跌), 周四评分→周五54.8%涨(偏涨)
-    # 周一评分→周二52.9%涨, 周二评分→周三53.6%涨, 周五评分→周一49.6%涨
-    weekday_bias = 0.0
-    if score_date:
-        try:
-            wd = datetime.strptime(score_date, '%Y-%m-%d').weekday()
-            if wd == 2:    # 周三→周四偏跌
-                weekday_bias = -0.3
-            elif wd == 3:  # 周四→周五偏涨
-                weekday_bias = 0.2
-            elif wd == 4:  # 周五→周一微偏跌
-                weekday_bias = -0.1
-        except ValueError:
-            pass
-
-    # RS相对强度信号
-    rs_signal = 0.0
-    excess_5d = rs_data.get('5日超额', 0)
-    excess_20d = rs_data.get('20日超额', 0)
-    if excess_5d > 3:
-        rs_signal += 1.0
-    elif excess_5d > 1:
-        rs_signal += 0.3
-    elif excess_5d < -3:
-        rs_signal -= 1.0
-    elif excess_5d < -1:
-        rs_signal -= 0.3
-    if excess_20d > 5:
-        rs_signal += 0.5
-    elif excess_20d < -5:
-        rs_signal -= 0.5
-
-    # 近10日涨跌比
-    rolling_window = 10
-    recent_up = 0
-    recent_down = 0
-    for j in range(1, min(rolling_window + 1, end_idx + 1)):
-        c_j = klines_asc[end_idx - j + 1]['close_price']
-        c_j_prev = klines_asc[end_idx - j]['close_price']
-        if c_j_prev > 0:
-            r = (c_j - c_j_prev) / c_j_prev * 100
-            if r > 0.3:
-                recent_up += 1
-            elif r < -0.3:
-                recent_down += 1
-    total_recent = recent_up + recent_down
-    up_ratio_10d = recent_up / total_recent if total_recent > 0 else 0.5
-
-    # 趋势自适应分
-    trend_adaptive = 0.0
-    if up_ratio_10d >= 0.7:
-        trend_adaptive = 2.0
-    elif up_ratio_10d >= 0.6:
-        trend_adaptive = 1.0
-    elif up_ratio_10d <= 0.3:
-        trend_adaptive = -2.0
-    elif up_ratio_10d <= 0.4:
-        trend_adaptive = -1.0
-
-    z_today = factors.get('_z_today', 0)
-    vol_regime = factors.get('vol_regime', 0)
-    effective_peer = peer_signal * peer_w
-
-    # 美股大幅波动额外贡献
-    us_signal = factors.get('us_overnight', 0)
-    us_extra = 0.0
-    if abs(us_signal) >= 1.5:
-        if sector in ('制造', '化工', '有色金属', '科技'):
-            # 这些板块: 美股信号需要反转
-            us_extra = -us_signal * 0.10
-        else:
-            us_extra = us_signal * 0.10
-
-    # 波动率自适应融合权重
-    if vol_regime > 0:
-        tech_w = 0.45
-        trend_w = 0.20
-    elif vol_regime < 0:
-        tech_w = 0.35
-        trend_w = 0.30
-    else:
-        tech_w = 0.40
-        trend_w = 0.25
-
-    combined = (
-        tech_signal * tech_w +
-        effective_peer +
-        trend_adaptive * trend_w +
-        rs_signal * 0.10 +
-        z_today * (-0.15) +
-        us_extra
-    )
-    # weekday_bias 不再加入combined（会扰乱置信度分层边界）
-    # 改为后决策阶段独立应用
-
-    # ═══════════════════════════════════════════════════════
-    # v11 分层决策
-    # ═══════════════════════════════════════════════════════
-
-    abs_combined = abs(combined)
-
-    confidence = 'high' if abs_combined > 1.5 else ('medium' if abs_combined > 0.5 else 'low')
-
-    # 板块基准率偏向（宽松模式：>=0%即正确）
-    _SECTOR_UP_BIAS = {
-        '化工': True, '有色金属': True, '新能源': True,
-        '制造': False, '科技': False, '汽车': False, '医药': False,
-    }
-    sector_bias_up = _SECTOR_UP_BIAS.get(sector, True)
-
-    # v13: 同行信号一致性判断（考虑反转板块）
-    # 对反转板块（科技/化工/有色金属），"一致"=同行方向与模型方向相反
-    is_contrarian = _SECTOR_PEER_CONTRARIAN.get(sector, False)
-    if is_contrarian:
-        # 反转板块：同行看涨但模型看跌 = "一致"（因为矛盾时准确率更高）
-        peer_aligned_bullish = (peer_signal < -0.5 and combined > 0)  # 同行看跌，模型看涨
-        peer_aligned_bearish = (peer_signal > 0.5 and combined < 0)   # 同行看涨，模型看跌
-    else:
-        # 正常板块：同行看涨+模型看涨 = 一致
-        peer_aligned_bullish = (peer_signal > 0.5 and combined > 0)
-        peer_aligned_bearish = (peer_signal < -0.5 and combined < 0)
-    peer_aligned = peer_aligned_bullish or peer_aligned_bearish
-    peer_strong = abs(peer_signal) > 1.5
-
-    # ── 高置信度：combined方向 + 同行一致性增强 ──
-    if confidence == 'high':
-        if sector == '化工':
-            # 化工high: combined方向不太可靠
-            # 化工61%涨 → 高置信度偏涨，除非极端看跌
-            if combined < -2.0 and total_score < 30:
-                direction = '下跌'
-            else:
-                direction = '上涨'
-        elif sector == '有色金属':
-            # 有色: 全板块58%涨, high预测上涨55.6%
-            # v12: 全部偏涨
-            direction = '上涨'
-        elif combined > 0:
-            # 强看涨信号
-            if total_score >= 55 and z_today > 1.5:
-                direction = '下跌'  # 高分+今日大涨→回调
-            else:
-                direction = '上涨'
-        else:
-            # 强看跌信号
-            if total_score > 60 and z_today < -2.0:
-                direction = '上涨'  # 极端超跌反弹
-            else:
-                direction = '下跌'
-
-        # v13: 同行一致性增强（高置信度+同行一致→更确信）
-        if peer_aligned and peer_strong:
-            aligned_rate = _SECTOR_PEER_ALIGNED_RATE.get(sector, 0.55)
-            if aligned_rate > 0.60:
-                # 高一致率板块，同行一致时强化方向
-                if peer_aligned_bullish:
-                    direction = '上涨'
-                elif peer_aligned_bearish:
-                    direction = '下跌'
-
-    # ── 中等置信度：板块特化决策 ──
-    elif confidence == 'medium':
-        if sector == '化工':
-            # 化工medium: 预测下跌15.4%(极差!), 预测上涨好
-            # v12: 全部偏涨
-            direction = '上涨'
-        elif sector == '有色金属':
-            # 有色medium: 预测下跌54.0%(差), 预测上涨好
-            # v12: 全部偏涨
-            direction = '上涨'
-        elif sector == '制造':
-            # 制造medium: 59.6%, 预测下跌65.0%很好, 预测上涨51.5%差
-            # combined<0时actual<=0=64.4% → 更激进偏跌
-            if combined > 0.8:
-                direction = '上涨'
-            elif combined < 0:
-                direction = '下跌'  # 64.4% accuracy
-            elif z_today < -0.5:
-                direction = '上涨'  # 超跌反弹
-            else:
-                direction = '下跌'
-        elif sector == '新能源':
-            # 新能源medium: 60.2%, combined>0时actual>=0=63.5%
-            if combined > 0:
-                direction = '上涨'  # 63.5% accuracy
-            elif combined < -0.5:
-                direction = '下跌'
-            else:
-                direction = '上涨' if up_ratio_10d > 0.5 else '下跌'
-        elif sector == '科技':
-            # 科技medium: 预测下跌58.7%好, 预测上涨46.3%差
-            # v12修正: 科技medium预测上涨准确率极低(46.3%)
-            # combined>0时也应偏下跌，除非combined非常强
-            if combined > 1.2:
-                direction = '上涨'  # 只有非常强的看涨信号才预测上涨
-            else:
-                direction = '下跌'  # 其余全部偏下跌
-        elif sector == '汽车':
-            # 汽车medium: 58.8%, combined<0时actual<=0=65.6%
-            if combined > 0.8:
-                direction = '上涨'
-            elif combined < 0:
-                direction = '下跌'  # 65.6% accuracy
-            else:
-                direction = '下跌'
-        elif sector == '医药':
-            # 医药medium: 预测上涨54.0%, 预测下跌47.4%(极差!)
-            # v12修正: 医药medium预测下跌准确率极低(47.4%)
-            # 全部偏涨
-            direction = '上涨'
-        elif total_score < 45 and combined < -0.5:
-            direction = '下跌'
-        elif total_score < 45 and combined > 0.5:
-            direction = '上涨'
-        elif total_score > 55 and combined > 0.5:
-            direction = '上涨'
-        elif total_score > 55 and combined < -0.5:
-            direction = '下跌'
-        elif combined > 0.5:
-            if z_today > 1.5:
-                direction = '下跌'
-            else:
-                direction = '上涨'
-        elif combined < -0.5:
-            if z_today < -1.5:
-                direction = '上涨'
-            else:
-                direction = '下跌'
-        else:
-            direction = '上涨' if sector_bias_up else '下跌'
-
-        # v13: 同行一致性微调（中等置信度+同行强一致→增强）
-        if peer_aligned and peer_strong:
-            aligned_rate = _SECTOR_PEER_ALIGNED_RATE.get(sector, 0.55)
-            if aligned_rate > 0.60:
-                if peer_aligned_bullish:
-                    direction = '上涨'
-                elif peer_aligned_bearish:
-                    direction = '下跌'
-
-    # ── 低置信度：板块基准率驱动 + 宽松模式偏向 ──
-    else:
-        if total_score < 35:
-            direction = '下跌'
-            confidence = 'medium'
-        elif total_score > 65:
-            direction = '上涨'
-            confidence = 'medium'
-        else:
-            # v11核心改进：低置信度按板块实测数据优化
-            up_base = _SECTOR_UP_BASE_RATE.get(sector, 0.50)
-
-            if sector == '有色金属':
-                # 有色low: 预测下跌50.8%(差), 预测上涨好
-                # v12: 全部偏涨
-                direction = '上涨'
-            elif sector == '制造':
-                # 制造low: 预测上涨51.4%, 预测下跌52.2% — 都不好
-                # v12: combined方向有微弱参考价值
-                if combined > 0.3:
-                    direction = '上涨'
-                elif combined < -0.3:
-                    direction = '下跌'
-                else:
-                    direction = '下跌'  # 默认偏跌
-            elif sector == '汽车':
-                # 汽车low: 58.0%, combined<0时actual<=0=59.5%
-                if combined > 0.3:
-                    direction = '上涨'
-                else:
-                    direction = '下跌'
-            elif sector == '化工':
-                # 化工low: 预测下跌45.5%(差)
-                # v12: 全部偏涨
-                direction = '上涨'
-            elif sector == '新能源':
-                # 新能源low: combined方向有一定参考价值
-                if combined > 0:
-                    direction = '上涨'
-                elif combined < -0.2:
-                    direction = '下跌'
-                else:
-                    direction = '上涨'
-            elif sector == '医药':
-                # 医药low: 预测下跌61.5%好, 预测上涨43.2%(极差!)
-                # v12修正: 医药low预测上涨准确率极低(43.2%)
-                # 全部偏下跌
-                direction = '下跌'
-            elif sector == '科技':
-                # 科技low: 预测上涨41.7%(极差!), 预测下跌48.5%(差)
-                # v12修正: 两个方向都差，但下跌稍好
-                # 全部偏下跌
-                direction = '下跌'
-            else:
-                # 未知板块
-                if up_base > 0.55:
-                    direction = '上涨'
-                elif combined > 0.3:
-                    direction = '上涨'
-                elif combined < -0.3:
-                    direction = '下跌'
-                else:
-                    direction = '上涨' if up_base > 0.50 else '下跌'
-
-            # v13: 同行强一致信号覆盖（低置信度时同行一致更可靠）
-            if peer_aligned and peer_strong:
-                aligned_rate = _SECTOR_PEER_ALIGNED_RATE.get(sector, 0.55)
-                if aligned_rate > 0.60:
-                    if peer_aligned_bullish:
-                        direction = '上涨'
-                    elif peer_aligned_bearish:
-                        direction = '下跌'
-
-    # ═══════════════════════════════════════════════════════
-    # v12 后决策调整层（基于2777样本交叉分析的精确修正）
-    # ═══════════════════════════════════════════════════════
-
-    # 调整1: 星期+板块交叉修正（只修正极端偏差的组合）
-    if score_date:
-        try:
-            wd = datetime.strptime(score_date, '%Y-%m-%d').weekday()
-            # 周三(wd=2): 有色金属45.1% — 极差
-            if wd == 2:
-                if sector == '有色金属' and confidence != 'high' and direction == '上涨':
-                    direction = '下跌'  # 周三有色金属45.1%→翻转
-                # 化工不翻转（化工全涨更好）
-            # 周四(wd=3): 医药48.1% — 差
-            elif wd == 3:
-                if sector == '医药' and confidence == 'low' and direction == '上涨':
-                    direction = '下跌'  # 周四医药low→翻转
-        except ValueError:
-            pass
-
-    # 调整2: 评分区间×板块异常修正（v13新增，基于2777样本交叉分析）
-    if sector == '制造' and 55 <= total_score <= 60:
-        # 制造55-60分: 准确率仅43%(23/54) → 全部翻转为下跌
-        direction = '下跌'
-    elif sector == '医药' and 55 <= total_score <= 60:
-        # 医药55-60分: 准确率仅29%(6/21) → 全部翻转为下跌
-        direction = '下跌'
-    elif sector == '有色金属' and total_score > 60:
-        # 有色金属>60分: 准确率仅40%(10/25) → 翻转为下跌
-        direction = '下跌'
-
-    # 调整3: 前日预测反馈（v13 — 暂时禁用，需要更多数据验证）
-    # 实测: 前日错误→次日准确率60.8%, 前日正确→次日57.3%
-    # if prev_pred_correct is False and confidence == 'low':
-    #     if direction == '上涨' and not sector_bias_up:
-    #         direction = '下跌'
-    #     elif direction == '下跌' and sector_bias_up:
-    #         direction = '上涨'
-
-    return {
-        '方向': direction,
-        '融合信号': round(combined, 3),
-        '技术信号': round(tech_signal, 3),
-        '同行信号': round(peer_signal, 2),
-        'RS信号': round(rs_signal, 2),
-        '趋势自适应': round(trend_adaptive, 2),
-        '近10日涨占比': round(up_ratio_10d, 2),
-        'z_today': round(z_today, 2),
-        '美股隔夜': round(us_signal, 2),
-        '置信度': confidence,
-        '评分': total_score,
-        '波动率状态': round(vol_regime, 2),
-        '同行一致': peer_aligned,
-    }
-
-
-
-# ═══════════════════════════════════════════════════════════
 # 同时调用 _compute_comprehensive_score 获取7维度评分
 # ═══════════════════════════════════════════════════════════
 
@@ -1285,7 +1101,7 @@ def _score_comprehensive(klines_asc: list[dict], end_idx: int,
                          prev_total: int | None,
                          sector: str | None) -> dict | None:
     """复用 technical_backtest 的完整7维度评分。"""
-    from service.backtest.technical_backtest import _score_full_technical
+    from day_week_predicted.backtest.technical_backtest import _score_full_technical
     return _score_full_technical(
         klines_asc, end_idx, fund_flow_for_date,
         prev_sentiment, index_klines, prev_total, sector
@@ -1402,7 +1218,11 @@ async def run_prediction_enhanced_backtest(
         if stock_info:
             stock_name = stock_info.stock_name
             try:
-                fund_flow_all = await get_fund_flow_history(stock_info)
+                fund_flow_all = await asyncio.wait_for(
+                    get_fund_flow_history(stock_info), timeout=10.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning("%s 资金流API超时(10s)，使用DB数据", stock_name)
             except Exception as e:
                 logger.warning("%s 资金流获取失败: %s", stock_name, e)
 
@@ -1661,6 +1481,9 @@ def _build_summary(all_day_results, stock_summaries, sector_stats,
     # 因子有效性分析（按板块）
     factor_analysis = _analyze_factor_effectiveness(all_day_results)
 
+    # 周预测分析
+    weekly_prediction = _compute_weekly_predictions(all_day_results)
+
     # 板块个性化效果对比
     sector_config_summary = {}
     for sec in sector_summary:
@@ -1696,6 +1519,7 @@ def _build_summary(all_day_results, stock_summaries, sector_stats,
             '美股涨跌(%)': (r.get('us_overnight') or {}).get('隔夜涨跌(%)', None),
             '置信度': r['decision'].get('置信度', ''),
             '波动率状态': r['decision'].get('波动率状态', 0),
+            'z_today': r['decision'].get('z_today', 0),
         })
 
     return {
@@ -1715,6 +1539,7 @@ def _build_summary(all_day_results, stock_summaries, sector_stats,
         '板块同行信号分析': peer_analysis,
         '置信度分析': confidence_analysis,
         '因子有效性分析(按板块)': factor_analysis,
+        '周预测分析': weekly_prediction,
         '板块个性化配置': sector_config_summary,
         '各股票汇总': stock_summaries,
         '逐日详情': detail_list,
@@ -1872,6 +1697,284 @@ def _analyze_factor_effectiveness(all_day_results: list[dict]) -> dict:
 # ═══════════════════════════════════════════════════════════
 # CLI 入口
 # ═══════════════════════════════════════════════════════════
+# v19e 周预测模块
+# 策略B: 周一收盘后预测（准确率68-70%）
+# 策略C: 周三收盘后预测（准确率77-81%）
+# ═══════════════════════════════════════════════════════════
+
+def _compute_weekly_predictions(all_day_results: list[dict]) -> dict:
+    """基于日频回测结果计算周预测准确率，含概念板块信号增强。
+
+    策略：
+    - 时点A（周一开盘前）：仅用周一模型信号
+    - 时点B（周一收盘后）：周一实际涨跌 + 板块基准率混合
+    - 时点B+概念（周一收盘后）：B策略 + 概念板块动量/共识度修正
+    - 时点C（周三收盘后）：前3天累计涨跌方向
+    - 时点C+概念（周三收盘后）：C策略 + 概念板块信号修正
+
+    Returns:
+        周预测汇总字典
+    """
+    from collections import defaultdict
+    from service.analysis.concept_weekly_signal import (
+        batch_preload_concept_data,
+        compute_concept_signal_for_date,
+        predict_weekly_B_with_concept,
+        predict_weekly_C_with_concept,
+    )
+
+    # 按(股票代码, ISO周)分组
+    stock_week = defaultdict(list)
+    for d in all_day_results:
+        dt = datetime.strptime(d['score_date'], '%Y-%m-%d')
+        iw = dt.isocalendar()[:2]
+        stock_week[(d['stock_code'], iw)].append(d)
+
+    weekly_records = []
+    for (code, iw), days in stock_week.items():
+        days.sort(key=lambda x: x['score_date'])
+        if len(days) < 2:
+            continue
+
+        # 周累计涨跌
+        cum = 1.0
+        for d in days:
+            cum *= (1 + d['actual_change_pct'] / 100)
+        wchg = (cum - 1) * 100
+        wup = wchg >= 0
+
+        sector = days[0]['sector']
+        d0 = days[0]
+
+        rec = {
+            'code': code, 'sector': sector, 'iw': iw,
+            'n': len(days), 'wchg': wchg, 'wup': wup,
+            'mon_actual': d0['actual_change_pct'],
+            'mon_comb': d0['decision']['融合信号'],
+            'd3_chg': sum(d['actual_change_pct'] for d in days[:min(3, len(days))]),
+            'mon_date': d0['score_date'],
+            'wed_date': days[2]['score_date'] if len(days) >= 3 else d0['score_date'],
+            'days': days,
+        }
+        weekly_records.append(rec)
+
+    if not weekly_records:
+        return {'状态': '无周数据'}
+
+    nw = len(weekly_records)
+
+    # ── 预加载概念板块数据 ──
+    stock_codes = list(set(r['code'] for r in weekly_records))
+    all_dates = sorted(set(d['score_date'] for d in all_day_results))
+    start_date = all_dates[0] if all_dates else '2025-01-01'
+    end_date = all_dates[-1] if all_dates else '2026-12-31'
+
+    concept_data = None
+    try:
+        concept_data = batch_preload_concept_data(stock_codes, start_date, end_date)
+        logger.info("[周预测] 概念板块数据预加载完成")
+    except Exception as e:
+        logger.warning("[周预测] 概念板块数据加载失败(将跳过概念增强): %s", e)
+
+    # 为每条周记录计算概念信号
+    n_with_concept_mon = 0
+    n_with_concept_wed = 0
+    for r in weekly_records:
+        r['concept_mon'] = None
+        r['concept_wed'] = None
+        if concept_data:
+            stock_boards = concept_data['stock_boards'].get(r['code'], [])
+            board_kline_map = concept_data['board_kline_map']
+            if stock_boards:
+                # 周一概念信号（5日lookback）
+                sig_mon = compute_concept_signal_for_date(
+                    r['code'], r['mon_date'], board_kline_map, stock_boards, lookback=5
+                )
+                if sig_mon:
+                    r['concept_mon'] = sig_mon
+                    n_with_concept_mon += 1
+                # 周三概念信号（3日lookback）
+                sig_wed = compute_concept_signal_for_date(
+                    r['code'], r['wed_date'], board_kline_map, stock_boards, lookback=3
+                )
+                if sig_wed:
+                    r['concept_wed'] = sig_wed
+                    n_with_concept_wed += 1
+
+    logger.info("[周预测] 概念信号: 周一 %d/%d, 周三 %d/%d",
+                n_with_concept_mon, nw, n_with_concept_wed, nw)
+
+    # ── 策略A: 周一融合信号 ──
+    a_ok = sum(1 for r in weekly_records
+               if (r['mon_comb'] > 0 and r['wup']) or
+                  (r['mon_comb'] <= 0 and not r['wup']))
+
+    # ── 策略B: 周一混合(0.5) ──
+    sector_up_rate = {}
+    for sec in set(r['sector'] for r in weekly_records):
+        sr = [r for r in weekly_records if r['sector'] == sec]
+        sector_up_rate[sec] = sum(1 for r in sr if r['wup']) / len(sr)
+
+    b_ok = 0
+    for r in weekly_records:
+        if r['mon_actual'] > 0.5:
+            pred_up = True
+        elif r['mon_actual'] < -0.5:
+            pred_up = False
+        else:
+            pred_up = sector_up_rate.get(r['sector'], 0.5) > 0.5
+        if (pred_up and r['wup']) or (not pred_up and not r['wup']):
+            b_ok += 1
+
+    # ── 策略B+概念: 周一混合 + 概念板块信号 ──
+    bc_ok = 0
+    bc_details = {'修正对': 0, '修正错': 0, '概念样本': 0}
+    for r in weekly_records:
+        # 原始B策略预测
+        if r['mon_actual'] > 0.5:
+            b_pred = True
+        elif r['mon_actual'] < -0.5:
+            b_pred = False
+        else:
+            b_pred = sector_up_rate.get(r['sector'], 0.5) > 0.5
+        b_correct = (b_pred and r['wup']) or (not b_pred and not r['wup'])
+
+        # B+概念策略预测
+        bc_pred, bc_reason = predict_weekly_B_with_concept(
+            r['mon_actual'],
+            sector_up_rate.get(r['sector'], 0.5),
+            r['concept_mon'],
+        )
+        r['bc_pred'] = bc_pred
+        r['bc_reason'] = bc_reason
+        bc_correct = (bc_pred and r['wup']) or (not bc_pred and not r['wup'])
+
+        if bc_correct:
+            bc_ok += 1
+        if r['concept_mon']:
+            bc_details['概念样本'] += 1
+            if not b_correct and bc_correct:
+                bc_details['修正对'] += 1
+            elif b_correct and not bc_correct:
+                bc_details['修正错'] += 1
+
+    # ── 策略B2: 周一涨跌>-0.5 ──
+    b2_ok = sum(1 for r in weekly_records
+                if (r['mon_actual'] > -0.5 and r['wup']) or
+                   (r['mon_actual'] <= -0.5 and not r['wup']))
+
+    # ── 策略C: 前3天涨跌>0 ──
+    c_ok = sum(1 for r in weekly_records
+               if (r['d3_chg'] > 0 and r['wup']) or
+                  (r['d3_chg'] <= 0 and not r['wup']))
+
+    # ── 策略C+概念: 前3天方向 + 概念板块信号 ──
+    cc_ok = 0
+    cc_details = {'修正对': 0, '修正错': 0, '概念样本': 0}
+    for r in weekly_records:
+        # 原始C策略预测
+        c_pred = r['d3_chg'] > 0
+        c_correct = (c_pred and r['wup']) or (not c_pred and not r['wup'])
+
+        # C+概念策略预测
+        cc_pred, cc_reason = predict_weekly_C_with_concept(
+            r['d3_chg'], r['concept_wed'],
+        )
+        r['cc_pred'] = cc_pred
+        r['cc_reason'] = cc_reason
+        cc_correct = (cc_pred and r['wup']) or (not cc_pred and not r['wup'])
+
+        if cc_correct:
+            cc_ok += 1
+        if r['concept_wed']:
+            cc_details['概念样本'] += 1
+            if not c_correct and cc_correct:
+                cc_details['修正对'] += 1
+            elif c_correct and not cc_correct:
+                cc_details['修正错'] += 1
+
+    # ── 策略C2: 前3天涨跌>0.5 ──
+    c2_ok = sum(1 for r in weekly_records
+                if (r['d3_chg'] > 0.5 and r['wup']) or
+                   (r['d3_chg'] <= 0.5 and not r['wup']))
+
+    def _rate(ok, n):
+        return f'{ok}/{n} ({round(ok / n * 100, 1)}%)' if n > 0 else '无数据'
+
+    # ── 按板块统计（含概念增强） ──
+    sector_weekly = {}
+    for sec in sorted(set(r['sector'] for r in weekly_records)):
+        sr = [r for r in weekly_records if r['sector'] == sec]
+        sn = len(sr)
+        s_b = sum(1 for r in sr
+                  if (r['mon_actual'] > 0.5 and r['wup']) or
+                     (r['mon_actual'] < -0.5 and not r['wup']) or
+                     (abs(r['mon_actual']) <= 0.5 and
+                      ((sector_up_rate.get(sec, 0.5) > 0.5 and r['wup']) or
+                       (sector_up_rate.get(sec, 0.5) <= 0.5 and not r['wup']))))
+        s_bc = sum(1 for r in sr
+                   if (r.get('bc_pred') and r['wup']) or
+                      (not r.get('bc_pred') and not r['wup']))
+        s_c = sum(1 for r in sr
+                  if (r['d3_chg'] > 0 and r['wup']) or
+                     (r['d3_chg'] <= 0 and not r['wup']))
+        s_cc = sum(1 for r in sr
+                   if (r.get('cc_pred') and r['wup']) or
+                      (not r.get('cc_pred') and not r['wup']))
+        sector_weekly[sec] = {
+            '周样本数': sn,
+            'B:周一混合': _rate(s_b, sn),
+            'B+概念': _rate(s_bc, sn),
+            'C:前3天方向': _rate(s_c, sn),
+            'C+概念': _rate(s_cc, sn),
+        }
+
+    # ── 概念信号有效性分析 ──
+    concept_analysis = {
+        '概念数据覆盖': {
+            '周一信号': f'{n_with_concept_mon}/{nw} ({round(n_with_concept_mon/nw*100,1) if nw else 0}%)',
+            '周三信号': f'{n_with_concept_wed}/{nw} ({round(n_with_concept_wed/nw*100,1) if nw else 0}%)',
+        },
+        'B策略概念修正': {
+            '概念样本数': bc_details['概念样本'],
+            '原始错→概念修正对': bc_details['修正对'],
+            '原始对→概念修正错': bc_details['修正错'],
+            '净改善': bc_details['修正对'] - bc_details['修正错'],
+        },
+        'C策略概念修正': {
+            '概念样本数': cc_details['概念样本'],
+            '原始错→概念修正对': cc_details['修正对'],
+            '原始对→概念修正错': cc_details['修正错'],
+            '净改善': cc_details['修正对'] - cc_details['修正错'],
+        },
+    }
+
+    return {
+        '周样本数': nw,
+        '周数': len(set(r['iw'] for r in weekly_records)),
+        '策略汇总': {
+            'A:周一融合信号': _rate(a_ok, nw),
+            'B:周一混合(0.5)': _rate(b_ok, nw),
+            'B+概念:周一混合+概念信号': _rate(bc_ok, nw),
+            'B2:周一涨跌>-0.5': _rate(b2_ok, nw),
+            'C:前3天涨跌>0': _rate(c_ok, nw),
+            'C+概念:前3天+概念信号': _rate(cc_ok, nw),
+            'C2:前3天涨跌>0.5': _rate(c2_ok, nw),
+        },
+        '推荐策略': {
+            '周一收盘可用': 'B+概念 — 周一涨跌+概念板块动量/共识度综合判断',
+            '周三收盘可用': 'C+概念 — 前3天涨跌+概念板块信号修正边界区',
+        },
+        '按板块': sector_weekly,
+        '概念信号分析': concept_analysis,
+        '说明': (
+            '周预测v20: 在v19e基础上集成概念板块信号。'
+            '概念信号来源: DB中概念板块K线数据(concept_board_kline)。'
+            '概念维度: 动量(近N日均涨跌), 共识度(看涨板块占比), 强度(累计超额)。'
+            '概念信号主要在模糊区(B:±0.5%, C:±1.5%)发挥修正作用。'
+        ),
+    }
+
 
 if __name__ == '__main__':
     import json

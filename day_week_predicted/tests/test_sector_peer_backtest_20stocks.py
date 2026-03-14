@@ -14,7 +14,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from service.backtest.sector_peer_backtest import run_sector_peer_backtest
+from day_week_predicted.backtest.sector_peer_backtest import run_sector_peer_backtest
 
 
 # 20只股票，覆盖7个板块，从 stock_score_list.md 中按评分优先选取

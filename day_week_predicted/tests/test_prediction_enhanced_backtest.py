@@ -13,7 +13,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from service.backtest.prediction_enhanced_backtest import run_prediction_enhanced_backtest
+from day_week_predicted.backtest.prediction_enhanced_backtest import run_prediction_enhanced_backtest
 
 
 # 20只股票，覆盖7个板块（与 test_sector_peer_backtest_20stocks 一致，便于对比）

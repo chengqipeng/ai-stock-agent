@@ -13,7 +13,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from service.backtest.prediction_enhanced_backtest import run_prediction_enhanced_backtest
+from day_week_predicted.backtest.prediction_enhanced_backtest import run_prediction_enhanced_backtest
 
 # 原始50只股票（用于确认无重叠）
 ORIGINAL_50 = {

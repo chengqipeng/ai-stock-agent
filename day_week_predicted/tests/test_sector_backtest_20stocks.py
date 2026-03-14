@@ -12,7 +12,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from service.backtest.technical_backtest import run_technical_backtest
+from day_week_predicted.backtest.technical_backtest import run_technical_backtest
 
 
 # 20只股票，覆盖7个板块分组

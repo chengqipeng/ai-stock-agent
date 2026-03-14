@@ -17,7 +17,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from service.backtest.prediction_enhanced_backtest import run_prediction_enhanced_backtest
+from day_week_predicted.backtest.prediction_enhanced_backtest import run_prediction_enhanced_backtest
 
 
 # 50只股票，覆盖7个板块（每板块6-8只，确保板块多样性和代表性）

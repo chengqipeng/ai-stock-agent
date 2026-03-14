@@ -486,7 +486,7 @@ async def add_stocks_to_batch(batch_id: int, request: BatchRequest):
 async def backtest_predictions(batch_id: int = Query(None), limit: int = Query(200)):
     """预测回测：对比历史预测与实际涨跌，计算准确率"""
     try:
-        from service.backtest.prediction_backtest import run_backtest
+        from day_week_predicted.backtest.prediction_backtest import run_backtest
         result = run_backtest(batch_id=batch_id, limit=limit)
         return SafeJSONResponse(content={"success": True, "data": result})
     except Exception as e:
@@ -498,7 +498,7 @@ async def backtest_predictions(batch_id: int = Query(None), limit: int = Query(2
 async def backtest_stock_predictions(stock_code: str, batch_id: int = Query(None), limit: int = Query(50)):
     """单只股票预测回测"""
     try:
-        from service.backtest.prediction_backtest import run_stock_backtest
+        from day_week_predicted.backtest.prediction_backtest import run_stock_backtest
         result = run_stock_backtest(stock_code=stock_code, batch_id=batch_id, limit=limit)
         return SafeJSONResponse(content={"success": True, "data": result})
     except Exception as e:
@@ -510,7 +510,7 @@ async def backtest_stock_predictions(stock_code: str, batch_id: int = Query(None
 async def get_probability_calibration(batch_id: int = Query(None)):
     """获取概率校准数据：基于回测结果校准预测概率模型"""
     try:
-        from service.backtest.prediction_backtest import get_calibrated_probability_params, run_backtest
+        from day_week_predicted.backtest.prediction_backtest import get_calibrated_probability_params, run_backtest
         calibrated = get_calibrated_probability_params(batch_id=batch_id)
         backtest = run_backtest(batch_id=batch_id, limit=300)
         return SafeJSONResponse(content={
@@ -541,7 +541,7 @@ async def historical_backtest(
 ):
     """基于历史K线数据的自动回测（不依赖LLM预测记录）"""
     try:
-        from service.backtest.historical_backtest import run_historical_backtest
+        from day_week_predicted.backtest.historical_backtest import run_historical_backtest
         result = run_historical_backtest(
             start_date=start_date,
             end_date=end_date,
@@ -563,7 +563,7 @@ async def historical_backtest_with_fund_flow(
 ):
     """基于历史K线 + 同花顺真实资金流数据的增强回测"""
     try:
-        from service.backtest.historical_backtest import run_historical_backtest_with_fund_flow
+        from day_week_predicted.backtest.historical_backtest import run_historical_backtest_with_fund_flow
         result = await run_historical_backtest_with_fund_flow(
             max_stocks=max_stocks,
             sample_interval=interval,
@@ -582,7 +582,7 @@ async def full_model_backtest(
 ):
     """完整7维度评分模型回测（实时API数据，验证线上评分逻辑准确性）"""
     try:
-        from service.backtest.full_model_backtest import run_full_model_backtest
+        from day_week_predicted.backtest.full_model_backtest import run_full_model_backtest
         result = await run_full_model_backtest(
             max_stocks=max_stocks,
             concurrency=concurrency,
@@ -600,7 +600,7 @@ async def technical_backtest(
 ):
     """技术+资金流+盘口维度逐日回测（K线+同花顺历史资金流+K线模拟盘口）"""
     try:
-        from service.backtest.technical_backtest import run_technical_backtest
+        from day_week_predicted.backtest.technical_backtest import run_technical_backtest
         codes = [c.strip() for c in stock_codes.split(',') if c.strip()]
         result = await run_technical_backtest(
             stock_codes=codes,
