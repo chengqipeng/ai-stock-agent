@@ -1,0 +1,21 @@
+from dao import get_connection
+conn = get_connection()
+cur = conn.cursor()
+cur.execute('SHOW COLUMNS FROM concept_board_kline')
+for c in cur.fetchall():
+    print(c)
+print()
+cur.execute('SELECT COUNT(*) FROM concept_board_kline')
+print('Total:', cur.fetchone()[0])
+cur.execute('SELECT COUNT(DISTINCT board_code) FROM concept_board_kline')
+print('Boards:', cur.fetchone()[0])
+print()
+conn2 = get_connection(use_dict_cursor=True)
+cur2 = conn2.cursor()
+cur2.execute('SELECT * FROM concept_board_kline ORDER BY id DESC LIMIT 3')
+for r in cur2.fetchall():
+    print(r)
+cur.close()
+conn.close()
+cur2.close()
+conn2.close()
