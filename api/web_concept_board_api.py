@@ -39,7 +39,10 @@ async def concept_board_list(keyword: str = Query("", description="搜索关键�
             sql = """
                 SELECT b.board_code, b.board_name, b.board_url,
                        IFNULL(s.stock_count, 0) AS stock_count,
-                       b.market_strength_score
+                       b.market_strength_score,
+                       b.market_excess_return,
+                       b.market_board_return,
+                       b.market_strength_detail
                 FROM stock_concept_board b
                 LEFT JOIN (
                     SELECT board_code, COUNT(*) AS stock_count
@@ -51,7 +54,10 @@ async def concept_board_list(keyword: str = Query("", description="搜索关键�
             sql = """
                 SELECT b.board_code, b.board_name, b.board_url,
                        IFNULL(s.stock_count, 0) AS stock_count,
-                       NULL AS market_strength_score
+                       NULL AS market_strength_score,
+                       NULL AS market_excess_return,
+                       NULL AS market_board_return,
+                       NULL AS market_strength_detail
                 FROM stock_concept_board b
                 LEFT JOIN (
                     SELECT board_code, COUNT(*) AS stock_count

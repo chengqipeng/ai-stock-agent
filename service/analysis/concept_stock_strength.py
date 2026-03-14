@@ -24,6 +24,19 @@ def _to_float(v) -> float | None:
     return float(v)
 
 
+def _normalize_stock_code(code: str) -> str:
+    """将6位纯数字股票代码转换为带市场后缀的格式（如 000001 -> 000001.SZ）"""
+    if "." in code:
+        return code
+    if code.startswith("6"):
+        return f"{code}.SH"
+    elif code.startswith("0") or code.startswith("3"):
+        return f"{code}.SZ"
+    elif code.startswith("4") or code.startswith("8"):
+        return f"{code}.BJ"
+    return f"{code}.SZ"
+
+
 def analyze_board_stock_strength(
     board_code: str,
     days: int = 60,
@@ -101,11 +114,16 @@ def analyze_board_stock_strength(
         codes = [m["stock_code"] for m in members]
         name_map = {m["stock_code"]: m["stock_name"] for m in members}
 
+        # stock_concept_board_stock 中的 stock_code 是6位纯数字，
+        # 而 stock_kline 中的 stock_code 带市场后缀（如 000001.SZ），需要转换
+        normalized_codes = [_normalize_stock_code(c) for c in codes]
+        norm_to_raw = {_normalize_stock_code(c): c for c in codes}
+
         # 分批查询（避免 IN 子句过长）
-        stock_klines = {}  # code -> {date: change_percent}
+        stock_klines = {}  # raw_code -> {date: change_percent}
         batch_size = 50
-        for i in range(0, len(codes), batch_size):
-            batch = codes[i:i + batch_size]
+        for i in range(0, len(normalized_codes), batch_size):
+            batch = normalized_codes[i:i + batch_size]
             placeholders = ",".join(["%s"] * len(batch))
             cur.execute(
                 f"SELECT stock_code, `date`, change_percent FROM stock_kline "
@@ -114,12 +132,13 @@ def analyze_board_stock_strength(
                 batch + [start_date, end_date],
             )
             for r in cur.fetchall():
-                code = r["stock_code"]
-                if code not in stock_klines:
-                    stock_klines[code] = {}
+                norm_code = r["stock_code"]
+                raw_code = norm_to_raw.get(norm_code, norm_code)
+                if raw_code not in stock_klines:
+                    stock_klines[raw_code] = {}
                 cp = _to_float(r["change_percent"])
                 if cp is not None:
-                    stock_klines[code][r["date"]] = cp
+                    stock_klines[raw_code][r["date"]] = cp
 
         # 5. 计算每只股票的强弱指标
         board_total_return = _compound_return(
@@ -130,10 +149,13 @@ def analyze_board_stock_strength(
             if trade_dates else 0
         )
 
+        no_kline_count = 0
+        too_few_days_count = 0
         results = []
         for code in codes:
             sk = stock_klines.get(code, {})
             if not sk:
+                no_kline_count += 1
                 continue
 
             # 对齐日期的每日超额收益
@@ -150,6 +172,7 @@ def analyze_board_stock_strength(
                     stock_returns.append(s_ret)
 
             if len(daily_excess) < 3:
+                too_few_days_count += 1
                 continue
 
             # 累计超额收益（不同周期）
@@ -188,6 +211,16 @@ def analyze_board_stock_strength(
 
         # 6. 排序 & 分级
         results.sort(key=lambda x: x["strength_score"], reverse=True)
+        # 6. 排序 & 分级
+        if not results:
+            logger.warning(
+                "[概念强弱] board=%s 成分股%d, 有K线%d, 无K线%d, 日期不足%d, "
+                "板块日期范围=%s~%s, stock_klines样本日期=%s",
+                board_code, len(codes), len(stock_klines), no_kline_count,
+                too_few_days_count, start_date, end_date,
+                list(list(stock_klines.values())[0].keys())[:3] if stock_klines else "N/A",
+            )
+
         total = len(results)
         for i, r in enumerate(results):
             rank_pct = i / total if total > 0 else 0
@@ -279,6 +312,12 @@ def compute_and_save_all_boards(days: int = 60) -> dict:
         result = analyze_board_stock_strength(board_code, days=days)
         if not result.get("success") or not result.get("stocks"):
             failed_boards += 1
+            if not result.get("success"):
+                logger.warning("[概念强弱] 板块 %s(%s) 失败: %s",
+                               board_code, board_name, result.get("error", "unknown"))
+            else:
+                logger.warning("[概念强弱] 板块 %s(%s) success但stocks为空 (total=%s)",
+                               board_code, board_name, result.get("total", "N/A"))
             continue
 
         stocks = result["stocks"]
