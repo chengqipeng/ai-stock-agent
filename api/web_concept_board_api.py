@@ -195,6 +195,52 @@ async def concept_board_strength(
     return result
 
 
+@router.get("/api/concept_board/strength/compute")
+async def concept_board_strength_compute(
+    board_code: str = Query(None, description="板块代码（空则计算全部）"),
+    days: int = Query(60, ge=5, le=250, description="分析天数"),
+):
+    """计算个股概念板块强弱势评分并保存到数据库"""
+    if board_code:
+        from service.analysis.concept_stock_strength import compute_single_board_and_save
+        result = compute_single_board_and_save(board_code, days=days)
+        return result
+    else:
+        from service.analysis.concept_stock_strength import compute_and_save_all_boards
+        summary = compute_and_save_all_boards(days=days)
+        return {"success": True, "summary": summary}
+
+
+@router.get("/api/concept_board/strength/stock_summary")
+async def concept_board_stock_strength_summary(
+    stock_code: str = Query(..., description="股票代码"),
+):
+    """获取某只股票在所有概念板块中的强弱势汇总"""
+    from service.analysis.concept_stock_strength import get_stock_concept_strength_summary
+    return get_stock_concept_strength_summary(stock_code)
+
+
+@router.get("/api/concept_board/strength/ranking")
+async def concept_board_strength_ranking(
+    limit: int = Query(50, ge=1, le=500, description="返回数量"),
+):
+    """获取全市场概念板块强势股排名"""
+    from dao.stock_concept_strength_dao import get_strongest_stocks, get_score_stats
+    stocks = get_strongest_stocks(limit=limit)
+    stats = get_score_stats()
+    return {"success": True, "data": stocks, "stats": stats, "total": len(stocks)}
+
+
+@router.get("/api/concept_board/strength/board_ranking")
+async def concept_board_strength_board_ranking(
+    board_code: str = Query(..., description="板块代码"),
+):
+    """获取某个板块内个股强弱势排名（从数据库读取已计算的结果）"""
+    from dao.stock_concept_strength_dao import get_board_strength_ranking
+    stocks = get_board_strength_ranking(board_code)
+    return {"success": True, "data": stocks, "total": len(stocks)}
+
+
 @router.get("/api/concept_board/strength/detail")
 async def concept_board_strength_detail(
     board_code: str = Query(..., description="板块代码"),
@@ -217,4 +263,59 @@ async def concept_board_strength_detail(
     return {"success": False, "error": "该股票不在板块成分股中"}
 
 
+# ═══════════════════════════════════════════════════════════
+# 概念板块 vs 大盘 强弱势分析
+# ═══════════════════════════════════════════════════════════
 
+@router.get("/concept_board/market_strength", response_class=HTMLResponse)
+async def concept_board_market_strength_page():
+    """概念板块大盘强弱势分析页面"""
+    with open("static/concept_board_market_strength.html", "r", encoding="utf-8") as f:
+        content = f.read()
+    return HTMLResponse(content=content, headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache", "Expires": "0",
+    })
+
+
+@router.get("/api/concept_board/market_strength/ranking")
+async def concept_board_market_strength_ranking(
+    limit: int = Query(200, ge=1, le=500, description="返回数量"),
+):
+    """获取所有板块的大盘强弱势排名"""
+    from service.analysis.concept_board_market_strength import get_all_board_strength_ranking
+    results = get_all_board_strength_ranking(limit=limit)
+    return {"success": True, "data": results, "total": len(results)}
+
+
+@router.get("/api/concept_board/market_strength/compute")
+async def concept_board_market_strength_compute(
+    board_code: str = Query(None, description="板块代码（空则计算全部）"),
+    days: int = Query(60, ge=5, le=250, description="分析天数"),
+):
+    """计算板块大盘强弱势评分（触发计算并保存）"""
+    from service.analysis.concept_board_market_strength import (
+        compute_board_market_strength, compute_and_save_all_boards, _update_board_score
+    )
+    if board_code:
+        result = compute_board_market_strength(board_code, days=days)
+        if not result:
+            return {"success": False, "error": "计算失败，可能板块无K线数据或大盘数据不足"}
+        _update_board_score(board_code, result)
+        return {"success": True, "data": result}
+    else:
+        summary = compute_and_save_all_boards(days=days)
+        return {"success": True, "summary": summary}
+
+
+@router.get("/api/concept_board/market_strength/detail")
+async def concept_board_market_strength_detail(
+    board_code: str = Query(..., description="板块代码"),
+    days: int = Query(60, ge=5, le=250, description="分析天数"),
+):
+    """获取单个板块的大盘强弱势评分详情"""
+    from service.analysis.concept_board_market_strength import compute_board_market_strength
+    result = compute_board_market_strength(board_code, days=days)
+    if not result:
+        return {"success": False, "error": "计算失败"}
+    return {"success": True, "data": result}
