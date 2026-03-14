@@ -129,8 +129,14 @@ async def _execute_job():
         logger.info("[概念强弱势调度] 阶段1: 计算概念板块 vs 大盘强弱势")
         try:
             from service.analysis.concept_board_market_strength import compute_and_save_all_boards as compute_board_market
+
+            def _board_market_progress(total, success, failed):
+                _job_status["board_market_total"] = total
+                _job_status["board_market_success"] = success
+                _job_status["board_market_failed"] = failed
+
             summary = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: compute_board_market(days=60)
+                None, lambda: compute_board_market(days=60, progress_callback=_board_market_progress)
             )
             _job_status["board_market_total"] = summary.get("total", 0)
             _job_status["board_market_success"] = summary.get("success", 0)
@@ -154,8 +160,14 @@ async def _execute_job():
         logger.info("[概念强弱势调度] 阶段2: 计算个股 vs 概念板块强弱势")
         try:
             from service.analysis.concept_stock_strength import compute_and_save_all_boards as compute_stock_board
+
+            def _stock_board_progress(total, success, failed):
+                _job_status["stock_board_total"] = total
+                _job_status["stock_board_success"] = success
+                _job_status["stock_board_failed"] = failed
+
             summary = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: compute_stock_board(days=60)
+                None, lambda: compute_stock_board(days=60, progress_callback=_stock_board_progress)
             )
             _job_status["stock_board_total"] = summary.get("total_boards", summary.get("total", 0))
             _job_status["stock_board_success"] = summary.get("success_boards", summary.get("success", 0))

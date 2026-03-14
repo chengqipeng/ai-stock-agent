@@ -274,14 +274,14 @@ def _normalize_excess(excess: float, days: int) -> float:
     return 50 + daily_avg * 50
 
 
-def compute_and_save_all_boards(days: int = 60) -> dict:
+def compute_and_save_all_boards(days: int = 60, progress_callback=None) -> dict:
     """
     批量计算所有概念板块内个股的强弱势评分，并写入数据库。
 
-    流程：
-    1. 获取所有概念板块
-    2. 逐个板块调用 analyze_board_stock_strength
-    3. 将评分结果批量写入 stock_concept_strength 表
+    Args:
+        days: 分析天数
+        progress_callback: 可选回调函数，签名 (total, success, failed) -> None，
+                           每处理完一个板块调用一次，用于实时更新进度。
 
     Returns:
         {"total_boards": N, "success_boards": N, "failed_boards": N,
@@ -305,6 +305,9 @@ def compute_and_save_all_boards(days: int = 60) -> dict:
     total_scored = 0
     score_date = date.today().isoformat()
 
+    if progress_callback:
+        progress_callback(total_boards, 0, 0)
+
     for i, board in enumerate(boards):
         board_code = board["board_code"]
         board_name = board["board_name"]
@@ -318,40 +321,42 @@ def compute_and_save_all_boards(days: int = 60) -> dict:
             else:
                 logger.warning("[概念强弱] 板块 %s(%s) success但stocks为空 (total=%s)",
                                board_code, board_name, result.get("total", "N/A"))
-            continue
+        else:
+            stocks = result["stocks"]
+            board_total = result["total"]
 
-        stocks = result["stocks"]
-        board_total = result["total"]
+            rows = []
+            for s in stocks:
+                rows.append({
+                    "stock_code": s["stock_code"],
+                    "stock_name": s["stock_name"],
+                    "board_code": board_code,
+                    "board_name": board_name,
+                    "strength_score": s["strength_score"],
+                    "strength_level": s.get("strength_level", "中性"),
+                    "total_return": s.get("total_return"),
+                    "excess_5d": s.get("excess_5d"),
+                    "excess_20d": s.get("excess_20d"),
+                    "excess_total": s.get("excess_total"),
+                    "win_rate": s.get("win_rate"),
+                    "rank_in_board": s.get("rank"),
+                    "board_total_stocks": board_total,
+                    "trade_days": s.get("trade_days"),
+                    "analysis_days": days,
+                    "score_date": score_date,
+                })
 
-        rows = []
-        for s in stocks:
-            rows.append({
-                "stock_code": s["stock_code"],
-                "stock_name": s["stock_name"],
-                "board_code": board_code,
-                "board_name": board_name,
-                "strength_score": s["strength_score"],
-                "strength_level": s.get("strength_level", "中性"),
-                "total_return": s.get("total_return"),
-                "excess_5d": s.get("excess_5d"),
-                "excess_20d": s.get("excess_20d"),
-                "excess_total": s.get("excess_total"),
-                "win_rate": s.get("win_rate"),
-                "rank_in_board": s.get("rank"),
-                "board_total_stocks": board_total,
-                "trade_days": s.get("trade_days"),
-                "analysis_days": days,
-                "score_date": score_date,
-            })
+            if rows:
+                batch_upsert_strength(rows)
+                total_scored += len(rows)
+                success_boards += 1
 
-        if rows:
-            batch_upsert_strength(rows)
-            total_scored += len(rows)
-            success_boards += 1
+        if progress_callback:
+            progress_callback(total_boards, success_boards, failed_boards)
 
         if (i + 1) % 20 == 0 or i == total_boards - 1:
-            logger.info("[概念强弱] 进度 %d/%d, 成功板块=%d, 已评分个股=%d",
-                        i + 1, total_boards, success_boards, total_scored)
+            logger.info("[概念强弱] 进度 %d/%d, 成功板块=%d, 失败=%d, 已评分个股=%d",
+                        i + 1, total_boards, success_boards, failed_boards, total_scored)
 
     logger.info("[概念强弱] 完成: 共%d板块, 成功=%d, 失败=%d, 评分个股=%d",
                 total_boards, success_boards, failed_boards, total_scored)

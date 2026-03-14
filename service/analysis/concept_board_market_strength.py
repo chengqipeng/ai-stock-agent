@@ -230,15 +230,14 @@ def compute_board_market_strength(board_code: str, days: int = 60) -> dict | Non
         conn.close()
 
 
-def compute_and_save_all_boards(days: int = 60) -> dict:
+def compute_and_save_all_boards(days: int = 60, progress_callback=None) -> dict:
     """
     批量计算所有概念板块的大盘强弱势评分，并写入数据库。
 
-    流程：
-    1. 确保 stock_concept_board 表有 market_strength_score 等列
-    2. 获取所有板块列表
-    3. 逐个计算评分
-    4. 批量更新到数据库
+    Args:
+        days: 分析天数
+        progress_callback: 可选回调函数，签名 (total, success, failed) -> None，
+                           每处理完一个板块调用一次，用于实时更新进度。
 
     Returns:
         {"total": N, "success": N, "failed": N, "results": [...]}
@@ -262,6 +261,9 @@ def compute_and_save_all_boards(days: int = 60) -> dict:
     failed = 0
     results = []
 
+    if progress_callback:
+        progress_callback(total, 0, 0)
+
     for i, board in enumerate(boards):
         board_code = board["board_code"]
         board_name = board["board_name"]
@@ -271,10 +273,15 @@ def compute_and_save_all_boards(days: int = 60) -> dict:
             _update_board_score(board_code, result)
             success += 1
             results.append(result)
-            if (i + 1) % 50 == 0 or i == total - 1:
-                logger.info("[板块强弱] 进度 %d/%d, 成功=%d", i + 1, total, success)
         else:
             failed += 1
+
+        if progress_callback:
+            progress_callback(total, success, failed)
+
+        if (i + 1) % 50 == 0 or i == total - 1:
+            logger.info("[板块强弱] 进度 %d/%d, 成功=%d, 失败=%d",
+                        i + 1, total, success, failed)
 
     logger.info("[板块强弱] 完成: 共%d个板块, 成功=%d, 失败=%d", total, success, failed)
     return {"total": total, "success": success, "failed": failed, "results": results}

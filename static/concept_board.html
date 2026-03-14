@@ -151,8 +151,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
         <!-- 标签页 -->
         <div class="tab-bar" id="tabBar" style="display:none">
             <button class="tab-btn active" data-tab="kline" onclick="switchTab('kline')">📈 K线走势</button>
-            <button class="tab-btn" data-tab="stocks" onclick="switchTab('stocks')">📋 成分股</button>
-            <button class="tab-btn" data-tab="strength" onclick="switchTab('strength')">💪 强弱势</button>
+            <button class="tab-btn" data-tab="stocks" onclick="switchTab('stocks')">📋 成分股强弱势</button>
         </div>
         <!-- K线走势 tab -->
         <div class="tab-content visible" id="tabKline">
@@ -169,14 +168,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
             <div class="kline-table-wrap" id="klineTableWrap" style="display:none"></div>
             <div class="empty-state" id="klineEmpty"><div class="icon">📈</div><div>请从左侧选择一个概念板块查看K线</div></div>
         </div>
-        <!-- 成分股 tab -->
+        <!-- 成分股强弱势 merged tab -->
         <div class="tab-content" id="tabStocks">
-            <div class="stock-grid" id="stockGrid">
-                <div class="empty-state"><div class="icon">🧩</div><div>请从左侧选择一个概念板块</div></div>
-            </div>
-        </div>
-        <!-- 强弱势分析 tab -->
-        <div class="tab-content" id="tabStrength">
             <div class="strength-toolbar" id="strengthToolbar" style="display:none">
                 <div class="filter-group"><label>周期</label>
                     <select id="strengthDays" onchange="loadStrength()">
@@ -185,7 +178,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
                     </select>
                 </div>
                 <div class="filter-group"><label>筛选</label>
-                    <select id="strengthLevel" onchange="renderStrengthTable()">
+                    <select id="strengthLevel" onchange="filterStockList()">
                         <option value="">全部</option><option value="强势">强势</option>
                         <option value="中性">中性</option><option value="弱势">弱势</option>
                     </select>
@@ -197,8 +190,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
                 <span class="str-status" id="strStatus"></span>
             </div>
             <div class="strength-summary" id="strengthSummary" style="display:none"></div>
-            <div class="strength-table-wrap" id="strengthTableWrap">
-                <div class="empty-state"><div class="icon">💪</div><div>请从左侧选择一个概念板块分析强弱势</div></div>
+            <div class="stock-grid" id="stockGrid">
+                <div class="empty-state"><div class="icon">🧩</div><div>请从左侧选择一个概念板块</div></div>
             </div>
         </div>
     </div>
@@ -279,8 +272,6 @@ function switchTab(tab) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     document.getElementById('tabKline').classList.toggle('visible', tab === 'kline');
     document.getElementById('tabStocks').classList.toggle('visible', tab === 'stocks');
-    document.getElementById('tabStrength').classList.toggle('visible', tab === 'strength');
-    if (tab === 'strength' && currentBoard && !strengthData) loadStrength();
 }
 
 async function selectBoard(board) {
@@ -292,12 +283,14 @@ async function selectBoard(board) {
     document.getElementById('boardTitle').textContent = board.board_name;
     document.getElementById('boardBadge').textContent = board.board_code;
     document.getElementById('stockSearch').value = '';
+    document.getElementById('strengthToolbar').style.display = 'flex';
+    document.getElementById('strengthLevel').value = '';
+    document.getElementById('strengthSearch').value = '';
+    document.getElementById('strengthSummary').style.display = 'none';
+    document.getElementById('strStatus').textContent = '';
     // 同时加载K线和成分股
     loadKline(klineLimit);
     loadStocks(board.board_code);
-    // 如果当前在强弱势tab，自动加载
-    const activeTab = document.querySelector('.tab-btn.active');
-    if (activeTab && activeTab.dataset.tab === 'strength') loadStrength();
 }
 
 async function loadStocks(boardCode) {
@@ -315,37 +308,98 @@ async function loadStocks(boardCode) {
 function renderStocks(stocks) {
     const wrap = document.getElementById('stockGrid');
     if (!stocks.length) { wrap.innerHTML = '<div class="empty-state">暂无成分股数据</div>'; return; }
+
+    // If real-time strength data is loaded, merge it into the stock list
+    const strMap = {};
+    if (strengthData && strengthData.stocks) {
+        strengthData.stocks.forEach(s => { strMap[s.stock_code] = s; });
+    }
+
     let html = '<table class="str-table" style="margin-top:0"><thead><tr>' +
-        '<th style="width:40px">#</th>' +
-        '<th>代码</th><th>名称</th>' +
-        '<th>强弱势</th><th>评分</th>' +
-        '<th>区间涨幅</th><th>总超额</th><th>胜率</th>' +
+        '<th style="width:40px" onclick="strSort(\'rank\')">#</th>' +
+        '<th onclick="strSort(\'stock_code\')">代码</th><th onclick="strSort(\'stock_name\')">名称</th>' +
+        '<th onclick="strSort(\'strength_level\')">强弱势</th><th class="' + (strSortCol === 'strength_score' ? (strSortDir === 'asc' ? 'sa' : 'sd') : '') + '" onclick="strSort(\'strength_score\')">评分</th>' +
+        '<th onclick="strSort(\'total_return\')">区间涨幅</th>' +
+        (strengthData ? '<th onclick="strSort(\'excess_5d\')">5日超额%</th><th onclick="strSort(\'excess_20d\')">20日超额%</th>' : '') +
+        '<th onclick="strSort(\'excess_total\')">总超额</th><th onclick="strSort(\'win_rate\')">胜率</th>' +
         '<th style="font-size:11px;color:rgba(255,255,255,0.35)">评分日期</th>' +
         '</tr></thead><tbody>';
     stocks.forEach((s, i) => {
-        const score = s.strength_score;
+        // Merge real-time strength data if available
+        const rt = strMap[s.stock_code];
+        const score = rt ? rt.strength_score : s.strength_score;
+        const level = rt ? rt.strength_level : s.strength_level;
+        const totalReturn = rt ? rt.total_return : s.total_return;
+        const excessTotal = rt ? rt.excess_total : s.excess_total;
+        const winRate = rt ? rt.win_rate : s.win_rate;
+        const scoreDate = rt ? (strengthData.period ? strengthData.period.end_date : '') : s.score_date;
+
         const hasScore = score != null;
         const sc = hasScore ? parseFloat(score) : null;
-        const levelCls = s.strength_level === '强势' ? 'strong' : s.strength_level === '弱势' ? 'weak' : 'neutral';
-        const retCls = s.total_return >= 0 ? 'up' : 'down';
-        const exCls = s.excess_total >= 0 ? 'up' : 'down';
+        const levelCls = level === '强势' ? 'strong' : level === '弱势' ? 'weak' : 'neutral';
+        const retCls = totalReturn >= 0 ? 'up' : 'down';
+        const exCls = excessTotal >= 0 ? 'up' : 'down';
         const scorePct = hasScore ? Math.min(Math.max(sc, 0), 100) : 0;
         const barW = Math.round(scorePct * 0.6);
         const barColor = scorePct >= 50 ? 'rgba(247,85,85,0.5)' : 'rgba(78,205,196,0.5)';
-        html += '<tr style="cursor:pointer" onclick="showStockBoards(\'' + s.stock_code + '\',\'' + esc(s.stock_name) + '\')">' +
+        const clickFn = rt ? 'showStrengthDetail(\'' + s.stock_code + '\',\'' + esc(s.stock_name) + '\')' : 'showStockBoards(\'' + s.stock_code + '\',\'' + esc(s.stock_name) + '\')';
+        html += '<tr style="cursor:pointer" onclick="' + clickFn + '">' +
             '<td style="color:rgba(255,255,255,0.3)">' + (i + 1) + '</td>' +
             '<td style="font-family:monospace;color:#667eea">' + esc(s.stock_code) + '</td>' +
             '<td>' + esc(s.stock_name) + '</td>' +
-            '<td>' + (hasScore ? '<span class="tag-s ' + levelCls + '">' + s.strength_level + '</span>' : '<span style="color:rgba(255,255,255,0.2)">-</span>') + '</td>' +
+            '<td>' + (hasScore ? '<span class="tag-s ' + levelCls + '">' + level + '</span>' : '<span style="color:rgba(255,255,255,0.2)">-</span>') + '</td>' +
             '<td>' + (hasScore ? sc.toFixed(1) + '<span class="score-bar-s" style="width:' + barW + 'px;background:' + barColor + '"></span>' : '<span style="color:rgba(255,255,255,0.2)">-</span>') + '</td>' +
-            '<td class="' + (hasScore ? retCls : '') + '">' + (s.total_return != null ? (s.total_return > 0 ? '+' : '') + parseFloat(s.total_return).toFixed(2) + '%' : '-') + '</td>' +
-            '<td class="' + (hasScore ? exCls : '') + '">' + (s.excess_total != null ? (s.excess_total > 0 ? '+' : '') + parseFloat(s.excess_total).toFixed(2) + '%' : '-') + '</td>' +
-            '<td>' + (s.win_rate != null ? (parseFloat(s.win_rate) * 100).toFixed(1) + '%' : '-') + '</td>' +
-            '<td style="font-size:11px;color:rgba(255,255,255,0.25)">' + (s.score_date || '-') + '</td>' +
+            '<td class="' + (hasScore ? retCls : '') + '">' + (totalReturn != null ? (totalReturn > 0 ? '+' : '') + parseFloat(totalReturn).toFixed(2) + '%' : '-') + '</td>';
+        if (strengthData) {
+            const e5 = rt ? rt.excess_5d : null;
+            const e20 = rt ? rt.excess_20d : null;
+            html += '<td class="' + (e5 != null && e5 >= 0 ? 'up' : 'down') + '">' + (e5 != null ? (e5 > 0 ? '+' : '') + e5 + '%' : '-') + '</td>';
+            html += '<td class="' + (e20 != null && e20 >= 0 ? 'up' : 'down') + '">' + (e20 != null ? (e20 > 0 ? '+' : '') + e20 + '%' : '-') + '</td>';
+        }
+        html += '<td class="' + (hasScore ? exCls : '') + '">' + (excessTotal != null ? (excessTotal > 0 ? '+' : '') + parseFloat(excessTotal).toFixed(2) + '%' : '-') + '</td>' +
+            '<td>' + (winRate != null ? (parseFloat(winRate) * 100).toFixed(1) + '%' : '-') + '</td>' +
+            '<td style="font-size:11px;color:rgba(255,255,255,0.25)">' + (scoreDate || '-') + '</td>' +
             '</tr>';
     });
     html += '</tbody></table>';
     wrap.innerHTML = html;
+}
+
+function filterStockList() {
+    const levelF = document.getElementById('strengthLevel').value;
+    const kw = (document.getElementById('strengthSearch').value || '').trim().toLowerCase();
+    let list = allStocks;
+
+    // Build strength map for filtering
+    const strMap = {};
+    if (strengthData && strengthData.stocks) {
+        strengthData.stocks.forEach(s => { strMap[s.stock_code] = s; });
+    }
+
+    if (levelF) {
+        list = list.filter(s => {
+            const rt = strMap[s.stock_code];
+            const level = rt ? rt.strength_level : s.strength_level;
+            return level === levelF;
+        });
+    }
+    if (kw) {
+        list = list.filter(s => s.stock_code.includes(kw) || s.stock_name.toLowerCase().includes(kw));
+    }
+
+    // Sort
+    list = list.slice().sort((a, b) => {
+        const rtA = strMap[a.stock_code], rtB = strMap[b.stock_code];
+        let va = rtA ? rtA[strSortCol] : a[strSortCol];
+        let vb = rtB ? rtB[strSortCol] : b[strSortCol];
+        if (va == null && vb == null) return 0;
+        if (va == null) return 1;
+        if (vb == null) return -1;
+        if (typeof va === 'string') return strSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+        return strSortDir === 'asc' ? (va - vb) : (vb - va);
+    });
+
+    renderStocks(list);
 }
 </script>
 <script>
@@ -615,14 +669,13 @@ document.getElementById('boardSearch').addEventListener('input', function() {
         renderBoards(kw ? allBoards.filter(b => matchBoard(b)) : allBoards);
     }, 200);
 });
-// 股票搜索
+// 股票搜索 (header search syncs with strength search)
 let _stockTimer;
 document.getElementById('stockSearch').addEventListener('input', function() {
     clearTimeout(_stockTimer);
     _stockTimer = setTimeout(() => {
-        const kw = this.value.trim().toLowerCase();
-        if (!kw) { renderStocks(allStocks); return; }
-        renderStocks(allStocks.filter(s => s.stock_code.includes(kw) || s.stock_name.toLowerCase().includes(kw)));
+        document.getElementById('strengthSearch').value = this.value;
+        filterStockList();
     }, 200);
 });
 
@@ -634,20 +687,20 @@ async function loadStrength() {
     const days = document.getElementById('strengthDays').value;
     document.getElementById('strengthToolbar').style.display = 'flex';
     document.getElementById('strengthSummary').style.display = 'none';
-    document.getElementById('strengthTableWrap').innerHTML = '<div class="empty-state">分析中，请稍候...</div>';
+    document.getElementById('stockGrid').innerHTML = '<div class="empty-state">分析中，请稍候...</div>';
     document.getElementById('strStatus').textContent = '';
     try {
         const r = await fetch('/api/concept_board/strength?board_code=' + currentBoard.board_code + '&days=' + days);
         const j = await r.json();
         if (!j.success) {
-            document.getElementById('strengthTableWrap').innerHTML = '<div class="empty-state">' + esc(j.error || '分析失败') + '</div>';
+            document.getElementById('stockGrid').innerHTML = '<div class="empty-state">' + esc(j.error || '分析失败') + '</div>';
             return;
         }
         strengthData = j;
         renderStrengthSummary(j);
-        renderStrengthTable();
+        filterStockList();
     } catch (e) {
-        document.getElementById('strengthTableWrap').innerHTML = '<div class="empty-state">请求失败: ' + esc(e.message) + '</div>';
+        document.getElementById('stockGrid').innerHTML = '<div class="empty-state">请求失败: ' + esc(e.message) + '</div>';
     }
 }
 
@@ -668,73 +721,10 @@ function renderStrengthSummary(data) {
         '<span>弱势 <span class="sv s-down">' + weak + '</span></span>';
 }
 
-function renderStrengthTable() {
-    if (!strengthData || !strengthData.stocks) return;
-    const levelF = document.getElementById('strengthLevel').value;
-    const kw = (document.getElementById('strengthSearch').value || '').trim().toLowerCase();
-    let list = strengthData.stocks;
-    if (levelF) list = list.filter(s => s.strength_level === levelF);
-    if (kw) list = list.filter(s => s.stock_code.includes(kw) || s.stock_name.toLowerCase().includes(kw));
-
-    list.sort((a, b) => {
-        let va = a[strSortCol], vb = b[strSortCol];
-        if (typeof va === 'string') return strSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-        return strSortDir === 'asc' ? (va - vb) : (vb - va);
-    });
-
-    const wrap = document.getElementById('strengthTableWrap');
-    if (!list.length) { wrap.innerHTML = '<div class="empty-state">无匹配数据</div>'; return; }
-
-    const cols = [
-        { key: 'rank', label: '#' },
-        { key: 'stock_code', label: '代码' },
-        { key: 'stock_name', label: '名称' },
-        { key: 'strength_level', label: '强弱' },
-        { key: 'strength_score', label: '评分' },
-        { key: 'total_return', label: '区间涨幅%' },
-        { key: 'excess_5d', label: '5日超额%' },
-        { key: 'excess_20d', label: '20日超额%' },
-        { key: 'excess_total', label: '总超额%' },
-        { key: 'win_rate', label: '胜率' },
-    ];
-
-    let html = '<table class="str-table"><thead><tr>';
-    cols.forEach(c => {
-        let cls = c.key === strSortCol ? (strSortDir === 'asc' ? 'sa' : 'sd') : '';
-        html += '<th class="' + cls + '" onclick="strSort(\'' + c.key + '\')">' + c.label + '</th>';
-    });
-    html += '</tr></thead><tbody>';
-
-    list.forEach(s => {
-        const tagCls = s.strength_level === '强势' ? 'strong' : s.strength_level === '弱势' ? 'weak' : 'neutral';
-        const retCls = s.total_return >= 0 ? 'up' : 'down';
-        const e5Cls = s.excess_5d >= 0 ? 'up' : 'down';
-        const e20Cls = s.excess_20d >= 0 ? 'up' : 'down';
-        const etCls = s.excess_total >= 0 ? 'up' : 'down';
-        const scorePct = Math.min(Math.max(s.strength_score, 0), 100);
-        const barW = Math.round(scorePct * 0.8);
-        const barColor = scorePct >= 50 ? 'rgba(247,85,85,0.5)' : 'rgba(78,205,196,0.5)';
-        html += '<tr style="cursor:pointer" onclick="showStrengthDetail(\'' + s.stock_code + '\',\'' + esc(s.stock_name) + '\')">' +
-            '<td>' + s.rank + '</td>' +
-            '<td style="font-family:monospace;color:#667eea">' + s.stock_code + '</td>' +
-            '<td>' + esc(s.stock_name) + '</td>' +
-            '<td><span class="tag-s ' + tagCls + '">' + s.strength_level + '</span></td>' +
-            '<td>' + s.strength_score.toFixed(1) + '<span class="score-bar-s" style="width:' + barW + 'px;background:' + barColor + '"></span></td>' +
-            '<td class="' + retCls + '">' + (s.total_return > 0 ? '+' : '') + s.total_return + '%</td>' +
-            '<td class="' + e5Cls + '">' + (s.excess_5d > 0 ? '+' : '') + s.excess_5d + '%</td>' +
-            '<td class="' + e20Cls + '">' + (s.excess_20d > 0 ? '+' : '') + s.excess_20d + '%</td>' +
-            '<td class="' + etCls + '">' + (s.excess_total > 0 ? '+' : '') + s.excess_total + '%</td>' +
-            '<td>' + (s.win_rate * 100).toFixed(1) + '%</td>' +
-            '</tr>';
-    });
-    html += '</tbody></table>';
-    wrap.innerHTML = html;
-}
-
 function strSort(col) {
     if (strSortCol === col) strSortDir = strSortDir === 'asc' ? 'desc' : 'asc';
     else { strSortCol = col; strSortDir = 'desc'; }
-    renderStrengthTable();
+    filterStockList();
 }
 
 async function computeAndSave() {
@@ -750,6 +740,8 @@ async function computeAndSave() {
         if (j.success) {
             status.textContent = '✓ 已保存 ' + (j.saved || j.total || 0) + ' 条';
             status.style.color = '#4ecdc4';
+            // Reload stocks to get updated DB scores
+            loadStocks(currentBoard.board_code);
         } else {
             status.textContent = '✗ ' + (j.error || '失败');
             status.style.color = '#f75555';
@@ -822,7 +814,7 @@ function renderStrengthDetailModal(data) {
 let _strTimer;
 document.getElementById('strengthSearch').addEventListener('input', function () {
     clearTimeout(_strTimer);
-    _strTimer = setTimeout(renderStrengthTable, 200);
+    _strTimer = setTimeout(filterStockList, 200);
 });
 
 // 左侧面板拖拽缩放
