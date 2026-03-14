@@ -61,13 +61,10 @@ from service.can_slim.can_slim_service import execute_can_slim_score
 from service.k_strategy.stock_k_strategy_service import get_k_strategy_analysis
 from service.eastmoney.stock_info.stock_day_kline_data import get_120day_high_to_latest_change
 from dao.stock_can_slim_dao import db_manager
-from dao.stock_technical_score_dao import get_latest_technical_scores_for_batch, get_technical_score_history, save_score_results
 from service.auto_job.kline_data_scheduler import start_scheduler, get_job_status, app_ready
 from service.auto_job.kline_data_scheduler import _execute_job as _kline_execute_job
 from service.auto_job.week_highest_lowest_price_scheduler import start_price_scheduler, get_price_job_status
 from service.auto_job.week_highest_lowest_price_scheduler import _execute_job as _price_execute_job
-from service.auto_job.kline_technical_scheduler import start_score_scheduler, get_score_job_status
-from service.auto_job.kline_technical_scheduler import _execute_job as _score_execute_job
 from service.auto_job.kline_score_scheduler import start_kline_score_scheduler, get_kline_score_job_status
 from service.auto_job.kline_score_scheduler import _execute_job as _kline_score_execute_job
 from service.auto_job.db_anomalies_scheduler import start_db_check_scheduler, get_db_check_job_status
@@ -78,7 +75,6 @@ from service.auto_job.us_market_data_scheduler import start_us_market_data_sched
 from service.auto_job.us_market_data_scheduler import _execute_job as _us_market_execute_job
 from service.auto_job.fund_flow_scheduler import start_fund_flow_scheduler, get_fund_flow_job_status
 from service.auto_job.fund_flow_scheduler import _execute_job as _fund_flow_execute_job
-from service.batch_technical_score.batch_technical_score import analyze_stock as technical_analyze_stock
 
 GRADE_SCORE_MAP = {
     '积极买入': 95, '逢低建仓': 75, '持股待涨': 60,
@@ -102,18 +98,6 @@ async def lifespan(application: FastAPI):
             logger.info("[lifespan] 最高最低价调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动最高最低价调度器异常: %s", e, exc_info=True)
-
-        try:
-            #await start_score_scheduler()
-            logger.info("[lifespan] 技术打分调度器已激活")
-        except Exception as e:
-            logger.error("[lifespan] 启动技术打分调度器异常: %s", e, exc_info=True)
-
-        try:
-            #await start_kline_score_scheduler()
-            logger.info("[lifespan] K线初筛调度器已激活")
-        except Exception as e:
-            logger.error("[lifespan] 启动K线初筛调度器异常: %s", e, exc_info=True)
 
         try:
             await start_db_check_scheduler()
@@ -208,11 +192,6 @@ async def price_job_status():
     """获取最高最低价定时拉取任务状态"""
     return {"success": True, "data": get_price_job_status()}
 
-@app.get("/api/score_job_status")
-async def score_job_status():
-    """获取技术打分定时任务状态"""
-    return {"success": True, "data": get_score_job_status()}
-
 @app.get("/api/kline_score_job_status")
 async def kline_score_job_status():
     """获取K线初筛定时任务状态"""
@@ -242,16 +221,6 @@ async def trigger_price_job():
         return {"success": False, "message": "最高最低价任务正在执行中"}
     asyncio.create_task(_price_execute_job())
     return {"success": True, "message": "最高最低价任务已触发"}
-
-
-@app.post("/api/trigger_score_job")
-async def trigger_score_job():
-    """手动触发技术打分"""
-    status = get_score_job_status()
-    if status.get("running"):
-        return {"success": False, "message": "技术打分任务正在执行中"}
-    asyncio.create_task(_score_execute_job())
-    return {"success": True, "message": "技术打分任务已触发"}
 
 
 @app.post("/api/trigger_kline_score_job")
@@ -689,8 +658,6 @@ async def get_batch_stocks(batch_id: int):
     """获取批次中的股票列表（不含提示词字段）"""
     try:
         stocks = db_manager.get_batch_stocks(batch_id)
-        # 获取该批次下每只股票的最新技术打分
-        tech_scores = get_latest_technical_scores_for_batch(batch_id)
         # 获取该批次下每只股票的最新预测数据
         latest_predictions = db_manager.get_latest_kline_predictions_for_batch(batch_id)
         for stock in stocks:
@@ -700,28 +667,6 @@ async def get_batch_stocks(batch_id: int):
             stock['technical_hold_score'] = stock.get('kline_hold_score')
             # has_overall 已在SQL中计算
             stock['has_overall'] = bool(stock.get('has_overall'))
-            # 注入最新技术打分数据
-            ts = tech_scores.get(stock.get('stock_code'))
-            if not ts:
-                # 兼容旧数据：stock_analysis_detail中stock_code可能是名称，按stock_name再查一次
-                for _ts in tech_scores.values():
-                    if _ts.get('stock_name') == stock.get('stock_name'):
-                        ts = _ts
-                        break
-            if ts:
-                stock['tech_total_score'] = ts.get('total_score')
-                stock['tech_macd_score'] = ts.get('macd_score')
-                stock['tech_kdj_score'] = ts.get('kdj_score')
-                stock['tech_vol_score'] = ts.get('vol_score')
-                stock['tech_trend_score'] = ts.get('trend_score')
-                stock['tech_close_price'] = ts.get('close_price')
-                stock['tech_score_date'] = ts.get('score_date')
-                stock['tech_boll_score'] = ts.get('boll_score')
-                stock['tech_boll_signal'] = bool(ts.get('boll_signal'))
-                stock['tech_mid_bounce_score'] = ts.get('mid_bounce_score')
-                stock['tech_mid_bounce_signal'] = bool(ts.get('mid_bounce_signal'))
-            else:
-                stock['tech_total_score'] = None
             # 注入最新预测数据
             pred = latest_predictions.get(stock.get('id'))
             if pred:
@@ -746,20 +691,6 @@ async def add_stocks_to_batch(batch_id: int, request: BatchRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/batch/{batch_id}/technical_score_history/{stock_code}")
-async def get_stock_technical_score_history(batch_id: int, stock_code: str):
-    """获取某只股票在某批次下的所有技术打分记录"""
-    try:
-        records = get_technical_score_history(batch_id, stock_code)
-        # 兼容旧数据：stock_code可能是名称，按名称再查一次
-        if not records and not any(c.isdigit() for c in stock_code):
-            info = get_stock_info_by_name(stock_code)
-            if info:
-                records = get_technical_score_history(batch_id, info.stock_code_normalize)
-        return {"success": True, "data": records}
-    except Exception as e:
-        logger.error("获取技术打分历史失败 batch_id=%s, stock_code=%s: %s", batch_id, stock_code, e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/batch/{batch_id}/kline_screening_history/{stock_id}")
@@ -916,61 +847,6 @@ async def technical_backtest(
 
 
 
-@app.get("/api/batch/{batch_id}/technical_score_execute")
-async def execute_batch_technical_score(batch_id: int, stock_ids: str = Query(...)):
-    """对批次中指定股票执行技术面打分，SSE流式返回进度"""
-    sid_list = [int(s) for s in stock_ids.split(',') if s.strip()]
-
-    async def generate_progress():
-        try:
-            total = len(sid_list)
-            completed = 0
-            yield f"data: {json.dumps({'stage': 'start', 'completed': completed, 'total': total})}\n\n"
-
-            semaphore = asyncio.Semaphore(5)
-            all_results = []
-
-            async def score_stock(stock_id):
-                async with semaphore:
-                    try:
-                        stock = db_manager.get_stock_detail(stock_id)
-                        if not stock or stock['batch_id'] != batch_id:
-                            return {'success': False, 'stock_name': str(stock_id), 'error': 'not found'}
-                        code = stock['stock_code']
-                        # 兼容旧数据：stock_code字段可能存的是股票名称而非代码
-                        if code and not any(c.isdigit() for c in code):
-                            info = get_stock_info_by_name(code)
-                            if info:
-                                code = info.stock_code_normalize
-                        r = await technical_analyze_stock(stock['stock_name'], code, 0, 0)
-                        if r:
-                            all_results.append(r)
-                            return {'success': True, 'stock_name': stock['stock_name'], 'score': r['total']}
-                        else:
-                            return {'success': False, 'stock_name': stock['stock_name'], 'error': '数据不足'}
-                    except Exception as e:
-                        logger.error("技术打分失败 stock_id=%s: %s", stock_id, e, exc_info=True)
-                        return {'success': False, 'stock_name': str(stock_id), 'error': str(e)}
-
-            tasks = [score_stock(sid) for sid in sid_list]
-            for task in asyncio.as_completed(tasks):
-                result = await task
-                completed += 1
-                if result['success']:
-                    yield f"data: {json.dumps({'stage': 'progress', 'completed': completed, 'total': total, 'stock_name': result['stock_name'], 'score': result['score']})}\n\n"
-                else:
-                    yield f"data: {json.dumps({'stage': 'progress', 'completed': completed, 'total': total, 'stock_name': result['stock_name'], 'error': result.get('error', '')})}\n\n"
-
-            # 保存打分结果到数据库
-            if all_results:
-                save_score_results(all_results, batch_id)
-
-            yield f"data: {json.dumps({'stage': 'done', 'completed': total, 'total': total})}\n\n"
-        except Exception as e:
-            logger.error("技术打分SSE异常 batch_id=%s: %s", batch_id, e, exc_info=True)
-            yield f"data: {json.dumps({'stage': 'error', 'message': str(e)})}\n\n"
-
-    return StreamingResponse(generate_progress(), media_type="text/event-stream")
 
 
 @app.get("/api/batch/stock/{stock_id}/prompt")

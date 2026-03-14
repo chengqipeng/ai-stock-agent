@@ -811,3 +811,32 @@ class DatabaseManager:
 
 # 全局数据库管理器实例
 db_manager = DatabaseManager()
+
+
+def get_continuous_analysis_batches() -> list[dict]:
+    """获取所有标记为持续分析的批次"""
+    conn = get_connection(use_dict_cursor=True)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT * FROM stock_batch_list_info WHERE is_continuous_analysis = 1 ORDER BY sort_order ASC, id ASC"
+        )
+        return list(cursor.fetchall())
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_batch_stock_list(batch_id: int) -> list[dict]:
+    """获取批次中的股票列表（stock_code, stock_name）"""
+    conn = get_connection(use_dict_cursor=True)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT stock_code, stock_name FROM stock_analysis_detail WHERE batch_id = %s",
+            (batch_id,),
+        )
+        return list(cursor.fetchall())
+    finally:
+        cursor.close()
+        conn.close()

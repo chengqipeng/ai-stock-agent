@@ -380,6 +380,37 @@ _TABLES = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 
+    # ── stock_concept_strength（个股概念板块强弱势评分） ──
+    """
+    CREATE TABLE IF NOT EXISTS stock_concept_strength (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        stock_code VARCHAR(20) NOT NULL COMMENT '股票代码',
+        stock_name VARCHAR(100) NOT NULL COMMENT '股票名称',
+        board_code VARCHAR(20) NOT NULL COMMENT '板块代码',
+        board_name VARCHAR(100) NOT NULL COMMENT '板块名称',
+        strength_score DOUBLE NOT NULL COMMENT '强弱势评分(0-100)',
+        strength_level VARCHAR(20) NOT NULL COMMENT '强势/中性/弱势',
+        total_return DOUBLE COMMENT '个股区间涨跌幅',
+        excess_5d DOUBLE COMMENT '5日超额收益',
+        excess_20d DOUBLE COMMENT '20日超额收益',
+        excess_total DOUBLE COMMENT '全区间超额收益',
+        win_rate DOUBLE COMMENT '跑赢板块天数占比',
+        rank_in_board INT COMMENT '板块内排名',
+        board_total_stocks INT COMMENT '板块成分股总数',
+        trade_days INT COMMENT '分析交易日数',
+        analysis_days INT DEFAULT 60 COMMENT '分析参数天数',
+        score_date VARCHAR(20) COMMENT '评分日期',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_stock_board (stock_code, board_code),
+        INDEX idx_stock_code (stock_code),
+        INDEX idx_board_code (board_code),
+        INDEX idx_strength_score (strength_score),
+        INDEX idx_strength_level (strength_level),
+        INDEX idx_score_date (score_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+
     # ── stock_kline_screening_history（K线初筛历史记录，每次分析都产生新记录） ──
     """
     CREATE TABLE IF NOT EXISTS stock_kline_screening_history (

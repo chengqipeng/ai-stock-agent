@@ -77,12 +77,42 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .stock-card:hover{background:rgba(102,126,234,0.1);border-color:rgba(102,126,234,0.3);transform:translateY(-1px)}
 .stock-card .code{font-size:14px;font-weight:600;color:#667eea;font-family:'SF Mono',Menlo,monospace}
 .stock-card .sname{font-size:13px;color:#e0e6ed;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 强弱势分析 */
+.strength-toolbar{padding:10px 20px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.strength-toolbar .filter-group{display:flex;align-items:center;gap:6px;font-size:13px;color:rgba(255,255,255,0.6)}
+.strength-toolbar select,.strength-toolbar input{padding:6px 10px;border:1px solid rgba(255,255,255,0.15);border-radius:6px;background:rgba(255,255,255,0.06);color:#e0e6ed;font-size:13px;outline:none}
+.strength-toolbar select:focus,.strength-toolbar input:focus{border-color:#667eea}
+.str-save-btn{margin-left:auto;padding:6px 14px;border:1px solid rgba(102,126,234,0.4);border-radius:6px;background:rgba(102,126,234,0.12);color:#667eea;font-size:13px;cursor:pointer;transition:all .15s}
+.str-save-btn:hover{background:rgba(102,126,234,0.25);border-color:#667eea}
+.str-save-btn:disabled{opacity:0.5;cursor:not-allowed}
+.str-status{font-size:12px;color:rgba(255,255,255,0.4)}
+.strength-summary{padding:10px 20px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:rgba(255,255,255,0.6)}
+.strength-summary span.sv{color:#fff;font-weight:600;margin-left:4px}
+.strength-summary .s-up{color:#f75555}
+.strength-summary .s-down{color:#4ecdc4}
+.strength-table-wrap{flex:1;overflow:auto;padding:0 20px 20px}
+.str-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px}
+.str-table th{position:sticky;top:0;background:#1a2a3a;padding:10px 12px;text-align:left;font-weight:600;color:rgba(255,255,255,0.7);border-bottom:2px solid rgba(255,255,255,0.1);cursor:pointer;user-select:none;white-space:nowrap}
+.str-table th:hover{color:#fff}
+.str-table th.sa::after{content:" ▲";font-size:10px}
+.str-table th.sd::after{content:" ▼";font-size:10px}
+.str-table td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,0.04);white-space:nowrap}
+.str-table tr:hover{background:rgba(102,126,234,0.08)}
+.str-table .up{color:#f75555}
+.str-table .down{color:#4ecdc4}
+.tag-s{padding:2px 8px;border-radius:4px;font-size:12px}
+.tag-s.strong{background:rgba(247,85,85,0.15);color:#f75555}
+.tag-s.neutral{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6)}
+.tag-s.weak{background:rgba(78,205,196,0.15);color:#4ecdc4}
+.score-bar-s{display:inline-block;height:6px;border-radius:3px;vertical-align:middle;margin-left:6px;min-width:2px;max-width:80px}
+.up{color:#f75555}
+.down{color:#4ecdc4}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:rgba(255,255,255,0.3);font-size:14px;gap:8px}
 .empty-state .icon{font-size:48px;opacity:0.3}
 /* 弹窗 */
 .modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center}
 .modal-overlay.visible{display:flex}
-.modal{background:#1a2a3a;border:1px solid rgba(255,255,255,0.1);border-radius:12px;width:520px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+.modal{background:#1a2a3a;border:1px solid rgba(255,255,255,0.1);border-radius:12px;width:700px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
 .modal-head{padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;gap:10px}
 .modal-head h3{font-size:15px;color:#fff;flex:1}
 .modal-head .close-btn{width:28px;height:28px;border:none;border-radius:6px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
@@ -122,6 +152,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
         <div class="tab-bar" id="tabBar" style="display:none">
             <button class="tab-btn active" data-tab="kline" onclick="switchTab('kline')">📈 K线走势</button>
             <button class="tab-btn" data-tab="stocks" onclick="switchTab('stocks')">📋 成分股</button>
+            <button class="tab-btn" data-tab="strength" onclick="switchTab('strength')">💪 强弱势</button>
         </div>
         <!-- K线走势 tab -->
         <div class="tab-content visible" id="tabKline">
@@ -144,6 +175,32 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
                 <div class="empty-state"><div class="icon">🧩</div><div>请从左侧选择一个概念板块</div></div>
             </div>
         </div>
+        <!-- 强弱势分析 tab -->
+        <div class="tab-content" id="tabStrength">
+            <div class="strength-toolbar" id="strengthToolbar" style="display:none">
+                <div class="filter-group"><label>周期</label>
+                    <select id="strengthDays" onchange="loadStrength()">
+                        <option value="20">20日</option><option value="40">40日</option>
+                        <option value="60" selected>60日</option><option value="120">120日</option>
+                    </select>
+                </div>
+                <div class="filter-group"><label>筛选</label>
+                    <select id="strengthLevel" onchange="renderStrengthTable()">
+                        <option value="">全部</option><option value="强势">强势</option>
+                        <option value="中性">中性</option><option value="弱势">弱势</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <input type="text" id="strengthSearch" placeholder="搜索股票..." style="width:140px">
+                </div>
+                <button class="str-save-btn" onclick="computeAndSave()">💾 计算并入库</button>
+                <span class="str-status" id="strStatus"></span>
+            </div>
+            <div class="strength-summary" id="strengthSummary" style="display:none"></div>
+            <div class="strength-table-wrap" id="strengthTableWrap">
+                <div class="empty-state"><div class="icon">💪</div><div>请从左侧选择一个概念板块分析强弱势</div></div>
+            </div>
+        </div>
     </div>
 </div>
 <!-- 弹窗 -->
@@ -158,6 +215,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 </div>
 <script>
 let allBoards = [], currentBoard = null, allStocks = [], klineData = [], klineLimit = 60;
+let strengthData = null, strSortCol = 'strength_score', strSortDir = 'desc';
 
 async function loadBoards() {
     try {
@@ -187,10 +245,13 @@ function switchTab(tab) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     document.getElementById('tabKline').classList.toggle('visible', tab === 'kline');
     document.getElementById('tabStocks').classList.toggle('visible', tab === 'stocks');
+    document.getElementById('tabStrength').classList.toggle('visible', tab === 'strength');
+    if (tab === 'strength' && currentBoard && !strengthData) loadStrength();
 }
 
 async function selectBoard(board) {
     currentBoard = board;
+    strengthData = null;
     renderBoards(allBoards.filter(b => matchBoard(b)));
     document.getElementById('stockHeader').style.display = 'flex';
     document.getElementById('tabBar').style.display = 'flex';
@@ -200,6 +261,9 @@ async function selectBoard(board) {
     // 同时加载K线和成分股
     loadKline(klineLimit);
     loadStocks(board.board_code);
+    // 如果当前在强弱势tab，自动加载
+    const activeTab = document.querySelector('.tab-btn.active');
+    if (activeTab && activeTab.dataset.tab === 'strength') loadStrength();
 }
 
 async function loadStocks(boardCode) {
@@ -507,6 +571,203 @@ document.getElementById('stockSearch').addEventListener('input', function() {
 });
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ========== 强弱势分析 ==========
+async function loadStrength() {
+    if (!currentBoard) return;
+    const days = document.getElementById('strengthDays').value;
+    document.getElementById('strengthToolbar').style.display = 'flex';
+    document.getElementById('strengthSummary').style.display = 'none';
+    document.getElementById('strengthTableWrap').innerHTML = '<div class="empty-state">分析中，请稍候...</div>';
+    document.getElementById('strStatus').textContent = '';
+    try {
+        const r = await fetch('/api/concept_board/strength?board_code=' + currentBoard.board_code + '&days=' + days);
+        const j = await r.json();
+        if (!j.success) {
+            document.getElementById('strengthTableWrap').innerHTML = '<div class="empty-state">' + esc(j.error || '分析失败') + '</div>';
+            return;
+        }
+        strengthData = j;
+        renderStrengthSummary(j);
+        renderStrengthTable();
+    } catch (e) {
+        document.getElementById('strengthTableWrap').innerHTML = '<div class="empty-state">请求失败: ' + esc(e.message) + '</div>';
+    }
+}
+
+function renderStrengthSummary(data) {
+    const bar = document.getElementById('strengthSummary');
+    bar.style.display = 'flex';
+    const bp = data.board_performance;
+    const strong = data.stocks.filter(s => s.strength_level === '强势').length;
+    const weak = data.stocks.filter(s => s.strength_level === '弱势').length;
+    const neutral = data.total - strong - weak;
+    bar.innerHTML =
+        '<span>区间 <span class="sv">' + data.period.start_date + ' ~ ' + data.period.end_date + '</span></span>' +
+        '<span>交易日 <span class="sv">' + data.period.trade_days + '天</span></span>' +
+        '<span>板块涨幅 <span class="sv ' + (bp.total_return >= 0 ? 's-up' : 's-down') + '">' + (bp.total_return >= 0 ? '+' : '') + bp.total_return + '%</span></span>' +
+        '<span>成分股 <span class="sv">' + data.total + '只</span></span>' +
+        '<span>强势 <span class="sv s-up">' + strong + '</span></span>' +
+        '<span>中性 <span class="sv">' + neutral + '</span></span>' +
+        '<span>弱势 <span class="sv s-down">' + weak + '</span></span>';
+}
+
+function renderStrengthTable() {
+    if (!strengthData || !strengthData.stocks) return;
+    const levelF = document.getElementById('strengthLevel').value;
+    const kw = (document.getElementById('strengthSearch').value || '').trim().toLowerCase();
+    let list = strengthData.stocks;
+    if (levelF) list = list.filter(s => s.strength_level === levelF);
+    if (kw) list = list.filter(s => s.stock_code.includes(kw) || s.stock_name.toLowerCase().includes(kw));
+
+    list.sort((a, b) => {
+        let va = a[strSortCol], vb = b[strSortCol];
+        if (typeof va === 'string') return strSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+        return strSortDir === 'asc' ? (va - vb) : (vb - va);
+    });
+
+    const wrap = document.getElementById('strengthTableWrap');
+    if (!list.length) { wrap.innerHTML = '<div class="empty-state">无匹配数据</div>'; return; }
+
+    const cols = [
+        { key: 'rank', label: '#' },
+        { key: 'stock_code', label: '代码' },
+        { key: 'stock_name', label: '名称' },
+        { key: 'strength_level', label: '强弱' },
+        { key: 'strength_score', label: '评分' },
+        { key: 'total_return', label: '区间涨幅%' },
+        { key: 'excess_5d', label: '5日超额%' },
+        { key: 'excess_20d', label: '20日超额%' },
+        { key: 'excess_total', label: '总超额%' },
+        { key: 'win_rate', label: '胜率' },
+    ];
+
+    let html = '<table class="str-table"><thead><tr>';
+    cols.forEach(c => {
+        let cls = c.key === strSortCol ? (strSortDir === 'asc' ? 'sa' : 'sd') : '';
+        html += '<th class="' + cls + '" onclick="strSort(\'' + c.key + '\')">' + c.label + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    list.forEach(s => {
+        const tagCls = s.strength_level === '强势' ? 'strong' : s.strength_level === '弱势' ? 'weak' : 'neutral';
+        const retCls = s.total_return >= 0 ? 'up' : 'down';
+        const e5Cls = s.excess_5d >= 0 ? 'up' : 'down';
+        const e20Cls = s.excess_20d >= 0 ? 'up' : 'down';
+        const etCls = s.excess_total >= 0 ? 'up' : 'down';
+        const scorePct = Math.min(Math.max(s.strength_score, 0), 100);
+        const barW = Math.round(scorePct * 0.8);
+        const barColor = scorePct >= 50 ? 'rgba(247,85,85,0.5)' : 'rgba(78,205,196,0.5)';
+        html += '<tr style="cursor:pointer" onclick="showStrengthDetail(\'' + s.stock_code + '\',\'' + esc(s.stock_name) + '\')">' +
+            '<td>' + s.rank + '</td>' +
+            '<td style="font-family:monospace;color:#667eea">' + s.stock_code + '</td>' +
+            '<td>' + esc(s.stock_name) + '</td>' +
+            '<td><span class="tag-s ' + tagCls + '">' + s.strength_level + '</span></td>' +
+            '<td>' + s.strength_score.toFixed(1) + '<span class="score-bar-s" style="width:' + barW + 'px;background:' + barColor + '"></span></td>' +
+            '<td class="' + retCls + '">' + (s.total_return > 0 ? '+' : '') + s.total_return + '%</td>' +
+            '<td class="' + e5Cls + '">' + (s.excess_5d > 0 ? '+' : '') + s.excess_5d + '%</td>' +
+            '<td class="' + e20Cls + '">' + (s.excess_20d > 0 ? '+' : '') + s.excess_20d + '%</td>' +
+            '<td class="' + etCls + '">' + (s.excess_total > 0 ? '+' : '') + s.excess_total + '%</td>' +
+            '<td>' + (s.win_rate * 100).toFixed(1) + '%</td>' +
+            '</tr>';
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+}
+
+function strSort(col) {
+    if (strSortCol === col) strSortDir = strSortDir === 'asc' ? 'desc' : 'asc';
+    else { strSortCol = col; strSortDir = 'desc'; }
+    renderStrengthTable();
+}
+
+async function computeAndSave() {
+    if (!currentBoard) return;
+    const btn = document.querySelector('.str-save-btn');
+    const status = document.getElementById('strStatus');
+    btn.disabled = true;
+    status.textContent = '计算入库中...';
+    try {
+        const days = document.getElementById('strengthDays').value;
+        const r = await fetch('/api/concept_board/strength/compute?board_code=' + currentBoard.board_code + '&days=' + days);
+        const j = await r.json();
+        if (j.success) {
+            status.textContent = '✓ 已保存 ' + (j.saved || j.total || 0) + ' 条';
+            status.style.color = '#4ecdc4';
+        } else {
+            status.textContent = '✗ ' + (j.error || '失败');
+            status.style.color = '#f75555';
+        }
+    } catch (e) {
+        status.textContent = '✗ 请求失败';
+        status.style.color = '#f75555';
+    }
+    btn.disabled = false;
+    setTimeout(() => { status.style.color = ''; }, 5000);
+}
+
+async function showStrengthDetail(code, name) {
+    document.getElementById('modalTitle').textContent = code + ' ' + name + ' 超额收益详情';
+    document.getElementById('modalBody').innerHTML = '<div style="padding:20px;text-align:center;color:rgba(255,255,255,0.4)">加载中...</div>';
+    document.getElementById('modalOverlay').classList.add('visible');
+    try {
+        const days = document.getElementById('strengthDays').value;
+        const r = await fetch('/api/concept_board/strength/detail?board_code=' + currentBoard.board_code + '&stock_code=' + code + '&days=' + days);
+        const j = await r.json();
+        if (!j.success) {
+            document.getElementById('modalBody').innerHTML = '<div style="padding:20px;text-align:center;color:rgba(255,255,255,0.4)">' + esc(j.error || '加载失败') + '</div>';
+            return;
+        }
+        renderStrengthDetailModal(j);
+    } catch (e) {
+        document.getElementById('modalBody').innerHTML = '<div style="padding:20px;text-align:center;color:rgba(255,255,255,0.4)">请求失败</div>';
+    }
+}
+
+function renderStrengthDetailModal(data) {
+    const s = data.stock;
+    const body = document.getElementById('modalBody');
+    let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">';
+    const items = [
+        { l: '综合评分', v: s.strength_score.toFixed(1), c: s.strength_score >= 50 ? 'up' : 'down' },
+        { l: '强弱分类', v: s.strength_level, c: s.strength_level === '强势' ? 'up' : s.strength_level === '弱势' ? 'down' : '' },
+        { l: '区间涨幅', v: (s.total_return > 0 ? '+' : '') + s.total_return + '%', c: s.total_return >= 0 ? 'up' : 'down' },
+        { l: '5日超额', v: (s.excess_5d > 0 ? '+' : '') + s.excess_5d + '%', c: s.excess_5d >= 0 ? 'up' : 'down' },
+        { l: '20日超额', v: (s.excess_20d > 0 ? '+' : '') + s.excess_20d + '%', c: s.excess_20d >= 0 ? 'up' : 'down' },
+        { l: '总超额收益', v: (s.excess_total > 0 ? '+' : '') + s.excess_total + '%', c: s.excess_total >= 0 ? 'up' : 'down' },
+        { l: '跑赢天数占比', v: (s.win_rate * 100).toFixed(1) + '%', c: s.win_rate >= 0.5 ? 'up' : 'down' },
+        { l: '有效交易日', v: s.trade_days + '天', c: '' },
+    ];
+    items.forEach(it => {
+        html += '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">' +
+            '<div style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:4px">' + it.l + '</div>' +
+            '<div style="font-size:16px;font-weight:600" class="' + (it.c === 'up' ? 'up' : it.c === 'down' ? 'down' : '') + '">' + it.v + '</div></div>';
+    });
+    html += '</div>';
+
+    // 每日超额收益柱状图
+    const daily = s.daily_excess || [];
+    if (daily.length) {
+        html += '<div style="margin-top:20px"><div style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:8px">每日超额收益走势（个股 - 板块）</div>';
+        html += '<div style="display:flex;align-items:center;gap:1px;height:100px;background:rgba(255,255,255,0.02);border-radius:8px;padding:8px;overflow-x:auto">';
+        const maxAbs = Math.max(...daily.map(d => Math.abs(d.excess)), 0.5);
+        daily.forEach(d => {
+            const h = Math.max(Math.abs(d.excess) / maxAbs * 45, 1);
+            const color = d.excess >= 0 ? 'rgba(247,85,85,0.6)' : 'rgba(78,205,196,0.6)';
+            const title = d.date + '\\n个股:' + d.stock + '% 板块:' + d.board + '% 超额:' + (d.excess > 0 ? '+' : '') + d.excess + '%';
+            html += '<div title="' + title + '" style="flex:1;min-width:3px;max-width:8px;height:' + h + 'px;background:' + color + ';border-radius:1px;align-self:' + (d.excess >= 0 ? 'flex-end' : 'flex-start') + '"></div>';
+        });
+        html += '</div></div>';
+    }
+    body.innerHTML = html;
+}
+
+// 强弱势搜索
+let _strTimer;
+document.getElementById('strengthSearch').addEventListener('input', function () {
+    clearTimeout(_strTimer);
+    _strTimer = setTimeout(renderStrengthTable, 200);
+});
 
 // 左侧面板拖拽缩放
 (function() {

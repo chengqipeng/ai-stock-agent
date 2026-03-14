@@ -74,6 +74,11 @@ def _save_persisted_status(status: dict):
 # 所有调度器共享此 Event，应用完全启动后由 lifespan 触发
 app_ready = asyncio.Event()
 
+# ─────────── 日线完成信号 ───────────
+# 日线数据执行成功后 set，各下游调度器等待此信号
+kline_done_event_for_kscore = asyncio.Event()  # K线初筛用
+kline_done_event_for_dbcheck = asyncio.Event()  # 数据异常检测用
+
 # ─────────── 全局状态 ───────────
 _persisted = _load_persisted_status()
 
@@ -478,10 +483,8 @@ async def _execute_job():
                     kline_counter.get("success", 0), kline_counter.get("total", 0),
                     finance_counter.get("success", 0), finance_counter.get("total", 0))
 
-        # 日线执行完成后，通知技术打分调度器
+        # 日线执行完成后，通知下游调度器
         try:
-            from service.auto_job.kline_technical_scheduler import kline_done_event, kline_done_event_for_kscore, kline_done_event_for_dbcheck
-            kline_done_event.set()
             kline_done_event_for_kscore.set()
             kline_done_event_for_dbcheck.set()
             logger.info("[定时调度] 已发送日线完成信号给下游调度器")

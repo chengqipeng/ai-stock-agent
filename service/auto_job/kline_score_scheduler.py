@@ -14,8 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from service.auto_job.kline_data_scheduler import app_ready, is_a_share_trading_day
-from service.auto_job.kline_technical_scheduler import kline_done_event_for_kscore
+from service.auto_job.kline_data_scheduler import app_ready, is_a_share_trading_day, kline_done_event_for_kscore
 
 _CST = ZoneInfo("Asia/Shanghai")
 logger = logging.getLogger(__name__)
@@ -133,8 +132,7 @@ async def _analyze_single_stock(stock, db_manager, counter, done_stock_ids):
 
 async def _execute_job():
     """执行一次K线初筛"""
-    from dao.stock_can_slim_dao import db_manager
-    from dao.stock_technical_score_dao import get_continuous_analysis_batches
+    from dao.stock_can_slim_dao import db_manager, get_continuous_analysis_batches
     from dao.scheduler_log_dao import insert_log, update_log
 
     _job_status["running"] = True
