@@ -2,11 +2,15 @@
 从同花顺概念板块详情页抓取板块内所有成分股。
 
 详情页: http://q.10jqka.com.cn/gn/detail/code/{board_code}/
-分页URL: http://q.10jqka.com.cn/gn/detail/order/{order}/page/{page}/code/{board_code}
+分页URL: http://q.10jqka.com.cn/gn/detail/field/{field}/order/{order}/page/{page}/code/{board_code}
 
-注意: 同花顺服务端仅渲染前5页数据（每页10只），超出部分需要JS执行的ajax请求。
-本模块通过 desc + asc 两种排序各取5页，最多可获取100只成分股。
-对于成分股超过100只的板块，获取的是涨跌幅最高和最低的各50只。
+使用 curl_cffi 模拟浏览器 TLS 指纹绕过反爬（与 stock_fund_flow_10jqka.py 一致），
+通过 AsyncSession 复用连接和 cookie，可突破 urllib 方式的5页 SSR 限制。
+
+策略：
+  1. 先用默认排序 desc 遍历全部页面获取成分股
+  2. 如果仍未覆盖全部（对比 total_pages*10），再用 asc 方向补充
+  3. 如果还不够，用额外排序字段（换手率、成交额等）补充
 
 Usage:
     # 抓取单个板块的成分股
@@ -18,22 +22,19 @@ Usage:
     # 强制重新抓取所有板块
     python -m service.jqka10.concept_board_stocks_10jqka --force
 """
+import asyncio
 import logging
 import random
 import re
 import sys
 import time
-import urllib.request
 from typing import Optional
+
+from curl_cffi.requests import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/145.0.0.0 Safari/537.36",
-}
+IMPERSONATE = "chrome131"
 
 # 匹配股票行
 _STOCK_RE = re.compile(
@@ -48,36 +49,23 @@ _STOCK_RE = re.compile(
 _PAGE_INFO_RE = re.compile(r'class="page_info">(\d+)/(\d+)</span>')
 _LAST_PAGE_RE = re.compile(r'class="changePage"\s+page="(\d+)"[^>]*>尾页</a>')
 
-# 服务端渲染最大页数
-_MAX_SSR_PAGES = 5
+# 额外排序字段，用于补充覆盖
+_EXTRA_SORT_FIELDS = [
+    "1968584",  # 换手率
+    "3475914",  # 成交额
+    "19",       # 最新价
+    "7",        # 涨跌
+]
 
 
-def _fetch_page(board_code: str, page: int, order: str = "desc",
-                retries: int = 2) -> Optional[str]:
-    """获取板块详情某一页的HTML。"""
-    if page == 1 and order == "desc":
-        url = f"http://q.10jqka.com.cn/gn/detail/code/{board_code}/"
-    else:
-        url = (f"http://q.10jqka.com.cn/gn/detail/order/{order}/"
-               f"page/{page}/code/{board_code}")
-
-    for attempt in range(retries + 1):
-        try:
-            req = urllib.request.Request(url, headers=_HEADERS)
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                raw = resp.read()
-                if len(raw) < 500:
-                    return None  # 空页面
-                try:
-                    return raw.decode("gbk")
-                except UnicodeDecodeError:
-                    return raw.decode("gb2312", errors="replace")
-        except Exception as e:
-            logger.warning("[板块成分股] 请求异常 board=%s page=%d order=%s attempt=%d: %s",
-                           board_code, page, order, attempt, e)
-            if attempt < retries:
-                time.sleep(1.5 + random.uniform(0, 1))
-    return None
+def _clean_html(raw_bytes: bytes) -> Optional[str]:
+    """GBK 解码，返回 None 表示空页面。"""
+    if len(raw_bytes) < 500:
+        return None
+    try:
+        return raw_bytes.decode("gbk")
+    except UnicodeDecodeError:
+        return raw_bytes.decode("gb2312", errors="replace")
 
 
 def _get_total_pages(html: str) -> int:
@@ -104,58 +92,160 @@ def _parse_stocks(html: str) -> list[tuple[str, str]]:
     return results
 
 
-def fetch_board_stocks(board_code: str, delay: float = 0.2) -> list[dict]:
+def _build_url(board_code: str, page: int = 1, order: str = "desc",
+               field: str = "") -> str:
+    """构建板块详情页URL。"""
+    if page == 1 and order == "desc" and not field:
+        return f"http://q.10jqka.com.cn/gn/detail/code/{board_code}/"
+    if field:
+        return (f"http://q.10jqka.com.cn/gn/detail/field/{field}/"
+                f"order/{order}/page/{page}/code/{board_code}")
+    return (f"http://q.10jqka.com.cn/gn/detail/order/{order}/"
+            f"page/{page}/code/{board_code}")
+
+
+async def _async_fetch_page(session: AsyncSession, board_code: str,
+                            page: int, order: str = "desc",
+                            field: str = "", retries: int = 2) -> Optional[str]:
+    """使用 curl_cffi AsyncSession 获取板块详情某一页的HTML。"""
+    url = _build_url(board_code, page, order, field)
+    for attempt in range(retries + 1):
+        try:
+            resp = await session.get(url, timeout=20)
+            resp.raise_for_status()
+            return _clean_html(resp.content)
+        except Exception as e:
+            logger.warning("[板块成分股] 请求异常 board=%s page=%d order=%s "
+                           "field=%s attempt=%d: %s",
+                           board_code, page, order, field, attempt, e)
+            if attempt < retries:
+                await asyncio.sleep(1.5 + random.uniform(0, 1))
+    return None
+
+
+async def _fetch_direction_pages(session: AsyncSession, board_code: str,
+                                 total_pages: int, order: str,
+                                 all_stocks: dict, field: str = "",
+                                 delay: float = 0.2) -> int:
     """
-    抓取某个概念板块的成分股。
+    按指定方向遍历所有页面，合并到 all_stocks。
+    返回本轮新增数量。
+    """
+    added = 0
+    for page in range(1, total_pages + 1):
+        if page > 1:
+            await asyncio.sleep(delay + random.uniform(0, 0.1))
+        html = await _async_fetch_page(session, board_code, page, order, field)
+        if not html:
+            # 连续空页面说明已到末尾
+            break
+        page_stocks = _parse_stocks(html)
+        if not page_stocks:
+            break
+        for code, name in page_stocks:
+            if code not in all_stocks:
+                all_stocks[code] = name
+                added += 1
+    return added
 
-    通过 desc（涨幅从高到低）和 asc（涨幅从低到高）两种排序各取5页，
-    合并去重后返回。对于成分股≤100只的板块可获取全部数据。
 
-    Args:
-        board_code: 板块代码，如 "309264"
-        delay: 请求间隔（秒）
+async def async_fetch_board_stocks(board_code: str,
+                                   delay: float = 0.2) -> list[dict]:
+    """
+    异步抓取某个概念板块的全部成分股。
+
+    使用 curl_cffi AsyncSession 模拟浏览器 TLS 指纹，
+    复用 session 的 cookie 以突破 SSR 分页限制。
+
+    策略：
+      1. 先访问首页获取 total_pages 和 cookie
+      2. desc 方向遍历全部页面
+      3. 如果还不够，asc 方向补充
+      4. 如果仍不够，用额外排序字段补充
 
     Returns:
         [{"stock_code": "300143", "stock_name": "盈康生命"}, ...]
     """
-    all_stocks = {}  # code -> name
+    all_stocks: dict[str, str] = {}  # code -> name
 
-    # 先获取首页，确定总页数
-    first_html = _fetch_page(board_code, 1, "desc")
-    if not first_html:
-        logger.error("[板块成分股] 首页获取失败 board=%s", board_code)
-        return []
+    async with AsyncSession(impersonate=IMPERSONATE) as session:
+        # 1. 获取首页，确定总页数
+        first_html = await _async_fetch_page(session, board_code, 1, "desc")
+        if not first_html:
+            logger.error("[板块成分股] 首页获取失败 board=%s", board_code)
+            return []
 
-    total_pages = _get_total_pages(first_html)
-    max_pages = min(total_pages, _MAX_SSR_PAGES)
+        total_pages = _get_total_pages(first_html)
+        expected_total = total_pages * 10  # 每页10只的估算
 
-    # 解析首页数据
-    for code, name in _parse_stocks(first_html):
-        all_stocks[code] = name
-
-    # desc 方向剩余页
-    for page in range(2, max_pages + 1):
-        time.sleep(delay + random.uniform(0, 0.1))
-        html = _fetch_page(board_code, page, "desc")
-        if not html:
-            break
-        for code, name in _parse_stocks(html):
+        # 解析首页
+        for code, name in _parse_stocks(first_html):
             all_stocks[code] = name
 
-    # 如果总页数超过 SSR 限制，用 asc 方向补充
-    if total_pages > _MAX_SSR_PAGES:
-        for page in range(1, max_pages + 1):
-            time.sleep(delay + random.uniform(0, 0.1))
-            html = _fetch_page(board_code, page, "asc")
+        # 2. desc 方向剩余页
+        for page in range(2, total_pages + 1):
+            await asyncio.sleep(delay + random.uniform(0, 0.1))
+            html = await _async_fetch_page(session, board_code, page, "desc")
             if not html:
-                continue
-            for code, name in _parse_stocks(html):
+                break
+            page_stocks = _parse_stocks(html)
+            if not page_stocks:
+                break
+            for code, name in page_stocks:
                 all_stocks[code] = name
 
+        logger.info("[板块成分股] board=%s desc完成 获取=%d/%d",
+                    board_code, len(all_stocks), expected_total)
+
+        # 3. 如果 desc 没覆盖全，用 asc 补充
+        if len(all_stocks) < expected_total:
+            added = await _fetch_direction_pages(
+                session, board_code, total_pages, "asc", all_stocks,
+                delay=delay)
+            logger.info("[板块成分股] board=%s asc补充 新增=%d 累计=%d/%d",
+                        board_code, added, len(all_stocks), expected_total)
+
+        # 4. 如果还不够，用额外排序字段补充
+        if len(all_stocks) < expected_total:
+            for field in _EXTRA_SORT_FIELDS:
+                if len(all_stocks) >= expected_total:
+                    break
+                for direction in ("desc", "asc"):
+                    if len(all_stocks) >= expected_total:
+                        break
+                    added = await _fetch_direction_pages(
+                        session, board_code, total_pages, direction,
+                        all_stocks, field=field, delay=delay)
+                    logger.debug("[板块成分股] board=%s field=%s %s "
+                                 "新增=%d 累计=%d/%d",
+                                 board_code, field, direction,
+                                 added, len(all_stocks), expected_total)
+
     result = [{"stock_code": c, "stock_name": n} for c, n in all_stocks.items()]
-    logger.info("[板块成分股] board=%s 总页数=%d 获取=%d只",
-                board_code, total_pages, len(result))
+    logger.info("[板块成分股] board=%s 总页数=%d 预期≈%d只 获取=%d只",
+                board_code, total_pages, expected_total, len(result))
     return result
+
+
+def fetch_board_stocks(board_code: str, delay: float = 0.2) -> list[dict]:
+    """
+    同步接口：抓取某个概念板块的成分股。
+    内部调用 async_fetch_board_stocks。
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        # 已在事件循环中，创建新线程运行
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(asyncio.run,
+                                 async_fetch_board_stocks(board_code, delay))
+            return future.result()
+    else:
+        return asyncio.run(async_fetch_board_stocks(board_code, delay))
 
 
 def fetch_and_save_board_stocks(board_code: str, board_name: str = "",
@@ -229,7 +319,8 @@ def fetch_and_save_all_boards_stocks(delay_page: float = 0.2,
 
 
 def main():
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(message)s")
 
     if len(sys.argv) > 1 and sys.argv[1] in ("--all", "--force"):
         force = "--force" in sys.argv
