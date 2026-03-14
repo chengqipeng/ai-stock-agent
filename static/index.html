@@ -681,8 +681,8 @@
     </style>
 </head>
 <body>
-    <div class="header" style="display: grid; grid-template-columns: auto 1fr 1fr; grid-template-rows: auto auto auto auto; gap: 4px 8px; align-items: center;">
-        <h1 style="grid-row: 1 / 5; display:flex; flex-direction:column; gap:2px;">
+    <div class="header" style="display: grid; grid-template-columns: auto 1fr 1fr; grid-template-rows: auto auto auto; gap: 4px 8px; align-items: center;">
+        <h1 style="grid-row: 1 / 4; display:flex; flex-direction:column; gap:2px;">
             <span>📊 批量股票分析</span>
             <a href="/data_browser" style="font-weight:400;color:rgba(255,255,255,0.55);text-decoration:none;">📂 数据浏览</a>
             <a href="/concept_board" style="font-weight:400;color:rgba(255,255,255,0.55);text-decoration:none;">🧩 概念板块</a>
@@ -731,28 +731,7 @@
             <a href="/scheduler_logs?job_name=最高最低价" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
             <div class="job-progress-bar"><div id="priceJobProgress" class="job-progress-fill" style="width:0%"></div></div>
         </div>
-        <div id="klineScoreJobBanner" style="
-            background: rgba(255,255,255,0.2);
-            border-radius: 8px;
-            padding: 4px 8px;
-            font-size: 11px;
-            color: rgba(255,255,255,0.9);
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            min-width: 0;
-            position: relative;
-        ">
-            <span id="klineScoreJobIcon" class="job-icon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
-            <span id="klineScoreJobText" style="overflow: hidden; text-overflow: ellipsis;">K线初筛状态加载中<span class="job-dots"></span></span>
-            <span id="klineScoreJobElapsed" class="job-elapsed"></span>
-            <button onclick="triggerJob('kline_score')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
-            <a href="/scheduler_logs?job_name=K线初筛" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
-            <div class="job-progress-bar"><div id="klineScoreJobProgress" class="job-progress-fill" style="width:0%"></div></div>
-        </div>
+
         <div id="dbCheckJobBanner" style="
             background: rgba(255,255,255,0.2);
             border-radius: 8px;
@@ -857,7 +836,6 @@
                     <button class="btn btn-primary" onclick="deselectAll()">取消全选</button>
                 </div>
                 <div style="margin: 2px 0; display: flex; align-items: center; gap: 2px; flex-wrap: nowrap;">
-                    <button class="btn btn-success" onclick="startBatchAnalysis()" id="startBtn">K线初筛 (<span id="selectedCount">0</span>)</button>
                     <button class="btn" style="background:#e67e22;" onclick="openPrescreening()">涨跌初筛(<span id="prescreeningCount">0</span>)</button>
                     <button class="btn" style="background:#5c6bc0;" onclick="startCanslimPrescreening()">CAN SLIM初筛(<span id="canslimCount">0</span>)</button>
                     <span id="progressSection" style="display: none; margin-left: 8px; padding: 5px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ddd; border-radius: 4px; font-size: 11px; font-weight: 600; vertical-align: top; margin-top: 5px;">
@@ -1185,79 +1163,6 @@
             updateSelection();
         }
 
-        async function startBatchAnalysis() {
-            if (selectedStocks.size === 0) {
-                alert('请至少选择一只股票');
-                return;
-            }
-
-            // 显示进度弹框并禁用界面
-            showProgressModal();
-            disableUI();
-
-            try {
-                // 创建批次
-                const response = await fetch('/api/batch_analysis', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ stock_codes: Array.from(selectedStocks) })
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    const batchId = data.data.batch_id;
-                    
-                    // 执行批量分析
-                    await executeBatchAnalysis(batchId, false);
-                    
-                    // 刷新批次列表
-                    loadBatchList();
-                }
-            } catch (error) {
-                alert('批量分析失败: ' + error.message);
-            } finally {
-                hideProgressModal();
-                enableUI();
-            }
-        }
-
-        async function executeBatchAnalysis(batchId, useDeepThinking = false) {
-            return new Promise((resolve, reject) => {
-                const url = `/api/batch_execute/${batchId}${useDeepThinking ? '?deep_thinking=true' : ''}`;
-                const eventSource = new EventSource(url);
-                
-                eventSource.onmessage = (event) => {
-                    try {
-                        const data = JSON.parse(event.data);
-                        
-                        if (data.stage === 'start') {
-                            updateProgressModal(data.completed, data.total, '开始分析...');
-                        } else if (data.stage === 'progress') {
-                            const info = data.error 
-                                ? `❌ ${data.stock_name} 分析失败` 
-                                : `✅ ${data.stock_name} 完成 (得分: ${data.score})`;
-                            updateProgressModal(data.completed, data.total, info);
-                        } else if (data.stage === 'done') {
-                            eventSource.close();
-                            updateProgressModal(data.completed || 100, data.total || 100, '✅ 全部完成！');
-                            resolve();
-                        } else if (data.stage === 'error') {
-                            eventSource.close();
-                            updateProgressModal(0, 100, '❌ 执行失败: ' + data.message);
-                            reject(new Error(data.message));
-                        }
-                    } catch (e) {
-                        console.error('解析事件失败:', e);
-                    }
-                };
-                
-                eventSource.onerror = () => {
-                    eventSource.close();
-                    reject(new Error('连接失败'));
-                };
-            });
-        }
-
         async function loadBatchList() {
             try {
                 const response = await fetch('/api/batches');
@@ -1290,7 +1195,6 @@
                         总数: ${batch.total_count} | 成功: ${batch.success_count} | 失败: ${batch.completed_count - batch.success_count} | 
                         状态: ${batch.status === 'completed' ? '✅ 已完成' : '⏳ 进行中'} | 
                         ${formatBeijingTime(batch.created_at)}
-                        ${batch.status !== 'completed' && batch.completed_count < batch.total_count ? '<button onclick="event.stopPropagation(); continueBatch(' + batch.id + ')" style="margin-left: 10px; padding: 2px 8px; background: rgba(76,175,80,0.8); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 10px;">继续分析</button>' : ''}
                     </div>
                 </div>
             `).join('');
@@ -1830,30 +1734,7 @@
             }
         }
 
-        async function continueBatch(batchId) {
-            if (!confirm('确定要继续分析该批次吗？')) {
-                return;
-            }
-            
-            // 显示进度弹框并禁用界面
-            showProgressModal();
-            disableUI();
-            
-            try {
-                await executeBatchAnalysis(batchId, false);
-                loadBatchList();
-                if (currentBatchId === batchId) {
-                    loadBatchStocks(batchId);
-                }
-            } catch (error) {
-                alert('继续分析失败: ' + error.message);
-            } finally {
-                hideProgressModal();
-                enableUI();
-            }
-        }
-
-        function showProgressModal(title = '正在执行K线批量分析...') {
+        function showProgressModal(title = '正在执行批量分析...') {
             document.getElementById('progressModalTitle').textContent = title;
             document.getElementById('deepAnalysisStockList').innerHTML = '';
             document.getElementById('progressModal').classList.add('show');
@@ -2939,7 +2820,7 @@
 
         // ─── 手动触发调度任务 ───
         async function triggerJob(jobType) {
-            const names = {kline:'日线数据',price:'最高最低价',kline_score:'K线初筛',db_check:'数据异常检测',market_data:'盘后数据',us_market:'海外市场数据',fund_flow:'资金流向'};
+            const names = {kline:'日线数据',price:'最高最低价',db_check:'数据异常检测',market_data:'盘后数据',us_market:'海外市场数据',fund_flow:'资金流向'};
             if (!confirm('确认手动执行「' + names[jobType] + '」任务？')) return;
             try {
                 const resp = await fetch('/api/trigger_' + jobType + '_job', {method:'POST'});
@@ -3136,14 +3017,13 @@
             const results = await Promise.allSettled([
                 pollKlineJobStatus(),
                 pollPriceJobStatus(),
-                pollKlineScoreJobStatus(),
                 pollDbCheckJobStatus(),
                 pollMarketDataJobStatus(),
                 pollUsMarketJobStatus(),
                 pollFundFlowJobStatus()
             ]);
             // 检测是否有任务在运行
-            const banners = ['klineJobBanner','priceJobBanner','klineScoreJobBanner','dbCheckJobBanner','marketDataJobBanner','usMarketJobBanner','fundFlowJobBanner'];
+            const banners = ['klineJobBanner','priceJobBanner','dbCheckJobBanner','marketDataJobBanner','usMarketJobBanner','fundFlowJobBanner'];
             _anyJobRunning = banners.some(id => document.getElementById(id)?.classList.contains('banner-running'));
             // 动态调整轮询间隔
             clearTimeout(_pollTimer);
@@ -3154,66 +3034,6 @@
         
         // 定时刷新批次列表
         setInterval(loadBatchList, 5000);
-
-        // ─── K线初筛状态轮询 ───
-        async function pollKlineScoreJobStatus() {
-            try {
-                const resp = await fetch('/api/kline_score_job_status');
-                const json = await resp.json();
-                if (!json.success) return;
-                const d = json.data;
-                const banner = document.getElementById('klineScoreJobBanner');
-                const icon = document.getElementById('klineScoreJobIcon');
-                const text = document.getElementById('klineScoreJobText');
-                setBannerRunning(banner, d.running);
-
-                if (d.error && !d.running) {
-                    icon.textContent = '❌';
-                    text.textContent = 'K线初筛执行异常: ' + d.error;
-                    banner.style.background = 'rgba(217,83,79,0.25)';
-                } else if (d.running) {
-                    const sTotal = d.kline_score_total || 0;
-                    const sDone = (d.kline_score_success || 0) + (d.kline_score_failed || 0);
-                    const sFail = d.kline_score_failed || 0;
-                    const remaining = sTotal - sDone;
-                    const pct = sTotal > 0 ? Math.round((sDone / sTotal) * 100) : 0;
-                    icon.textContent = '🔄';
-                    let msg = 'K线初筛执行中';
-                    if (sTotal > 0) {
-                        msg += '  ' + pct + '%  ' + sDone + '/' + sTotal;
-                        if (remaining > 0) msg += '  剩余' + remaining;
-                        if (sFail > 0) msg += '  失败' + sFail;
-                    }
-                    text.textContent = msg;
-                    updateJobProgress('klineScoreJobProgress', 'klineScoreJobElapsed', sDone, sTotal, d.start_time);
-                } else if (d.last_run_time) {
-                    const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
-                    const isToday = d.last_run_date === today;
-                    const totalFail = d.kline_score_failed || 0;
-                    if (isToday) {
-                        if (totalFail === 0) {
-                            icon.textContent = '✅';
-                            text.textContent = d.last_run_time + ' K线自动初筛完成';
-                            banner.style.background = 'rgba(92,184,92,0.25)';
-                        } else {
-                            icon.textContent = '⚠️';
-                            text.textContent = d.last_run_time + ' K线自动初筛完成（失败' + totalFail + '）';
-                            banner.style.background = 'rgba(217,83,79,0.25)';
-                        }
-                    } else {
-                        icon.textContent = '⏳';
-                        text.textContent = 'K线自动初筛等待日线完成后自动执行  上次执行: ' + d.last_run_time;
-                        banner.style.background = 'rgba(255,255,255,0.2)';
-                    }
-                } else {
-                    icon.textContent = '⏳';
-                    text.textContent = 'K线初筛等待日线完成后自动执行';
-                    banner.style.background = 'rgba(255,255,255,0.2)';
-                }
-            } catch (e) {
-                // 静默失败
-            }
-        }
 
         // ─── 数据异常检测状态轮询 ───
         async function pollDbCheckJobStatus() {

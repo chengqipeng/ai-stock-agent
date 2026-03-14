@@ -65,8 +65,8 @@ from service.auto_job.kline_data_scheduler import start_scheduler, get_job_statu
 from service.auto_job.kline_data_scheduler import _execute_job as _kline_execute_job
 from service.auto_job.week_highest_lowest_price_scheduler import start_price_scheduler, get_price_job_status
 from service.auto_job.week_highest_lowest_price_scheduler import _execute_job as _price_execute_job
-from service.auto_job.kline_score_scheduler import start_kline_score_scheduler, get_kline_score_job_status
-from service.auto_job.kline_score_scheduler import _execute_job as _kline_score_execute_job
+# from service.auto_job.kline_score_scheduler import start_kline_score_scheduler, get_kline_score_job_status
+# from service.auto_job.kline_score_scheduler import _execute_job as _kline_score_execute_job
 from service.auto_job.db_anomalies_scheduler import start_db_check_scheduler, get_db_check_job_status
 from service.auto_job.db_anomalies_scheduler import _execute_job as _db_check_execute_job
 from service.auto_job.market_data_scheduler import start_market_data_scheduler, get_market_data_job_status
@@ -192,10 +192,10 @@ async def price_job_status():
     """获取最高最低价定时拉取任务状态"""
     return {"success": True, "data": get_price_job_status()}
 
-@app.get("/api/kline_score_job_status")
-async def kline_score_job_status():
-    """获取K线初筛定时任务状态"""
-    return {"success": True, "data": get_kline_score_job_status()}
+# @app.get("/api/kline_score_job_status")
+# async def kline_score_job_status():
+#     """获取K线初筛定时任务状态"""
+#     return {"success": True, "data": get_kline_score_job_status()}
 
 @app.get("/api/db_check_job_status")
 async def db_check_job_status():
@@ -223,14 +223,14 @@ async def trigger_price_job():
     return {"success": True, "message": "最高最低价任务已触发"}
 
 
-@app.post("/api/trigger_kline_score_job")
-async def trigger_kline_score_job():
-    """手动触发K线初筛"""
-    status = get_kline_score_job_status()
-    if status.get("running"):
-        return {"success": False, "message": "K线初筛任务正在执行中"}
-    asyncio.create_task(_kline_score_execute_job())
-    return {"success": True, "message": "K线初筛任务已触发"}
+# @app.post("/api/trigger_kline_score_job")
+# async def trigger_kline_score_job():
+#     """手动触发K线初筛"""
+#     status = get_kline_score_job_status()
+#     if status.get("running"):
+#         return {"success": False, "message": "K线初筛任务正在执行中"}
+#     asyncio.create_task(_kline_score_execute_job())
+#     return {"success": True, "message": "K线初筛任务已触发"}
 
 
 @app.post("/api/trigger_db_check_job")
@@ -373,275 +373,17 @@ async def update_batch_prescreening(batch_id: int, stock_ids: List[int]):
         logger.error("初筛更新批次失败 batch_id=%s: %s", batch_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/batch/{batch_id}/kline_execute_update")
-async def execute_batch_kline_update(batch_id: int, stock_ids: str = Query(...), deep_thinking: bool = Query(False)):
-    """对已有批次中指定股票执行K线初筛，SSE流式更新到当前记录"""
-    sid_list = [int(s) for s in stock_ids.split(',') if s.strip()]
+# --- K线初筛相关API已禁用 ---
+# @app.get("/api/batch/{batch_id}/kline_execute_update")
+# async def execute_batch_kline_update(...)
+#     已注释，前端已移除K线初筛功能
 
-    async def generate_progress():
-        try:
-            total = len(sid_list)
-            completed = 0
-            yield f"data: {json.dumps({'stage': 'start', 'completed': completed, 'total': total})}\n\n"
-
-            semaphore = asyncio.Semaphore(5)
-
-            async def analyze_stock(stock_id):
-                async with semaphore:
-                    try:
-                        stock = db_manager.get_stock_detail(stock_id)
-                        if not stock or stock['batch_id'] != batch_id:
-                            return {'success': False, 'stock_name': str(stock_id), 'error': 'not found'}
-                        stock_info = get_stock_info_by_name(stock['stock_name'])
-                        prompt, result = await get_k_strategy_analysis(stock_info)
-                        not_hold_grade, not_hold_content, hold_grade, hold_content, data_issues = extract_grade_and_content(result)
-                        kline_total_score = extract_kline_total_score(result)
-                        next_day_pred, next_week_pred = extract_predictions(result)
-                        db_manager.update_stock_dimension_score(stock_id, 'kline', not_hold_grade, not_hold_content, None, prompt)
-                        if kline_total_score is not None:
-                            db_manager.update_stock_kline_scores(stock_id, kline_total_score)
-                        db_manager.update_stock_kline_hold(stock_id, hold_grade, hold_content, data_issues)
-                        # 保存K线初筛历史记录（每次产生新记录）
-                        today_str = datetime.now(_CST).strftime('%Y-%m-%d')
-                        db_manager.save_kline_screening_history(
-                            batch_id, stock_id, stock['stock_name'], stock.get('stock_code', ''),
-                            today_str, not_hold_grade, hold_grade, kline_total_score,
-                            not_hold_content, hold_content, data_issues,
-                            next_day_pred, next_week_pred
-                        )
-                        # numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)
-                        # if numeric_score is not None:
-                        #     update_stock_score(
-                        #         "data_results/stock_to_score_list/stock_score_list.md",
-                        #         stock_info.stock_name,
-                        #         stock_info.stock_code_normalize,
-                        #         numeric_score
-                        #     )
-                        return {'success': True, 'stock_name': stock['stock_name'], 'score': not_hold_grade}
-                    except Exception as e:
-                        logger.error(f"K线更新失败 {stock_id}: {e}", exc_info=True)
-                        return {'success': False, 'stock_name': str(stock_id), 'error': str(e)}
-
-            tasks = [analyze_stock(sid) for sid in sid_list]
-            for task in asyncio.as_completed(tasks):
-                result = await task
-                completed += 1
-                if result['success']:
-                    yield f"data: {json.dumps({'stage': 'progress', 'completed': completed, 'total': total, 'stock_name': result['stock_name'], 'score': result['score']})}\n\n"
-                else:
-                    yield f"data: {json.dumps({'stage': 'progress', 'completed': completed, 'total': total, 'stock_name': result['stock_name'], 'error': result.get('error', '')})}\n\n"
-
-            yield f"data: {json.dumps({'stage': 'done', 'completed': total, 'total': total})}\n\n"
-        except Exception as e:
-            logger.error("K线SSE流式更新异常 batch_id=%s: %s", batch_id, e, exc_info=True)
-            yield f"data: {json.dumps({'stage': 'error', 'message': str(e)})}\n\n"
-
-    return StreamingResponse(generate_progress(), media_type="text/event-stream")
-
-@app.post("/api/batch_analysis")
-async def create_batch_analysis(request: BatchRequest):
-    """创建批量分析批次"""
-    try:
-        batch_id = db_manager.create_batch(request.stock_codes)
-        return {"success": True, "data": {"batch_id": batch_id}}
-    except Exception as e:
-        logger.error("创建批量分析批次失败: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/batch_canslim_prescreening/{batch_id}")
-async def execute_batch_canslim_prescreening(batch_id: int, deep_thinking: bool = Query(True)):
-    """执行CAN SLIM C/A维度初筛（SSE流式响应，默认使用深度思考模式）"""
-    async def generate_progress():
-        try:
-            stocks = db_manager.get_batch_stocks(batch_id)
-            total = len(stocks)
-            completed = 0
-
-            yield f"data: {json.dumps({'stage': 'start', 'completed': completed, 'total': total})}\n\n"
-
-            semaphore = asyncio.Semaphore(5)
-
-            async def analyze_stock(stock):
-                async with semaphore:
-                    try:
-                        stock_info = get_stock_info_by_name(stock['stock_name'])
-                        from service.can_slim.can_slim_service import CAN_SLIM_SERVICES
-                        c_service = CAN_SLIM_SERVICES['C'](stock_info)
-                        a_service = CAN_SLIM_SERVICES['A'](stock_info)
-                        c_service.data_cache = await c_service.collect_data()
-                        await c_service.process_data()
-                        c_score_prompt = c_service.build_prompt(use_score_output=True)
-                        a_service.data_cache = await a_service.collect_data()
-                        await a_service.process_data()
-                        a_score_prompt = a_service.build_prompt(use_score_output=True)
-                        c_result = await execute_can_slim_score('C', stock_info, deep_thinking)
-                        a_result = await execute_can_slim_score('A', stock_info, deep_thinking)
-                        c_score = extract_score_from_result(c_result)
-                        a_score = extract_score_from_result(a_result)
-                        db_manager.update_stock_dimension_score(stock['id'], 'c', c_score, c_result, None, c_score_prompt)
-                        db_manager.update_stock_dimension_score(stock['id'], 'a', a_score, a_result, None, a_score_prompt)
-                        db_manager.update_stock_status(stock['id'], 'completed', None, deep_thinking)
-                        return {'success': True, 'stock_name': stock['stock_name'], 'score': f'C:{c_score}, A:{a_score}'}
-                    except Exception as e:
-                        logger.error(f"CAN SLIM初筛失败 {stock['stock_name']}: {e}", exc_info=True)
-                        db_manager.update_stock_status(stock['id'], 'failed', str(e), deep_thinking)
-                        return {'success': False, 'stock_name': stock['stock_name'], 'error': str(e)}
-
-            tasks = [analyze_stock(stock) for stock in stocks]
-
-            for task in asyncio.as_completed(tasks):
-                result = await task
-                completed += 1
-                db_manager.update_batch_progress(batch_id)
-
-                if result['success']:
-                    data = json.dumps({
-                        'stage': 'progress',
-                        'completed': completed,
-                        'total': total,
-                        'stock_name': result['stock_name'],
-                        'score': result['score']
-                    })
-                    yield f"data: {data}\n\n"
-                else:
-                    data = json.dumps({
-                        'stage': 'progress',
-                        'completed': completed,
-                        'total': total,
-                        'stock_name': result['stock_name'],
-                        'error': result['error']
-                    })
-                    yield f"data: {data}\n\n"
-
-            yield f"data: {json.dumps({'stage': 'done', 'completed': total, 'total': total})}\n\n"
-
-        except Exception as e:
-            logger.error("CAN SLIM初筛SSE异常 batch_id=%s: %s", batch_id, e, exc_info=True)
-            yield f"data: {json.dumps({'stage': 'error', 'message': str(e)})}\n\n"
-
-    return StreamingResponse(generate_progress(), media_type="text/event-stream")
-
-
-@app.get("/api/batch_execute/{batch_id}")
-async def execute_batch_analysis(batch_id: int, deep_thinking: bool = Query(False)):
-    """执行批量分析（SSE流式响应）"""
-    async def generate_progress():
-        try:
-            stocks = db_manager.get_batch_stocks(batch_id)
-            total = len(stocks)
-            completed = 0
-            
-            yield f"data: {json.dumps({'stage': 'start', 'completed': completed, 'total': total})}\n\n"
-            
-            semaphore = asyncio.Semaphore(5)
-            
-            async def analyze_stock(stock):
-                async with semaphore:
-                    try:
-                        stock_info = get_stock_info_by_name(stock['stock_name'])
-
-                        # 调用策略引擎分析（大模型初筛）
-                        prompt, result = await get_k_strategy_analysis(stock_info)
-                        not_hold_grade, not_hold_content, hold_grade, hold_content, data_issues = extract_grade_and_content(result)
-                        kline_total_score = extract_kline_total_score(result)
-                        next_day_pred, next_week_pred = extract_predictions(result)
-
-                        db_manager.update_stock_dimension_score(stock['id'], 'kline', not_hold_grade, not_hold_content, None, prompt)
-                        if kline_total_score is not None:
-                            db_manager.update_stock_kline_scores(stock['id'], kline_total_score)
-                        db_manager.update_stock_kline_hold(stock['id'], hold_grade, hold_content, data_issues)
-                        db_manager.update_stock_status(stock['id'], 'completed', None, deep_thinking)
-                        # 保存K线初筛历史记录（每次产生新记录）
-                        today_str = datetime.now(_CST).strftime('%Y-%m-%d')
-                        db_manager.save_kline_screening_history(
-                            batch_id, stock['id'], stock['stock_name'], stock.get('stock_code', ''),
-                            today_str, not_hold_grade, hold_grade, kline_total_score,
-                            not_hold_content, hold_content, data_issues,
-                            next_day_pred, next_week_pred
-                        )
-
-                        # numeric_score = GRADE_SCORE_MAP.get(not_hold_grade)
-                        # if numeric_score is not None:
-                        #     update_stock_score(
-                        #         "data_results/stock_to_score_list/stock_score_list.md",
-                        #         stock_info.stock_name,
-                        #         stock_info.stock_code_normalize,
-                        #         numeric_score
-                        #     )
-
-                        return {
-                            'success': True,
-                            'stock_name': stock['stock_name'],
-                            'score': not_hold_grade
-                        }
-                    except Exception as e:
-                        logger.error(f"Error analyzing {stock['stock_name']}: {e}", exc_info=True)
-                        db_manager.update_stock_status(stock['id'], 'failed', str(e), deep_thinking)
-                        return {
-                            'success': False,
-                            'stock_name': stock['stock_name'],
-                            'error': str(e)
-                        }
-
-            # --- 历史初筛逻辑备份（CAN SLIM C/A维度打分）---
-            # async def analyze_stock_legacy(stock):
-            #     async with semaphore:
-            #         try:
-            #             stock_info = get_stock_info_by_name(stock['stock_name'])
-            #             from service.can_slim.can_slim_service import CAN_SLIM_SERVICES
-            #             c_service = CAN_SLIM_SERVICES['C'](stock_info)
-            #             a_service = CAN_SLIM_SERVICES['A'](stock_info)
-            #             c_service.data_cache = await c_service.collect_data()
-            #             await c_service.process_data()
-            #             c_score_prompt = c_service.build_prompt(use_score_output=True)
-            #             a_service.data_cache = await a_service.collect_data()
-            #             await a_service.process_data()
-            #             a_score_prompt = a_service.build_prompt(use_score_output=True)
-            #             c_result = await execute_can_slim_score('C', stock_info, deep_thinking)
-            #             a_result = await execute_can_slim_score('A', stock_info, deep_thinking)
-            #             c_score = extract_score_from_result(c_result)
-            #             a_score = extract_score_from_result(a_result)
-            #             db_manager.update_stock_dimension_score(stock['id'], 'c', c_score, c_result, None, c_score_prompt)
-            #             db_manager.update_stock_dimension_score(stock['id'], 'a', a_score, a_result, None, a_score_prompt)
-            #             db_manager.update_stock_status(stock['id'], 'completed', None, deep_thinking)
-            #             return {'success': True, 'stock_name': stock['stock_name'], 'score': f'C:{c_score}, A:{a_score}'}
-            #         except Exception as e:
-            #             db_manager.update_stock_status(stock['id'], 'failed', str(e), deep_thinking)
-            #             return {'success': False, 'stock_name': stock['stock_name'], 'error': str(e)}
-            
-            tasks = [analyze_stock(stock) for stock in stocks]
-            
-            for task in asyncio.as_completed(tasks):
-                result = await task
-                completed += 1
-                db_manager.update_batch_progress(batch_id)
-                
-                if result['success']:
-                    data = json.dumps({
-                        'stage': 'progress',
-                        'completed': completed,
-                        'total': total,
-                        'stock_name': result['stock_name'],
-                        'score': result['score']
-                    })
-                    yield f"data: {data}\n\n"
-                else:
-                    data = json.dumps({
-                        'stage': 'progress',
-                        'completed': completed,
-                        'total': total,
-                        'stock_name': result['stock_name'],
-                        'error': result['error']
-                    })
-                    yield f"data: {data}\n\n"
-            
-            yield f"data: {json.dumps({'stage': 'done', 'completed': total, 'total': total})}\n\n"
-            
-        except Exception as e:
-            logger.error("批量分析SSE异常 batch_id=%s: %s", batch_id, e, exc_info=True)
-            yield f"data: {json.dumps({'stage': 'error', 'message': str(e)})}\n\n"
-    
-    return StreamingResponse(generate_progress(), media_type="text/event-stream")
+# --- K线初筛批次创建和执行API已禁用 ---
+# @app.post("/api/batch_analysis")
+# async def create_batch_analysis(...)
+# @app.get("/api/batch_execute/{batch_id}")
+# async def execute_batch_analysis(...)
+#     已注释，前端已移除K线初筛功能
 
 @app.get("/api/batches")
 async def get_batches():
