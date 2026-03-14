@@ -799,7 +799,7 @@ def run_data_audit(
 
     返回: 包含所有分析维度结果的字典
     """
-    from service.backtest.prediction_enhanced_backtest import (
+    from day_week_predicted.backtest.prediction_enhanced_backtest import (
         _SECTOR_FACTOR_WEIGHTS,
     )
 

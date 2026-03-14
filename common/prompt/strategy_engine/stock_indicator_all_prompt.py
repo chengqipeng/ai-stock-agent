@@ -4335,7 +4335,7 @@ async def get_stock_indicator_all_prompt(stock_info: StockInfo):
     # 尝试加载回测校准参数（如果有足够的历史回测数据）
     _calibrated_params = None
     try:
-        from service.backtest.prediction_backtest import get_calibrated_probability_params
+        from day_week_predicted.backtest.prediction_backtest import get_calibrated_probability_params
         _calibrated_params = get_calibrated_probability_params()
     except Exception as e:
         logger.debug("加载概率校准参数失败（使用默认值）: %s", e)

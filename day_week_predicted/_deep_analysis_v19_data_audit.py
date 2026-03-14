@@ -279,7 +279,7 @@ factor_labels = {
     'intraday_pos': '日内位置', 'db_fund': 'DB资金流', 'turnover': '换手率',
 }
 
-from service.backtest.prediction_enhanced_backtest import _SECTOR_FACTOR_WEIGHTS
+from day_week_predicted.backtest.prediction_enhanced_backtest import _SECTOR_FACTOR_WEIGHTS
 
 print(f"\n各板块因子方向一致率 + 当前权重 + 评价:")
 print(f"（方向一致率>55%=有效, <45%=反转有效, 45-55%=噪声）\n")
@@ -342,7 +342,7 @@ print(f"{'=' * 80}")
 # 
 # 策略：用stored融合信号 + 不同决策阈值组合来搜索最优
 
-from service.backtest.prediction_enhanced_backtest import _SECTOR_UP_BASE_RATE, _SECTOR_PEER_WEIGHT
+from day_week_predicted.backtest.prediction_enhanced_backtest import _SECTOR_UP_BASE_RATE, _SECTOR_PEER_WEIGHT
 
 def simulate_with_thresholds(d, bullish_th, bearish_th, default_up):
     """用给定阈值模拟方向决策"""
