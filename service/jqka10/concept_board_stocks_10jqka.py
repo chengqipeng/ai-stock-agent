@@ -452,8 +452,12 @@ async def _cffi_ajax_fallback(board_code: str, total_pages: int,
         for page in range(1, total_pages + 1):
             if len(all_stocks) >= expected:
                 break
-            html = await _cffi_ajax_fetch_page(
-                session, board_code, page, cookies, hexin_v)
+            try:
+                html = await _cffi_ajax_fetch_page(
+                    session, board_code, page, cookies, hexin_v)
+            except NginxForbiddenError:
+                logger.warning("[板块成分股] cffi-ajax page=%d 遇到Nginx封禁, 停止回退", page)
+                break
             if not html:
                 consecutive_empty += 1
                 if consecutive_empty >= 3:
