@@ -195,39 +195,6 @@ _TABLES = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 
-    # ── stock_batch_technical_score ──
-    """
-    CREATE TABLE IF NOT EXISTS stock_batch_technical_score (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        batch_id INT NOT NULL,
-        stock_name VARCHAR(100) NOT NULL,
-        stock_code VARCHAR(20) NOT NULL,
-        total_score INT NOT NULL,
-        macd_score INT NOT NULL,
-        macd_detail TEXT,
-        kdj_score INT NOT NULL,
-        kdj_detail TEXT,
-        vol_score INT NOT NULL,
-        vol_detail TEXT,
-        trend_score INT NOT NULL,
-        trend_detail TEXT,
-        boll_score INT DEFAULT 0,
-        boll_signal TINYINT DEFAULT 0,
-        boll_detail TEXT,
-        mid_bounce_score INT DEFAULT 0,
-        mid_bounce_signal TINYINT DEFAULT 0,
-        mid_bounce_detail TEXT,
-        close_price DOUBLE,
-        score_date VARCHAR(20),
-        created_at VARCHAR(30) NOT NULL,
-        UNIQUE KEY uk_batch_code_date (batch_id, stock_code, score_date),
-        INDEX idx_ts_batch (batch_id),
-        INDEX idx_ts_code (stock_code),
-        INDEX idx_ts_total (total_score),
-        INDEX idx_ts_date (score_date),
-        INDEX idx_ts_created (created_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    """,
     # ── stock_time_data（分时数据） ──
     """
     CREATE TABLE IF NOT EXISTS stock_time_data (
@@ -477,7 +444,6 @@ _INDEX_MIGRATIONS = [
     ("stock_dim_analysis_history", "idx_dim_stock_id", "INDEX idx_dim_stock_id (stock_id)"),
     ("stock_dim_analysis_history", "idx_dim_stock_code", "INDEX idx_dim_stock_code (stock_code)"),
     ("stock_highest_lowest_price", "idx_update_time", "INDEX idx_update_time (update_time)"),
-    ("stock_batch_technical_score", "idx_ts_created", "INDEX idx_ts_created (created_at)"),
     ("stock_kline_screening_history", "idx_ksh_stock_id", "INDEX idx_ksh_stock_id (stock_id)"),
 ]
 

@@ -1462,7 +1462,6 @@
                     <div class="stime">${formatBeijingTime(stock.completed_at || stock.created_at)}</div>
                     <button class="sbtn" onclick="showHistory('${stock.stock_name}')">CAN SLIM历史</button>
                     <button class="sbtn" style="background:linear-gradient(135deg,rgba(118,75,162,0.7),rgba(118,75,162,0.9));" onclick="showKlineHistory(${stock.id},'${stockDisplayName}')">K线分析历史</button>
-                    <button class="sbtn" style="background:linear-gradient(135deg,rgba(38,166,154,0.7),rgba(38,166,154,0.9));" onclick="showTechScoreHistory('${stock.stock_code}')">技术打分历史</button>
                     <button class="sbtn" style="background:linear-gradient(135deg,rgba(255,152,0,0.7),rgba(255,152,0,0.9));" onclick="showFinanceData('${stockDisplayCode}','${stockDisplayName}')">财报数据</button>
                 </td>`;
                 const checkCell = (rowspan) => `<td class="stock-check-cell" rowspan="${rowspan}">
@@ -1557,33 +1556,6 @@
                 </tr>`;
                 })();
 
-                const techScoreColor = stock.tech_total_score != null ? getScoreColor(stock.tech_total_score) : '#c7c7cc';
-                const bollSignalHtml = stock.tech_boll_signal ? `<span style="background:#ff6b6b;color:white;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">🔻下轨反弹 ${stock.tech_boll_score}</span>` : (stock.tech_boll_score ? `<span style="color:#999;font-size:9px;">下轨${stock.tech_boll_score}</span>` : '');
-                const midSignalHtml = stock.tech_mid_bounce_signal ? `<span style="background:#4caf50;color:white;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">📈中轨反弹 ${stock.tech_mid_bounce_score}</span>` : (stock.tech_mid_bounce_score ? `<span style="color:#999;font-size:9px;">中轨${stock.tech_mid_bounce_score}</span>` : '');
-                const row_tech = `<tr class="row-kline" style="background:rgba(232,245,233,0.45);">
-                    <td class="data-row"><div class="data-section">
-                        <span class="data-section-label">🔧 技术打分</span>
-                        <div class="data-section-items">
-                            ${stock.tech_total_score != null ? `
-                            <div class="data-metric" style="min-width:70px;border-right:2px solid rgba(76,175,80,0.2);padding-right:10px;">
-                                <span class="dm-label">综合分</span>
-                                <span class="dm-value" style="color:${techScoreColor};font-size:16px;">${stock.tech_total_score}</span>
-                            </div>
-                            <div class="data-metric"><span class="dm-label">MACD</span><span class="dm-value">${stock.tech_macd_score ?? '-'}</span></div>
-                            <div class="data-metric"><span class="dm-label">KDJ</span><span class="dm-value">${stock.tech_kdj_score ?? '-'}</span></div>
-                            <div class="data-metric"><span class="dm-label">量能</span><span class="dm-value">${stock.tech_vol_score ?? '-'}</span></div>
-                            <div class="data-metric"><span class="dm-label">趋势</span><span class="dm-value">${stock.tech_trend_score ?? '-'}</span></div>
-                            <div class="data-metric" style="border-right:2px solid rgba(76,175,80,0.2);padding-right:10px;">
-                                <span class="dm-label">布林信号</span>
-                                <div style="display:flex;gap:4px;margin-top:2px;flex-wrap:wrap;">${midSignalHtml}${bollSignalHtml}${!midSignalHtml && !bollSignalHtml ? '<span class="dm-value empty" style="font-size:10px;">无信号</span>' : ''}</div>
-                            </div>
-                            <div class="data-metric"><span class="dm-label">收盘价</span><span class="dm-value" style="font-size:11px;">${stock.tech_close_price ?? '-'}</span></div>
-                            <div class="data-metric"><span class="dm-label">日期</span><span class="dm-value" style="font-size:10px;color:#48484a;">${stock.tech_score_date ?? '-'}</span></div>
-                            ` : `<div class="data-metric"><span class="dm-value empty">暂无技术打分</span></div>`}
-                        </div>
-                    </div></td>
-                </tr>`;
-
                 const row3 = `<tr class="row-canslim">
                     <td class="data-row"><div class="data-section">
                         <span class="data-section-label">🔬 CAN SLIM</span>
@@ -1631,7 +1603,7 @@
                     </div></td>
                 </tr>`;
 
-                return row1 + row2 + row_tech + row_finance + row3;
+                return row1 + row2 + row_finance + row3;
             }).join('');
         }
 
@@ -2225,8 +2197,6 @@
             document.getElementById('batchPrescreeningCount').textContent = count;
             document.getElementById('batchKlineBtn').disabled = count === 0;
             document.getElementById('batchKlineCount').textContent = count;
-            document.getElementById('batchTechScoreBtn').disabled = count === 0;
-            document.getElementById('batchTechScoreCount').textContent = count;
             document.getElementById('batchCanslimBtn').disabled = count === 0;
             document.getElementById('batchCanslimCount').textContent = count;
             
@@ -2381,49 +2351,6 @@
             }
         }
 
-        async function batchTechnicalScore() {
-            if (!currentBatchId || batchSelectedStockIds.size === 0) {
-                alert('请先选择批次并勾选股票');
-                return;
-            }
-            showProgressModal('正在执行技术面打分...');
-            disableUI();
-            try {
-                const ids = Array.from(batchSelectedStockIds).join(',');
-                await new Promise((resolve, reject) => {
-                    const url = `/api/batch/${currentBatchId}/technical_score_execute?stock_ids=${ids}`;
-                    const eventSource = new EventSource(url);
-                    eventSource.onmessage = (event) => {
-                        try {
-                            const data = JSON.parse(event.data);
-                            if (data.stage === 'start') {
-                                updateProgressModal(data.completed, data.total, '开始技术打分...');
-                            } else if (data.stage === 'progress') {
-                                const info = data.error
-                                    ? `❌ ${data.stock_name} 失败: ${data.error}`
-                                    : `✅ ${data.stock_name} 完成 (${data.score}分)`;
-                                updateProgressModal(data.completed, data.total, info);
-                            } else if (data.stage === 'done') {
-                                eventSource.close();
-                                updateProgressModal(data.completed, data.total, '✅ 技术打分全部完成');
-                                resolve();
-                            } else if (data.stage === 'error') {
-                                eventSource.close();
-                                reject(new Error(data.message));
-                            }
-                        } catch(e) { console.error('解析事件失败:', e); }
-                    };
-                    eventSource.onerror = () => { eventSource.close(); reject(new Error('连接失败')); };
-                });
-                await loadBatchStocks(currentBatchId);
-            } catch(e) {
-                updateProgressModal(0, 100, '❌ 失败: ' + e.message);
-            } finally {
-                hideProgressModal();
-                enableUI();
-            }
-        }
-
         async function clearHistory_dim(stockName) {
             if (!confirm(`确定要清空「${stockName}」的所有历史执行记录？`)) return;
             await fetch(`/api/stock/history/${encodeURIComponent(stockName)}`, { method: 'DELETE' });
@@ -2442,56 +2369,6 @@
                 }
             } catch(e) {
                 alert('删除失败: ' + e.message);
-            }
-        }
-
-        async function showTechScoreHistory(stockCode) {
-            if (!currentBatchId) { alert('请先选择批次'); return; }
-            document.getElementById('historyModalTitle').textContent = stockCode + ' - 技术打分历史';
-            document.getElementById('historyModalContent').innerHTML = '加载中...';
-            document.getElementById('historyModal').classList.add('show');
-            try {
-                const resp = await fetch(`/api/batch/${currentBatchId}/technical_score_history/${encodeURIComponent(stockCode)}`);
-                const data = await resp.json();
-                if (!data.success || data.data.length === 0) {
-                    document.getElementById('historyModalContent').innerHTML = '<p style="color:#999;text-align:center;">暂无技术打分记录</p>';
-                    return;
-                }
-                const records = data.data;
-                let html = `<table style="width:100%;border-collapse:collapse;font-size:12px;">
-                    <thead><tr style="background:rgba(102,126,234,0.1);">
-                        <th style="padding:8px;text-align:left;">日期</th>
-                        <th style="padding:8px;text-align:center;">综合分</th>
-                        <th style="padding:8px;text-align:center;">MACD</th>
-                        <th style="padding:8px;text-align:center;">KDJ</th>
-                        <th style="padding:8px;text-align:center;">量能</th>
-                        <th style="padding:8px;text-align:center;">趋势</th>
-                        <th style="padding:8px;text-align:center;">中轨反弹</th>
-                        <th style="padding:8px;text-align:center;">下轨反弹</th>
-                        <th style="padding:8px;text-align:right;">收盘价</th>
-                        <th style="padding:8px;text-align:right;font-size:10px;">记录时间</th>
-                    </tr></thead><tbody>`;
-                records.forEach(r => {
-                    const scoreColor = getScoreColor(r.total_score);
-                    const midTag = r.mid_bounce_signal ? `<span style="background:#4caf50;color:white;padding:1px 4px;border-radius:3px;font-size:9px;">📈${r.mid_bounce_score}</span>` : (r.mid_bounce_score ? r.mid_bounce_score : '-');
-                    const bollTag = r.boll_signal ? `<span style="background:#ff6b6b;color:white;padding:1px 4px;border-radius:3px;font-size:9px;">🔻${r.boll_score}</span>` : (r.boll_score ? r.boll_score : '-');
-                    html += `<tr style="border-bottom:1px solid #eee;">
-                        <td style="padding:6px 8px;font-weight:600;">${r.score_date || '-'}</td>
-                        <td style="padding:6px 8px;text-align:center;font-weight:700;color:${scoreColor};font-size:14px;">${r.total_score}</td>
-                        <td style="padding:6px 8px;text-align:center;" title="${r.macd_detail || ''}">${r.macd_score}</td>
-                        <td style="padding:6px 8px;text-align:center;" title="${r.kdj_detail || ''}">${r.kdj_score}</td>
-                        <td style="padding:6px 8px;text-align:center;" title="${r.vol_detail || ''}">${r.vol_score}</td>
-                        <td style="padding:6px 8px;text-align:center;" title="${r.trend_detail || ''}">${r.trend_score}</td>
-                        <td style="padding:6px 8px;text-align:center;" title="${r.mid_bounce_detail || ''}">${midTag}</td>
-                        <td style="padding:6px 8px;text-align:center;" title="${r.boll_detail || ''}">${bollTag}</td>
-                        <td style="padding:6px 8px;text-align:right;">${r.close_price ?? '-'}</td>
-                        <td style="padding:6px 8px;text-align:right;color:#999;font-size:10px;">${r.created_at || '-'}</td>
-                    </tr>`;
-                });
-                html += '</tbody></table>';
-                document.getElementById('historyModalContent').innerHTML = html;
-            } catch(e) {
-                document.getElementById('historyModalContent').innerHTML = '<p style="color:red;">加载失败: ' + e.message + '</p>';
             }
         }
 
@@ -3062,7 +2939,7 @@
 
         // ─── 手动触发调度任务 ───
         async function triggerJob(jobType) {
-            const names = {kline:'日线数据',price:'最高最低价',score:'技术打分',kline_score:'K线初筛',db_check:'数据异常检测',market_data:'盘后数据',us_market:'海外市场数据',fund_flow:'资金流向'};
+            const names = {kline:'日线数据',price:'最高最低价',kline_score:'K线初筛',db_check:'数据异常检测',market_data:'盘后数据',us_market:'海外市场数据',fund_flow:'资金流向'};
             if (!confirm('确认手动执行「' + names[jobType] + '」任务？')) return;
             try {
                 const resp = await fetch('/api/trigger_' + jobType + '_job', {method:'POST'});
@@ -3249,87 +3126,6 @@
             }
         }
 
-        // ─── 技术打分状态轮询 ───
-        async function pollScoreJobStatus() {
-            try {
-                const resp = await fetch('/api/score_job_status');
-                const json = await resp.json();
-                if (!json.success) return;
-                const d = json.data;
-                const banner = document.getElementById('scoreJobBanner');
-                const icon = document.getElementById('scoreJobIcon');
-                const text = document.getElementById('scoreJobText');
-                const autoBanner = document.getElementById('autoScoreProgressBanner');
-                setBannerRunning(banner, d.running);
-
-                if (d.error && !d.running) {
-                    icon.textContent = '❌';
-                    text.textContent = '技术打分执行异常: ' + d.error;
-                    banner.style.background = 'rgba(217,83,79,0.25)';
-                    autoBanner.style.display = 'none';
-                } else if (d.running) {
-                    const sTotal = d.score_total || 0;
-                    const sDone = (d.score_success || 0) + (d.score_failed || 0);
-                    const sFail = d.score_failed || 0;
-                    const remaining = sTotal - sDone;
-                    const pct = sTotal > 0 ? Math.round((sDone / sTotal) * 100) : 0;
-                    icon.textContent = '🔄';
-                    let msg = '技术打分执行中';
-                    if (sTotal > 0) {
-                        msg += '  ' + pct + '%  ' + sDone + '/' + sTotal;
-                        if (remaining > 0) msg += '  剩余' + remaining;
-                        if (sFail > 0) msg += '  失败' + sFail;
-                    }
-                    text.textContent = msg;
-                    updateJobProgress('scoreJobProgress', 'scoreJobElapsed', sDone, sTotal, d.start_time);
-
-                    // 更新主内容区进度条
-                    autoBanner.style.display = 'flex';
-                    document.getElementById('autoScoreProgressPct').textContent = pct + '%';
-                    document.getElementById('autoScoreProgressFill').style.width = pct + '%';
-                    let detail = '准备中...';
-                    if (sTotal > 0) {
-                        detail = '已完成 ' + sDone + '/' + sTotal;
-                        if (sFail > 0) detail += '  失败 ' + sFail;
-                        if (d.start_time) detail += '  ⏱' + formatElapsed(d.start_time);
-                    }
-                    document.getElementById('autoScoreProgressDetail').textContent = detail;
-                } else if (d.last_run_time) {
-                    const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
-                    const isToday = d.last_run_date === today;
-                    const sTotal = d.score_total || 0;
-                    const sSuccess = d.score_success || 0;
-                    const sFail = d.score_failed || 0;
-                    autoBanner.style.display = 'none';
-                    if (isToday) {
-                        let detail = d.last_run_time + ' 技术指标自动打分完成';
-                        detail += '  ' + sSuccess + '/' + sTotal;
-                        if (sFail > 0) detail += '(失败' + sFail + ')';
-                        if (sFail === 0) {
-                            icon.textContent = '✅';
-                            text.textContent = detail;
-                            banner.style.background = 'rgba(92,184,92,0.25)';
-                        } else {
-                            icon.textContent = '⚠️';
-                            text.textContent = detail;
-                            banner.style.background = 'rgba(217,83,79,0.25)';
-                        }
-                    } else {
-                        icon.textContent = '⏳';
-                        text.textContent = '技术打分等待日线完成后自动执行  上次执行: ' + d.last_run_time;
-                        banner.style.background = 'rgba(255,255,255,0.2)';
-                    }
-                } else {
-                    icon.textContent = '⏳';
-                    text.textContent = '技术打分等待日线完成后自动执行';
-                    banner.style.background = 'rgba(255,255,255,0.2)';
-                    autoBanner.style.display = 'none';
-                }
-            } catch (e) {
-                // 静默失败
-            }
-        }
-
         // 初始化
         loadStockList();
         loadBatchList();
@@ -3340,7 +3136,6 @@
             const results = await Promise.allSettled([
                 pollKlineJobStatus(),
                 pollPriceJobStatus(),
-                pollScoreJobStatus(),
                 pollKlineScoreJobStatus(),
                 pollDbCheckJobStatus(),
                 pollMarketDataJobStatus(),
@@ -3348,7 +3143,7 @@
                 pollFundFlowJobStatus()
             ]);
             // 检测是否有任务在运行
-            const banners = ['klineJobBanner','priceJobBanner','scoreJobBanner','klineScoreJobBanner','dbCheckJobBanner','marketDataJobBanner','usMarketJobBanner','fundFlowJobBanner'];
+            const banners = ['klineJobBanner','priceJobBanner','klineScoreJobBanner','dbCheckJobBanner','marketDataJobBanner','usMarketJobBanner','fundFlowJobBanner'];
             _anyJobRunning = banners.some(id => document.getElementById(id)?.classList.contains('banner-running'));
             // 动态调整轮询间隔
             clearTimeout(_pollTimer);
