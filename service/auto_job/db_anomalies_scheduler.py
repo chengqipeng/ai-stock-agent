@@ -28,8 +28,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from service.auto_job.kline_data_scheduler import app_ready
-from service.auto_job.kline_technical_scheduler import kline_done_event_for_dbcheck
+from service.auto_job.kline_data_scheduler import app_ready, kline_done_event_for_dbcheck
 
 _CST = ZoneInfo("Asia/Shanghai")
 logger = logging.getLogger(__name__)
