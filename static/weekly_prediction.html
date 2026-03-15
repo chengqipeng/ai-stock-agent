@@ -86,7 +86,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
 /* 弹窗 */
 .modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:100;align-items:center;justify-content:center}
 .modal-overlay.visible{display:flex}
-.modal{background:#fff;border-radius:12px;width:750px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
+.modal{background:#fff;border-radius:12px;width:950px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
 .modal-head{padding:14px 18px;border-bottom:1px solid rgba(0,0,0,0.08);display:flex;align-items:center;gap:10px}
 .modal-head h3{font-size:14px;color:#1d1d1f;flex:1}
 .modal-head .close-btn{width:28px;height:28px;border:none;border-radius:6px;background:rgba(0,0,0,0.06);color:#666;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
@@ -520,8 +520,10 @@ async function showHistory(code, name) {
             return;
         }
         let html = '<table class="hist-table"><thead><tr>';
-        html += '<th>周</th><th>预测日期</th><th>方向</th><th>置信度</th><th>策略</th><th>d4%</th><th>d3%</th>';
-        html += '<th>预测涨跌幅</th><th>买入建议</th><th>实际方向</th><th>实际涨跌%</th><th>正确</th>';
+        html += '<th>周</th><th>预测日期</th><th>方向</th><th>置信度</th><th>策略</th>';
+        html += '<th>d4涨跌%</th><th>d3涨跌%</th><th>预测涨跌幅</th>';
+        html += '<th>回测准确率</th><th>买入建议</th>';
+        html += '<th>实际方向</th><th>实际涨跌%</th><th>正确</th><th>概念板块</th>';
         html += '</tr></thead><tbody>';
         for (const r of rows) {
             html += '<tr>';
@@ -530,15 +532,40 @@ async function showHistory(code, name) {
             html += '<td>' + dirBadge(r.pred_direction) + '</td>';
             html += '<td>' + confBadge(r.confidence) + '</td>';
             html += '<td style="font-size:11px;color:#666">' + (r.strategy || '-') + '</td>';
-            html += '<td>' + fmtChg(r.d4_chg) + '</td>';
-            html += '<td>' + fmtChg(r.d3_chg) + '</td>';
-            // 预测涨跌幅
-            html += '<td>' + fmtChg(r.pred_weekly_chg) + '</td>';
+            // d4涨跌 + 日期区间
+            const hd4Range = r.d4_date_range || '';
+            html += '<td>' + fmtChg(r.d4_chg) + (hd4Range ? '<br><span style="font-size:10px;color:#aaa">' + fmtDateRange(hd4Range) + '</span>' : '') + '</td>';
+            // d3涨跌 + 日期区间
+            const hd3Range = r.d3_date_range || '';
+            html += '<td>' + fmtChg(r.d3_chg) + (hd3Range ? '<br><span style="font-size:10px;color:#aaa">' + fmtDateRange(hd3Range) + '</span>' : '') + '</td>';
+            // 预测涨跌幅 + 区间
+            let hPredChg = '-';
+            if (r.pred_weekly_chg != null) {
+                const pn = parseFloat(r.pred_weekly_chg);
+                const pcls = pn > 0 ? 'chg-pos' : pn < 0 ? 'chg-neg' : '';
+                hPredChg = '<span class="chg-val ' + pcls + '">' + (pn > 0 ? '+' : '') + pn.toFixed(2) + '%</span>';
+                if (r.pred_chg_low != null && r.pred_chg_high != null) {
+                    hPredChg += '<br><span style="font-size:10px;color:#aaa">' + parseFloat(r.pred_chg_low).toFixed(1) + '~' + parseFloat(r.pred_chg_high).toFixed(1) + '%</span>';
+                }
+            }
+            html += '<td>' + hPredChg + '</td>';
+            // 回测准确率 + 区间
+            let hBtAcc = '-';
+            if (r.backtest_accuracy != null) {
+                hBtAcc = r.backtest_accuracy.toFixed(1) + '%';
+                if (r.backtest_samples != null && r.backtest_start_date) {
+                    const sStart = r.backtest_start_date.slice(5);
+                    const sEnd = (r.backtest_end_date || '').slice(5);
+                    hBtAcc += '<br><span style="font-size:10px;color:#aaa">' + sStart + '~' + sEnd + ', ' + r.backtest_samples + '条</span>';
+                }
+            }
+            html += '<td>' + hBtAcc + '</td>';
             // 买入建议
             let hBuy = '-';
             if (r.suggested_buy_date && r.pred_direction === 'UP') {
                 hBuy = '<span style="color:#e74c3c;font-size:11px">' + r.suggested_buy_date.slice(5) + '</span>';
                 if (r.suggested_buy_price != null) hBuy += ' ¥' + r.suggested_buy_price.toFixed(2);
+                if (r.suggested_buy_reason) hBuy = '<span title="' + r.suggested_buy_reason + '">' + hBuy + '</span>';
             }
             html += '<td style="font-size:11px">' + hBuy + '</td>';
             html += '<td>' + (r.actual_direction ? dirBadge(r.actual_direction) : '<span style="color:#ccc">-</span>') + '</td>';
@@ -546,6 +573,9 @@ async function showHistory(code, name) {
             if (r.is_correct === 1) html += '<td class="correct-yes">✓</td>';
             else if (r.is_correct === 0) html += '<td class="correct-no">✗</td>';
             else html += '<td style="color:#ccc">-</td>';
+            // 概念板块
+            const hBoards = r.concept_boards ? r.concept_boards.split(',').slice(0, 3).join(', ') : '-';
+            html += '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#888" title="' + (r.concept_boards || '') + '">' + hBoards + '</td>';
             html += '</tr>';
         }
         html += '</tbody></table>';
