@@ -81,6 +81,14 @@ def _add_suffix(code_6: str) -> str:
     return code_6
 
 
+def _next_trade_date(dt: datetime) -> datetime:
+    """估算下一个交易日（跳过周末，不考虑节假日）。"""
+    dt_next = dt + timedelta(days=1)
+    while dt_next.weekday() >= 5:  # 5=周六, 6=周日
+        dt_next += timedelta(days=1)
+    return dt_next
+
+
 # ═══════════════════════════════════════════════════════════
 # 行业分类 → 策略配置
 # ═══════════════════════════════════════════════════════════
@@ -487,15 +495,19 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
     n_days = len(week_klines)
     daily_pcts = [k['change_percent'] for k in week_klines]
 
-    # d3信号
+    # d3信号 + 日期区间
     d3_chg = None
+    d3_date_range = None
     if n_days >= 3:
         d3_chg = _compound_return(daily_pcts[:3])
+        d3_date_range = f"{week_klines[0]['date']}~{week_klines[2]['date']}"
 
-    # d4信号
+    # d4信号 + 日期区间
     d4_chg = None
+    d4_date_range = None
     if n_days >= 4:
         d4_chg = _compound_return(daily_pcts[:4])
+        d4_date_range = f"{week_klines[0]['date']}~{week_klines[3]['date']}"
 
     # 停牌检测
     is_suspended = n_days >= 3 and all(p == 0 for p in daily_pcts[:3])
@@ -553,6 +565,53 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
 
     stock_name = data['stock_names'].get(code, '')
 
+    # ── 计算建议买入时间和价格 ──
+    suggested_buy_date = None
+    suggested_buy_price = None
+    suggested_buy_reason = None
+
+    if pred_up and confidence in ('high', 'medium'):
+        # 预测涨 + 中高置信度 → 给出买入建议
+        latest_close = week_klines[-1].get('close', 0) if week_klines else 0
+
+        if latest_close > 0:
+            if n_days <= 3:
+                # 本周仅3天数据(周三)，建议周四开盘买入
+                # 买入价 = 最新收盘价 * (1 - 小幅折扣)
+                # 如果d3跌幅较大，可能还有下探空间，给更大折扣
+                if d3_chg is not None and d3_chg < -1.0:
+                    discount = 0.005  # 跌势中给0.5%折扣
+                    suggested_buy_reason = f'd3跌{d3_chg:.1f}%后反弹预期,建议低吸'
+                else:
+                    discount = 0.002  # 正常0.2%折扣
+                    suggested_buy_reason = f'预测涨({confidence}),建议次日开盘附近买入'
+                suggested_buy_price = round(latest_close * (1 - discount), 2)
+                # 下一个交易日
+                dt_next = _next_trade_date(dt_latest)
+                suggested_buy_date = dt_next.strftime('%Y-%m-%d')
+
+            elif n_days == 4:
+                # 本周已有4天数据(周四)，建议周五开盘买入
+                if d4_chg is not None and d4_chg < -1.5:
+                    discount = 0.008  # 连跌4天给更大折扣
+                    suggested_buy_reason = f'd4跌{d4_chg:.1f}%后反弹预期,建议低吸'
+                elif d4_chg is not None and d4_chg > 2.0:
+                    discount = 0.0  # 强势追涨
+                    suggested_buy_reason = f'd4涨{d4_chg:.1f}%强势,建议追涨'
+                else:
+                    discount = 0.003
+                    suggested_buy_reason = f'预测涨({confidence}),建议次日开盘附近买入'
+                suggested_buy_price = round(latest_close * (1 - discount), 2)
+                dt_next = _next_trade_date(dt_latest)
+                suggested_buy_date = dt_next.strftime('%Y-%m-%d')
+
+            elif n_days >= 5:
+                # 本周已有5天数据(周五)，建议下周一买入
+                suggested_buy_reason = f'本周已收盘,建议下周一开盘买入'
+                suggested_buy_price = round(latest_close, 2)
+                dt_next = _next_trade_date(dt_latest)
+                suggested_buy_date = dt_next.strftime('%Y-%m-%d')
+
     return {
         'stock_code': code,
         'stock_name': stock_name,
@@ -564,7 +623,9 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
         'strategy': strategy,
         'reason': reason[:200],
         'd3_chg': d3_chg,
+        'd3_date_range': d3_date_range,
         'd4_chg': d4_chg,
+        'd4_date_range': d4_date_range,
         'is_suspended': 1 if is_suspended else 0,
         'week_day_count': n_days,
         'board_momentum': board_momentum,
@@ -579,6 +640,9 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
         'backtest_samples': None,
         'backtest_start_date': None,
         'backtest_end_date': None,
+        'suggested_buy_date': suggested_buy_date,
+        'suggested_buy_price': suggested_buy_price,
+        'suggested_buy_reason': suggested_buy_reason[:200] if suggested_buy_reason else None,
     }
 
 
