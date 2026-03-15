@@ -45,6 +45,9 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction (
     suggested_buy_date VARCHAR(20) COMMENT '建议买入日期',
     suggested_buy_price DOUBLE COMMENT '建议买入价格',
     suggested_buy_reason VARCHAR(200) COMMENT '买入建议理由',
+    pred_weekly_chg DOUBLE COMMENT '预测下周涨跌幅(%)',
+    pred_chg_low DOUBLE COMMENT '预测涨跌幅下限(%)',
+    pred_chg_high DOUBLE COMMENT '预测涨跌幅上限(%)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_code (stock_code),
@@ -91,6 +94,9 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction_history (
     suggested_buy_date VARCHAR(20) COMMENT '建议买入日期',
     suggested_buy_price DOUBLE COMMENT '建议买入价格',
     suggested_buy_reason VARCHAR(200) COMMENT '买入建议理由',
+    pred_weekly_chg DOUBLE COMMENT '预测下周涨跌幅(%)',
+    pred_chg_low DOUBLE COMMENT '预测涨跌幅下限(%)',
+    pred_chg_high DOUBLE COMMENT '预测涨跌幅上限(%)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_week (stock_code, iso_year, iso_week),
     INDEX idx_predict_date (predict_date),
@@ -120,6 +126,9 @@ def ensure_tables():
             ("suggested_buy_date", "VARCHAR(20) COMMENT '建议买入日期'", "backtest_end_date"),
             ("suggested_buy_price", "DOUBLE COMMENT '建议买入价格'", "suggested_buy_date"),
             ("suggested_buy_reason", "VARCHAR(200) COMMENT '买入建议理由'", "suggested_buy_price"),
+            ("pred_weekly_chg", "DOUBLE COMMENT '预测下周涨跌幅(%)'", "suggested_buy_reason"),
+            ("pred_chg_low", "DOUBLE COMMENT '预测涨跌幅下限(%)'", "pred_weekly_chg"),
+            ("pred_chg_high", "DOUBLE COMMENT '预测涨跌幅上限(%)'", "pred_chg_low"),
         ]
         for tbl in ("stock_weekly_prediction", "stock_weekly_prediction_history"):
             for col_name, col_def, after_col in _migrate_cols:
@@ -156,7 +165,8 @@ def upsert_latest_prediction(prediction: dict):
                  market_d3_chg, market_d4_chg, concept_boards,
                  backtest_accuracy, backtest_lowo_accuracy,
                  backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date,
-                 suggested_buy_date, suggested_buy_price, suggested_buy_reason)
+                 suggested_buy_date, suggested_buy_price, suggested_buy_reason,
+                 pred_weekly_chg, pred_chg_low, pred_chg_high)
             VALUES
                 (%(stock_code)s, %(stock_name)s, %(predict_date)s,
                  %(iso_year)s, %(iso_week)s,
@@ -167,7 +177,8 @@ def upsert_latest_prediction(prediction: dict):
                  %(market_d3_chg)s, %(market_d4_chg)s, %(concept_boards)s,
                  %(backtest_accuracy)s, %(backtest_lowo_accuracy)s,
                  %(backtest_weeks)s, %(backtest_samples)s, %(backtest_start_date)s, %(backtest_end_date)s,
-                 %(suggested_buy_date)s, %(suggested_buy_price)s, %(suggested_buy_reason)s)
+                 %(suggested_buy_date)s, %(suggested_buy_price)s, %(suggested_buy_reason)s,
+                 %(pred_weekly_chg)s, %(pred_chg_low)s, %(pred_chg_high)s)
             ON DUPLICATE KEY UPDATE
                 stock_name = VALUES(stock_name),
                 predict_date = VALUES(predict_date),
@@ -197,7 +208,10 @@ def upsert_latest_prediction(prediction: dict):
                 backtest_end_date = VALUES(backtest_end_date),
                 suggested_buy_date = VALUES(suggested_buy_date),
                 suggested_buy_price = VALUES(suggested_buy_price),
-                suggested_buy_reason = VALUES(suggested_buy_reason)
+                suggested_buy_reason = VALUES(suggested_buy_reason),
+                pred_weekly_chg = VALUES(pred_weekly_chg),
+                pred_chg_low = VALUES(pred_chg_low),
+                pred_chg_high = VALUES(pred_chg_high)
         """, prediction)
         conn.commit()
     finally:
@@ -222,7 +236,8 @@ def batch_upsert_latest_predictions(predictions: list[dict]):
                  market_d3_chg, market_d4_chg, concept_boards,
                  backtest_accuracy, backtest_lowo_accuracy,
                  backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date,
-                 suggested_buy_date, suggested_buy_price, suggested_buy_reason)
+                 suggested_buy_date, suggested_buy_price, suggested_buy_reason,
+                 pred_weekly_chg, pred_chg_low, pred_chg_high)
             VALUES
                 (%(stock_code)s, %(stock_name)s, %(predict_date)s,
                  %(iso_year)s, %(iso_week)s,
@@ -233,7 +248,8 @@ def batch_upsert_latest_predictions(predictions: list[dict]):
                  %(market_d3_chg)s, %(market_d4_chg)s, %(concept_boards)s,
                  %(backtest_accuracy)s, %(backtest_lowo_accuracy)s,
                  %(backtest_weeks)s, %(backtest_samples)s, %(backtest_start_date)s, %(backtest_end_date)s,
-                 %(suggested_buy_date)s, %(suggested_buy_price)s, %(suggested_buy_reason)s)
+                 %(suggested_buy_date)s, %(suggested_buy_price)s, %(suggested_buy_reason)s,
+                 %(pred_weekly_chg)s, %(pred_chg_low)s, %(pred_chg_high)s)
             ON DUPLICATE KEY UPDATE
                 stock_name = VALUES(stock_name),
                 predict_date = VALUES(predict_date),
@@ -263,7 +279,10 @@ def batch_upsert_latest_predictions(predictions: list[dict]):
                 backtest_end_date = VALUES(backtest_end_date),
                 suggested_buy_date = VALUES(suggested_buy_date),
                 suggested_buy_price = VALUES(suggested_buy_price),
-                suggested_buy_reason = VALUES(suggested_buy_reason)
+                suggested_buy_reason = VALUES(suggested_buy_reason),
+                pred_weekly_chg = VALUES(pred_weekly_chg),
+                pred_chg_low = VALUES(pred_chg_low),
+                pred_chg_high = VALUES(pred_chg_high)
         """, predictions)
         conn.commit()
         logger.info("批量更新最新预测: %d 条", len(predictions))
@@ -289,7 +308,8 @@ def batch_insert_history(predictions: list[dict]):
                  market_d3_chg, market_d4_chg, concept_boards,
                  backtest_accuracy, backtest_lowo_accuracy,
                  backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date,
-                 suggested_buy_date, suggested_buy_price, suggested_buy_reason)
+                 suggested_buy_date, suggested_buy_price, suggested_buy_reason,
+                 pred_weekly_chg, pred_chg_low, pred_chg_high)
             VALUES
                 (%(stock_code)s, %(stock_name)s, %(predict_date)s,
                  %(iso_year)s, %(iso_week)s,
@@ -300,7 +320,8 @@ def batch_insert_history(predictions: list[dict]):
                  %(market_d3_chg)s, %(market_d4_chg)s, %(concept_boards)s,
                  %(backtest_accuracy)s, %(backtest_lowo_accuracy)s,
                  %(backtest_weeks)s, %(backtest_samples)s, %(backtest_start_date)s, %(backtest_end_date)s,
-                 %(suggested_buy_date)s, %(suggested_buy_price)s, %(suggested_buy_reason)s)
+                 %(suggested_buy_date)s, %(suggested_buy_price)s, %(suggested_buy_reason)s,
+                 %(pred_weekly_chg)s, %(pred_chg_low)s, %(pred_chg_high)s)
             ON DUPLICATE KEY UPDATE
                 predict_date = VALUES(predict_date),
                 pred_direction = VALUES(pred_direction),
@@ -327,7 +348,10 @@ def batch_insert_history(predictions: list[dict]):
                 backtest_end_date = VALUES(backtest_end_date),
                 suggested_buy_date = VALUES(suggested_buy_date),
                 suggested_buy_price = VALUES(suggested_buy_price),
-                suggested_buy_reason = VALUES(suggested_buy_reason)
+                suggested_buy_reason = VALUES(suggested_buy_reason),
+                pred_weekly_chg = VALUES(pred_weekly_chg),
+                pred_chg_low = VALUES(pred_chg_low),
+                pred_chg_high = VALUES(pred_chg_high)
         """, predictions)
         conn.commit()
         logger.info("批量插入历史预测: %d 条", len(predictions))
@@ -481,7 +505,7 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
         allowed_sorts = {
             'stock_code', 'stock_name', 'pred_direction', 'confidence',
             'd3_chg', 'd4_chg', 'strategy', 'predict_date', 'backtest_accuracy',
-            'suggested_buy_date', 'suggested_buy_price',
+            'suggested_buy_date', 'suggested_buy_price', 'pred_weekly_chg',
         }
         if sort_by not in allowed_sorts:
             sort_by = 'stock_code'
@@ -498,6 +522,7 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
                    backtest_accuracy, backtest_lowo_accuracy,
                    backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date,
                    suggested_buy_date, suggested_buy_price, suggested_buy_reason,
+                   pred_weekly_chg, pred_chg_low, pred_chg_high,
                    concept_boards
             FROM stock_weekly_prediction
             {where_sql}

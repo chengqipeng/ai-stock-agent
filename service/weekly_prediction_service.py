@@ -643,6 +643,9 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
         'suggested_buy_date': suggested_buy_date,
         'suggested_buy_price': suggested_buy_price,
         'suggested_buy_reason': suggested_buy_reason[:200] if suggested_buy_reason else None,
+        'pred_weekly_chg': None,  # 后续由回测数据填充
+        'pred_chg_low': None,
+        'pred_chg_high': None,
     }
 
 
@@ -726,6 +729,7 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
         stock_correct = 0
         stock_total = 0
         strategy_stats = defaultdict(lambda: [0, 0])  # strategy -> [correct, total]
+        strategy_chg_dist = defaultdict(list)  # strategy -> [actual_weekly_chg, ...]
 
         for iw, days in wg.items():
             days.sort(key=lambda x: x['date'])
@@ -754,18 +758,28 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
             global_count += 1
             week_stats[iw][1] += 1
             strategy_stats[strat][1] += 1
+            strategy_chg_dist[strat].append(weekly_chg)
 
         if stock_total > 0:
             stock_acc = round(stock_correct / stock_total * 100, 1)
             strat_acc = {}
+            strat_chg = {}
             for s, (ok, n) in strategy_stats.items():
                 if n > 0:
                     strat_acc[s] = round(ok / n * 100, 1)
+            for s, chgs in strategy_chg_dist.items():
+                if len(chgs) >= 3:
+                    sorted_chgs = sorted(chgs)
+                    median = sorted_chgs[len(sorted_chgs) // 2]
+                    p25 = sorted_chgs[max(0, len(sorted_chgs) // 4)]
+                    p75 = sorted_chgs[min(len(sorted_chgs) - 1, len(sorted_chgs) * 3 // 4)]
+                    strat_chg[s] = {'median': round(median, 2), 'p25': round(p25, 2), 'p75': round(p75, 2)}
             per_stock[code] = {
                 'accuracy': stock_acc,
                 'total': stock_total,
                 'n_weeks': stock_total,
                 'strategy_acc': strat_acc,
+                'strategy_chg': strat_chg,
             }
 
     full_accuracy = round(global_correct / global_count * 100, 1) if global_count > 0 else 0
@@ -899,6 +913,22 @@ def run_batch_weekly_prediction():
         p['backtest_weeks'] = bt_n_weeks
         p['backtest_start_date'] = bt_start
         p['backtest_end_date'] = bt_end
+
+    # 填充预测涨跌幅：基于回测中同股票+同策略的历史实际周涨跌幅分布
+    filled_pred_chg = 0
+    for p in predictions:
+        code = p['stock_code']
+        strategy = p.get('strategy', '')
+        stock_bt = per_stock_bt.get(code)
+        if stock_bt:
+            strat_chg = stock_bt.get('strategy_chg', {}).get(strategy)
+            if strat_chg:
+                # 使用该股票在当前策略下的历史涨跌幅中位数
+                p['pred_weekly_chg'] = strat_chg['median']
+                p['pred_chg_low'] = strat_chg['p25']
+                p['pred_chg_high'] = strat_chg['p75']
+                filled_pred_chg += 1
+    logger.info("  预测涨跌幅填充: %d 只(有策略级历史数据)", filled_pred_chg)
 
     logger.info("  回测填充: 策略级%d只, 个股级%d只, 全局兜底%d只",
                 filled_per_strategy, filled_per_stock,
