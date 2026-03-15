@@ -122,6 +122,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
         </select>
         <input id="searchInput" type="text" placeholder="搜索代码/名称..." style="width:160px" oninput="debounceSearch()">
         <button class="btn" onclick="loadList()">刷新</button>
+        <button class="btn" style="background:rgba(231,76,60,0.85)" onclick="triggerRecompute()">重新计算</button>
         <span class="info" id="listInfo"></span>
     </div>
     <div id="tableWrap"></div>
@@ -542,6 +543,57 @@ document.getElementById('historyModal').addEventListener('click', function(e) {
 // 初始化
 loadSummary();
 loadList();
+
+async function triggerRecompute() {
+    if (!confirm('确认重新计算全部周预测？\n这将重新执行批量预测并更新所有数据（包括d3/d4日期、买入建议等）。')) return;
+    try {
+        const resp = await fetch('/api/trigger_weekly_prediction_job', {method: 'POST'});
+        const json = await resp.json();
+        if (json.success) {
+            alert('周预测任务已触发，请稍等1-2分钟后刷新页面查看结果。');
+            // 开始轮询状态
+            pollJobStatus();
+        } else {
+            alert('触发失败: ' + (json.message || json.error || '未知错误'));
+        }
+    } catch (e) {
+        alert('触发失败: ' + e.message);
+    }
+}
+
+function pollJobStatus() {
+    const infoEl = document.getElementById('listInfo');
+    const origText = infoEl.textContent;
+    let pollCount = 0;
+    const timer = setInterval(async () => {
+        pollCount++;
+        try {
+            const resp = await fetch('/api/weekly_prediction_job_status');
+            const json = await resp.json();
+            if (json.success && json.data) {
+                const s = json.data;
+                if (s.running) {
+                    infoEl.textContent = '⏳ 计算中... ' + (s.predict_done || 0) + '/' + (s.predict_total || '?');
+                    infoEl.style.color = '#e74c3c';
+                } else {
+                    clearInterval(timer);
+                    infoEl.style.color = '#666';
+                    if (s.last_success) {
+                        infoEl.textContent = '✅ 计算完成，正在刷新...';
+                        setTimeout(() => { loadSummary(); loadList(); }, 500);
+                    } else {
+                        infoEl.textContent = '❌ 计算失败: ' + (s.error || '未知');
+                    }
+                }
+            }
+        } catch (e) { /* ignore */ }
+        if (pollCount > 180) { // 最多轮询3分钟
+            clearInterval(timer);
+            infoEl.textContent = origText;
+            infoEl.style.color = '#666';
+        }
+    }, 1000);
+}
 </script>
 </body>
 </html>
