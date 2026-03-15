@@ -92,7 +92,7 @@ def _parse_value(val_str: str):
 async def _fetch_finance_json(
     stock_code: str,
     report_type: ReportType,
-    max_retries: int = 3,
+    max_retries: int = 5,
     session: aiohttp.ClientSession | None = None,
 ) -> dict:
     """
@@ -132,7 +132,13 @@ async def _fetch_finance_json(
 
             except (aiohttp.ClientError, asyncio.TimeoutError, json.JSONDecodeError) as e:
                 if attempt < max_retries:
-                    wait = 2 ** attempt
+                    is_server_error = (isinstance(e, aiohttp.ClientResponseError)
+                                       and e.status >= 500)
+                    # 5xx 服务端限流用更长退避，其他错误用短退避
+                    if is_server_error:
+                        wait = min(5 * attempt + 5, 60)
+                    else:
+                        wait = min(2 ** attempt, 30)
                     logger.warning(
                         "[finance_10jqka] 第%d次请求失败 code=%s type=%s: %s，%ds后重试",
                         attempt, stock_code, report_type, e, wait,
@@ -140,8 +146,9 @@ async def _fetch_finance_json(
                     await asyncio.sleep(wait)
                 else:
                     logger.error(
-                        "[finance_10jqka] 重试%d次后仍失败 code=%s type=%s: %s",
-                        max_retries, stock_code, report_type, e,
+                        "[finance_10jqka] 重试%d次后仍失败 code=%s type=%s: %s,"
+                        ",url='%s'",
+                        max_retries, stock_code, report_type, e, url,
                     )
                     raise
 
@@ -280,8 +287,8 @@ async def get_stock_all_finance_data(
     """
     一次性获取全部四张财务报表数据（统一接口）。
 
-    共享同一个 aiohttp.ClientSession 并发请求四种报表，
-    避免多次创建连接，减少底层调用开销。
+    共享同一个 aiohttp.ClientSession 串行请求四种报表，
+    每次请求间加短暂间隔，避免触发同花顺服务端限流（502）。
 
     Args:
         stock_info: 股票信息对象
@@ -296,17 +303,13 @@ async def get_stock_all_finance_data(
         }
     """
     report_types: list[ReportType] = ["benefit", "debt", "cash", "main"]
+    result = {}
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-        flashes = await asyncio.gather(
-            *(
-                _fetch_finance_json(stock_info.stock_code, rt, session=session)
-                for rt in report_types
-            )
-        )
-    return {
-        rt: _parse_report_data(flash, data_key)
-        for rt, flash in zip(report_types, flashes)
-    }
+        for rt in report_types:
+            flash = await _fetch_finance_json(stock_info.stock_code, rt, session=session)
+            result[rt] = _parse_report_data(flash, data_key)
+            await asyncio.sleep(0.3)
+    return result
 
 # ─────────────────── 与 stock_financial_main 对齐的输出格式 ───────────────────
 
