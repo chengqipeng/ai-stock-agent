@@ -382,14 +382,22 @@ function renderTable(rows) {
         html += '<td style="color:#666">' + (r.predict_date || '-') + '</td>';
         // 回测准确率：显示准确率 + 回测区间和样本数
         const btAcc = r.backtest_accuracy != null ? r.backtest_accuracy.toFixed(1) + '%' : '-';
-        const btSamples = r.backtest_samples != null ? r.backtest_samples : '';
+        const btSamples = r.backtest_samples != null ? r.backtest_samples : null;
         const btStart = r.backtest_start_date || '';
         const btEnd = r.backtest_end_date || '';
+        const btWeeks = r.backtest_weeks || '';
         let btDetail = btAcc;
-        if (btSamples !== '' && btStart) {
-            const shortStart = btStart.slice(5);  // MM-DD
+        if (btSamples != null && btStart) {
+            // 有完整回测元数据
+            const shortStart = btStart.slice(5);
             const shortEnd = btEnd.slice(5);
             btDetail = btAcc + ' <span style="font-size:10px;color:#999">(' + shortStart + '~' + shortEnd + ', ' + btSamples + '条)</span>';
+        } else if (r.backtest_accuracy != null && r.predict_date) {
+            // 兼容旧数据：用predict_date往前推29周估算区间
+            const pd = new Date(r.predict_date);
+            const sd = new Date(pd.getTime() - 29 * 7 * 86400000 - 7 * 86400000);
+            const fmtMD = d => String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+            btDetail = btAcc + ' <span style="font-size:10px;color:#999">(~29周 ' + fmtMD(sd) + '~' + fmtMD(pd) + ')</span>';
         }
         html += '<td>' + btDetail + '</td>';
         const boards = r.concept_boards ? r.concept_boards.split(',').slice(0, 3).join(', ') : '-';
