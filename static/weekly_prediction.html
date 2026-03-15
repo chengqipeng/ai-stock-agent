@@ -219,10 +219,11 @@ const INDICATOR_TIPS = {
     'backtest_accuracy': {
         title: '回测准确率',
         sections: [
-            {h: '计算方式', p: '基于该股票自身过去29周的历史数据，使用与当前预测相同的策略进行回测，统计预测方向与实际方向一致的比例。'},
+            {h: '计算方式', p: '基于该股票自身过去N周的历史数据，使用与当前预测相同的策略进行回测，统计预测方向与实际方向一致的比例。'},
+            {h: '回测区间', p: '表格中"回测准确率"列会显示具体的回测时间段和样本数，格式为"准确率 (起始~截止, N条)"。'},
             {h: '个股+策略级', p: '优先使用该股票在当前策略下的历史准确率。例如某股票使用follow_d4(strong)策略，则统计该股票历史上所有d4强信号的准确率。'},
             {h: '个股级', p: '若该策略样本不足，回退到该股票所有策略的综合准确率。'},
-            {h: '全局兜底', p: '若该股票无足够历史数据，使用全市场平均准确率。'},
+            {h: '全局兜底', p: '若该股票无足够历史数据，使用全市场平均准确率（样本数显示为0）。'},
             {h: '注意', p: '准确率因股票和策略而异，不同股票的回测准确率可能差异较大。高置信策略通常准确率更高。'},
         ],
     },
@@ -379,7 +380,18 @@ function renderTable(rows) {
         html += '<td>' + fmtChg(r.d4_chg) + '</td>';
         html += '<td>' + fmtChg(r.d3_chg) + '</td>';
         html += '<td style="color:#666">' + (r.predict_date || '-') + '</td>';
-        html += '<td>' + (r.backtest_accuracy != null ? r.backtest_accuracy.toFixed(1) + '%' : '-') + '</td>';
+        // 回测准确率：显示准确率 + 回测区间和样本数
+        const btAcc = r.backtest_accuracy != null ? r.backtest_accuracy.toFixed(1) + '%' : '-';
+        const btSamples = r.backtest_samples != null ? r.backtest_samples : '';
+        const btStart = r.backtest_start_date || '';
+        const btEnd = r.backtest_end_date || '';
+        let btDetail = btAcc;
+        if (btSamples !== '' && btStart) {
+            const shortStart = btStart.slice(5);  // MM-DD
+            const shortEnd = btEnd.slice(5);
+            btDetail = btAcc + ' <span style="font-size:10px;color:#999">(' + shortStart + '~' + shortEnd + ', ' + btSamples + '条)</span>';
+        }
+        html += '<td>' + btDetail + '</td>';
         const boards = r.concept_boards ? r.concept_boards.split(',').slice(0, 3).join(', ') : '-';
         const boardsFull = r.concept_boards || '';
         html += '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#888" title="' + boardsFull + '">' + boards + '</td>';

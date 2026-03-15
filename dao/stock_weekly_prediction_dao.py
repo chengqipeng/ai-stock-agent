@@ -34,8 +34,12 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction (
     market_d3_chg DOUBLE COMMENT '大盘前3天涨跌(%)',
     market_d4_chg DOUBLE COMMENT '大盘前4天涨跌(%)',
     concept_boards VARCHAR(500) COMMENT '所属概念板块(逗号分隔)',
-    backtest_accuracy DOUBLE COMMENT '29周回测全样本准确率(%)',
-    backtest_lowo_accuracy DOUBLE COMMENT '29周回测LOWO准确率(%)',
+    backtest_accuracy DOUBLE COMMENT '回测全样本准确率(%)',
+    backtest_lowo_accuracy DOUBLE COMMENT '回测LOWO准确率(%)',
+    backtest_weeks INT COMMENT '回测覆盖周数',
+    backtest_samples INT COMMENT '回测样本数(该股票有效周数)',
+    backtest_start_date VARCHAR(20) COMMENT '回测起始日期',
+    backtest_end_date VARCHAR(20) COMMENT '回测截止日期',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_code (stock_code),
@@ -73,6 +77,10 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction_history (
     is_correct TINYINT COMMENT '预测是否正确(周结束后回填)',
     backtest_accuracy DOUBLE COMMENT '回测准确率(%)',
     backtest_lowo_accuracy DOUBLE COMMENT '回测LOWO准确率(%)',
+    backtest_weeks INT COMMENT '回测覆盖周数',
+    backtest_samples INT COMMENT '回测样本数',
+    backtest_start_date VARCHAR(20) COMMENT '回测起始日期',
+    backtest_end_date VARCHAR(20) COMMENT '回测截止日期',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_week (stock_code, iso_year, iso_week),
     INDEX idx_predict_date (predict_date),
@@ -84,12 +92,33 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction_history (
 
 
 def ensure_tables():
-    """确保预测表存在。"""
+    """确保预测表存在，并迁移新增列。"""
     conn = get_connection()
     cur = conn.cursor()
     try:
         cur.execute(_CREATE_PREDICTION_TABLE)
         cur.execute(_CREATE_HISTORY_TABLE)
+
+        # 迁移：为已有表添加回测元数据列
+        _bt_cols = [
+            ("backtest_weeks", "INT COMMENT '回测覆盖周数'"),
+            ("backtest_samples", "INT COMMENT '回测样本数'"),
+            ("backtest_start_date", "VARCHAR(20) COMMENT '回测起始日期'"),
+            ("backtest_end_date", "VARCHAR(20) COMMENT '回测截止日期'"),
+        ]
+        for tbl in ("stock_weekly_prediction", "stock_weekly_prediction_history"):
+            for col_name, col_def in _bt_cols:
+                try:
+                    cur.execute(
+                        "SELECT COUNT(*) FROM information_schema.columns "
+                        "WHERE table_schema = DATABASE() AND table_name = %s AND column_name = %s",
+                        (tbl, col_name))
+                    if cur.fetchone()[0] == 0:
+                        cur.execute(f"ALTER TABLE {tbl} ADD COLUMN {col_name} {col_def} AFTER backtest_lowo_accuracy")
+                        logger.info("  已添加列: %s.%s", tbl, col_name)
+                except Exception as e:
+                    logger.warning("  添加列失败 %s.%s: %s", tbl, col_name, e)
+
         conn.commit()
         logger.info("周预测表已就绪")
     finally:
@@ -109,7 +138,8 @@ def upsert_latest_prediction(prediction: dict):
                  d3_chg, d4_chg, is_suspended, week_day_count,
                  board_momentum, concept_consensus, fund_flow_signal,
                  market_d3_chg, market_d4_chg, concept_boards,
-                 backtest_accuracy, backtest_lowo_accuracy)
+                 backtest_accuracy, backtest_lowo_accuracy,
+                 backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date)
             VALUES
                 (%(stock_code)s, %(stock_name)s, %(predict_date)s,
                  %(iso_year)s, %(iso_week)s,
@@ -117,7 +147,8 @@ def upsert_latest_prediction(prediction: dict):
                  %(d3_chg)s, %(d4_chg)s, %(is_suspended)s, %(week_day_count)s,
                  %(board_momentum)s, %(concept_consensus)s, %(fund_flow_signal)s,
                  %(market_d3_chg)s, %(market_d4_chg)s, %(concept_boards)s,
-                 %(backtest_accuracy)s, %(backtest_lowo_accuracy)s)
+                 %(backtest_accuracy)s, %(backtest_lowo_accuracy)s,
+                 %(backtest_weeks)s, %(backtest_samples)s, %(backtest_start_date)s, %(backtest_end_date)s)
             ON DUPLICATE KEY UPDATE
                 stock_name = VALUES(stock_name),
                 predict_date = VALUES(predict_date),
@@ -138,7 +169,11 @@ def upsert_latest_prediction(prediction: dict):
                 market_d4_chg = VALUES(market_d4_chg),
                 concept_boards = VALUES(concept_boards),
                 backtest_accuracy = VALUES(backtest_accuracy),
-                backtest_lowo_accuracy = VALUES(backtest_lowo_accuracy)
+                backtest_lowo_accuracy = VALUES(backtest_lowo_accuracy),
+                backtest_weeks = VALUES(backtest_weeks),
+                backtest_samples = VALUES(backtest_samples),
+                backtest_start_date = VALUES(backtest_start_date),
+                backtest_end_date = VALUES(backtest_end_date)
         """, prediction)
         conn.commit()
     finally:
@@ -160,7 +195,8 @@ def batch_upsert_latest_predictions(predictions: list[dict]):
                  d3_chg, d4_chg, is_suspended, week_day_count,
                  board_momentum, concept_consensus, fund_flow_signal,
                  market_d3_chg, market_d4_chg, concept_boards,
-                 backtest_accuracy, backtest_lowo_accuracy)
+                 backtest_accuracy, backtest_lowo_accuracy,
+                 backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date)
             VALUES
                 (%(stock_code)s, %(stock_name)s, %(predict_date)s,
                  %(iso_year)s, %(iso_week)s,
@@ -168,7 +204,8 @@ def batch_upsert_latest_predictions(predictions: list[dict]):
                  %(d3_chg)s, %(d4_chg)s, %(is_suspended)s, %(week_day_count)s,
                  %(board_momentum)s, %(concept_consensus)s, %(fund_flow_signal)s,
                  %(market_d3_chg)s, %(market_d4_chg)s, %(concept_boards)s,
-                 %(backtest_accuracy)s, %(backtest_lowo_accuracy)s)
+                 %(backtest_accuracy)s, %(backtest_lowo_accuracy)s,
+                 %(backtest_weeks)s, %(backtest_samples)s, %(backtest_start_date)s, %(backtest_end_date)s)
             ON DUPLICATE KEY UPDATE
                 stock_name = VALUES(stock_name),
                 predict_date = VALUES(predict_date),
@@ -189,7 +226,11 @@ def batch_upsert_latest_predictions(predictions: list[dict]):
                 market_d4_chg = VALUES(market_d4_chg),
                 concept_boards = VALUES(concept_boards),
                 backtest_accuracy = VALUES(backtest_accuracy),
-                backtest_lowo_accuracy = VALUES(backtest_lowo_accuracy)
+                backtest_lowo_accuracy = VALUES(backtest_lowo_accuracy),
+                backtest_weeks = VALUES(backtest_weeks),
+                backtest_samples = VALUES(backtest_samples),
+                backtest_start_date = VALUES(backtest_start_date),
+                backtest_end_date = VALUES(backtest_end_date)
         """, predictions)
         conn.commit()
         logger.info("批量更新最新预测: %d 条", len(predictions))
@@ -212,7 +253,8 @@ def batch_insert_history(predictions: list[dict]):
                  d3_chg, d4_chg, is_suspended, week_day_count,
                  board_momentum, concept_consensus, fund_flow_signal,
                  market_d3_chg, market_d4_chg, concept_boards,
-                 backtest_accuracy, backtest_lowo_accuracy)
+                 backtest_accuracy, backtest_lowo_accuracy,
+                 backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date)
             VALUES
                 (%(stock_code)s, %(stock_name)s, %(predict_date)s,
                  %(iso_year)s, %(iso_week)s,
@@ -220,7 +262,8 @@ def batch_insert_history(predictions: list[dict]):
                  %(d3_chg)s, %(d4_chg)s, %(is_suspended)s, %(week_day_count)s,
                  %(board_momentum)s, %(concept_consensus)s, %(fund_flow_signal)s,
                  %(market_d3_chg)s, %(market_d4_chg)s, %(concept_boards)s,
-                 %(backtest_accuracy)s, %(backtest_lowo_accuracy)s)
+                 %(backtest_accuracy)s, %(backtest_lowo_accuracy)s,
+                 %(backtest_weeks)s, %(backtest_samples)s, %(backtest_start_date)s, %(backtest_end_date)s)
             ON DUPLICATE KEY UPDATE
                 predict_date = VALUES(predict_date),
                 pred_direction = VALUES(pred_direction),
@@ -238,7 +281,11 @@ def batch_insert_history(predictions: list[dict]):
                 market_d4_chg = VALUES(market_d4_chg),
                 concept_boards = VALUES(concept_boards),
                 backtest_accuracy = VALUES(backtest_accuracy),
-                backtest_lowo_accuracy = VALUES(backtest_lowo_accuracy)
+                backtest_lowo_accuracy = VALUES(backtest_lowo_accuracy),
+                backtest_weeks = VALUES(backtest_weeks),
+                backtest_samples = VALUES(backtest_samples),
+                backtest_start_date = VALUES(backtest_start_date),
+                backtest_end_date = VALUES(backtest_end_date)
         """, predictions)
         conn.commit()
         logger.info("批量插入历史预测: %d 条", len(predictions))
@@ -405,6 +452,7 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
                    pred_direction, confidence, strategy, reason,
                    d3_chg, d4_chg, is_suspended, week_day_count,
                    backtest_accuracy, backtest_lowo_accuracy,
+                   backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date,
                    concept_boards
             FROM stock_weekly_prediction
             {where_sql}

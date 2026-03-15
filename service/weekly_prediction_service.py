@@ -31,6 +31,7 @@ from dao.stock_weekly_prediction_dao import (
     batch_upsert_latest_predictions,
     batch_insert_history,
 )
+from common.constants.stocks_data import get_stock_name
 
 logger = logging.getLogger(__name__)
 
@@ -187,13 +188,24 @@ def _load_prediction_data(stock_codes: list[str], latest_date: str) -> dict:
                       'change_percent': _to_float(r['change_percent'])}
                      for r in cur.fetchall()]
 
-    # 5. 股票名称
+    # 5. 股票名称（优先从概念板块成分股表获取，缺失的从本地常量补充）
     stock_names = {}
     cur.execute(
         "SELECT DISTINCT stock_code, stock_name FROM stock_concept_board_stock")
     for row in cur.fetchall():
         full_code = _add_suffix(row['stock_code'])
         stock_names[full_code] = row['stock_name']
+
+    # 补充：对于不在概念板块中的股票，从本地 STOCK_DICT 兜底
+    missing_count = 0
+    for code in stock_codes:
+        if code not in stock_names or not stock_names[code]:
+            name = get_stock_name(code)
+            if name:
+                stock_names[code] = name
+                missing_count += 1
+    if missing_count:
+        logger.info("[数据加载] 从本地常量补充 %d 只股票名称", missing_count)
 
     conn.close()
 
@@ -375,6 +387,10 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
         'concept_boards': ','.join(board_names)[:500] if board_names else None,
         'backtest_accuracy': None,  # 后续填充
         'backtest_lowo_accuracy': None,
+        'backtest_weeks': None,
+        'backtest_samples': None,
+        'backtest_start_date': None,
+        'backtest_end_date': None,
     }
 
 
@@ -529,6 +545,8 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
             'lowo_accuracy': lowo_accuracy,
             'n_weeks': len(week_accs),
             'total_samples': global_count,
+            'start_date': start_date,
+            'end_date': end_date,
         },
     }
 
@@ -615,6 +633,9 @@ def run_batch_weekly_prediction():
     # 填充回测准确率：优先使用个股+策略准确率，其次个股整体准确率，最后全局
     filled_per_stock = 0
     filled_per_strategy = 0
+    bt_start = global_bt.get('start_date')
+    bt_end = global_bt.get('end_date')
+    bt_n_weeks = global_bt.get('n_weeks', 0)
     for p in predictions:
         code = p['stock_code']
         strategy = p.get('strategy', '')
@@ -629,10 +650,15 @@ def run_batch_weekly_prediction():
                 p['backtest_accuracy'] = stock_bt['accuracy']
                 filled_per_stock += 1
             p['backtest_lowo_accuracy'] = stock_bt['accuracy']
+            p['backtest_samples'] = stock_bt['total']
         else:
             # 无该股票历史数据，使用全局准确率
             p['backtest_accuracy'] = global_bt['full_accuracy']
             p['backtest_lowo_accuracy'] = global_bt['lowo_accuracy']
+            p['backtest_samples'] = 0
+        p['backtest_weeks'] = bt_n_weeks
+        p['backtest_start_date'] = bt_start
+        p['backtest_end_date'] = bt_end
 
     logger.info("  回测填充: 策略级%d只, 个股级%d只, 全局兜底%d只",
                 filled_per_strategy, filled_per_stock,
