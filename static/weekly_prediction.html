@@ -260,8 +260,8 @@ function toggleSort(key) {
 
 function renderPagination() {
     const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-    if (totalPages <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
-    let html = '';
+    let html = '<span style="font-size:11px;color:#666;margin-right:8px;">共 ' + totalCount + ' 条  ' + totalPages + ' 页  每页 ' + PAGE_SIZE + ' 条</span>';
+    if (totalPages <= 1) { document.getElementById('pagination').innerHTML = html; return; }
     html += '<button class="page-btn" onclick="goPage(1)" ' + (currentPage===1?'disabled':'') + '>首页</button>';
     html += '<button class="page-btn" onclick="goPage(' + (currentPage-1) + ')" ' + (currentPage===1?'disabled':'') + '>上一页</button>';
     const start = Math.max(1, currentPage - 3);

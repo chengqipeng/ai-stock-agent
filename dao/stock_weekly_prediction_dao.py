@@ -359,11 +359,18 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
                                 keyword: str = None, sort_by: str = 'stock_code',
                                 sort_dir: str = 'asc',
                                 limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
-    """分页查询最新预测结果，支持筛选和排序。返回 (rows, total_count)。"""
+    """分页查询最新预测结果，支持筛选和排序。返回 (rows, total_count)。
+    自动排除指数代码（如000001.SH等非个股代码）。
+    """
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
     try:
-        where_parts = []
+        # 排除指数：只保留个股代码（6开头.SH, 0/3开头.SZ，且非399xxx.SZ）
+        where_parts = [
+            "(stock_code REGEXP '^[036][0-9]{5}\\\\.(SH|SZ)$')",
+            "stock_code NOT LIKE '399%'",
+            "stock_code != '000001.SH'",
+        ]
         params = []
         if direction:
             where_parts.append("pred_direction = %s")
@@ -408,7 +415,7 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
 
 
 def get_prediction_summary() -> dict:
-    """获取最新一批预测的汇总统计。"""
+    """获取最新一批预测的汇总统计（排除指数）。"""
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
     try:
@@ -434,6 +441,9 @@ def get_prediction_summary() -> dict:
                 SUM(strategy = 'd3_fuzzy') as d3_fuzzy_count,
                 SUM(strategy = 'suspended') as suspended_strategy_count
             FROM stock_weekly_prediction
+            WHERE stock_code REGEXP '^[036][0-9]{5}\\\\.(SH|SZ)$'
+              AND stock_code NOT LIKE '399%%'
+              AND stock_code != '000001.SH'
         """)
         return cur.fetchone()
     finally:
