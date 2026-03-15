@@ -175,6 +175,7 @@ const INDICATOR_TIPS = {
         sections: [
             {h: '↑ 涨 (UP)', p: '模型预测本周收盘价高于上周收盘价，即周涨跌幅为正。'},
             {h: '↓ 跌 (DOWN)', p: '模型预测本周收盘价低于上周收盘价，即周涨跌幅为负。'},
+            {h: '时间范围', p: '方向下方显示的日期范围（如03-09~03-13）表示预测针对的交易周，即该周周一到周五。预测的是这一整周的涨跌方向。'},
             {h: '判定依据', p: '基于本周前3~4个交易日的复合涨跌幅(d3/d4信号)，结合信号强度和停牌状态综合判定。'},
         ],
     },
@@ -343,6 +344,18 @@ function fmtDateRange(range) {
     return range.replace(/\d{4}-/g, '');
 }
 
+function getWeekRange(predictDate) {
+    // 根据 predict_date 计算所在周的周一~周五日期范围
+    if (!predictDate) return '';
+    const d = new Date(predictDate + 'T00:00:00');
+    const day = d.getDay(); // 0=周日, 1=周一, ..., 6=周六
+    const diffToMon = day === 0 ? -6 : 1 - day;
+    const mon = new Date(d.getTime() + diffToMon * 86400000);
+    const fri = new Date(mon.getTime() + 4 * 86400000);
+    const fmt = dt => String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+    return fmt(mon) + '~' + fmt(fri);
+}
+
 function dirBadge(d) {
     return d === 'UP' ? '<span class="dir-up">↑ 涨</span>' : '<span class="dir-down">↓ 跌</span>';
 }
@@ -358,15 +371,17 @@ async function loadSummary() {
         const json = await resp.json();
         if (!json.success || !json.data) return;
         const d = json.data;
+        const weekRange = getWeekRange(d.predict_date);
         document.getElementById('headerStats').textContent =
             '预测日期: ' + (d.predict_date || '-') + '  Y' + (d.iso_year || '') + '-W' + String(d.iso_week || '').padStart(2, '0') +
+            (weekRange ? ' (' + weekRange + ')' : '') +
             '  共' + (d.total || 0) + '只  方向回测' + (d.avg_backtest_accuracy || 0) + '%' +
             '  涨跌幅预测误差(MAE):' + (d.avg_pred_chg_mae || '-') + '%';
 
         let html = '';
         html += card('总股票数', d.total || 0, '');
-        html += card('预测涨', d.up_count || 0, 'up', '占比 ' + pct(d.up_count, d.total));
-        html += card('预测跌', d.down_count || 0, 'down', '占比 ' + pct(d.down_count, d.total));
+        html += card('预测涨', d.up_count || 0, 'up', '占比 ' + pct(d.up_count, d.total) + (weekRange ? '  本周' + weekRange : ''));
+        html += card('预测跌', d.down_count || 0, 'down', '占比 ' + pct(d.down_count, d.total) + (weekRange ? '  本周' + weekRange : ''));
         html += card('高置信', d.high_count || 0, '', 'd4强信号 + 停牌');
         html += card('中置信', d.medium_count || 0, '', 'd4中等信号');
         html += card('低置信', d.low_count || 0, '', 'd4/d3模糊信号');
@@ -452,7 +467,7 @@ function renderTable(rows) {
         html += '<tr onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
         html += '<td style="font-family:\'SF Mono\',Menlo,monospace;color:#667eea;font-weight:600">' + r.stock_code + '</td>';
         html += '<td>' + (r.stock_name || '-') + '</td>';
-        html += '<td>' + dirBadge(r.pred_direction) + '</td>';
+        html += '<td>' + dirBadge(r.pred_direction) + '<br><span style="font-size:10px;color:#aaa">' + getWeekRange(r.predict_date) + '</span></td>';
         html += '<td>' + confBadge(r.confidence) + '</td>';
         html += '<td><span style="font-size:11px;color:#666">' + (r.strategy || '-') + '</span></td>';
         // d4涨跌：显示涨跌幅 + 日期区间
@@ -580,7 +595,7 @@ async function showHistory(code, name) {
             html += '<tr>';
             html += '<td>Y' + r.iso_year + '-W' + String(r.iso_week).padStart(2,'0') + '</td>';
             html += '<td>' + (r.predict_date || '-') + '</td>';
-            html += '<td>' + dirBadge(r.pred_direction) + '</td>';
+            html += '<td>' + dirBadge(r.pred_direction) + '<br><span style="font-size:10px;color:#aaa">' + getWeekRange(r.predict_date) + '</span></td>';
             html += '<td>' + confBadge(r.confidence) + '</td>';
             html += '<td style="font-size:11px;color:#666">' + (r.strategy || '-') + '</td>';
             // d4涨跌 + 日期区间
