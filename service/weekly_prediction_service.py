@@ -779,15 +779,36 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
                 if len(chgs) < 2:
                     return None
                 sorted_chgs = sorted(chgs)
-                median = sorted_chgs[len(sorted_chgs) // 2]
-                p25 = sorted_chgs[max(0, len(sorted_chgs) // 4)]
-                p75 = sorted_chgs[min(len(sorted_chgs) - 1, len(sorted_chgs) * 3 // 4)]
+                n = len(sorted_chgs)
+                median = sorted_chgs[n // 2]
+                p25 = sorted_chgs[max(0, n // 4)]
+                p75 = sorted_chgs[min(n - 1, n * 3 // 4)]
                 mae = _mean([abs(c - median) for c in chgs])
-                hits = sum(1 for c in chgs if p25 <= c <= p75)
-                hit_rate = round(hits / len(chgs) * 100, 1)
+                std = _std(chgs) if n >= 3 else mae
+
+                # 自适应区间：基于 median ± k * std
+                # k 根据样本量调整，样本越少区间越宽
+                if n >= 20:
+                    k = 1.5
+                elif n >= 10:
+                    k = 1.8
+                elif n >= 5:
+                    k = 2.2
+                else:
+                    k = 3.0
+
+                spread = max(std, mae, 0.5)  # 最小展幅0.5%
+                low = median - k * spread
+                high = median + k * spread
+
+                # 命中率基于自适应区间
+                hits = sum(1 for c in chgs if low <= c <= high)
+                hit_rate = round(hits / n * 100, 1)
                 return {
-                    'median': round(median, 2), 'p25': round(p25, 2), 'p75': round(p75, 2),
-                    'mae': round(mae, 2), 'hit_rate': hit_rate, 'samples': len(chgs),
+                    'median': round(median, 2),
+                    'p10': round(low, 2), 'p90': round(high, 2),
+                    'p25': round(p25, 2), 'p75': round(p75, 2),
+                    'mae': round(mae, 2), 'hit_rate': hit_rate, 'samples': n,
                 }
 
             for s, chgs in strategy_chg_dist.items():
@@ -982,8 +1003,8 @@ def run_batch_weekly_prediction():
         dir_chg = strat_dir_chg_map.get((strategy, pred_dir))
         if dir_chg:
             p['pred_weekly_chg'] = dir_chg['median']
-            p['pred_chg_low'] = dir_chg['p25']
-            p['pred_chg_high'] = dir_chg['p75']
+            p['pred_chg_low'] = dir_chg['p10']
+            p['pred_chg_high'] = dir_chg['p90']
             p['pred_chg_mae'] = dir_chg['mae']
             p['pred_chg_hit_rate'] = dir_chg['hit_rate']
             p['pred_chg_samples'] = dir_chg['samples']
@@ -994,8 +1015,8 @@ def run_batch_weekly_prediction():
         all_dir_chg = strat_dir_chg_map.get(('_all', pred_dir))
         if all_dir_chg:
             p['pred_weekly_chg'] = all_dir_chg['median']
-            p['pred_chg_low'] = all_dir_chg['p25']
-            p['pred_chg_high'] = all_dir_chg['p75']
+            p['pred_chg_low'] = all_dir_chg['p10']
+            p['pred_chg_high'] = all_dir_chg['p90']
             p['pred_chg_mae'] = all_dir_chg['mae']
             p['pred_chg_hit_rate'] = all_dir_chg['hit_rate']
             p['pred_chg_samples'] = all_dir_chg['samples']
@@ -1014,8 +1035,8 @@ def run_batch_weekly_prediction():
             elif pred_dir == 'DOWN' and median > 0:
                 median = -abs(median)
             p['pred_weekly_chg'] = median
-            p['pred_chg_low'] = strat_chg['p25']
-            p['pred_chg_high'] = strat_chg['p75']
+            p['pred_chg_low'] = strat_chg['p10']
+            p['pred_chg_high'] = strat_chg['p90']
             p['pred_chg_mae'] = strat_chg['mae']
             p['pred_chg_hit_rate'] = strat_chg['hit_rate']
             p['pred_chg_samples'] = strat_chg['samples']

@@ -359,7 +359,7 @@ async function loadSummary() {
         document.getElementById('headerStats').textContent =
             '预测日期: ' + (d.predict_date || '-') + '  Y' + (d.iso_year || '') + '-W' + String(d.iso_week || '').padStart(2, '0') +
             '  共' + (d.total || 0) + '只  方向回测' + (d.avg_backtest_accuracy || 0) + '%' +
-            '  涨跌幅MAE:' + (d.avg_pred_chg_mae || '-') + '%';
+            '  涨跌幅预测误差(MAE):' + (d.avg_pred_chg_mae || '-') + '%';
 
         let html = '';
         html += card('总股票数', d.total || 0, '');
@@ -373,7 +373,7 @@ async function loadSummary() {
         const predChgMae = d.avg_pred_chg_mae != null ? d.avg_pred_chg_mae + '%' : '-';
         const predChgHit = d.avg_pred_chg_hit_rate != null ? d.avg_pred_chg_hit_rate + '%' : '-';
         const predChgCnt = d.pred_chg_count || 0;
-        html += card('涨跌幅MAE', predChgMae, '', '命中率: ' + predChgHit + ' (' + predChgCnt + '只)');
+        html += card('涨跌幅预测误差', predChgMae, '', '区间命中率: ' + predChgHit + '  有预测: ' + predChgCnt + '只');
         document.getElementById('summaryRow').innerHTML = html;
     } catch (e) { console.error('loadSummary error:', e); }
 }

@@ -300,7 +300,8 @@ def check_db(stock_code: str) -> list[dict]:
             return issues
 
         seen_dates: set[str] = set()
-        for r in rows:
+        prev_close_valid = None  # 追踪前一个有效收盘价
+        for idx, r in enumerate(rows):
             d, op, cp, hp, lp, vol, amt = r[0], r[1], r[2], r[3], r[4], r[5], r[6]
             chg_pct = r[8]
             d_str = str(d)
@@ -310,7 +311,7 @@ def check_db(stock_code: str) -> list[dict]:
                 issues.append({"type": "dup_date", "date": d_str, "detail": "日期重复", "legacy": False})
             seen_dates.add(d_str)
 
-            # 停牌占位记录跳过价格检测
+            # 停牌占位记录跳过价格检测，不更新 prev_close_valid
             if op == 0 and cp == 0 and hp == 0 and lp == 0 and vol == 0:
                 continue
 
@@ -344,7 +345,8 @@ def check_db(stock_code: str) -> list[dict]:
             if (amp is not None and chg_pct is not None and chg_amt is not None
                     and amp == 0 and chg_pct == 0 and chg_amt == 0):
                 # 排除真正一字涨停/跌停（open==close==high==low）的合理场景
-                if not (op == cp == hp == lp):
+                # 排除无前收盘价的合理场景（第一条记录或停牌后复牌前无有效数据）
+                if not (op == cp == hp == lp) and prev_close_valid is not None:
                     issues.append({
                         "type": "zero_derived",
                         "date": d_str,
@@ -353,6 +355,10 @@ def check_db(stock_code: str) -> list[dict]:
                                    f"但价格有变动(O={op},C={cp},H={hp},L={lp})"),
                         "legacy": False,
                     })
+
+            # 更新有效前收盘价
+            if cp and cp > 0:
+                prev_close_valid = cp
     finally:
         cursor.close()
         conn.close()
