@@ -56078,6 +56078,3360 @@ STOCKS = [
       "上证指数"
     ]
   }
+,
+  {
+    "code": "920029.BJ",
+    "name": "开发科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920060.BJ",
+    "name": "万源通",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920375.BJ",
+    "name": "派诺科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920168.BJ",
+    "name": "通宝光电",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920436.BJ",
+    "name": "大地电气",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920718.BJ",
+    "name": "合肥高科",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920249.BJ",
+    "name": "利尔达",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920030.BJ",
+    "name": "德众汽车",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920346.BJ",
+    "name": "威贸电子",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920682.BJ",
+    "name": "球冠电缆",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920932.BJ",
+    "name": "科达自控",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920662.BJ",
+    "name": "方盛股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920130.BJ",
+    "name": "立方控股",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920641.BJ",
+    "name": "格利尔",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920748.BJ",
+    "name": "路桥信息",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920496.BJ",
+    "name": "许昌智能",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920556.BJ",
+    "name": "雅达股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  }
+,
+  {
+    "code": "920119.BJ",
+    "name": "美德乐",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920870.BJ",
+    "name": "恒进感应",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920579.BJ",
+    "name": "机科股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920689.BJ",
+    "name": "克莱特",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920160.BJ",
+    "name": "北矿检测",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920906.BJ",
+    "name": "舜宇精工",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920781.BJ",
+    "name": "瑞奇智造",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920098.BJ",
+    "name": "科隆新材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920509.BJ",
+    "name": "同惠电子",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920363.BJ",
+    "name": "莱赛激光",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920942.BJ",
+    "name": "恒立钻具",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920145.BJ",
+    "name": "恒合股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920810.BJ",
+    "name": "春光智能",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920553.BJ",
+    "name": "凯腾精工",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920476.BJ",
+    "name": "海能技术",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920225.BJ",
+    "name": "利通科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920570.BJ",
+    "name": "坤博精工",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  }
+,
+  {
+    "code": "920122.BJ",
+    "name": "中纺标",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920262.BJ",
+    "name": "太湖雪",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920786.BJ",
+    "name": "骑士乳业",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920344.BJ",
+    "name": "三元基因",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  }
+,
+  {
+    "code": "920159.BJ",
+    "name": "农大科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920375.BJ",
+    "name": "派诺科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920036.BJ",
+    "name": "觅睿科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920077.BJ",
+    "name": "吉林碳谷",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920199.BJ",
+    "name": "倍益康",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920018.BJ",
+    "name": "宏远股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920396.BJ",
+    "name": "常辅股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920185.BJ",
+    "name": "贝特瑞",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920575.BJ",
+    "name": "康乐卫士",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920304.BJ",
+    "name": "迪尔化工",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920866.BJ",
+    "name": "绿亨科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920088.BJ",
+    "name": "科力股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920047.BJ",
+    "name": "诺思兰德",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920926.BJ",
+    "name": "鸿智科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920429.BJ",
+    "name": "康比特",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920050.BJ",
+    "name": "爱舍伦",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920037.BJ",
+    "name": "广信科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920976.BJ",
+    "name": "视声智能",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920985.BJ",
+    "name": "海泰新能",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920953.BJ",
+    "name": "国子软件",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920879.BJ",
+    "name": "基康技术",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920119.BJ",
+    "name": "美德乐",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920914.BJ",
+    "name": "远航精密",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920402.BJ",
+    "name": "硅烷科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920819.BJ",
+    "name": "颖泰生物",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920779.BJ",
+    "name": "武汉蓝电",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920656.BJ",
+    "name": "海昇药业",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920027.BJ",
+    "name": "交大铁发",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920263.BJ",
+    "name": "中航泰达",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920892.BJ",
+    "name": "广咨国际",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920239.BJ",
+    "name": "长虹能源",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920057.BJ",
+    "name": "百甲科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920706.BJ",
+    "name": "铁拓机械",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920029.BJ",
+    "name": "开发科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920174.BJ",
+    "name": "五新隧装",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920132.BJ",
+    "name": "泰鹏智能",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920175.BJ",
+    "name": "东方碳素",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920735.BJ",
+    "name": "德源药业",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920471.BJ",
+    "name": "美邦科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920873.BJ",
+    "name": "中设咨询",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920299.BJ",
+    "name": "灿能电力",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920857.BJ",
+    "name": "泓禧科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920033.BJ",
+    "name": "康普化学",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920015.BJ",
+    "name": "锦华新材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920419.BJ",
+    "name": "路斯股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920099.BJ",
+    "name": "瑞华技术",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920685.BJ",
+    "name": "新芝生物",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920833.BJ",
+    "name": "美心翼申",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920166.BJ",
+    "name": "海圣医疗",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920519.BJ",
+    "name": "万德股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920523.BJ",
+    "name": "德瑞锂电",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920266.BJ",
+    "name": "生物谷",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920180.BJ",
+    "name": "爱得科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920179.BJ",
+    "name": "凯德石英",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920237.BJ",
+    "name": "力佳科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920527.BJ",
+    "name": "夜光明",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920522.BJ",
+    "name": "纳科诺尔",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920076.BJ",
+    "name": "国亮新材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920950.BJ",
+    "name": "迅安科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920060.BJ",
+    "name": "万源通",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920003.BJ",
+    "name": "中诚咨询",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920547.BJ",
+    "name": "无锡晶海",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920427.BJ",
+    "name": "华维设计",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920832.BJ",
+    "name": "齐鲁华信",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920694.BJ",
+    "name": "中裕科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920504.BJ",
+    "name": "博迅生物",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920007.BJ",
+    "name": "酉立智能",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920274.BJ",
+    "name": "宏裕包材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920122.BJ",
+    "name": "中纺标",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920006.BJ",
+    "name": "晟楠科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920058.BJ",
+    "name": "华洋赛车",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920123.BJ",
+    "name": "芭薇股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920149.BJ",
+    "name": "旭杰科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920245.BJ",
+    "name": "威博液压",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920415.BJ",
+    "name": "恒拓开源",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920433.BJ",
+    "name": "大唐药业",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920478.BJ",
+    "name": "峆一药业",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920651.BJ",
+    "name": "天罡股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920809.BJ",
+    "name": "安达科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920790.BJ",
+    "name": "联迪信息",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920005.BJ",
+    "name": "鼎佳精密",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920124.BJ",
+    "name": "南特科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920212.BJ",
+    "name": "智新电子",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920168.BJ",
+    "name": "通宝光电",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920367.BJ",
+    "name": "新赣江",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920726.BJ",
+    "name": "朱老六",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920242.BJ",
+    "name": "建邦科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920992.BJ",
+    "name": "中科美菱",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920663.BJ",
+    "name": "明阳科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920802.BJ",
+    "name": "保丽洁",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920566.BJ",
+    "name": "梓橦宫",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920101.BJ",
+    "name": "志高机械",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920839.BJ",
+    "name": "万通液压",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920000.BJ",
+    "name": "安徽凤凰",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920729.BJ",
+    "name": "永顺生物",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920023.BJ",
+    "name": "田野股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920806.BJ",
+    "name": "云星宇",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920160.BJ",
+    "name": "北矿检测",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920436.BJ",
+    "name": "大地电气",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920121.BJ",
+    "name": "江天科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920978.BJ",
+    "name": "开特股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920112.BJ",
+    "name": "巴兰仕",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920931.BJ",
+    "name": "无锡鼎邦",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920964.BJ",
+    "name": "润农节水",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920422.BJ",
+    "name": "润普食品",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920768.BJ",
+    "name": "拾比佰",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920640.BJ",
+    "name": "富士达",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920925.BJ",
+    "name": "锦好医疗",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920110.BJ",
+    "name": "雷特科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920039.BJ",
+    "name": "国义招标",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920946.BJ",
+    "name": "森萱医药",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920357.BJ",
+    "name": "雅葆轩",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920020.BJ",
+    "name": "泰凯英",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920080.BJ",
+    "name": "奥美森",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920270.BJ",
+    "name": "天铭科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920974.BJ",
+    "name": "凯大催化",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920906.BJ",
+    "name": "舜宇精工",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920821.BJ",
+    "name": "则成电子",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920608.BJ",
+    "name": "丰安股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920208.BJ",
+    "name": "青矩技术",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920300.BJ",
+    "name": "辰光医疗",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920982.BJ",
+    "name": "锦波生物",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920895.BJ",
+    "name": "花溪科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920599.BJ",
+    "name": "同力股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920278.BJ",
+    "name": "鹿得医疗",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920108.BJ",
+    "name": "宏海科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920455.BJ",
+    "name": "汇隆活塞",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920118.BJ",
+    "name": "太湖远大",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920826.BJ",
+    "name": "盖世食品",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920016.BJ",
+    "name": "中草香料",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920718.BJ",
+    "name": "合肥高科",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920339.BJ",
+    "name": "恒太照明",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920368.BJ",
+    "name": "连城数控",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920781.BJ",
+    "name": "瑞奇智造",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920187.BJ",
+    "name": "通领科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920008.BJ",
+    "name": "成电光信",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920128.BJ",
+    "name": "胜业电气",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920009.BJ",
+    "name": "丹娜生物",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920230.BJ",
+    "name": "欧康医药",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920753.BJ",
+    "name": "天纺标",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920158.BJ",
+    "name": "长江能科",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920720.BJ",
+    "name": "吉冈精密",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920371.BJ",
+    "name": "欧福蛋业",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920871.BJ",
+    "name": "派特尔",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920370.BJ",
+    "name": "新安洁",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920392.BJ",
+    "name": "佳合科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920017.BJ",
+    "name": "星昊医药",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920100.BJ",
+    "name": "三协电机",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920262.BJ",
+    "name": "太湖雪",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920855.BJ",
+    "name": "浙江大农",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920580.BJ",
+    "name": "科创新材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920786.BJ",
+    "name": "骑士乳业",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920267.BJ",
+    "name": "鑫汇科",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920344.BJ",
+    "name": "三元基因",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920670.BJ",
+    "name": "数字人",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920195.BJ",
+    "name": "三祥科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920249.BJ",
+    "name": "利尔达",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920489.BJ",
+    "name": "佳先股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920943.BJ",
+    "name": "优机股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920719.BJ",
+    "name": "宁新新材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920098.BJ",
+    "name": "科隆新材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920030.BJ",
+    "name": "德众汽车",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920526.BJ",
+    "name": "凯华材料",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920509.BJ",
+    "name": "同惠电子",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920275.BJ",
+    "name": "驱动力",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920273.BJ",
+    "name": "一致魔芋",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920701.BJ",
+    "name": "豪声电子",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920751.BJ",
+    "name": "惠同新材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920378.BJ",
+    "name": "泰德股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920970.BJ",
+    "name": "大禹生物",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920035.BJ",
+    "name": "精创电气",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920425.BJ",
+    "name": "乐创技术",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920665.BJ",
+    "name": "科强股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920026.BJ",
+    "name": "卓兆点胶",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920021.BJ",
+    "name": "流金科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920198.BJ",
+    "name": "微创光电",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920627.BJ",
+    "name": "力王股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920184.BJ",
+    "name": "国源科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920576.BJ",
+    "name": "天力复合",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920593.BJ",
+    "name": "鼎智科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920363.BJ",
+    "name": "莱赛激光",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920699.BJ",
+    "name": "海达尔",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920403.BJ",
+    "name": "康农种业",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920221.BJ",
+    "name": "易实精密",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920284.BJ",
+    "name": "灵鸽科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920856.BJ",
+    "name": "浩淼科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920942.BJ",
+    "name": "恒立钻具",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920346.BJ",
+    "name": "威贸电子",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920087.BJ",
+    "name": "秋乐种业",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920564.BJ",
+    "name": "天润科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920089.BJ",
+    "name": "禾昌聚合",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920022.BJ",
+    "name": "世昌股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920885.BJ",
+    "name": "星辰科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920896.BJ",
+    "name": "旺成科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920145.BJ",
+    "name": "恒合股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920679.BJ",
+    "name": "前进科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920106.BJ",
+    "name": "林泰新材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920139.BJ",
+    "name": "华岭股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920810.BJ",
+    "name": "春光智能",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920682.BJ",
+    "name": "球冠电缆",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920725.BJ",
+    "name": "惠丰钻石",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920019.BJ",
+    "name": "铜冠矿建",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920454.BJ",
+    "name": "同心传动",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920261.BJ",
+    "name": "一诺威",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920675.BJ",
+    "name": "秉扬科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920418.BJ",
+    "name": "苏轴股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920407.BJ",
+    "name": "驰诚股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920252.BJ",
+    "name": "天宏锂电",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920167.BJ",
+    "name": "同享科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920807.BJ",
+    "name": "奔朗新材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920066.BJ",
+    "name": "科拜尔",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920961.BJ",
+    "name": "创远信科",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920553.BJ",
+    "name": "凯腾精工",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920045.BJ",
+    "name": "蘅东光",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920002.BJ",
+    "name": "万达轴承",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920834.BJ",
+    "name": "三维装备",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920146.BJ",
+    "name": "华阳变速",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920541.BJ",
+    "name": "铁大科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920957.BJ",
+    "name": "汉维科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920068.BJ",
+    "name": "天工股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920204.BJ",
+    "name": "沪江材料",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920717.BJ",
+    "name": "瑞星股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920639.BJ",
+    "name": "晨光电缆",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920491.BJ",
+    "name": "奥迪威",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920395.BJ",
+    "name": "朗鸿科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920876.BJ",
+    "name": "慧为智能",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920438.BJ",
+    "name": "戈碧迦",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920932.BJ",
+    "name": "科达自控",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920634.BJ",
+    "name": "新威凌",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920476.BJ",
+    "name": "海能技术",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920169.BJ",
+    "name": "七丰精工",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920475.BJ",
+    "name": "三友科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920981.BJ",
+    "name": "晶赛科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920505.BJ",
+    "name": "九菱科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920405.BJ",
+    "name": "海希通讯",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920690.BJ",
+    "name": "捷众科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920533.BJ",
+    "name": "骏创科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920703.BJ",
+    "name": "广厦环能",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920662.BJ",
+    "name": "方盛股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920092.BJ",
+    "name": "汉鑫科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920374.BJ",
+    "name": "云里物里",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920971.BJ",
+    "name": "天马新材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920271.BJ",
+    "name": "邦德股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920445.BJ",
+    "name": "龙竹科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920799.BJ",
+    "name": "艾融软件",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920247.BJ",
+    "name": "华密新材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920223.BJ",
+    "name": "荣亿精密",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920152.BJ",
+    "name": "昆工科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920061.BJ",
+    "name": "西磁科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920190.BJ",
+    "name": "雷神科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920225.BJ",
+    "name": "利通科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920010.BJ",
+    "name": "凯添燃气",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920227.BJ",
+    "name": "美登科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920075.BJ",
+    "name": "柏星龙",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920792.BJ",
+    "name": "东和新材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920056.BJ",
+    "name": "能之光",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920510.BJ",
+    "name": "丰光精密",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920414.BJ",
+    "name": "欧普泰",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920808.BJ",
+    "name": "曙光数创",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920062.BJ",
+    "name": "科润智控",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920130.BJ",
+    "name": "立方控股",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920641.BJ",
+    "name": "格利尔",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920642.BJ",
+    "name": "通易航天",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920570.BJ",
+    "name": "坤博精工",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920014.BJ",
+    "name": "特瑞斯",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920082.BJ",
+    "name": "方正阀门",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920351.BJ",
+    "name": "华光源海",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920394.BJ",
+    "name": "民士达",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920571.BJ",
+    "name": "国航远洋",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920260.BJ",
+    "name": "中寰股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920837.BJ",
+    "name": "华原股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920765.BJ",
+    "name": "美之高",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920508.BJ",
+    "name": "殷图网联",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920116.BJ",
+    "name": "星图测控",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920689.BJ",
+    "name": "克莱特",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920183.BJ",
+    "name": "海菲曼",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920592.BJ",
+    "name": "华信永道",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920086.BJ",
+    "name": "科马材料",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920748.BJ",
+    "name": "路桥信息",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920163.BJ",
+    "name": "方大新材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920091.BJ",
+    "name": "大鹏工业",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920579.BJ",
+    "name": "机科股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920111.BJ",
+    "name": "聚星科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920046.BJ",
+    "name": "亿能电力",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920493.BJ",
+    "name": "并行科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920924.BJ",
+    "name": "广脉科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920207.BJ",
+    "name": "众诚科技",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920496.BJ",
+    "name": "许昌智能",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920578.BJ",
+    "name": "巨能股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920171.BJ",
+    "name": "志晟信息",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920556.BJ",
+    "name": "雅达股份",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920770.BJ",
+    "name": "艾能聚",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920870.BJ",
+    "name": "恒进感应",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920693.BJ",
+    "name": "阿为特",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920469.BJ",
+    "name": "富恒新材",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920090.BJ",
+    "name": "同辉信息",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  },
+  {
+    "code": "920001.BJ",
+    "name": "纬达光电",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  }
 ]
 
 ALL_STOCKS = STOCKS + MAIN_STOCK
