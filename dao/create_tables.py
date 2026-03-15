@@ -402,6 +402,78 @@ _TABLES = [
         INDEX idx_ksh_stock_id (stock_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
+
+    # ── stock_weekly_prediction（周预测最新结果） ──
+    """
+    CREATE TABLE IF NOT EXISTS stock_weekly_prediction (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        stock_code VARCHAR(20) NOT NULL COMMENT '股票代码',
+        stock_name VARCHAR(100) COMMENT '股票名称',
+        predict_date VARCHAR(20) NOT NULL COMMENT '预测执行日期',
+        iso_year INT NOT NULL COMMENT 'ISO年',
+        iso_week INT NOT NULL COMMENT 'ISO周',
+        pred_direction VARCHAR(4) NOT NULL COMMENT 'UP/DOWN',
+        confidence VARCHAR(10) NOT NULL COMMENT 'high/medium/low',
+        strategy VARCHAR(30) NOT NULL COMMENT '使用策略',
+        reason VARCHAR(200) COMMENT '预测理由',
+        d3_chg DOUBLE COMMENT '前3天复合涨跌幅',
+        d4_chg DOUBLE COMMENT '前4天复合涨跌幅',
+        is_suspended TINYINT DEFAULT 0 COMMENT '是否停牌',
+        week_day_count INT COMMENT '本周已有交易天数',
+        board_momentum DOUBLE COMMENT '板块动量',
+        concept_consensus DOUBLE COMMENT '概念一致性',
+        fund_flow_signal DOUBLE COMMENT '资金流信号',
+        market_d3_chg DOUBLE COMMENT '大盘前3天涨跌',
+        market_d4_chg DOUBLE COMMENT '大盘前4天涨跌',
+        concept_boards VARCHAR(500) COMMENT '所属概念板块',
+        backtest_accuracy DOUBLE COMMENT '回测准确率',
+        backtest_lowo_accuracy DOUBLE COMMENT '回测LOWO准确率',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_stock_code (stock_code),
+        INDEX idx_predict_date (predict_date),
+        INDEX idx_iso_week (iso_year, iso_week),
+        INDEX idx_direction (pred_direction),
+        INDEX idx_confidence (confidence)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+
+    # ── stock_weekly_prediction_history（周预测历史记录） ──
+    """
+    CREATE TABLE IF NOT EXISTS stock_weekly_prediction_history (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        stock_code VARCHAR(20) NOT NULL COMMENT '股票代码',
+        stock_name VARCHAR(100) COMMENT '股票名称',
+        predict_date VARCHAR(20) NOT NULL COMMENT '预测执行日期',
+        iso_year INT NOT NULL COMMENT 'ISO年',
+        iso_week INT NOT NULL COMMENT 'ISO周',
+        pred_direction VARCHAR(4) NOT NULL COMMENT 'UP/DOWN',
+        confidence VARCHAR(10) NOT NULL COMMENT '置信度',
+        strategy VARCHAR(30) NOT NULL COMMENT '使用策略',
+        reason VARCHAR(200) COMMENT '预测理由',
+        d3_chg DOUBLE COMMENT '前3天复合涨跌幅',
+        d4_chg DOUBLE COMMENT '前4天复合涨跌幅',
+        is_suspended TINYINT DEFAULT 0 COMMENT '是否停牌',
+        week_day_count INT COMMENT '本周已有交易天数',
+        board_momentum DOUBLE COMMENT '板块动量',
+        concept_consensus DOUBLE COMMENT '概念一致性',
+        fund_flow_signal DOUBLE COMMENT '资金流信号',
+        market_d3_chg DOUBLE COMMENT '大盘前3天涨跌',
+        market_d4_chg DOUBLE COMMENT '大盘前4天涨跌',
+        concept_boards VARCHAR(500) COMMENT '所属概念板块',
+        actual_direction VARCHAR(4) COMMENT '实际方向(回填)',
+        actual_weekly_chg DOUBLE COMMENT '实际全周涨跌幅(回填)',
+        is_correct TINYINT COMMENT '是否正确(回填)',
+        backtest_accuracy DOUBLE COMMENT '回测准确率',
+        backtest_lowo_accuracy DOUBLE COMMENT '回测LOWO准确率',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_stock_week (stock_code, iso_year, iso_week),
+        INDEX idx_predict_date (predict_date),
+        INDEX idx_iso_week (iso_year, iso_week),
+        INDEX idx_direction (pred_direction),
+        INDEX idx_is_correct (is_correct)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
 ]
 
 

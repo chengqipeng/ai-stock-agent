@@ -77,6 +77,8 @@ from service.auto_job.fund_flow_scheduler import start_fund_flow_scheduler, get_
 from service.auto_job.fund_flow_scheduler import _execute_job as _fund_flow_execute_job
 from service.auto_job.concept_strength_scheduler import start_concept_strength_scheduler, get_concept_strength_job_status
 from service.auto_job.concept_strength_scheduler import _execute_job as _concept_strength_execute_job
+from service.auto_job.weekly_prediction_scheduler import start_weekly_prediction_scheduler, get_weekly_prediction_job_status
+from service.auto_job.weekly_prediction_scheduler import _execute_job as _weekly_prediction_execute_job
 
 GRADE_SCORE_MAP = {
     '积极买入': 95, '逢低建仓': 75, '持股待涨': 60,
@@ -130,6 +132,12 @@ async def lifespan(application: FastAPI):
             logger.info("[lifespan] 概念板块强弱势调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动概念板块强弱势调度器异常: %s", e, exc_info=True)
+
+        try:
+            await start_weekly_prediction_scheduler()
+            logger.info("[lifespan] 周预测调度器已激活")
+        except Exception as e:
+            logger.error("[lifespan] 启动周预测调度器异常: %s", e, exc_info=True)
 
         # 关键：app_ready 必须在 try 之外，确保一定会被 set
         app_ready.set()
@@ -313,6 +321,22 @@ async def trigger_concept_strength_job():
         return {"success": False, "message": "概念板块强弱势任务正在执行中"}
     asyncio.create_task(_concept_strength_execute_job())
     return {"success": True, "message": "概念板块强弱势任务已触发（板块大盘强弱势 + 个股板块强弱势）"}
+
+
+@app.get("/api/weekly_prediction_job_status")
+async def weekly_prediction_job_status():
+    """获取周预测定时任务状态"""
+    return {"success": True, "data": get_weekly_prediction_job_status()}
+
+
+@app.post("/api/trigger_weekly_prediction_job")
+async def trigger_weekly_prediction_job():
+    """手动触发周预测"""
+    status = get_weekly_prediction_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "周预测任务正在执行中"}
+    asyncio.create_task(_weekly_prediction_execute_job())
+    return {"success": True, "message": "周预测任务已触发"}
 
 
 @app.get("/api/stock_list")

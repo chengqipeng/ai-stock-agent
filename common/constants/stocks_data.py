@@ -59432,6 +59432,28 @@ STOCKS = [
       "北证50"
     ]
   }
+,
+  {
+    "code": "920305.BJ",
+    "name": "*ST云创",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  }
+,
+  {
+    "code": "920305.BJ",
+    "name": "*ST云创",
+    "indices_stock_codes": [
+      "899050.SZ"
+    ],
+    "indices_stock_names": [
+      "北证50"
+    ]
+  }
 ]
 
 ALL_STOCKS = STOCKS + MAIN_STOCK

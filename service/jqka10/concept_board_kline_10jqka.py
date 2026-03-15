@@ -84,7 +84,14 @@ def fetch_board_index_code(board_code: str, retries: int = 2) -> Optional[str]:
             m = _CLID_RE.search(html)
             if m:
                 return m.group(1)
-            logger.warning("[概念板块K线] 未找到clid board=%s", board_code)
+            # 检测反爬响应
+            if "request info:" in html:
+                logger.warning("[概念板块K线] 获取clid触发反爬 board=%s attempt=%d, 响应=%s",
+                               board_code, attempt, html[:100])
+                if attempt < retries:
+                    time.sleep(3 + random.uniform(1, 3))
+                continue
+            logger.warning("[概念板块K线] 未找到clid board=%s (响应长度=%d)", board_code, len(html))
             return None
         except Exception as e:
             logger.warning("[概念板块K线] 获取clid异常 board=%s attempt=%d: %s",
@@ -153,33 +160,52 @@ def _build_nofq_map(year_data_list: list[dict]) -> dict[str, dict]:
     return result
 
 
-async def _fetch_raw(url: str) -> dict:
-    """请求同花顺 JSONP 接口并解析为 dict"""
-    timeout = aiohttp.ClientTimeout(total=30)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.get(url, headers=_HEADERS_API) as resp:
-            status = resp.status
-            text = await resp.text()
-    if status != 200:
-        if status == 404:
-            logger.debug("[概念板块K线] HTTP 404, url=%s", url)
-        else:
-            logger.warning("[概念板块K线] HTTP %d, url=%s", status, url)
-        raise aiohttp.ClientResponseError(
-            request_info=aiohttp.RequestInfo(
-                url=yarl.URL(url), method="GET",
-                headers={}, real_url=yarl.URL(url),
-            ),
-            history=(), status=status,
-            message=f"HTTP {status}: {text[:200]}",
-        )
-    if not text or not text.strip():
-        raise ValueError(f"接口返回空响应: {url}")
-    json_text = re.sub(r"^\w+\(", "", text)
-    json_text = re.sub(r"\);?\s*$", "", json_text)
-    if not json_text.strip():
-        raise ValueError(f"JSONP解包后为空: {url}")
-    return json.loads(json_text, strict=False)
+async def _fetch_raw(url: str, max_retries: int = 3) -> dict:
+    """请求同花顺 JSONP 接口并解析为 dict，遇到反爬自动重试"""
+    for attempt in range(1, max_retries + 1):
+        timeout = aiohttp.ClientTimeout(total=30)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url, headers=_HEADERS_API) as resp:
+                status = resp.status
+                text = await resp.text()
+        if status != 200:
+            if status == 404:
+                logger.debug("[概念板块K线] HTTP 404, url=%s", url)
+            else:
+                logger.warning("[概念板块K线] HTTP %d, url=%s", status, url)
+            raise aiohttp.ClientResponseError(
+                request_info=aiohttp.RequestInfo(
+                    url=yarl.URL(url), method="GET",
+                    headers={}, real_url=yarl.URL(url),
+                ),
+                history=(), status=status,
+                message=f"HTTP {status}: {text[:200]}",
+            )
+        if not text or not text.strip():
+            raise ValueError(f"接口返回空响应: {url}")
+
+        # 检测同花顺反爬响应（返回 "request info: <IP>" 而非正常JSONP数据）
+        stripped = text.strip()
+        if stripped.startswith("request info:"):
+            if attempt < max_retries:
+                wait = 3 * attempt + random.uniform(1, 3)
+                logger.warning("[概念板块K线] 触发反爬(attempt %d/%d), %.1f秒后重试, url=%s, 响应=%s",
+                               attempt, max_retries, wait, url, stripped[:100])
+                await asyncio.sleep(wait)
+                continue
+            else:
+                logger.error("[概念板块K线] 触发反爬, %d次重试均失败, url=%s, 响应=%s",
+                             max_retries, url, stripped[:100])
+                raise ValueError(f"同花顺反爬拦截: {stripped[:100]}")
+
+        json_text = re.sub(r"^\w+\(", "", text)
+        json_text = re.sub(r"\);?\s*$", "", json_text)
+        if not json_text.strip():
+            raise ValueError(f"JSONP解包后为空: {url}")
+        return json.loads(json_text, strict=False)
+
+    # 理论上不会到这里，但保险起见
+    raise ValueError(f"_fetch_raw 重试耗尽: {url}")
 
 
 async def fetch_board_kline(board_index_code: str, limit: int = 800) -> list[dict]:
