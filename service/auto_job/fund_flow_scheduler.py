@@ -147,19 +147,17 @@ async def _fetch_fund_flow_for_stock(code, counter):
             if not stock_info:
                 counter["failed"] += 1
                 return
-            klines = await get_fund_flow_history(stock_info)
-            print(f"{code} success {len(klines)}")
-            if not klines:
+            raw_rows = await get_fund_flow_history(stock_info)
+            print(f"{code} success {len(raw_rows)}")
+            if not raw_rows:
                 counter["success"] += 1
                 return
-            data_list = _convert_em_klines_to_dicts(klines)
-            if not data_list:
-                counter["success"] += 1
-                return
+            # 同花顺 get_fund_flow_history 返回 dict 列表（万元单位），
+            # 可直接传给 batch_upsert_fund_flow，无需格式转换。
             conn = get_connection()
             cursor = conn.cursor()
             try:
-                batch_upsert_fund_flow(code, data_list, cursor=cursor)
+                batch_upsert_fund_flow(code, raw_rows, cursor=cursor)
                 conn.commit()
                 counter["success"] += 1
             finally:
