@@ -89,9 +89,9 @@ def kline_to_dao_record(k: dict) -> dict:
         "low_price":      k["low_price"],
         "trading_volume": k["trading_volume"],
         "trading_amount": k.get("trading_amount") or 0.0,
-        "amplitude":      0.0,
-        "change_percent": 0.0,
-        "change_amount":  0.0,
+        "amplitude":      k.get("amplitude") or 0.0,
+        "change_percent": k.get("change_percent") or 0.0,
+        "change_amount":  k.get("change_amount") or 0.0,
         "change_hand":    k.get("change_hand") or 0.0,
     }
 
