@@ -32,7 +32,7 @@ def _normalize_stock_code(code: str) -> str:
         return f"{code}.SH"
     elif code.startswith("0") or code.startswith("3"):
         return f"{code}.SZ"
-    elif code.startswith("4") or code.startswith("8"):
+    elif code.startswith("4") or code.startswith("8") or code.startswith("9"):
         return f"{code}.BJ"
     return f"{code}.SZ"
 

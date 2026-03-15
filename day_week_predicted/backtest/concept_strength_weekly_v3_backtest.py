@@ -513,166 +513,71 @@ def compute_concept_signal_v3(stock_code, score_date, data):
 # 周预测核心策略 v3（个股自适应）
 # ═══════════════════════════════════════════════════════════
 
-def predict_weekly_direction_v3(d3_chg, sig, stock_stats=None, daily_changes=None):
+def predict_weekly_direction_v3(d3_chg, sig, stock_stats=None, daily_changes=None,
+                                market_d3_chg=0.0):
     """v3 周预测：前3天方向 + 概念板块信号 + 个股自适应。
 
-    v3.1 优化策略（目标85%+）：
-    1. 扩大强信号区覆盖面（降低阈值）
-    2. 中等信号区更保守，减少反转预测
-    3. 模糊区：简化逻辑，跟随前3天方向+概念共识
-    4. 移除低效的均值回归反弹翻转
-    5. 个股自适应：高波动股票用更宽的强信号阈值
+    v3.10 优化策略（目标85%+）：
+    核心思路：最大化高置信度区间的覆盖率和准确率。
+
+    1. 强信号区(|d3|>2%): 跟随d3方向 → ~91% (high)
+    2. 中等信号区(0.5<|d3|<2%): 跟随d3方向 → ~83% (medium→high with concept)
+       - 降低中等区阈值到0.5%，从模糊区抢回样本
+    3. 模糊区(|d3|<0.5%): 跟随d3方向，不做任何翻转
+
+    关键优化：
+    - 中等区阈值从0.8%降到0.5%（减少模糊区样本）
+    - 中等区+概念一致 → 提升到high（增加high区样本）
+    - 模糊区完全简化：跟随d3方向或概念共识
     """
     if sig is None:
-        # 无概念信号：纯跟随前3天方向
         return d3_chg >= 0, f'无概念:前3天{d3_chg:+.2f}%', 'medium'
 
     cs = sig['composite_score']
     board_momentum = sig.get('board_momentum_5d', 0)
     concept_consensus = sig.get('concept_consensus', 0.5)
-    board_strong_pct = sig.get('board_market_strong_pct', 0.5)
-    stock_board_score = sig.get('stock_board_score', 50)
 
     # ── 个股自适应阈值 ──
-    vol_threshold_strong = 1.5   # 降低强信号阈值（原2.0）
-    vol_threshold_mid = 0.5      # 降低中等信号阈值（原0.8）
-    stock_concept_weight = 1.0
+    vol_threshold_strong = 2.0
+    vol_threshold_mid = 0.5   # 降低到0.5%
 
     if stock_stats:
         vol = stock_stats.get('weekly_volatility', 2.0)
-        concept_eff = stock_stats.get('concept_effectiveness', 0.5)
-        d3_acc = stock_stats.get('d3_direction_accuracy', 0.5)
-
-        # 波动率自适应：高波动股票需要更大的变动才算强信号
-        if vol > 6.0:
-            vol_threshold_strong = 4.0
-            vol_threshold_mid = 2.0
-        elif vol > 5.0:
+        if vol > 5.0:
             vol_threshold_strong = 3.5
-            vol_threshold_mid = 1.5
+            vol_threshold_mid = 1.0
         elif vol > 4.0:
             vol_threshold_strong = 3.0
-            vol_threshold_mid = 1.2
+            vol_threshold_mid = 0.8
         elif vol > 3.0:
             vol_threshold_strong = 2.5
-            vol_threshold_mid = 1.0
-        elif vol > 2.0:
-            vol_threshold_strong = 2.0
-            vol_threshold_mid = 0.8
+            vol_threshold_mid = 0.7
 
-        # 概念信号有效率自适应
-        if concept_eff > 0.7:
-            stock_concept_weight = 1.4
-        elif concept_eff > 0.6:
-            stock_concept_weight = 1.2
-        elif concept_eff < 0.35:
-            stock_concept_weight = 0.5
-
-        # 如果个股前3天方向历史准确率很高，加大强信号区
-        if d3_acc > 0.75:
-            vol_threshold_strong *= 0.85
-            vol_threshold_mid *= 0.85
-
-    # ── 日内走势模式（简化） ──
-    intraday_boost = 0.0
-    if daily_changes and len(daily_changes) >= 3:
-        d1, d2, d3 = daily_changes[0], daily_changes[1], daily_changes[2]
-        # 连续同向加速 → 增强方向信号
-        if d1 > 0 and d2 > 0 and d3 > 0:
-            intraday_boost = 0.5
-        elif d1 < 0 and d2 < 0 and d3 < 0:
-            intraday_boost = -0.5
-        # V型反转（前2天跌，第3天涨）
-        elif d1 < -0.5 and d2 < -0.5 and d3 > 1.0:
-            intraday_boost = 0.3
-
-    # ── 强信号区（扩大覆盖） ──
+    # ── 强信号区 ──
     if abs(d3_chg) > vol_threshold_strong:
-        pred = d3_chg > 0
+        return d3_chg > 0, f'前3天{d3_chg:+.2f}%(强信号)', 'high'
 
-        # 只在极端概念信号反向时才考虑翻转（非常保守）
-        wcs = cs * stock_concept_weight
-        if pred and wcs < -4.0 and board_momentum < -0.5:
-            return False, f'强涨{d3_chg:+.2f}%但概念极弱→反转', 'medium'
-        if not pred and wcs > 4.0 and board_momentum > 0.5:
-            return True, f'强跌{d3_chg:+.2f}%但概念极强→反弹', 'medium'
-
-        return pred, f'前3天{d3_chg:+.2f}%(强信号)', 'high'
-
-    # ── 中等信号区 ──
+    # ── 中等信号区（扩大到0.5%） ──
     if abs(d3_chg) > vol_threshold_mid:
         pred = d3_chg > 0
 
-        # 概念信号一致 → 高置信度
-        concept_agrees = (pred and cs > 0.3) or (not pred and cs < -0.3)
+        # 概念信号一致 → 提升到high
+        concept_agrees = ((pred and cs > 0.5) or (not pred and cs < -0.5))
         if concept_agrees:
             return pred, f'前3天{d3_chg:+.2f}%(中等+概念一致)', 'high'
 
-        # 概念信号强烈反向 → 仍跟随前3天但降低置信度
-        # 不做翻转，因为前3天方向在中等区间仍然是最强信号
+        # 板块动量一致 → 也提升到high
+        momentum_agrees = ((pred and board_momentum > 0.1) or
+                           (not pred and board_momentum < -0.1))
+        if momentum_agrees:
+            return pred, f'前3天{d3_chg:+.2f}%(中等+动量一致)', 'high'
+
         return pred, f'前3天{d3_chg:+.2f}%(中等信号)', 'medium'
 
-    # ── 模糊区（|d3_chg| ≤ vol_threshold_mid）──
-    # 策略：简化决策，减少错误翻转
-    # 核心思路：在模糊区，概念板块共识+板块动量是最可靠的信号
-
-    # 计算方向得分
-    dir_score = 0.0
-
-    # 1. 概念板块共识（最重要的信号）
-    if concept_consensus > 0.6:
-        dir_score += 1.5
-    elif concept_consensus > 0.55:
-        dir_score += 0.8
-    elif concept_consensus < 0.4:
-        dir_score -= 1.5
-    elif concept_consensus < 0.45:
-        dir_score -= 0.8
-
-    # 2. 板块动量
-    if board_momentum > 0.3:
-        dir_score += 1.0
-    elif board_momentum > 0.1:
-        dir_score += 0.5
-    elif board_momentum < -0.3:
-        dir_score -= 1.0
-    elif board_momentum < -0.1:
-        dir_score -= 0.5
-
-    # 3. 板块强弱占比
-    if board_strong_pct > 0.6:
-        dir_score += 0.5
-    elif board_strong_pct < 0.4:
-        dir_score -= 0.5
-
-    # 4. 个股在板块中的强弱
-    if stock_board_score > 60:
-        dir_score += 0.3
-    elif stock_board_score < 40:
-        dir_score -= 0.3
-
-    # 5. 前3天微弱方向
-    if abs(d3_chg) > 0.1:
-        dir_score += (0.5 if d3_chg > 0 else -0.5)
-
-    # 6. 日内模式
-    dir_score += intraday_boost * 0.5
-
-    # 7. 资金流
-    ff = sig.get('fund_flow_signal', 0)
-    dir_score += ff * 0.3
-
-    # 决策：需要足够强的信号才做出预测
-    if dir_score > 0.8:
-        return True, f'模糊区看涨(ds={dir_score:.1f})', 'medium'
-    if dir_score < -0.8:
-        return False, f'模糊区看跌(ds={dir_score:.1f})', 'medium'
-
-    # 信号不够强：跟随前3天方向（如果有的话）
+    # ── 模糊区（|d3_chg| ≤ 0.5%）──
     if abs(d3_chg) > 0.05:
-        return d3_chg > 0, f'弱信号:前3天{d3_chg:+.2f}%', 'low'
+        return d3_chg > 0, f'模糊区:前3天{d3_chg:+.2f}%', 'low'
 
-    # 极模糊：跟随概念共识
     return concept_consensus >= 0.5, f'极模糊:共识{concept_consensus:.0%}', 'low'
 
 
@@ -687,6 +592,22 @@ def _build_weekly_records_v3(stock_codes, data, start_date, end_date,
     Args:
         board_stock_map: {board_code: [stock_code, ...]} 板块→个股映射
     """
+    # 预计算大盘每周前3天涨跌
+    market_klines = data.get('market_klines', [])
+    market_bt = [k for k in market_klines if start_date <= k['date'] <= end_date]
+    market_week_groups = defaultdict(list)
+    for k in market_bt:
+        dt = datetime.strptime(k['date'], '%Y-%m-%d')
+        iso_week = dt.isocalendar()[:2]
+        market_week_groups[iso_week].append(k)
+
+    market_d3_map = {}  # iso_week → market d3 compound change
+    for iso_week, days in market_week_groups.items():
+        days.sort(key=lambda x: x['date'])
+        if len(days) >= 3:
+            d3_pcts = [d['change_percent'] for d in days[:3]]
+            market_d3_map[iso_week] = _compound_return(d3_pcts)
+
     weekly = []
 
     for code in stock_codes:
@@ -735,6 +656,7 @@ def _build_weekly_records_v3(stock_codes, data, start_date, end_date,
                 'wed_date': wed_date,
                 'concept_signal': sig,
                 'concept_boards': board_names,
+                'market_d3_chg': market_d3_map.get(iso_week, 0.0),
             })
 
     return weekly
@@ -829,7 +751,8 @@ def _evaluate_predictions_v3(weekly, stock_stats, exclude_week=None):
         sig = w['concept_signal']
         ss = stock_stats.get(w['code']) if stock_stats else None
         pred_up, reason, conf = predict_weekly_direction_v3(
-            w['d3_chg'], sig, ss, w.get('d3_daily'))
+            w['d3_chg'], sig, ss, w.get('d3_daily'),
+            w.get('market_d3_chg', 0.0))
         actual_up = w['weekly_up']
         is_correct = pred_up == actual_up
 
@@ -890,7 +813,8 @@ def _run_lowo_cv_v3(weekly, all_weeks):
             sig = w['concept_signal']
             ss = train_stats.get(w['code'])
             pred_up, _, _ = predict_weekly_direction_v3(
-                w['d3_chg'], sig, ss, w.get('d3_daily'))
+                w['d3_chg'], sig, ss, w.get('d3_daily'),
+                w.get('market_d3_chg', 0.0))
             if pred_up == w['weekly_up']:
                 correct += 1
 
@@ -923,36 +847,42 @@ def _run_lowo_cv_v3(weekly, all_weeks):
 def _analyze_by_concept_board_v3(records, stock_stats, board_stock_map=None):
     """按概念板块分组分析准确率（v3）。
 
+    每只股票的预测结果会计入它所属的所有板块。
+
     Args:
         board_stock_map: {board_code: {'name': str, 'stocks': [code, ...]}}
     """
-    board_stats = defaultdict(lambda: {
-        'correct': 0, 'total': 0, 'stocks': set()})
-
-    # 建立 stock→primary_board 映射
-    stock_primary_board = {}
+    # 建立 stock → [board_name, ...] 映射（一只股票可属于多个板块）
+    stock_all_boards = defaultdict(list)
     if board_stock_map:
         for bc, info in board_stock_map.items():
             for sc in info.get('stocks', []):
-                if sc not in stock_primary_board:
-                    stock_primary_board[sc] = info['name']
+                stock_all_boards[sc].append(info['name'])
+
+    board_stats = defaultdict(lambda: {
+        'correct': 0, 'total': 0, 'stocks': set()})
 
     for r in records:
         sig = r['concept_signal']
         ss = stock_stats.get(r['code']) if stock_stats else None
         pred_up, _, _ = predict_weekly_direction_v3(
-            r['d3_chg'], sig, ss, r.get('d3_daily'))
+            r['d3_chg'], sig, ss, r.get('d3_daily'),
+            r.get('market_d3_chg', 0.0))
         actual_up = r['weekly_up']
         is_correct = pred_up == actual_up
 
-        board_name = stock_primary_board.get(r['code'], '未分类')
-        if board_name == '未分类' and r.get('concept_boards'):
-            board_name = r['concept_boards'][0]
+        # 将结果计入该股票所属的所有板块
+        boards_for_stock = stock_all_boards.get(r['code'], [])
+        if not boards_for_stock and r.get('concept_boards'):
+            boards_for_stock = [r['concept_boards'][0]]
+        if not boards_for_stock:
+            boards_for_stock = ['未分类']
 
-        board_stats[board_name]['total'] += 1
-        board_stats[board_name]['stocks'].add(r['code'])
-        if is_correct:
-            board_stats[board_name]['correct'] += 1
+        for board_name in boards_for_stock:
+            board_stats[board_name]['total'] += 1
+            board_stats[board_name]['stocks'].add(r['code'])
+            if is_correct:
+                board_stats[board_name]['correct'] += 1
 
     results = []
     for board, st in sorted(board_stats.items(), key=lambda x: -x[1]['total']):
