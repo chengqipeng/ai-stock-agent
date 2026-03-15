@@ -339,9 +339,11 @@ async def run_kline_job(limit=800, max_concurrent=1, counter=None):
 
 
 async def run_finance_job(max_concurrent=3, counter=None):
-    """独立运行财报采集任务"""
-    stocks = _build_stock_list()
-    logger.info("[财报] 开始采集，共 %d 只股票", len(stocks))
+    """独立运行财报采集任务（排除指数，指数无财报数据）"""
+    all_stocks = _build_stock_list()
+    stocks = [s for s in all_stocks if s['code'] not in _INDEX_CODES]
+    logger.info("[财报] 开始采集，共 %d 只股票（已排除%d只指数）",
+                len(stocks), len(all_stocks) - len(stocks))
 
     semaphore = asyncio.Semaphore(max_concurrent)
     if counter is None:
