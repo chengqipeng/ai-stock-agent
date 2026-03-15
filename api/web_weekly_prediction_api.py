@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import HTMLResponse
 
 from dao.stock_weekly_prediction_dao import (
+    ensure_tables,
     get_latest_predictions_page,
     get_prediction_summary,
     get_prediction_history,
@@ -14,6 +15,12 @@ from dao.stock_weekly_prediction_dao import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# 启动时确保表结构（含新增列迁移）
+try:
+    ensure_tables()
+except Exception as _e:
+    logger.warning("周预测表迁移跳过: %s", _e)
 
 
 @router.get("/weekly_prediction", response_class=HTMLResponse)
