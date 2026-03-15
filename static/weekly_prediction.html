@@ -401,7 +401,6 @@ function renderTable(rows) {
         html += '<td><span style="font-size:11px;color:#666">' + (r.strategy || '-') + '</span></td>';
         // d4涨跌：显示涨跌幅 + 日期区间
         const d4DateRange = r.d4_date_range || '';
-        const d4DateTip = d4DateRange ? ' <span style="font-size:10px;color:#999">(' + d4DateRange.replace(/^\d{4}-/, '').replace('~' + d4DateRange.split('~')[1].substring(0,5), '~').replace(/^\d{4}-/, '') + ')</span>' : '';
         html += '<td>' + fmtChg(r.d4_chg) + (d4DateRange ? '<br><span style="font-size:10px;color:#aaa">' + fmtDateRange(d4DateRange) + '</span>' : '') + '</td>';
         // d3涨跌：显示涨跌幅 + 日期区间
         const d3DateRange = r.d3_date_range || '';
