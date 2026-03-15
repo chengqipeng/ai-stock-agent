@@ -145,16 +145,15 @@ def check_fund_flow_db(stock_code: str) -> list[dict]:
     检测规则：
     1. close_price 与 K线表不一致（容差 0.02）
     2. change_pct 与 K线表不一致（容差 0.5 个百分点）
-    3. 资金守恒：net_flow ≠ big_net + mid_net + small_net（容差 0.1 万元）
-    4. 占比守恒：big_net_pct + mid_net_pct + small_net_pct 偏离 0 过大（容差 1.0%）
-    5. 关键字段缺失：close_price / change_pct / net_flow 为 NULL
+    3. 关键字段缺失：close_price / change_pct / net_flow 为 NULL
 
     注意：
     - 首日交易数据（K线表最早日期）允许误差，跳过校验。
-    - 东方财富和同花顺数据已归一化到统一语义：
-      big_net = 主力/大单(主力), net_flow = big+mid+small。
-      东方财富数据中 net_flow ≈ 0（资金守恒），同花顺 net_flow 通常不为 0，
-      但两者都满足 net_flow = big_net + mid_net + small_net。
+    - 资金守恒（net_flow = big+mid+small）和占比守恒不作为校验规则，
+      因为同花顺数据源的统计口径与东方财富不同：
+      · 东方财富：主力+中单+小单=全市场，net_flow ≈ 0，占比之和 ≈ 0
+      · 同花顺：各类资金独立统计，net_flow ≠ big+mid+small，占比之和 ≠ 0
+      混合数据源下守恒关系不成立是数据源特性，不是数据异常。
     """
     conn = get_connection(use_dict_cursor=True)
     cursor = conn.cursor()
@@ -224,36 +223,6 @@ def check_fund_flow_db(stock_code: str) -> list[dict]:
                         "date": d_str,
                         "detail": (f"资金流向change_pct={ff['change_pct']} "
                                    f"vs K线change_percent={kline['change_percent']} 差值={diff:.2f}"),
-                    })
-
-            # 规则3：资金守恒 net_flow ≈ big_net + mid_net + small_net
-            big = ff.get("big_net") or 0
-            mid = ff.get("mid_net") or 0
-            small = ff.get("small_net") or 0
-            net = ff.get("net_flow")
-            if net is not None:
-                expected = round(big + mid + small, 2)
-                diff = abs(net - expected)
-                if diff > 0.1:
-                    issues.append({
-                        "type": "ff_flow_imbalance",
-                        "date": d_str,
-                        "detail": (f"net_flow={net} ≠ big+mid+small="
-                                   f"{big}+{mid}+{small}={expected} 差值={diff:.2f}万元"),
-                    })
-
-            # 规则4：占比守恒 big_pct + mid_pct + small_pct ≈ 0
-            big_pct = ff.get("big_net_pct")
-            mid_pct = ff.get("mid_net_pct")
-            small_pct = ff.get("small_net_pct")
-            if big_pct is not None and mid_pct is not None and small_pct is not None:
-                pct_sum = round(big_pct + mid_pct + small_pct, 2)
-                if abs(pct_sum) > 1.0:
-                    issues.append({
-                        "type": "ff_pct_imbalance",
-                        "date": d_str,
-                        "detail": (f"占比之和={pct_sum}% "
-                                   f"(big={big_pct}%+mid={mid_pct}%+small={small_pct}%)"),
                     })
     finally:
         cursor.close()

@@ -23,14 +23,10 @@
 资金流向强一致性校验（首日交易数据允许误差，跳过校验）：
 12. close_price 与 K线表不一致（容差 0.02）
 13. change_pct 与 K线表不一致（容差 0.5 个百分点）
-14. 资金守恒：net_flow ≠ big_net + mid_net + small_net（容差 0.1 万元）
-15. 占比守恒：big_net_pct + mid_net_pct + small_net_pct 偏离 0 过大（容差 1.0%）
-16. 资金流向关键字段缺失：close_price / change_pct / net_flow 为 NULL
+14. 资金流向关键字段缺失：close_price / change_pct / net_flow 为 NULL
 
-注意：东方财富和同花顺数据已通过 _convert_em_klines_to_dicts 归一化到统一语义：
-  big_net = 主力/大单(主力), net_flow = big+mid+small。
-  东方财富数据中 net_flow ≈ 0（资金守恒），同花顺 net_flow 通常不为 0，
-  但两者都满足 net_flow = big_net + mid_net + small_net。
+注意：资金守恒（net_flow = big+mid+small）和占比守恒不作为校验规则，
+因为同花顺数据源的统计口径与东方财富不同，混合数据源下守恒关系不成立。
 
 发现K线异常时：调用 get_stock_day_kline_10jqka 重新拉取数据，重新检测，
 若通过则覆盖写入数据库，否则输出日志。

@@ -4,13 +4,12 @@
 对所有个股执行资金流向数据校验，检测：
 1. close_price 与 K线表不一致（容差 0.02）
 2. change_pct 与 K线表不一致（容差 0.5 个百分点）
-3. 资金守恒：net_flow ≠ big_net + mid_net + small_net（容差 0.1 万元）
-4. 占比守恒：big_net_pct + mid_net_pct + small_net_pct 偏离 0 过大（容差 1.0%）
-5. 关键字段缺失：close_price / change_pct / net_flow 为 NULL
+3. 关键字段缺失：close_price / change_pct / net_flow 为 NULL
 
 首日交易数据允许误差，跳过校验。
 数据源：东方财富（首次全量120条）+ 同花顺（每日增量30条），
-两者已通过归一化对齐到统一语义（big_net=主力, net_flow=big+mid+small）。
+两者已通过归一化对齐字段语义（big_net=主力）。
+资金守恒/占比守恒不作为校验规则（同花顺统计口径不同，天然不守恒）。
 
 Usage:
     python -m tools.validate_fund_flow
@@ -109,8 +108,6 @@ def main():
             label = {
                 "ff_price_mismatch": "收盘价不一致",
                 "ff_chg_pct_mismatch": "涨跌幅不一致",
-                "ff_flow_imbalance": "资金守恒异常",
-                "ff_pct_imbalance": "占比守恒异常",
                 "ff_null_field": "关键字段缺失",
             }.get(t, t)
             print(f"  {label:20s} ({t}):  {c} 条")
