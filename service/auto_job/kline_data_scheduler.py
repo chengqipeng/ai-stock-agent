@@ -166,9 +166,9 @@ async def _process_single_kline(stock_code, stock_name, limit, counter):
                 break
             except Exception as e:
                 if is_index:
-                    logger.warning("[K线 %s] 指数类股票拉取失败，跳过: %s", stock_name, str(e)[:200])
-                    counter['failed'] += 1
-                    return
+                    logger.warning("[K线 %s] 同花顺指数拉取失败，尝试东方财富回退: %s",
+                                   stock_name, str(e)[:200])
+                    break
                 err_msg = str(e)
                 is_retryable = any(kw in err_msg for kw in _RETRYABLE_KEYWORDS)
                 if is_retryable and attempt < max_attempts:
@@ -180,6 +180,23 @@ async def _process_single_kline(stock_code, stock_name, limit, counter):
                     logger.error("[K线 %s] 获取失败(重试%d次): %s", stock_name, attempt, e)
                     counter['failed'] += 1
                     return
+
+        # 指数类：同花顺失败或返回空时，回退到东方财富API
+        if is_index and (not klines):
+            try:
+                em_klines = await get_stock_day_range_kline(stock_info, fetch_limit)
+                if em_klines:
+                    klines = em_klines
+                    elapsed = asyncio.get_event_loop().time() - t0
+                    logger.info("[K线 %s] 东方财富回退成功，%d条", stock_name, len(klines))
+                else:
+                    logger.warning("[K线 %s] 东方财富也返回空数据", stock_name)
+                    counter['failed'] += 1
+                    return
+            except Exception as e2:
+                logger.error("[K线 %s] 东方财富回退也失败: %s", stock_name, str(e2)[:200])
+                counter['failed'] += 1
+                return
 
     if klines is None:
         counter['failed'] += 1

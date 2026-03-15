@@ -517,15 +517,16 @@ def predict_weekly_direction_v3(d3_chg, sig, stock_stats=None, daily_changes=Non
                                 market_d3_chg=0.0):
     """v3 周预测：前3天方向 + 概念板块信号 + 个股自适应。
 
-    v3.11 优化策略（目标85%+）：
-    基于深度信号分析的发现：
+    v3.12 优化策略（目标85%+）：
+    基于深度信号分析：
     - 强信号区(|d3|>2%): d3方向 → 91% (high)
     - 中等信号区(0.8<|d3|<2%): d3方向 → 83% (medium)
-    - 模糊区(|d3|<0.8%): d3方向是唯一有效信号(67%)
-      概念信号在模糊区是反向指标，不应使用
+    - 模糊区(|d3|<0.8%): d3方向(67%) + 上涨偏向(58.2%)
 
-    新增：模糊区中，当d3方向为跌时，检查是否应该反转为涨
-    （基于58.2%的上涨基础率）
+    模糊区优化：
+    - d3>0: 预测涨（d3方向+上涨偏向一致）
+    - -0.3%<d3<0: 预测涨（上涨偏向>d3跌方向）
+    - d3<-0.3%: 预测跌（d3跌方向足够强）
     """
     if sig is None:
         return d3_chg >= 0, f'无概念:前3天{d3_chg:+.2f}%', 'medium'
@@ -556,7 +557,6 @@ def predict_weekly_direction_v3(d3_chg, sig, stock_stats=None, daily_changes=Non
     # ── 中等信号区 ──
     if abs(d3_chg) > vol_threshold_mid:
         pred = d3_chg > 0
-        # 概念信号强一致 + 板块动量同向 → high
         concept_strong_agree = ((pred and cs > 1.5 and board_momentum > 0.1) or
                                 (not pred and cs < -1.5 and board_momentum < -0.1))
         if concept_strong_agree:
@@ -564,13 +564,12 @@ def predict_weekly_direction_v3(d3_chg, sig, stock_stats=None, daily_changes=Non
         return pred, f'前3天{d3_chg:+.2f}%(中等信号)', 'medium'
 
     # ── 模糊区（|d3_chg| ≤ vol_threshold_mid）──
-    # d3方向是唯一有效信号(67%)，概念信号在此区间无效
-    # 直接跟随d3方向
-    if abs(d3_chg) > 0.05:
-        return d3_chg > 0, f'模糊区:前3天{d3_chg:+.2f}%', 'low'
+    # d3>0 或 d3微跌(-0.3%~0): 预测涨（上涨偏向）
+    if d3_chg > -0.3:
+        return True, f'模糊区:看涨(d3={d3_chg:+.2f}%)', 'low'
 
-    # 极小变动：预测涨（基于58.2%的上涨基础率）
-    return True, f'极模糊:默认看涨', 'low'
+    # d3明显跌(<-0.3%): 跟随d3方向
+    return False, f'模糊区:前3天{d3_chg:+.2f}%', 'low'
 
 
 # ═══════════════════════════════════════════════════════════
