@@ -136,3 +136,121 @@ def get_fund_flow_count(stock_code: str, cursor=None) -> int:
     return row[0] if row else 0
 
 
+
+def check_fund_flow_db(stock_code: str) -> list[dict]:
+    """
+    检测资金流向数据的强一致性，返回异常列表。
+    每条异常: {"type": str, "date": str, "detail": str}
+
+    检测规则：
+    1. close_price 与 K线表不一致（容差 0.02）
+    2. change_pct 与 K线表不一致（容差 0.5 个百分点）
+    3. 资金守恒：net_flow ≠ big_net + mid_net + small_net（容差 0.1 万元）
+    4. 占比守恒：big_net_pct + mid_net_pct + small_net_pct 偏离 0 过大（容差 1.0%）
+    5. 关键字段缺失：close_price / change_pct / net_flow 为 NULL
+
+    注意：首日交易数据（K线表最早日期）允许误差，跳过校验。
+    """
+    conn = get_connection(use_dict_cursor=True)
+    cursor = conn.cursor()
+    issues: list[dict] = []
+    try:
+        # 获取该股票K线最早日期（首日交易）
+        cursor.execute(
+            "SELECT MIN(`date`) AS first_date FROM stock_kline WHERE stock_code = %s",
+            (stock_code,),
+        )
+        row = cursor.fetchone()
+        first_kline_date = str(row["first_date"]) if row and row["first_date"] else None
+
+        # 获取资金流向数据
+        cursor.execute(
+            f"SELECT `date`, close_price, change_pct, net_flow, "
+            f"big_net, big_net_pct, mid_net, mid_net_pct, small_net, small_net_pct "
+            f"FROM {TABLE_NAME} WHERE stock_code = %s ORDER BY `date`",
+            (stock_code,),
+        )
+        ff_rows = cursor.fetchall()
+        if not ff_rows:
+            return issues
+
+        # 获取K线数据用于交叉比对
+        cursor.execute(
+            "SELECT `date`, close_price, change_percent "
+            "FROM stock_kline WHERE stock_code = %s ORDER BY `date`",
+            (stock_code,),
+        )
+        kline_map = {str(r["date"]): r for r in cursor.fetchall()}
+
+        for ff in ff_rows:
+            d_str = str(ff["date"])
+
+            # 跳过首日交易
+            if first_kline_date and d_str == first_kline_date:
+                continue
+
+            # 规则5：关键字段缺失
+            for field in ("close_price", "change_pct", "net_flow"):
+                if ff.get(field) is None:
+                    issues.append({
+                        "type": "ff_null_field",
+                        "date": d_str,
+                        "detail": f"资金流向 {field} 为 NULL",
+                    })
+
+            # 规则1 & 2：与K线交叉比对
+            kline = kline_map.get(d_str)
+            if kline and ff["close_price"] is not None and kline["close_price"] is not None:
+                diff = abs(ff["close_price"] - kline["close_price"])
+                if diff > 0.02:
+                    issues.append({
+                        "type": "ff_price_mismatch",
+                        "date": d_str,
+                        "detail": (f"资金流向close_price={ff['close_price']} "
+                                   f"vs K线close_price={kline['close_price']} 差值={diff:.4f}"),
+                    })
+
+            if kline and ff["change_pct"] is not None and kline["change_percent"] is not None:
+                diff = abs(ff["change_pct"] - kline["change_percent"])
+                if diff > 0.5:
+                    issues.append({
+                        "type": "ff_chg_pct_mismatch",
+                        "date": d_str,
+                        "detail": (f"资金流向change_pct={ff['change_pct']} "
+                                   f"vs K线change_percent={kline['change_percent']} 差值={diff:.2f}"),
+                    })
+
+            # 规则3：资金守恒 net_flow ≈ big_net + mid_net + small_net
+            big = ff.get("big_net") or 0
+            mid = ff.get("mid_net") or 0
+            small = ff.get("small_net") or 0
+            net = ff.get("net_flow")
+            if net is not None:
+                expected = round(big + mid + small, 2)
+                diff = abs(net - expected)
+                if diff > 0.1:
+                    issues.append({
+                        "type": "ff_flow_imbalance",
+                        "date": d_str,
+                        "detail": (f"net_flow={net} ≠ big+mid+small="
+                                   f"{big}+{mid}+{small}={expected} 差值={diff:.2f}万元"),
+                    })
+
+            # 规则4：占比守恒 big_pct + mid_pct + small_pct ≈ 0
+            big_pct = ff.get("big_net_pct")
+            mid_pct = ff.get("mid_net_pct")
+            small_pct = ff.get("small_net_pct")
+            if big_pct is not None and mid_pct is not None and small_pct is not None:
+                pct_sum = round(big_pct + mid_pct + small_pct, 2)
+                if abs(pct_sum) > 1.0:
+                    issues.append({
+                        "type": "ff_pct_imbalance",
+                        "date": d_str,
+                        "detail": (f"占比之和={pct_sum}% "
+                                   f"(big={big_pct}%+mid={mid_pct}%+small={small_pct}%)"),
+                    })
+    finally:
+        cursor.close()
+        conn.close()
+    return issues
+

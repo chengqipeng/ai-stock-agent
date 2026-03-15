@@ -20,8 +20,17 @@
 11. 衍生字段全零异常：amplitude/change_percent/change_amount 全为 0 但价格有变动
    （如智洋创新等个股数据源返回衍生字段缺失的场景）
 
-发现异常时：调用 get_stock_day_kline_10jqka 重新拉取数据，重新检测，
+资金流向强一致性校验（首日交易数据允许误差，跳过校验）：
+12. close_price 与 K线表不一致（容差 0.02）
+13. change_pct 与 K线表不一致（容差 0.5 个百分点）
+14. 资金守恒：net_flow ≠ big_net + mid_net + small_net（容差 0.1 万元）
+15. 占比守恒：big_net_pct + mid_net_pct + small_net_pct 偏离 0 过大（容差 1.0%）
+16. 资金流向关键字段缺失：close_price / change_pct / net_flow 为 NULL
+
+发现K线异常时：调用 get_stock_day_kline_10jqka 重新拉取数据，重新检测，
 若通过则覆盖写入数据库，否则输出日志。
+发现资金流向异常时：调用 get_fund_flow_history 重新拉取数据覆盖写入，
+重新检测，若通过则标记已修复，否则输出日志。
 """
 import asyncio
 import json
@@ -98,7 +107,9 @@ def _already_done_today() -> bool:
 async def _execute_job():
     """执行一次数据异常检测与修复"""
     from dao.stock_kline_dao import check_db, save_kline_to_db, get_all_stock_codes
+    from dao.stock_fund_flow_dao import check_fund_flow_db, batch_upsert_fund_flow
     from service.jqka10.stock_day_kline_data_10jqka import get_stock_day_kline_10jqka
+    from service.jqka10.stock_history_fund_flow_10jqka import get_fund_flow_history
     from common.utils.stock_info_utils import get_stock_info_by_code
     from dao.scheduler_log_dao import insert_log, update_log
 
@@ -200,11 +211,71 @@ async def _execute_job():
                     if repaired:
                         counter["repaired"] += 1
 
-                logger.info("[数据异常检测] 检测完成：共 %d 只股票，%d 只有异常，共 %d 条异常记录",
+                logger.info("[数据异常检测] K线检测完成：共 %d 只股票，%d 只有异常，共 %d 条异常记录",
                             len(stock_codes), counter["anomalies"], total_issues)
 
         except Exception as e:
-            logger.error("[数据异常检测] 执行异常: %s", e, exc_info=True)
+            logger.error("[数据异常检测] K线检测异常: %s", e, exc_info=True)
+
+        # ── 第二阶段：资金流向强一致性校验 ──
+        ff_counter = {"checked": 0, "anomalies": 0, "repaired": 0}
+        try:
+            stock_codes = stock_codes if stock_codes else get_all_stock_codes()
+            logger.info("[资金流向校验] 开始对 %d 只股票执行强一致性校验...", len(stock_codes))
+
+            for stock_code in stock_codes:
+                ff_issues = check_fund_flow_db(stock_code)
+                ff_counter["checked"] += 1
+                if ff_counter["checked"] % 50 == 0:
+                    await asyncio.sleep(0)
+                if not ff_issues:
+                    continue
+
+                ff_counter["anomalies"] += 1
+                issue_lines = [f"[{iss['type']}] 日期={iss['date']} {iss['detail']}" for iss in ff_issues]
+                logger.info("[资金流向校验 %s] 发现 %d 条异常", stock_code, len(ff_issues))
+                for iss in ff_issues:
+                    logger.info("  [%s] 日期=%s  %s", iss["type"], iss["date"], iss["detail"])
+
+                # 尝试重新拉取资金流向数据修复
+                repaired = False
+                try:
+                    stock_info = get_stock_info_by_code(stock_code)
+                    if stock_info:
+                        raw_rows = await get_fund_flow_history(stock_info)
+                        if raw_rows:
+                            from dao import get_connection as _get_conn
+                            conn = _get_conn()
+                            cursor = conn.cursor()
+                            try:
+                                batch_upsert_fund_flow(stock_code, raw_rows, cursor=cursor)
+                                conn.commit()
+                            finally:
+                                cursor.close()
+                                conn.close()
+                            # 重新检测
+                            re_issues = check_fund_flow_db(stock_code)
+                            if not re_issues:
+                                repaired = True
+                                logger.info("[资金流向校验 %s] 重新拉取后检测通过 ✓", stock_code)
+                            else:
+                                logger.warning("[资金流向校验 %s] 重新拉取后仍有 %d 条异常",
+                                               stock_code, len(re_issues))
+                except Exception as e:
+                    logger.error("[资金流向校验 %s] 修复失败: %s", stock_code, e)
+
+                status_tag = "已修复" if repaired else "未修复"
+                anomaly_details.append(f"{stock_code}[资金流向]({status_tag}): " + "; ".join(issue_lines))
+                if repaired:
+                    ff_counter["repaired"] += 1
+                    counter["repaired"] += 1
+                counter["anomalies"] += 1
+
+            logger.info("[资金流向校验] 完成：%d 只检测，%d 只有异常，%d 只已修复",
+                        ff_counter["checked"], ff_counter["anomalies"], ff_counter["repaired"])
+
+        except Exception as e:
+            logger.error("[资金流向校验] 执行异常: %s", e, exc_info=True)
 
         now_str = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
         _job_status.update({
@@ -221,7 +292,9 @@ async def _execute_job():
         _save_persisted_status(_job_status)
 
         detail = (f"共{counter['total']}只股票 异常{counter['anomalies']}只 "
-                  f"已修复{counter['repaired']}只")
+                  f"已修复{counter['repaired']}只\n"
+                  f"资金流向校验: {ff_counter['checked']}只检测 "
+                  f"异常{ff_counter['anomalies']}只 已修复{ff_counter['repaired']}只")
         if anomaly_details:
             detail += "\n" + "\n".join(anomaly_details)
         # 防止 detail 超出数据库列长度限制
