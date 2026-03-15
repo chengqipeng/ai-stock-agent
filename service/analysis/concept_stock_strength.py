@@ -223,10 +223,18 @@ def analyze_board_stock_strength(
 
         # 6. 排序 & 分级
         results.sort(key=lambda x: x["strength_score"], reverse=True)
-        # 6. 排序 & 分级
+
+        # 记录跳过的股票信息
+        if no_kline_count or too_few_days_count:
+            logger.warning(
+                "[概念强弱] board=%s 成分股%d, 有效评分%d, 无K线跳过%d, 日期不足跳过%d, "
+                "板块日期范围=%s~%s",
+                board_code, len(codes), len(results), no_kline_count,
+                too_few_days_count, start_date, end_date,
+            )
         if not results:
             logger.warning(
-                "[概念强弱] board=%s 成分股%d, 有K线%d, 无K线%d, 日期不足%d, "
+                "[概念强弱] board=%s 全部成分股计算失败! 成分股%d, 有K线%d, 无K线%d, 日期不足%d, "
                 "板块日期范围=%s~%s, stock_klines样本日期=%s",
                 board_code, len(codes), len(stock_klines), no_kline_count,
                 too_few_days_count, start_date, end_date,
@@ -314,6 +322,7 @@ def compute_and_save_all_boards(days: int = 60, progress_callback=None) -> dict:
     total_boards = len(boards)
     success_boards = 0
     failed_boards = 0
+    failed_board_details = []  # 收集失败板块信息
     total_scored = 0
     score_date = date.today().isoformat()
 
@@ -328,11 +337,14 @@ def compute_and_save_all_boards(days: int = 60, progress_callback=None) -> dict:
         if not result.get("success") or not result.get("stocks"):
             failed_boards += 1
             if not result.get("success"):
+                reason = result.get("error", "unknown")
                 logger.warning("[概念强弱] 板块 %s(%s) 失败: %s",
-                               board_code, board_name, result.get("error", "unknown"))
+                               board_code, board_name, reason)
+                failed_board_details.append(f"{board_code}({board_name}): {reason}")
             else:
                 logger.warning("[概念强弱] 板块 %s(%s) success但stocks为空 (total=%s)",
                                board_code, board_name, result.get("total", "N/A"))
+                failed_board_details.append(f"{board_code}({board_name}): stocks为空")
             if i < 3:
                 logger.info("[概念强弱] 前3板块诊断 %s: %s", board_code,
                             {k: v for k, v in result.items() if k != 'stocks'})
@@ -375,6 +387,9 @@ def compute_and_save_all_boards(days: int = 60, progress_callback=None) -> dict:
 
     logger.info("[概念强弱] 完成: 共%d板块, 成功=%d, 失败=%d, 评分个股=%d",
                 total_boards, success_boards, failed_boards, total_scored)
+    if failed_board_details:
+        logger.warning("[概念强弱] 失败板块汇总(%d个):\n  %s",
+                       len(failed_board_details), "\n  ".join(failed_board_details))
     return {
         "total_boards": total_boards,
         "success_boards": success_boards,
@@ -390,7 +405,12 @@ def compute_single_board_and_save(board_code: str, days: int = 60) -> dict:
 
     ensure_table()
     result = analyze_board_stock_strength(board_code, days=days)
-    if not result.get("success") or not result.get("stocks"):
+    if not result.get("success"):
+        logger.warning("[概念强弱] 单板块计算失败 board=%s: %s", board_code, result.get("error", "unknown"))
+        return result
+    if not result.get("stocks"):
+        logger.warning("[概念强弱] 单板块计算成功但无评分结果 board=%s (total=%s)",
+                       board_code, result.get("total", "N/A"))
         return result
 
     board_name = result["board"]["board_name"]
