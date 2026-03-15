@@ -323,7 +323,8 @@ async function loadSummary() {
         const d = json.data;
         document.getElementById('headerStats').textContent =
             '预测日期: ' + (d.predict_date || '-') + '  Y' + (d.iso_year || '') + '-W' + String(d.iso_week || '').padStart(2, '0') +
-            '  共' + (d.total || 0) + '只  回测准确率' + (d.avg_backtest_accuracy || 0) + '%';
+            '  共' + (d.total || 0) + '只  方向回测' + (d.avg_backtest_accuracy || 0) + '%' +
+            '  涨跌幅MAE:' + (d.avg_pred_chg_mae || '-') + '%';
 
         let html = '';
         html += card('总股票数', d.total || 0, '');
@@ -333,6 +334,11 @@ async function loadSummary() {
         html += card('中置信', d.medium_count || 0, '', 'd4中等信号');
         html += card('低置信', d.low_count || 0, '', 'd4/d3模糊信号');
         html += card('回测准确率', (d.avg_backtest_accuracy || 0) + '%', '', 'LOWO: ' + (d.avg_lowo_accuracy || 0) + '%');
+        // 涨跌幅预测回测
+        const predChgMae = d.avg_pred_chg_mae != null ? d.avg_pred_chg_mae + '%' : '-';
+        const predChgHit = d.avg_pred_chg_hit_rate != null ? d.avg_pred_chg_hit_rate + '%' : '-';
+        const predChgCnt = d.pred_chg_count || 0;
+        html += card('涨跌幅MAE', predChgMae, '', '命中率: ' + predChgHit + ' (' + predChgCnt + '只)');
         document.getElementById('summaryRow').innerHTML = html;
     } catch (e) { console.error('loadSummary error:', e); }
 }
