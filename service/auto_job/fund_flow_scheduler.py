@@ -16,7 +16,9 @@ from common.utils.stock_info_utils import get_stock_info_by_code
 from dao import get_connection
 from dao.stock_fund_flow_dao import create_fund_flow_table, batch_upsert_fund_flow
 from service.auto_job.kline_data_scheduler import app_ready, is_a_share_trading_day
-from service.jqka10.stock_history_fund_flow_10jqka import get_fund_flow_history
+from service.jqka10.stock_history_fund_flow_10jqka import get_fund_flow_history as get_fund_flow_history_jqka
+from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history as get_fund_flow_history_em
+from dao.stock_fund_flow_dao import get_fund_flow_count
 
 _CST = ZoneInfo("Asia/Shanghai")
 logger = logging.getLogger(__name__)
@@ -28,13 +30,24 @@ _STATUS_FILE = _project_root / "data_results" / ".fund_flow_scheduler_status.jso
 def _convert_em_klines_to_dicts(klines: list[str]) -> list[dict]:
     """将东方财富 kline 字符串列表转为 batch_upsert_fund_flow 所需的 dict 列表（万元单位）。
 
+    归一化到与同花顺一致的语义：
+      big_net     = 东方财富"主力"(f[1]) = 超大单+大单  ← 对应同花顺"大单(主力)"
+      mid_net     = 东方财富"中单"(f[3])
+      small_net   = 东方财富"小单"(f[2])
+      net_flow    = big_net + mid_net + small_net（总净流入）
+      big_net_pct = 东方财富"主力净占比"(f[6])  ← 对应同花顺"大单(主力)净占比"
+      mid_net_pct = 东方财富"中单净占比"(f[8])
+      small_net_pct = 东方财富"小单净占比"(f[7])
+
     东方财富 kline 字段顺序（逗号分隔，共15个字段）：
-      0:日期, 1:主力净流入, 2:小单净流入, 3:中单净流入, 4:大单净流入,
-      5:超大单净流入, 6:主力净占比, 7:小单净占比, 8:中单净占比, 9:大单净占比,
+      0:日期, 1:主力净流入(元), 2:小单净流入(元), 3:中单净流入(元), 4:大单净流入(元),
+      5:超大单净流入(元), 6:主力净占比, 7:小单净占比, 8:中单净占比, 9:大单净占比,
       10:超大单净占比, 11:收盘价, 12:涨跌幅, 13:(?), 14:(?)
-    金额单位为元，需转为万元存入数据库。
-    main_net_5day（5日主力净额）通过滑动窗口累加最近5天主力净流入计算得出。
-    注意：东方财富返回的 klines 已按日期倒序排列（最新在前）。
+
+    注意：东方财富与同花顺的资金分类阈值不同，同一天的数值会有差异，
+    但字段语义已对齐：big_net 都表示"主力/大单(主力)"，mid/small 都表示中单/小单。
+    东方财富数据中 net_flow ≈ 0（因为主力+中单+小单=全市场，资金守恒），
+    而同花顺的 net_flow 通常不为 0（统计口径不同）。
     """
 
     def _float(v):
@@ -56,9 +69,12 @@ def _convert_em_klines_to_dicts(klines: list[str]) -> list[dict]:
     # klines 按日期倒序，索引 i 对应的5日窗口为 [i, i+1, i+2, i+3, i+4]
     result = []
     for i, (f, main_net_wan) in enumerate(parsed):
-        big_net_yuan = _float(f[4])
-        mid_net_yuan = _float(f[3])
-        small_net_yuan = _float(f[2])
+        # big_net = 主力(f[1]) = 超大单+大单，对齐同花顺"大单(主力)"
+        big_net_wan = main_net_wan
+        mid_net_wan = round(_float(f[3]) / 10000, 2)
+        small_net_wan = round(_float(f[2]) / 10000, 2)
+        # net_flow = 总净流入 = big + mid + small
+        net_flow_wan = round(big_net_wan + mid_net_wan + small_net_wan, 2)
 
         # 5日主力净额：当天及之后4天（更早的4天）的主力净流入之和
         if i + 5 <= len(parsed):
@@ -70,14 +86,14 @@ def _convert_em_klines_to_dicts(klines: list[str]) -> list[dict]:
             "date":         f[0],
             "close_price":  round(float(f[11]), 2) if f[11] and f[11] != "-" else None,
             "change_pct":   _pct(f[12]),
-            "net_flow":     main_net_wan,
+            "net_flow":     net_flow_wan,
             "main_net_5day": main_net_5day,
-            "big_net":      round(big_net_yuan / 10000, 2),
-            "big_net_pct":  _pct(f[9]),
-            "mid_net":      round(mid_net_yuan / 10000, 2),
-            "mid_net_pct":  _pct(f[8]),
-            "small_net":    round(small_net_yuan / 10000, 2),
-            "small_net_pct": _pct(f[7]),
+            "big_net":      big_net_wan,
+            "big_net_pct":  _pct(f[6]),     # 主力净占比
+            "mid_net":      mid_net_wan,
+            "mid_net_pct":  _pct(f[8]),     # 中单净占比
+            "small_net":    small_net_wan,
+            "small_net_pct": _pct(f[7]),    # 小单净占比
         })
     return result
 
@@ -140,6 +156,12 @@ def _already_done_today():
 
 
 async def _fetch_fund_flow_for_stock(code, counter):
+    """拉取单只股票的资金流向数据。
+
+    策略：
+    - 数据库中记录 < 60 条时，使用东方财富全量拉取（~120条），经 _convert_em_klines_to_dicts 转换后写入
+    - 数据库中记录 >= 60 条时，使用同花顺增量拉取（~30条）覆盖最近数据
+    """
     stock_code = code.split(".")[0]
     for attempt in range(1, 3):
         try:
@@ -147,17 +169,33 @@ async def _fetch_fund_flow_for_stock(code, counter):
             if not stock_info:
                 counter["failed"] += 1
                 return
-            raw_rows = await get_fund_flow_history(stock_info)
-            print(f"{code} success {len(raw_rows)}")
-            if not raw_rows:
-                counter["success"] += 1
-                return
-            # 同花顺 get_fund_flow_history 返回 dict 列表（万元单位），
-            # 可直接传给 batch_upsert_fund_flow，无需格式转换。
+
+            existing_count = get_fund_flow_count(code)
+            use_em = existing_count < 60
+
+            if use_em:
+                # 东方财富全量拉取（返回字符串列表，需转换）
+                klines = await get_fund_flow_history_em(stock_info)
+                print(f"{code} em_full {len(klines)}")
+                if not klines:
+                    counter["success"] += 1
+                    return
+                data_list = _convert_em_klines_to_dicts(klines)
+                if not data_list:
+                    counter["success"] += 1
+                    return
+            else:
+                # 同花顺增量拉取（返回 dict 列表，可直接写入）
+                data_list = await get_fund_flow_history_jqka(stock_info)
+                print(f"{code} jqka_inc {len(data_list)}")
+                if not data_list:
+                    counter["success"] += 1
+                    return
+
             conn = get_connection()
             cursor = conn.cursor()
             try:
-                batch_upsert_fund_flow(code, raw_rows, cursor=cursor)
+                batch_upsert_fund_flow(code, data_list, cursor=cursor)
                 conn.commit()
                 counter["success"] += 1
             finally:

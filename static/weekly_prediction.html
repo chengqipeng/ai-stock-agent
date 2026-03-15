@@ -421,7 +421,6 @@ function renderTable(rows) {
     const cols = [
         {key:'stock_code', label:'代码'},
         {key:'stock_name', label:'名称'},
-        {key:'latest_close', label:'收盘价'},
         {key:'pred_direction', label:'方向'},
         {key:'confidence', label:'置信度'},
         {key:'strategy', label:'策略'},
@@ -447,14 +446,12 @@ function renderTable(rows) {
     html += '</tr></thead><tbody>';
 
     if (rows.length === 0) {
-        html += '<tr><td colspan="13" style="text-align:center;color:#999;padding:20px;">暂无数据</td></tr>';
+        html += '<tr><td colspan="12" style="text-align:center;color:#999;padding:20px;">暂无数据</td></tr>';
     }
     for (const r of rows) {
         html += '<tr onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
         html += '<td style="font-family:\'SF Mono\',Menlo,monospace;color:#667eea;font-weight:600">' + r.stock_code + '</td>';
         html += '<td>' + (r.stock_name || '-') + '</td>';
-        // 最新收盘价
-        html += '<td style="font-family:\'SF Mono\',Menlo,monospace;font-weight:600;color:#1d1d1f">' + (r.latest_close != null ? parseFloat(r.latest_close).toFixed(2) : '-') + '</td>';
         html += '<td>' + dirBadge(r.pred_direction) + '</td>';
         html += '<td>' + confBadge(r.confidence) + '</td>';
         html += '<td><span style="font-size:11px;color:#666">' + (r.strategy || '-') + '</span></td>';

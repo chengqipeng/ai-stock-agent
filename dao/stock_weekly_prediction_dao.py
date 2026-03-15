@@ -538,7 +538,6 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
             'stock_code', 'stock_name', 'pred_direction', 'confidence',
             'd3_chg', 'd4_chg', 'strategy', 'predict_date', 'backtest_accuracy',
             'suggested_buy_date', 'suggested_buy_price', 'pred_weekly_chg',
-            'latest_close',
         }
         if sort_by not in allowed_sorts:
             sort_by = 'stock_code'
@@ -557,18 +556,8 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
                    p.suggested_buy_date, p.suggested_buy_price, p.suggested_buy_reason,
                    p.pred_weekly_chg, p.pred_chg_low, p.pred_chg_high,
                    p.pred_chg_mae, p.pred_chg_hit_rate, p.pred_chg_samples,
-                   p.concept_boards,
-                   k.close_price AS latest_close
+                   p.concept_boards
             FROM stock_weekly_prediction p
-            LEFT JOIN (
-                SELECT sk.stock_code, sk.close_price
-                FROM stock_kline sk
-                INNER JOIN (
-                    SELECT stock_code, MAX(`date`) AS max_date
-                    FROM stock_kline
-                    GROUP BY stock_code
-                ) latest ON sk.stock_code = latest.stock_code AND sk.`date` = latest.max_date
-            ) k ON p.stock_code = k.stock_code
             {where_sql}
             ORDER BY {sort_by} {order_dir}
             LIMIT %s OFFSET %s

@@ -1,9 +1,11 @@
 """
 周预测定时调度模块
 
-- 每个交易日 17:30（北京时间）自动触发
+- 每周三、周四 17:30（北京时间）自动触发
+  - 周三：基于 d3 信号（前3天数据）
+  - 周四：基于 d4 信号（前4天数据，最完整）
 - 调用 run_batch_weekly_prediction 执行全量周预测
-- 项目启动时检查当天是否已完成，未完成则补拉
+- 项目启动时检查当天是否需要补拉（仅周三/周四）
 """
 import asyncio
 import json
@@ -81,12 +83,25 @@ def _already_done_today() -> bool:
     )
 
 
+def _is_prediction_day() -> bool:
+    """判断当天是否为周预测执行日（周三=2 或 周四=3）"""
+    now = datetime.now(_CST)
+    return now.weekday() in (2, 3)
+
+
 def _next_trigger_dt(after: datetime) -> datetime:
-    """计算下一个触发时间：每天17:30 CST"""
-    today_trigger = after.replace(hour=17, minute=30, second=0, microsecond=0)
-    if after >= today_trigger:
-        today_trigger += timedelta(days=1)
-    return today_trigger
+    """计算下一个触发时间：每周三/周四 17:30 CST"""
+    trigger_time = after.replace(hour=17, minute=30, second=0, microsecond=0)
+
+    # 如果今天的触发时间还没过，且今天是周三或周四，就用今天
+    if after < trigger_time and after.weekday() in (2, 3):
+        return trigger_time
+
+    # 否则找下一个周三或周四
+    d = after.date() + timedelta(days=1)
+    while d.weekday() not in (2, 3):
+        d += timedelta(days=1)
+    return datetime(d.year, d.month, d.day, 17, 30, 0, tzinfo=_CST)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -178,7 +193,7 @@ async def _execute_job():
 # ═══════════════════════════════════════════════════════════════
 
 async def _scheduler_loop():
-    """调度主循环：每天17:30 CST触发"""
+    """调度主循环：每周三/周四 17:30 CST触发"""
     while True:
         try:
             now = datetime.now(_CST)
@@ -186,8 +201,9 @@ async def _scheduler_loop():
             wait_seconds = (next_dt - now).total_seconds()
 
             if wait_seconds > 0:
-                logger.info("[周预测调度] 下次执行时间: %s (%.0f秒后)",
-                            next_dt.strftime("%Y-%m-%d %H:%M"), wait_seconds)
+                weekday_name = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'][next_dt.weekday()]
+                logger.info("[周预测调度] 下次执行时间: %s %s (%.0f秒后)",
+                            next_dt.strftime("%Y-%m-%d %H:%M"), weekday_name, wait_seconds)
                 await asyncio.sleep(wait_seconds)
 
             if _already_done_today():
@@ -211,16 +227,18 @@ async def start_weekly_prediction_scheduler():
 
     async def _deferred_start():
         await app_ready.wait()
-        logger.info("[周预测调度] 应用已就绪，调度器开始工作")
+        logger.info("[周预测调度] 应用已就绪，调度器开始工作（仅周三/周四执行）")
 
-        if not _already_done_today():
-            logger.info("[周预测调度] 启动补拉：将在20秒后执行")
+        if _is_prediction_day() and not _already_done_today():
+            logger.info("[周预测调度] 启动补拉：今天是预测日且未执行，将在20秒后执行")
 
             async def _delayed_execute():
                 await asyncio.sleep(20)
                 await _execute_job()
 
             asyncio.create_task(_delayed_execute())
+        elif not _is_prediction_day():
+            logger.info("[周预测调度] 今天不是预测日（仅周三/周四），跳过补拉")
 
         asyncio.create_task(_scheduler_loop())
 

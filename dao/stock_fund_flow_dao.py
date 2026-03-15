@@ -149,7 +149,12 @@ def check_fund_flow_db(stock_code: str) -> list[dict]:
     4. 占比守恒：big_net_pct + mid_net_pct + small_net_pct 偏离 0 过大（容差 1.0%）
     5. 关键字段缺失：close_price / change_pct / net_flow 为 NULL
 
-    注意：首日交易数据（K线表最早日期）允许误差，跳过校验。
+    注意：
+    - 首日交易数据（K线表最早日期）允许误差，跳过校验。
+    - 东方财富和同花顺数据已归一化到统一语义：
+      big_net = 主力/大单(主力), net_flow = big+mid+small。
+      东方财富数据中 net_flow ≈ 0（资金守恒），同花顺 net_flow 通常不为 0，
+      但两者都满足 net_flow = big_net + mid_net + small_net。
     """
     conn = get_connection(use_dict_cursor=True)
     cursor = conn.cursor()
@@ -198,7 +203,7 @@ def check_fund_flow_db(stock_code: str) -> list[dict]:
                         "detail": f"资金流向 {field} 为 NULL",
                     })
 
-            # 规则1 & 2：与K线交叉比对
+            # 规则1：close_price 与K线交叉比对
             kline = kline_map.get(d_str)
             if kline and ff["close_price"] is not None and kline["close_price"] is not None:
                 diff = abs(ff["close_price"] - kline["close_price"])
@@ -210,6 +215,7 @@ def check_fund_flow_db(stock_code: str) -> list[dict]:
                                    f"vs K线close_price={kline['close_price']} 差值={diff:.4f}"),
                     })
 
+            # 规则2：change_pct 与K线交叉比对
             if kline and ff["change_pct"] is not None and kline["change_percent"] is not None:
                 diff = abs(ff["change_pct"] - kline["change_percent"])
                 if diff > 0.5:

@@ -27,9 +27,14 @@
 15. 占比守恒：big_net_pct + mid_net_pct + small_net_pct 偏离 0 过大（容差 1.0%）
 16. 资金流向关键字段缺失：close_price / change_pct / net_flow 为 NULL
 
+注意：东方财富和同花顺数据已通过 _convert_em_klines_to_dicts 归一化到统一语义：
+  big_net = 主力/大单(主力), net_flow = big+mid+small。
+  东方财富数据中 net_flow ≈ 0（资金守恒），同花顺 net_flow 通常不为 0，
+  但两者都满足 net_flow = big_net + mid_net + small_net。
+
 发现K线异常时：调用 get_stock_day_kline_10jqka 重新拉取数据，重新检测，
 若通过则覆盖写入数据库，否则输出日志。
-发现资金流向异常时：调用 get_fund_flow_history 重新拉取数据覆盖写入，
+发现资金流向异常时：先同花顺增量修复，若仍有异常则东方财富全量修复+同花顺覆盖，
 重新检测，若通过则标记已修复，否则输出日志。
 """
 import asyncio
@@ -109,7 +114,9 @@ async def _execute_job():
     from dao.stock_kline_dao import check_db, save_kline_to_db, get_all_stock_codes
     from dao.stock_fund_flow_dao import check_fund_flow_db, batch_upsert_fund_flow
     from service.jqka10.stock_day_kline_data_10jqka import get_stock_day_kline_10jqka
-    from service.jqka10.stock_history_fund_flow_10jqka import get_fund_flow_history
+    from service.jqka10.stock_history_fund_flow_10jqka import get_fund_flow_history as get_fund_flow_jqka
+    from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history as get_fund_flow_em
+    from service.auto_job.fund_flow_scheduler import _convert_em_klines_to_dicts
     from common.utils.stock_info_utils import get_stock_info_by_code
     from dao.scheduler_log_dao import insert_log, update_log
 
@@ -238,11 +245,13 @@ async def _execute_job():
                     logger.info("  [%s] 日期=%s  %s", iss["type"], iss["date"], iss["detail"])
 
                 # 尝试重新拉取资金流向数据修复
+                # 先用同花顺增量覆盖最近30条，再检测；若仍有异常（旧数据），用东方财富全量覆盖
                 repaired = False
                 try:
                     stock_info = get_stock_info_by_code(stock_code)
                     if stock_info:
-                        raw_rows = await get_fund_flow_history(stock_info)
+                        # 第一步：同花顺增量修复（~30条）
+                        raw_rows = await get_fund_flow_jqka(stock_info)
                         if raw_rows:
                             from dao import get_connection as _get_conn
                             conn = _get_conn()
@@ -253,14 +262,47 @@ async def _execute_job():
                             finally:
                                 cursor.close()
                                 conn.close()
-                            # 重新检测
-                            re_issues = check_fund_flow_db(stock_code)
-                            if not re_issues:
-                                repaired = True
-                                logger.info("[资金流向校验 %s] 重新拉取后检测通过 ✓", stock_code)
-                            else:
-                                logger.warning("[资金流向校验 %s] 重新拉取后仍有 %d 条异常",
-                                               stock_code, len(re_issues))
+                        # 重新检测
+                        re_issues = check_fund_flow_db(stock_code)
+                        if not re_issues:
+                            repaired = True
+                            logger.info("[资金流向校验 %s] 同花顺增量修复后检测通过 ✓", stock_code)
+                        else:
+                            # 第二步：东方财富全量修复（~120条）
+                            logger.info("[资金流向校验 %s] 同花顺增量修复后仍有 %d 条异常，尝试东方财富全量修复",
+                                        stock_code, len(re_issues))
+                            try:
+                                em_klines = await get_fund_flow_em(stock_info)
+                                if em_klines:
+                                    em_data = _convert_em_klines_to_dicts(em_klines)
+                                    if em_data:
+                                        conn = _get_conn()
+                                        cursor = conn.cursor()
+                                        try:
+                                            batch_upsert_fund_flow(stock_code, em_data, cursor=cursor)
+                                            conn.commit()
+                                        finally:
+                                            cursor.close()
+                                            conn.close()
+                                        # 再用同花顺覆盖最近数据（同花顺数据更准确）
+                                        if raw_rows:
+                                            conn = _get_conn()
+                                            cursor = conn.cursor()
+                                            try:
+                                                batch_upsert_fund_flow(stock_code, raw_rows, cursor=cursor)
+                                                conn.commit()
+                                            finally:
+                                                cursor.close()
+                                                conn.close()
+                                        re_issues2 = check_fund_flow_db(stock_code)
+                                        if not re_issues2:
+                                            repaired = True
+                                            logger.info("[资金流向校验 %s] 东方财富全量修复后检测通过 ✓", stock_code)
+                                        else:
+                                            logger.warning("[资金流向校验 %s] 全量修复后仍有 %d 条异常",
+                                                           stock_code, len(re_issues2))
+                            except Exception as em_err:
+                                logger.warning("[资金流向校验 %s] 东方财富全量修复失败: %s", stock_code, em_err)
                 except Exception as e:
                     logger.error("[资金流向校验 %s] 修复失败: %s", stock_code, e)
 
