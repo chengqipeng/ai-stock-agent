@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>周预测结果 - AI Stock Agent</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif;background:linear-gradient(135deg,#e8ecf4 0%,#d5dbe8 25%,#c9d6f0 50%,#ddd5ee 75%,#e8ecf4 100%);background-attachment:fixed;min-height:100vh;color:#1d1d1f}
+.header{background:rgba(102,126,234,0.75);backdrop-filter:blur(20px) saturate(180%);color:white;padding:10px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,0.25)}
+.header h1{font-size:15px;font-weight:600}
+.header a{color:rgba(255,255,255,0.9);text-decoration:none;font-size:12px}
+.header a:hover{color:white}
+.header .stats{margin-left:auto;font-size:11px;color:rgba(255,255,255,0.8)}
+.container{max-width:1400px;margin:12px auto;padding:0 12px}
+
+/* 汇总卡片 */
+.summary-row{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.summary-card{flex:1;min-width:140px;background:rgba(255,255,255,0.65);backdrop-filter:blur(24px);border-radius:10px;padding:12px 14px;border:1px solid rgba(255,255,255,0.5);box-shadow:0 2px 12px rgba(0,0,0,0.04)}
+.summary-card .label{font-size:10px;color:#8e8e93;letter-spacing:.3px;margin-bottom:4px}
+.summary-card .value{font-size:20px;font-weight:700;color:#1d1d1f}
+.summary-card .value.up{color:#e74c3c}
+.summary-card .value.down{color:#2ecc71}
+.summary-card .sub{font-size:10px;color:#8e8e93;margin-top:2px}
+
+/* 工具栏 */
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.toolbar select,.toolbar input{padding:5px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:6px;font-size:12px;background:rgba(255,255,255,0.7);outline:none}
+.toolbar select:focus,.toolbar input:focus{border-color:#667eea}
+.toolbar .btn{padding:5px 12px;background:rgba(102,126,234,0.85);color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600}
+.toolbar .btn:hover{background:rgba(102,126,234,1)}
+.toolbar .info{font-size:11px;color:#666;margin-left:auto}
+</style>
+<style>
+/* 表格 */
+.pred-table{width:100%;border-collapse:separate;border-spacing:0;background:rgba(255,255,255,0.6);backdrop-filter:blur(24px);border-radius:10px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,0.06);border:1px solid rgba(255,255,255,0.5)}
+.pred-table thead tr{background:linear-gradient(135deg,rgba(102,126,234,0.12) 0%,rgba(118,75,162,0.08) 100%)}
+.pred-table th{padding:8px 10px;font-size:11px;font-weight:600;color:#48484a;border-bottom:2px solid rgba(102,126,234,0.2);text-align:left;white-space:nowrap;cursor:pointer;user-select:none}
+.pred-table th:hover{color:#667eea}
+.pred-table th.sa::after{content:" ▲";font-size:9px;color:#667eea}
+.pred-table th.sd::after{content:" ▼";font-size:9px;color:#667eea}
+.pred-table td{padding:7px 10px;font-size:12px;border-bottom:1px solid rgba(0,0,0,0.04);white-space:nowrap}
+.pred-table tbody tr{cursor:pointer}
+.pred-table tbody tr:hover{background:rgba(102,126,234,0.06)}
+
+/* 方向/置信度标签 */
+.dir-up{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(231,76,60,0.12);color:#e74c3c}
+.dir-down{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(46,204,113,0.12);color:#2ecc71}
+.conf-high{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(102,126,234,0.15);color:#667eea}
+.conf-medium{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(240,173,78,0.15);color:#d4a017}
+.conf-low{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(0,0,0,0.06);color:#8e8e93}
+.chg-val{font-family:'SF Mono',Menlo,monospace;font-size:12px}
+.chg-pos{color:#e74c3c}
+.chg-neg{color:#2ecc71}
+
+/* 分页 */
+.pagination{display:flex;justify-content:center;gap:6px;margin-top:10px}
+.page-btn{padding:4px 12px;border:1px solid rgba(102,126,234,0.25);border-radius:6px;background:rgba(255,255,255,0.6);cursor:pointer;font-size:11px;color:#48484a}
+.page-btn:hover{background:rgba(102,126,234,0.08)}
+.page-btn.active{background:rgba(102,126,234,0.15);color:#667eea;font-weight:600}
+.page-btn:disabled{opacity:0.4;cursor:not-allowed}
+</style>
+<style>
+/* 弹窗 */
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.visible{display:flex}
+.modal{background:#fff;border-radius:12px;width:750px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
+.modal-head{padding:14px 18px;border-bottom:1px solid rgba(0,0,0,0.08);display:flex;align-items:center;gap:10px}
+.modal-head h3{font-size:14px;color:#1d1d1f;flex:1}
+.modal-head .close-btn{width:28px;height:28px;border:none;border-radius:6px;background:rgba(0,0,0,0.06);color:#666;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+.modal-head .close-btn:hover{background:rgba(0,0,0,0.1)}
+.modal-body{flex:1;overflow-y:auto;padding:16px 18px}
+.hist-table{width:100%;border-collapse:collapse;font-size:12px}
+.hist-table th{padding:7px 8px;text-align:left;font-weight:600;color:#48484a;border-bottom:2px solid rgba(102,126,234,0.15);font-size:11px;white-space:nowrap}
+.hist-table td{padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.04);white-space:nowrap}
+.hist-table tr:hover{background:rgba(102,126,234,0.04)}
+.correct-yes{color:#2ecc71;font-weight:600}
+.correct-no{color:#e74c3c;font-weight:600}
+</style>
+</head>
+<body>
+<div class="header">
+    <h1>📊 周预测结果</h1>
+    <a href="/">← 返回主页</a>
+    <span class="stats" id="headerStats">加载中...</span>
+</div>
+<div class="container">
+    <div class="summary-row" id="summaryRow"></div>
+    <div class="toolbar">
+        <select id="filterDirection" onchange="loadList()">
+            <option value="">全部方向</option>
+            <option value="UP">预测涨 ↑</option>
+            <option value="DOWN">预测跌 ↓</option>
+        </select>
+        <select id="filterConfidence" onchange="loadList()">
+            <option value="">全部置信度</option>
+            <option value="high">高置信</option>
+            <option value="medium">中置信</option>
+            <option value="low">低置信</option>
+        </select>
+        <input id="searchInput" type="text" placeholder="搜索代码/名称..." style="width:160px" oninput="debounceSearch()">
+        <button class="btn" onclick="loadList()">刷新</button>
+        <span class="info" id="listInfo"></span>
+    </div>
+    <div id="tableWrap"></div>
+    <div class="pagination" id="pagination"></div>
+</div>
+
+<!-- 历史弹窗 -->
+<div class="modal-overlay" id="historyModal">
+    <div class="modal">
+        <div class="modal-head">
+            <h3 id="historyTitle">预测历史</h3>
+            <button class="close-btn" onclick="closeHistory()">×</button>
+        </div>
+        <div class="modal-body" id="historyBody"></div>
+    </div>
+</div>
+
+<script>
+const PAGE_SIZE = 50;
+let currentPage = 1;
+let totalCount = 0;
+let currentSort = 'stock_code';
+let currentSortDir = 'asc';
+let _searchTimer = null;
+
+function debounceSearch() {
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(() => { currentPage = 1; loadList(); }, 300);
+}
+
+function fmtChg(v) {
+    if (v == null) return '-';
+    const n = parseFloat(v);
+    const cls = n > 0 ? 'chg-pos' : n < 0 ? 'chg-neg' : '';
+    return '<span class="chg-val ' + cls + '">' + (n > 0 ? '+' : '') + n.toFixed(2) + '%</span>';
+}
+
+function dirBadge(d) {
+    return d === 'UP' ? '<span class="dir-up">↑ 涨</span>' : '<span class="dir-down">↓ 跌</span>';
+}
+
+function confBadge(c) {
+    const m = {high: '高', medium: '中', low: '低'};
+    return '<span class="conf-' + c + '">' + (m[c] || c) + '</span>';
+}
+
+async function loadSummary() {
+    try {
+        const resp = await fetch('/api/weekly_prediction/summary');
+        const json = await resp.json();
+        if (!json.success || !json.data) return;
+        const d = json.data;
+        document.getElementById('headerStats').textContent =
+            '预测日期: ' + (d.predict_date || '-') + '  Y' + (d.iso_year || '') + '-W' + String(d.iso_week || '').padStart(2, '0') +
+            '  共' + (d.total || 0) + '只  回测准确率' + (d.avg_backtest_accuracy || 0) + '%';
+
+        let html = '';
+        html += card('总股票数', d.total || 0, '');
+        html += card('预测涨', d.up_count || 0, 'up', '占比 ' + pct(d.up_count, d.total));
+        html += card('预测跌', d.down_count || 0, 'down', '占比 ' + pct(d.down_count, d.total));
+        html += card('高置信', d.high_count || 0, '', 'd4强信号 + 停牌');
+        html += card('中置信', d.medium_count || 0, '', 'd4中等信号');
+        html += card('低置信', d.low_count || 0, '', 'd4/d3模糊信号');
+        html += card('回测准确率', (d.avg_backtest_accuracy || 0) + '%', '', 'LOWO: ' + (d.avg_lowo_accuracy || 0) + '%');
+        document.getElementById('summaryRow').innerHTML = html;
+    } catch (e) { /* silent */ }
+}
+
+function card(label, value, cls, sub) {
+    return '<div class="summary-card"><div class="label">' + label + '</div><div class="value ' + (cls||'') + '">' + value + '</div>' + (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
+}
+
+function pct(a, b) {
+    if (!b) return '0%';
+    return (a / b * 100).toFixed(1) + '%';
+}
+
+async function loadList() {
+    const direction = document.getElementById('filterDirection').value;
+    const confidence = document.getElementById('filterConfidence').value;
+    const keyword = document.getElementById('searchInput').value.trim();
+    const offset = (currentPage - 1) * PAGE_SIZE;
+
+    let url = '/api/weekly_prediction/list?limit=' + PAGE_SIZE + '&offset=' + offset +
+              '&sort_by=' + currentSort + '&sort_dir=' + currentSortDir;
+    if (direction) url += '&direction=' + direction;
+    if (confidence) url += '&confidence=' + confidence;
+    if (keyword) url += '&keyword=' + encodeURIComponent(keyword);
+
+    try {
+        const resp = await fetch(url);
+        const json = await resp.json();
+        if (!json.success) return;
+        totalCount = json.total;
+        document.getElementById('listInfo').textContent = '共 ' + totalCount + ' 条';
+        renderTable(json.data);
+        renderPagination();
+    } catch (e) {
+        document.getElementById('tableWrap').innerHTML = '<p style="color:red;padding:20px;">加载失败: ' + e.message + '</p>';
+    }
+}
+
+function renderTable(rows) {
+    const cols = [
+        {key:'stock_code', label:'代码'},
+        {key:'stock_name', label:'名称'},
+        {key:'pred_direction', label:'方向'},
+        {key:'confidence', label:'置信度'},
+        {key:'strategy', label:'策略'},
+        {key:'d4_chg', label:'d4涨跌%'},
+        {key:'d3_chg', label:'d3涨跌%'},
+        {key:'predict_date', label:'预测日期'},
+        {key:'backtest_accuracy', label:'回测准确率'},
+    ];
+
+    let html = '<table class="pred-table"><thead><tr>';
+    for (const c of cols) {
+        let cls = '';
+        if (c.key === currentSort) cls = currentSortDir === 'asc' ? 'sa' : 'sd';
+        html += '<th class="' + cls + '" onclick="toggleSort(\'' + c.key + '\')">' + c.label + '</th>';
+    }
+    html += '<th>概念板块</th>';
+    html += '</tr></thead><tbody>';
+
+    if (rows.length === 0) {
+        html += '<tr><td colspan="10" style="text-align:center;color:#999;padding:20px;">暂无数据</td></tr>';
+    }
+    for (const r of rows) {
+        html += '<tr onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
+        html += '<td style="font-family:\'SF Mono\',Menlo,monospace;color:#667eea;font-weight:600">' + r.stock_code + '</td>';
+        html += '<td>' + (r.stock_name || '-') + '</td>';
+        html += '<td>' + dirBadge(r.pred_direction) + '</td>';
+        html += '<td>' + confBadge(r.confidence) + '</td>';
+        html += '<td><span style="font-size:11px;color:#666">' + (r.strategy || '-') + '</span></td>';
+        html += '<td>' + fmtChg(r.d4_chg) + '</td>';
+        html += '<td>' + fmtChg(r.d3_chg) + '</td>';
+        html += '<td style="color:#666">' + (r.predict_date || '-') + '</td>';
+        html += '<td>' + (r.backtest_accuracy != null ? r.backtest_accuracy.toFixed(1) + '%' : '-') + '</td>';
+        const boards = r.concept_boards ? r.concept_boards.split(',').slice(0, 3).join(', ') : '-';
+        const boardsFull = r.concept_boards || '';
+        html += '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#888" title="' + boardsFull + '">' + boards + '</td>';
+        html += '</tr>';
+    }
+    html += '</tbody></table>';
+    document.getElementById('tableWrap').innerHTML = html;
+}
+
+function toggleSort(key) {
+    if (currentSort === key) {
+        currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort = key;
+        currentSortDir = 'asc';
+    }
+    currentPage = 1;
+    loadList();
+}
+
+function renderPagination() {
+    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+    if (totalPages <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
+    let html = '';
+    html += '<button class="page-btn" onclick="goPage(1)" ' + (currentPage===1?'disabled':'') + '>首页</button>';
+    html += '<button class="page-btn" onclick="goPage(' + (currentPage-1) + ')" ' + (currentPage===1?'disabled':'') + '>上一页</button>';
+    const start = Math.max(1, currentPage - 3);
+    const end = Math.min(totalPages, currentPage + 3);
+    for (let i = start; i <= end; i++) {
+        html += '<button class="page-btn' + (i===currentPage?' active':'') + '" onclick="goPage(' + i + ')">' + i + '</button>';
+    }
+    html += '<button class="page-btn" onclick="goPage(' + (currentPage+1) + ')" ' + (currentPage===totalPages?'disabled':'') + '>下一页</button>';
+    html += '<button class="page-btn" onclick="goPage(' + totalPages + ')" ' + (currentPage===totalPages?'disabled':'') + '>末页</button>';
+    document.getElementById('pagination').innerHTML = html;
+}
+
+function goPage(p) {
+    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+    if (p < 1 || p > totalPages) return;
+    currentPage = p;
+    loadList();
+}
+
+async function showHistory(code, name) {
+    document.getElementById('historyTitle').textContent = code + ' ' + name + ' - 预测历史';
+    document.getElementById('historyBody').innerHTML = '<p style="color:#999;text-align:center;padding:20px;">加载中...</p>';
+    document.getElementById('historyModal').classList.add('visible');
+
+    try {
+        const resp = await fetch('/api/weekly_prediction/history?stock_code=' + encodeURIComponent(code));
+        const json = await resp.json();
+        if (!json.success || !json.data) {
+            document.getElementById('historyBody').innerHTML = '<p style="color:red;">加载失败</p>';
+            return;
+        }
+        const rows = json.data;
+        if (rows.length === 0) {
+            document.getElementById('historyBody').innerHTML = '<p style="color:#999;text-align:center;">暂无历史记录</p>';
+            return;
+        }
+        let html = '<table class="hist-table"><thead><tr>';
+        html += '<th>周</th><th>预测日期</th><th>方向</th><th>置信度</th><th>策略</th><th>d4%</th><th>d3%</th>';
+        html += '<th>实际方向</th><th>实际涨跌%</th><th>正确</th>';
+        html += '</tr></thead><tbody>';
+        for (const r of rows) {
+            html += '<tr>';
+            html += '<td>Y' + r.iso_year + '-W' + String(r.iso_week).padStart(2,'0') + '</td>';
+            html += '<td>' + (r.predict_date || '-') + '</td>';
+            html += '<td>' + dirBadge(r.pred_direction) + '</td>';
+            html += '<td>' + confBadge(r.confidence) + '</td>';
+            html += '<td style="font-size:11px;color:#666">' + (r.strategy || '-') + '</td>';
+            html += '<td>' + fmtChg(r.d4_chg) + '</td>';
+            html += '<td>' + fmtChg(r.d3_chg) + '</td>';
+            html += '<td>' + (r.actual_direction ? dirBadge(r.actual_direction) : '<span style="color:#ccc">-</span>') + '</td>';
+            html += '<td>' + (r.actual_weekly_chg != null ? fmtChg(r.actual_weekly_chg) : '-') + '</td>';
+            if (r.is_correct === 1) html += '<td class="correct-yes">✓</td>';
+            else if (r.is_correct === 0) html += '<td class="correct-no">✗</td>';
+            else html += '<td style="color:#ccc">-</td>';
+            html += '</tr>';
+        }
+        html += '</tbody></table>';
+        document.getElementById('historyBody').innerHTML = html;
+    } catch (e) {
+        document.getElementById('historyBody').innerHTML = '<p style="color:red;">加载失败: ' + e.message + '</p>';
+    }
+}
+
+function closeHistory() {
+    document.getElementById('historyModal').classList.remove('visible');
+}
+
+document.getElementById('historyModal').addEventListener('click', function(e) {
+    if (e.target === this) closeHistory();
+});
+
+// 初始化
+loadSummary();
+loadList();
+</script>
+</body>
+</html>

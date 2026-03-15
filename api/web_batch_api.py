@@ -158,6 +158,10 @@ app.include_router(data_browser_router)
 from api.web_concept_board_api import router as concept_board_router
 app.include_router(concept_board_router)
 
+# 挂载周预测浏览路由
+from api.web_weekly_prediction_api import router as weekly_prediction_router
+app.include_router(weekly_prediction_router)
+
 @app.get("/.well-known/appspecific/com.chrome.devtools.json")
 async def chrome_devtools():
     return {}

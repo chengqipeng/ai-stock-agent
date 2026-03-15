@@ -1,0 +1,87 @@
+"""周预测浏览 API"""
+import logging
+
+from fastapi import APIRouter, Query
+from fastapi.responses import HTMLResponse
+
+from dao.stock_weekly_prediction_dao import (
+    get_latest_predictions_page,
+    get_prediction_summary,
+    get_prediction_history,
+    get_prediction_accuracy_stats,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+@router.get("/weekly_prediction", response_class=HTMLResponse)
+async def weekly_prediction_page():
+    with open("static/weekly_prediction.html", "r", encoding="utf-8") as f:
+        content = f.read()
+    return HTMLResponse(content=content, headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache", "Expires": "0",
+    })
+
+
+@router.get("/api/weekly_prediction/summary")
+async def prediction_summary():
+    """获取最新预测汇总统计"""
+    try:
+        data = get_prediction_summary()
+        return {"success": True, "data": data}
+    except Exception as e:
+        logger.error("获取预测汇总失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/api/weekly_prediction/list")
+async def prediction_list(
+    direction: str = Query(None, description="UP/DOWN"),
+    confidence: str = Query(None, description="high/medium/low"),
+    keyword: str = Query(None, description="股票代码或名称"),
+    sort_by: str = Query("stock_code"),
+    sort_dir: str = Query("asc"),
+    limit: int = Query(50),
+    offset: int = Query(0),
+):
+    """分页查询最新预测列表"""
+    try:
+        rows, total = get_latest_predictions_page(
+            direction=direction, confidence=confidence, keyword=keyword,
+            sort_by=sort_by, sort_dir=sort_dir, limit=limit, offset=offset,
+        )
+        return {"success": True, "data": rows, "total": total}
+    except Exception as e:
+        logger.error("查询预测列表失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/api/weekly_prediction/history")
+async def prediction_history(
+    stock_code: str = Query(..., description="股票代码"),
+    limit: int = Query(30),
+):
+    """获取某只股票的预测历史"""
+    try:
+        rows = get_prediction_history(stock_code, limit)
+        return {"success": True, "data": rows}
+    except Exception as e:
+        logger.error("查询预测历史失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/api/weekly_prediction/accuracy")
+async def prediction_accuracy(
+    iso_year: int = Query(None),
+    iso_week: int = Query(None),
+):
+    """获取预测准确率统计"""
+    try:
+        data = get_prediction_accuracy_stats(iso_year, iso_week)
+        return {"success": True, "data": data}
+    except Exception as e:
+        logger.error("查询准确率统计失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}

@@ -353,3 +353,89 @@ def get_prediction_accuracy_stats(iso_year: int = None, iso_week: int = None) ->
     finally:
         cur.close()
         conn.close()
+
+
+def get_latest_predictions_page(direction: str = None, confidence: str = None,
+                                keyword: str = None, sort_by: str = 'stock_code',
+                                sort_dir: str = 'asc',
+                                limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
+    """分页查询最新预测结果，支持筛选和排序。返回 (rows, total_count)。"""
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+    try:
+        where_parts = []
+        params = []
+        if direction:
+            where_parts.append("pred_direction = %s")
+            params.append(direction)
+        if confidence:
+            where_parts.append("confidence = %s")
+            params.append(confidence)
+        if keyword:
+            where_parts.append("(stock_code LIKE %s OR stock_name LIKE %s)")
+            params.extend([f"%{keyword}%", f"%{keyword}%"])
+
+        where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+
+        # 安全排序字段白名单
+        allowed_sorts = {
+            'stock_code', 'stock_name', 'pred_direction', 'confidence',
+            'd3_chg', 'd4_chg', 'strategy', 'predict_date', 'backtest_accuracy',
+        }
+        if sort_by not in allowed_sorts:
+            sort_by = 'stock_code'
+        order_dir = 'DESC' if sort_dir.lower() == 'desc' else 'ASC'
+
+        cur.execute(f"SELECT COUNT(*) as cnt FROM stock_weekly_prediction {where_sql}", params)
+        total = cur.fetchone()['cnt']
+
+        cur.execute(f"""
+            SELECT stock_code, stock_name, predict_date, iso_year, iso_week,
+                   pred_direction, confidence, strategy, reason,
+                   d3_chg, d4_chg, is_suspended, week_day_count,
+                   backtest_accuracy, backtest_lowo_accuracy,
+                   concept_boards
+            FROM stock_weekly_prediction
+            {where_sql}
+            ORDER BY {sort_by} {order_dir}
+            LIMIT %s OFFSET %s
+        """, params + [limit, offset])
+        rows = cur.fetchall()
+        return rows, total
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_prediction_summary() -> dict:
+    """获取最新一批预测的汇总统计。"""
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT
+                COUNT(*) as total,
+                MAX(predict_date) as predict_date,
+                MAX(iso_year) as iso_year,
+                MAX(iso_week) as iso_week,
+                SUM(pred_direction = 'UP') as up_count,
+                SUM(pred_direction = 'DOWN') as down_count,
+                SUM(confidence = 'high') as high_count,
+                SUM(confidence = 'medium') as medium_count,
+                SUM(confidence = 'low') as low_count,
+                SUM(is_suspended = 1) as suspended_count,
+                ROUND(AVG(backtest_accuracy), 1) as avg_backtest_accuracy,
+                ROUND(AVG(backtest_lowo_accuracy), 1) as avg_lowo_accuracy,
+                SUM(strategy = 'd4_strong') as d4_strong_count,
+                SUM(strategy = 'd4_medium') as d4_medium_count,
+                SUM(strategy = 'd4_fuzzy') as d4_fuzzy_count,
+                SUM(strategy = 'd3_strong') as d3_strong_count,
+                SUM(strategy = 'd3_medium') as d3_medium_count,
+                SUM(strategy = 'd3_fuzzy') as d3_fuzzy_count,
+                SUM(strategy = 'suspended') as suspended_strategy_count
+            FROM stock_weekly_prediction
+        """)
+        return cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
