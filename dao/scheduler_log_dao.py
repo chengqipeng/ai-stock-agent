@@ -25,7 +25,7 @@ def create_scheduler_log_table():
                 success_count INT DEFAULT 0 COMMENT '成功数',
                 failed_count INT DEFAULT 0 COMMENT '失败数',
                 skipped_count INT DEFAULT 0 COMMENT '跳过数(断点续传)',
-                detail TEXT COMMENT '详细信息',
+                detail MEDIUMTEXT COMMENT '详细信息',
                 started_at DATETIME NOT NULL COMMENT '开始时间',
                 finished_at DATETIME COMMENT '结束时间',
                 duration_seconds INT COMMENT '耗时(秒)',
@@ -35,6 +35,10 @@ def create_scheduler_log_table():
                 INDEX idx_status (status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
+        # 兼容已有表：将 detail 列升级为 MEDIUMTEXT
+        cursor.execute(
+            "ALTER TABLE scheduler_execution_log MODIFY COLUMN detail MEDIUMTEXT COMMENT '详细信息'"
+        )
         conn.commit()
     finally:
         cursor.close()

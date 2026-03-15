@@ -222,6 +222,9 @@ async def _execute_job():
                   f"已修复{counter['repaired']}只")
         if anomaly_details:
             detail += "\n" + "\n".join(anomaly_details)
+        # 防止 detail 超出数据库列长度限制
+        if len(detail.encode('utf-8')) > 60000:
+            detail = detail[:20000] + f"\n... (截断，共{len(anomaly_details)}条异常记录)"
         update_log(log_id, "success", counter["total"], counter["total"],
                    counter["anomalies"] - counter["repaired"], detail=detail)
 
