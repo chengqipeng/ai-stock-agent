@@ -384,13 +384,16 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
 
 def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
                                 end_date: str, n_weeks: int = 29) -> dict:
-    """基于历史数据计算回测准确率。
+    """基于历史数据计算回测准确率（按个股+策略分别计算）。
 
     对每只股票，回溯n_weeks周，用d4/d3信号预测每周方向，
-    与实际方向对比计算准确率。
+    与实际方向对比计算该股票自身的准确率。
 
-    注意：data中的K线数据可能不够长（仅90天lookback），
-    所以这里独立加载更长的历史数据。
+    Returns:
+        {
+            'per_stock': {code: {'accuracy': float, 'lowo': float, 'n_weeks': int, 'total': int, 'strategy_acc': {strategy: float}}},
+            'global': {'full_accuracy': float, 'lowo_accuracy': float, 'n_weeks': int, 'total_samples': int},
+        }
     """
     dt_end = datetime.strptime(end_date, '%Y-%m-%d')
     dt_start = dt_end - timedelta(days=n_weeks * 7 + 7)
@@ -400,7 +403,6 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
 
-    # 大盘K线
     cur.execute(
         "SELECT `date`, change_percent FROM stock_kline "
         "WHERE stock_code = '000001.SH' AND `date` >= %s AND `date` <= %s "
@@ -409,7 +411,6 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
                       'change_percent': _to_float(r['change_percent'])}
                      for r in cur.fetchall()]
 
-    # 个股K线（分批加载）
     stock_klines = defaultdict(list)
     batch_size = 200
     for i in range(0, len(stock_codes), batch_size):
@@ -429,22 +430,18 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
     conn.close()
     logger.info("[回测数据] %d只股票K线, 大盘%d天, 区间%s~%s",
                 len(stock_klines), len(market_klines), start_date, end_date)
-    market_wg = defaultdict(list)
-    for k in market_klines:
-        dt = datetime.strptime(k['date'], '%Y-%m-%d')
-        iw = dt.isocalendar()[:2]
-        market_wg[iw].append(k)
 
-    total_correct = 0
-    total_count = 0
-    week_stats = defaultdict(lambda: [0, 0])  # iso_week -> [correct, total]
+    # 全局统计
+    global_correct = 0
+    global_count = 0
+    week_stats = defaultdict(lambda: [0, 0])
+
+    # 个股统计
+    per_stock = {}  # code -> {'correct': int, 'total': int, 'strategy_stats': {strategy: [correct, total]}}
 
     for code in stock_codes:
         klines = stock_klines.get(code, [])
-        if not klines:
-            continue
-
-        if len(klines) < 5:
+        if not klines or len(klines) < 5:
             continue
 
         wg = defaultdict(list)
@@ -452,6 +449,10 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
             dt = datetime.strptime(k['date'], '%Y-%m-%d')
             iw = dt.isocalendar()[:2]
             wg[iw].append(k)
+
+        stock_correct = 0
+        stock_total = 0
+        strategy_stats = defaultdict(lambda: [0, 0])  # strategy -> [correct, total]
 
         for iw, days in wg.items():
             days.sort(key=lambda x: x['date'])
@@ -466,38 +467,69 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
             d4 = _compound_return(pcts[:4]) if len(days) >= 4 else None
             is_susp = all(p == 0 for p in pcts[:3])
 
-            # 预测（与v4逻辑一致）
+            # 预测 + 策略分类（与_predict_stock_weekly一致）
             if is_susp:
                 pred_up = True
+                strat = 'suspended_up'
             elif d4 is not None:
                 pred_up = d4 >= 0
+                if abs(d4) > D4_STRONG_THRESHOLD:
+                    strat = 'follow_d4(strong)'
+                elif abs(d4) > D4_FUZZY_THRESHOLD:
+                    strat = 'follow_d4(medium)'
+                else:
+                    strat = 'follow_d4(fuzzy)'
             else:
                 pred_up = d3 >= 0
+                if abs(d3) > D3_STRONG_THRESHOLD:
+                    strat = 'follow_d3(strong)'
+                elif abs(d3) > D3_FUZZY_THRESHOLD:
+                    strat = 'follow_d3(medium)'
+                else:
+                    strat = 'follow_d3(fuzzy)'
 
-            if pred_up == actual_up:
-                total_correct += 1
+            correct = pred_up == actual_up
+            if correct:
+                stock_correct += 1
+                global_correct += 1
                 week_stats[iw][0] += 1
-            total_count += 1
+                strategy_stats[strat][0] += 1
+            stock_total += 1
+            global_count += 1
             week_stats[iw][1] += 1
+            strategy_stats[strat][1] += 1
 
-    full_accuracy = round(total_correct / total_count * 100, 1) if total_count > 0 else 0
+        if stock_total > 0:
+            stock_acc = round(stock_correct / stock_total * 100, 1)
+            strat_acc = {}
+            for s, (ok, n) in strategy_stats.items():
+                if n > 0:
+                    strat_acc[s] = round(ok / n * 100, 1)
+            per_stock[code] = {
+                'accuracy': stock_acc,
+                'total': stock_total,
+                'n_weeks': stock_total,
+                'strategy_acc': strat_acc,
+            }
 
-    # LOWO: 每周的准确率
+    full_accuracy = round(global_correct / global_count * 100, 1) if global_count > 0 else 0
     week_accs = []
     for iw, (ok, n) in sorted(week_stats.items()):
         if n > 0:
             week_accs.append(ok / n * 100)
-
     lowo_accuracy = round(_mean(week_accs), 1) if week_accs else 0
 
-    logger.info("[回测] %d周, %d样本, 全样本=%.1f%%, LOWO=%.1f%%",
-                len(week_accs), total_count, full_accuracy, lowo_accuracy)
+    logger.info("[回测] %d周, %d样本, 全样本=%.1f%%, LOWO=%.1f%%, 个股回测=%d只",
+                len(week_accs), global_count, full_accuracy, lowo_accuracy, len(per_stock))
 
     return {
-        'full_accuracy': full_accuracy,
-        'lowo_accuracy': lowo_accuracy,
-        'n_weeks': len(week_accs),
-        'total_samples': total_count,
+        'per_stock': per_stock,
+        'global': {
+            'full_accuracy': full_accuracy,
+            'lowo_accuracy': lowo_accuracy,
+            'n_weeks': len(week_accs),
+            'total_samples': global_count,
+        },
     }
 
 
@@ -574,14 +606,37 @@ def run_batch_weekly_prediction():
     logger.info("  高置信: %d, 中置信: %d, 低置信: %d",
                 high_count, med_count, low_count)
 
-    # 6. 计算回测准确率
+    # 6. 计算回测准确率（按个股+策略）
     logger.info("[3/4] 计算回测准确率...")
     bt_result = _compute_backtest_accuracy(all_codes, data, latest_date)
+    per_stock_bt = bt_result['per_stock']
+    global_bt = bt_result['global']
 
-    # 填充回测准确率到每条预测
+    # 填充回测准确率：优先使用个股+策略准确率，其次个股整体准确率，最后全局
+    filled_per_stock = 0
+    filled_per_strategy = 0
     for p in predictions:
-        p['backtest_accuracy'] = bt_result['full_accuracy']
-        p['backtest_lowo_accuracy'] = bt_result['lowo_accuracy']
+        code = p['stock_code']
+        strategy = p.get('strategy', '')
+        stock_bt = per_stock_bt.get(code)
+        if stock_bt:
+            # 优先使用该股票在当前策略下的准确率
+            strat_acc = stock_bt.get('strategy_acc', {}).get(strategy)
+            if strat_acc is not None:
+                p['backtest_accuracy'] = strat_acc
+                filled_per_strategy += 1
+            else:
+                p['backtest_accuracy'] = stock_bt['accuracy']
+                filled_per_stock += 1
+            p['backtest_lowo_accuracy'] = stock_bt['accuracy']
+        else:
+            # 无该股票历史数据，使用全局准确率
+            p['backtest_accuracy'] = global_bt['full_accuracy']
+            p['backtest_lowo_accuracy'] = global_bt['lowo_accuracy']
+
+    logger.info("  回测填充: 策略级%d只, 个股级%d只, 全局兜底%d只",
+                filled_per_strategy, filled_per_stock,
+                len(predictions) - filled_per_strategy - filled_per_stock)
 
     # 7. 写入数据库
     logger.info("[4/4] 写入数据库...")
@@ -600,8 +655,8 @@ def run_batch_weekly_prediction():
     logger.info("  股票数: %d, 预测涨: %d, 预测跌: %d",
                 len(predictions), up_count, down_count)
     logger.info("  回测准确率: %.1f%% (LOWO: %.1f%%, %d周, %d样本)",
-                bt_result['full_accuracy'], bt_result['lowo_accuracy'],
-                bt_result['n_weeks'], bt_result['total_samples'])
+                global_bt['full_accuracy'], global_bt['lowo_accuracy'],
+                global_bt['n_weeks'], global_bt['total_samples'])
     logger.info("  耗时: %.1fs", elapsed)
     logger.info("=" * 70)
 
@@ -612,7 +667,7 @@ def run_batch_weekly_prediction():
         'total_stocks': len(predictions),
         'up_count': up_count,
         'down_count': down_count,
-        'backtest': bt_result,
+        'backtest': global_bt,
         'elapsed': round(elapsed, 1),
     }
 

@@ -59,6 +59,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
 .page-btn:hover{background:rgba(102,126,234,0.08)}
 .page-btn.active{background:rgba(102,126,234,0.15);color:#667eea;font-weight:600}
 .page-btn:disabled{opacity:0.4;cursor:not-allowed}
+
+/* 指标提示 */
+.th-wrap{display:flex;align-items:center;gap:4px}
+.tip-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:rgba(102,126,234,0.15);color:#667eea;font-size:9px;font-weight:700;cursor:pointer;flex-shrink:0;line-height:1}
+.tip-icon:hover{background:rgba(102,126,234,0.3)}
+
+/* 指标说明弹窗 */
+.tip-modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.35);z-index:200;align-items:center;justify-content:center}
+.tip-modal-overlay.visible{display:flex}
+.tip-modal{background:#fff;border-radius:12px;width:520px;max-width:90vw;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,0.18)}
+.tip-modal-head{padding:12px 16px;border-bottom:1px solid rgba(0,0,0,0.08);display:flex;align-items:center}
+.tip-modal-head h3{font-size:14px;color:#1d1d1f;flex:1}
+.tip-modal-head .close-btn{width:26px;height:26px;border:none;border-radius:6px;background:rgba(0,0,0,0.06);color:#666;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
+.tip-modal-head .close-btn:hover{background:rgba(0,0,0,0.1)}
+.tip-modal-body{padding:14px 16px;overflow-y:auto;font-size:13px;line-height:1.7;color:#333}
+.tip-modal-body .tip-section{margin-bottom:12px}
+.tip-modal-body .tip-section h4{font-size:12px;color:#667eea;margin-bottom:4px;font-weight:600}
+.tip-modal-body .tip-section p{margin:0;color:#555}
+.tip-modal-body .tip-tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;margin-right:4px}
+.tip-modal-body .tip-tag.high{background:rgba(102,126,234,0.12);color:#667eea}
+.tip-modal-body .tip-tag.medium{background:rgba(240,173,78,0.12);color:#d4a017}
+.tip-modal-body .tip-tag.low{background:rgba(0,0,0,0.06);color:#8e8e93}
 </style>
 <style>
 /* 弹窗 */
@@ -106,6 +128,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
     <div class="pagination" id="pagination"></div>
 </div>
 
+<!-- 指标说明弹窗 -->
+<div class="tip-modal-overlay" id="tipModal">
+    <div class="tip-modal">
+        <div class="tip-modal-head">
+            <h3 id="tipTitle">指标说明</h3>
+            <button class="close-btn" onclick="closeTip()">×</button>
+        </div>
+        <div class="tip-modal-body" id="tipBody"></div>
+    </div>
+</div>
+
 <!-- 历史弹窗 -->
 <div class="modal-overlay" id="historyModal">
     <div class="modal">
@@ -124,6 +157,108 @@ let totalCount = 0;
 let currentSort = 'stock_code';
 let currentSortDir = 'asc';
 let _searchTimer = null;
+
+// ── 指标说明数据 ──
+const INDICATOR_TIPS = {
+    'stock_code': {
+        title: '股票代码',
+        desc: '股票在交易所的唯一标识符。格式为6位数字+市场后缀，如 600519.SH（上海）、000001.SZ（深圳）。',
+    },
+    'stock_name': {
+        title: '股票名称',
+        desc: '上市公司的简称。点击行可查看该股票的历史预测记录。',
+    },
+    'pred_direction': {
+        title: '预测方向',
+        sections: [
+            {h: '↑ 涨 (UP)', p: '模型预测本周收盘价高于上周收盘价，即周涨跌幅为正。'},
+            {h: '↓ 跌 (DOWN)', p: '模型预测本周收盘价低于上周收盘价，即周涨跌幅为负。'},
+            {h: '判定依据', p: '基于本周前3~4个交易日的复合涨跌幅(d3/d4信号)，结合信号强度和停牌状态综合判定。'},
+        ],
+    },
+    'confidence': {
+        title: '置信度',
+        sections: [
+            {h: '高置信 (high)', p: 'd4绝对值 > 2% 的强信号，或停牌股（前3天涨跌幅全为0）。历史回测准确率约95%。', tag: 'high'},
+            {h: '中置信 (medium)', p: 'd4绝对值在 0.8%~2% 之间的中等信号。历史回测准确率约80%。', tag: 'medium'},
+            {h: '低置信 (low)', p: 'd4绝对值 < 0.8% 的模糊信号，或仅有d3信号可用。历史回测准确率约63%。', tag: 'low'},
+        ],
+    },
+    'strategy': {
+        title: '预测策略',
+        sections: [
+            {h: 'follow_d4(strong)', p: '使用前4天复合涨跌幅(d4)作为信号，|d4| > 2%，信号强度高。'},
+            {h: 'follow_d4(medium)', p: '使用d4信号，0.8% < |d4| ≤ 2%，信号强度中等。'},
+            {h: 'follow_d4(fuzzy)', p: '使用d4信号，|d4| ≤ 0.8%，信号较弱，方向不明确。'},
+            {h: 'follow_d3(strong/medium/fuzzy)', p: '本周仅有3天数据时回退到d3信号，阈值与d4相同。'},
+            {h: 'suspended_up', p: '停牌股：前3天涨跌幅全为0，预测为涨。历史准确率极高(~99.5%)。'},
+            {h: 'partial_dN', p: '本周数据不足3天，使用已有N天数据的复合涨跌方向，置信度低。'},
+        ],
+    },
+    'd4_chg': {
+        title: 'd4涨跌幅',
+        sections: [
+            {h: '计算方式', p: '本周前4个交易日的复合涨跌幅。公式：(1+r₁)×(1+r₂)×(1+r₃)×(1+r₄) - 1，其中rᵢ为每日涨跌幅(%)。'},
+            {h: '信号含义', p: 'd4为正表示前4天累计上涨，为负表示累计下跌。绝对值越大信号越强。'},
+            {h: '阈值', p: '|d4| > 2%: 强信号(高置信)；0.8% < |d4| ≤ 2%: 中等信号；|d4| ≤ 0.8%: 模糊信号。'},
+            {h: '缺失情况', p: '显示"-"表示本周交易天数不足4天，此时回退到d3信号。'},
+        ],
+    },
+    'd3_chg': {
+        title: 'd3涨跌幅',
+        sections: [
+            {h: '计算方式', p: '本周前3个交易日的复合涨跌幅。公式与d4相同，但仅使用前3天数据。'},
+            {h: '使用场景', p: '当d4不可用时（本周不足4天数据），d3作为备选信号使用。'},
+            {h: '缺失情况', p: '显示"-"表示本周交易天数不足3天。'},
+        ],
+    },
+    'predict_date': {
+        title: '预测日期',
+        desc: '执行预测时基于的最新交易日日期。预测使用该日及之前的K线数据。',
+    },
+    'backtest_accuracy': {
+        title: '回测准确率',
+        sections: [
+            {h: '计算方式', p: '基于该股票自身过去29周的历史数据，使用与当前预测相同的策略进行回测，统计预测方向与实际方向一致的比例。'},
+            {h: '个股+策略级', p: '优先使用该股票在当前策略下的历史准确率。例如某股票使用follow_d4(strong)策略，则统计该股票历史上所有d4强信号的准确率。'},
+            {h: '个股级', p: '若该策略样本不足，回退到该股票所有策略的综合准确率。'},
+            {h: '全局兜底', p: '若该股票无足够历史数据，使用全市场平均准确率。'},
+            {h: '注意', p: '准确率因股票和策略而异，不同股票的回测准确率可能差异较大。高置信策略通常准确率更高。'},
+        ],
+    },
+    'concept_boards': {
+        title: '概念板块',
+        desc: '该股票所属的概念板块（最多显示前3个）。鼠标悬停可查看完整列表。概念板块的动量信号也是预测参考因素之一。',
+    },
+};
+
+function showTip(key, event) {
+    if (event) { event.stopPropagation(); event.preventDefault(); }
+    const tip = INDICATOR_TIPS[key];
+    if (!tip) return;
+    document.getElementById('tipTitle').textContent = tip.title + ' — 指标说明';
+    let html = '';
+    if (tip.desc) {
+        html += '<div class="tip-section"><p>' + tip.desc + '</p></div>';
+    }
+    if (tip.sections) {
+        for (const s of tip.sections) {
+            html += '<div class="tip-section">';
+            html += '<h4>' + (s.tag ? '<span class="tip-tag ' + s.tag + '">' + s.h + '</span>' : s.h) + '</h4>';
+            html += '<p>' + s.p + '</p></div>';
+        }
+    }
+    document.getElementById('tipBody').innerHTML = html;
+    document.getElementById('tipModal').classList.add('visible');
+}
+
+function closeTip() {
+    document.getElementById('tipModal').classList.remove('visible');
+}
+
+document.getElementById('tipModal').addEventListener('click', function(e) {
+    if (e.target === this) closeTip();
+});
 
 function debounceSearch() {
     clearTimeout(_searchTimer);
@@ -222,9 +357,13 @@ function renderTable(rows) {
     for (const c of cols) {
         let cls = '';
         if (c.key === currentSort) cls = currentSortDir === 'asc' ? 'sa' : 'sd';
-        html += '<th class="' + cls + '" onclick="toggleSort(\'' + c.key + '\')">' + c.label + '</th>';
+        const hasTip = INDICATOR_TIPS[c.key];
+        html += '<th class="' + cls + '" onclick="toggleSort(\'' + c.key + '\')">';
+        html += '<span class="th-wrap">' + c.label;
+        if (hasTip) html += ' <span class="tip-icon" onclick="showTip(\'' + c.key + '\',event)" title="点击查看说明">?</span>';
+        html += '</span></th>';
     }
-    html += '<th>概念板块</th>';
+    html += '<th><span class="th-wrap">概念板块 <span class="tip-icon" onclick="showTip(\'concept_boards\',event)" title="点击查看说明">?</span></span></th>';
     html += '</tr></thead><tbody>';
 
     if (rows.length === 0) {
