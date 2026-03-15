@@ -337,6 +337,22 @@ def check_db(stock_code: str) -> list[dict]:
             if amt is not None and amt < 0:
                 issues.append({"type": "neg_amt", "date": d_str,
                                "detail": f"trading_amount={amt}", "legacy": False})
+
+            # 衍生字段全零异常：价格有变动但 amplitude/change_percent/change_amount 全为 0
+            amp = r[7]
+            chg_amt = r[9]
+            if (amp is not None and chg_pct is not None and chg_amt is not None
+                    and amp == 0 and chg_pct == 0 and chg_amt == 0):
+                # 排除真正一字涨停/跌停（open==close==high==low）的合理场景
+                if not (op == cp == hp == lp):
+                    issues.append({
+                        "type": "zero_derived",
+                        "date": d_str,
+                        "detail": (f"amplitude={amp}, change_percent={chg_pct}, "
+                                   f"change_amount={chg_amt}, "
+                                   f"但价格有变动(O={op},C={cp},H={hp},L={lp})"),
+                        "legacy": False,
+                    })
     finally:
         cursor.close()
         conn.close()

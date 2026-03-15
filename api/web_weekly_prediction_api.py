@@ -48,16 +48,24 @@ async def prediction_summary():
 async def prediction_list(
     direction: str = Query(None, description="UP/DOWN"),
     confidence: str = Query(None, description="high/medium/low"),
-    keyword: str = Query(None, description="股票代码或名称"),
+    keyword: str = Query(None, description="股票代码或名称，多个用逗号分隔"),
     sort_by: str = Query("stock_code"),
     sort_dir: str = Query("asc"),
     limit: int = Query(50),
     offset: int = Query(0),
 ):
-    """分页查询最新预测列表"""
+    """分页查询最新预测列表，keyword支持多个关键词（逗号/空格/分号分隔）"""
     try:
+        # 解析多关键词
+        import re
+        keywords = None
+        if keyword:
+            terms = re.split(r'[,，、;；\s]+', keyword.strip())
+            keywords = [t.strip() for t in terms if t.strip()]
+            if not keywords:
+                keywords = None
         rows, total = get_latest_predictions_page(
-            direction=direction, confidence=confidence, keyword=keyword,
+            direction=direction, confidence=confidence, keywords=keywords,
             sort_by=sort_by, sort_dir=sort_dir, limit=limit, offset=offset,
         )
         return {"success": True, "data": rows, "total": total}

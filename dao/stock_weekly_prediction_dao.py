@@ -493,11 +493,14 @@ def get_prediction_accuracy_stats(iso_year: int = None, iso_week: int = None) ->
 
 
 def get_latest_predictions_page(direction: str = None, confidence: str = None,
-                                keyword: str = None, sort_by: str = 'stock_code',
+                                keyword: str = None, keywords: list[str] = None,
+                                sort_by: str = 'stock_code',
                                 sort_dir: str = 'asc',
                                 limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
     """分页查询最新预测结果，支持筛选和排序。返回 (rows, total_count)。
     自动排除指数代码（如000001.SH等非个股代码）。
+    keywords: 多关键词列表，任一匹配即命中（OR逻辑）。
+    keyword: 兼容旧的单关键词参数。
     """
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
@@ -519,9 +522,14 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
         if confidence:
             where_parts.append("confidence = %s")
             params.append(confidence)
-        if keyword:
-            where_parts.append("(stock_code LIKE %s OR stock_name LIKE %s)")
-            params.extend([f"%{keyword}%", f"%{keyword}%"])
+        # 多关键词搜索（OR逻辑）
+        search_terms = keywords or ([keyword] if keyword else None)
+        if search_terms:
+            or_clauses = []
+            for term in search_terms:
+                or_clauses.append("(stock_code LIKE %s OR stock_name LIKE %s)")
+                params.extend([f"%{term}%", f"%{term}%"])
+            where_parts.append("(" + " OR ".join(or_clauses) + ")")
 
         where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
 
