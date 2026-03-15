@@ -83,8 +83,13 @@ class BaseCanSlimService(ABC):
         return result
     
     def to_json(self, data: Any) -> str:
-        """将数据转换为JSON字符串"""
-        return json.dumps(data, ensure_ascii=False)
+        """将数据转换为JSON字符串（自动处理Decimal等不可序列化类型）"""
+        from decimal import Decimal
+        def _default(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+        return json.dumps(data, ensure_ascii=False, default=_default)
     
     def get_final_output_instruction(self) -> str:
         """获取最终输出指令（子类可覆盖以提供特定维度的输出要求）"""
