@@ -445,7 +445,7 @@ function renderTable(rows) {
     html += '</tr></thead><tbody>';
 
     if (rows.length === 0) {
-        html += '<tr><td colspan="12" style="text-align:center;color:#999;padding:20px;">暂无数据</td></tr>';
+        html += '<tr><td colspan="13" style="text-align:center;color:#999;padding:20px;">暂无数据</td></tr>';
     }
     for (const r of rows) {
         html += '<tr onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
