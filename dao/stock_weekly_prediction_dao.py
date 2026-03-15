@@ -508,26 +508,26 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
         # 排除指数：只保留个股代码（6开头.SH, 0/3开头.SZ，且非399xxx、000001.SH）
         where_parts = [
             "("
-            "  (stock_code LIKE %s)"
-            "  OR (stock_code LIKE %s)"
-            "  OR (stock_code LIKE %s)"
+            "  (p.stock_code LIKE %s)"
+            "  OR (p.stock_code LIKE %s)"
+            "  OR (p.stock_code LIKE %s)"
             ")",
-            "stock_code NOT LIKE %s",
-            "stock_code != %s",
+            "p.stock_code NOT LIKE %s",
+            "p.stock_code != %s",
         ]
         params = ['6%.SH', '0%.SZ', '3%.SZ', '399%', '000001.SH']
         if direction:
-            where_parts.append("pred_direction = %s")
+            where_parts.append("p.pred_direction = %s")
             params.append(direction)
         if confidence:
-            where_parts.append("confidence = %s")
+            where_parts.append("p.confidence = %s")
             params.append(confidence)
         # 多关键词搜索（OR逻辑）
         search_terms = keywords or ([keyword] if keyword else None)
         if search_terms:
             or_clauses = []
             for term in search_terms:
-                or_clauses.append("(stock_code LIKE %s OR stock_name LIKE %s)")
+                or_clauses.append("(p.stock_code LIKE %s OR p.stock_name LIKE %s)")
                 params.extend([f"%{term}%", f"%{term}%"])
             where_parts.append("(" + " OR ".join(or_clauses) + ")")
 
@@ -538,26 +538,37 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
             'stock_code', 'stock_name', 'pred_direction', 'confidence',
             'd3_chg', 'd4_chg', 'strategy', 'predict_date', 'backtest_accuracy',
             'suggested_buy_date', 'suggested_buy_price', 'pred_weekly_chg',
+            'latest_close',
         }
         if sort_by not in allowed_sorts:
             sort_by = 'stock_code'
         order_dir = 'DESC' if sort_dir.lower() == 'desc' else 'ASC'
 
-        cur.execute(f"SELECT COUNT(*) as cnt FROM stock_weekly_prediction {where_sql}", params)
+        cur.execute(f"SELECT COUNT(*) as cnt FROM stock_weekly_prediction p {where_sql}", params)
         total = cur.fetchone()['cnt']
 
         cur.execute(f"""
-            SELECT stock_code, stock_name, predict_date, iso_year, iso_week,
-                   pred_direction, confidence, strategy, reason,
-                   d3_chg, d3_date_range, d4_chg, d4_date_range,
-                   is_suspended, week_day_count,
-                   backtest_accuracy, backtest_lowo_accuracy,
-                   backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date,
-                   suggested_buy_date, suggested_buy_price, suggested_buy_reason,
-                   pred_weekly_chg, pred_chg_low, pred_chg_high,
-                   pred_chg_mae, pred_chg_hit_rate, pred_chg_samples,
-                   concept_boards
-            FROM stock_weekly_prediction
+            SELECT p.stock_code, p.stock_name, p.predict_date, p.iso_year, p.iso_week,
+                   p.pred_direction, p.confidence, p.strategy, p.reason,
+                   p.d3_chg, p.d3_date_range, p.d4_chg, p.d4_date_range,
+                   p.is_suspended, p.week_day_count,
+                   p.backtest_accuracy, p.backtest_lowo_accuracy,
+                   p.backtest_weeks, p.backtest_samples, p.backtest_start_date, p.backtest_end_date,
+                   p.suggested_buy_date, p.suggested_buy_price, p.suggested_buy_reason,
+                   p.pred_weekly_chg, p.pred_chg_low, p.pred_chg_high,
+                   p.pred_chg_mae, p.pred_chg_hit_rate, p.pred_chg_samples,
+                   p.concept_boards,
+                   k.close_price AS latest_close
+            FROM stock_weekly_prediction p
+            LEFT JOIN (
+                SELECT sk.stock_code, sk.close_price
+                FROM stock_kline sk
+                INNER JOIN (
+                    SELECT stock_code, MAX(`date`) AS max_date
+                    FROM stock_kline
+                    GROUP BY stock_code
+                ) latest ON sk.stock_code = latest.stock_code AND sk.`date` = latest.max_date
+            ) k ON p.stock_code = k.stock_code
             {where_sql}
             ORDER BY {sort_by} {order_dir}
             LIMIT %s OFFSET %s
