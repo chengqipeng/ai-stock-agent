@@ -251,8 +251,10 @@ const INDICATOR_TIPS = {
         title: '预测涨跌幅',
         sections: [
             {h: '计算方式', p: '基于该股票在当前策略下的历史实际周涨跌幅分布，取中位数作为预测值。例如某股票使用follow_d4(strong)策略，统计历史上所有d4强信号周的实际涨跌幅中位数。'},
-            {h: '区间范围', p: '下方小字显示25%~75%分位数区间，表示历史上该策略下大约50%的周涨跌幅落在此范围内。'},
-            {h: '数据来源', p: '来自29周回测期间的历史数据。仅当该股票在当前策略下有至少3周历史数据时才会显示。'},
+            {h: '区间范围', p: '第二行显示25%~75%分位数区间，表示历史上该策略下大约50%的周涨跌幅落在此范围内。'},
+            {h: 'MAE(平均绝对误差)', p: '衡量预测值(中位数)与实际值之间的平均偏差。MAE越小说明预测越精准。例如MAE=1.5%表示预测值平均偏离实际值1.5个百分点。'},
+            {h: '命中率', p: '实际周涨跌幅落在[p25, p75]区间内的比例。理论上约50%，实际可能因分布偏态而有差异。命中率越高说明区间估计越可靠。'},
+            {h: '样本数', p: '用于计算预测涨跌幅的回测样本数（该股票在当前策略下的历史周数）。样本数越多统计越可靠，至少需要3周数据才会给出预测。'},
             {h: '注意', p: '预测涨跌幅基于历史统计，不代表未来一定如此。市场环境变化可能导致实际偏差较大。'},
         ],
     },
@@ -416,15 +418,21 @@ function renderTable(rows) {
         // d3涨跌：显示涨跌幅 + 日期区间
         const d3DateRange = r.d3_date_range || '';
         html += '<td>' + fmtChg(r.d3_chg) + (d3DateRange ? '<br><span style="font-size:10px;color:#aaa">' + fmtDateRange(d3DateRange) + '</span>' : '') + '</td>';
-        // 预测涨跌幅：显示中位数 + 区间
+        // 预测涨跌幅：显示中位数 + 区间 + MAE/命中率
         let predChgHtml = '-';
         if (r.pred_weekly_chg != null) {
             const n = parseFloat(r.pred_weekly_chg);
             const cls = n > 0 ? 'chg-pos' : n < 0 ? 'chg-neg' : '';
             predChgHtml = '<span class="chg-val ' + cls + '" style="font-weight:600">' + (n > 0 ? '+' : '') + n.toFixed(2) + '%</span>';
             if (r.pred_chg_low != null && r.pred_chg_high != null) {
-                predChgHtml += '<br><span style="font-size:10px;color:#aaa">' + parseFloat(r.pred_chg_low).toFixed(1) + '% ~ ' + parseFloat(r.pred_chg_high).toFixed(1) + '%</span>';
+                predChgHtml += '<br><span style="font-size:10px;color:#aaa">' + parseFloat(r.pred_chg_low).toFixed(1) + '~' + parseFloat(r.pred_chg_high).toFixed(1) + '%</span>';
             }
+            // MAE + 命中率 + 样本数
+            let metaParts = [];
+            if (r.pred_chg_mae != null) metaParts.push('MAE:' + parseFloat(r.pred_chg_mae).toFixed(1) + '%');
+            if (r.pred_chg_hit_rate != null) metaParts.push('命中:' + parseFloat(r.pred_chg_hit_rate).toFixed(0) + '%');
+            if (r.pred_chg_samples != null) metaParts.push(r.pred_chg_samples + '条');
+            if (metaParts.length) predChgHtml += '<br><span style="font-size:9px;color:#bbb">' + metaParts.join(' ') + '</span>';
         }
         html += '<td>' + predChgHtml + '</td>';
         html += '<td style="color:#666">' + (r.predict_date || '-') + '</td>';
@@ -538,7 +546,7 @@ async function showHistory(code, name) {
             // d3涨跌 + 日期区间
             const hd3Range = r.d3_date_range || '';
             html += '<td>' + fmtChg(r.d3_chg) + (hd3Range ? '<br><span style="font-size:10px;color:#aaa">' + fmtDateRange(hd3Range) + '</span>' : '') + '</td>';
-            // 预测涨跌幅 + 区间
+            // 预测涨跌幅 + 区间 + MAE/命中率
             let hPredChg = '-';
             if (r.pred_weekly_chg != null) {
                 const pn = parseFloat(r.pred_weekly_chg);
@@ -547,6 +555,11 @@ async function showHistory(code, name) {
                 if (r.pred_chg_low != null && r.pred_chg_high != null) {
                     hPredChg += '<br><span style="font-size:10px;color:#aaa">' + parseFloat(r.pred_chg_low).toFixed(1) + '~' + parseFloat(r.pred_chg_high).toFixed(1) + '%</span>';
                 }
+                let hMetaParts = [];
+                if (r.pred_chg_mae != null) hMetaParts.push('MAE:' + parseFloat(r.pred_chg_mae).toFixed(1) + '%');
+                if (r.pred_chg_hit_rate != null) hMetaParts.push('命中:' + parseFloat(r.pred_chg_hit_rate).toFixed(0) + '%');
+                if (r.pred_chg_samples != null) hMetaParts.push(r.pred_chg_samples + '条');
+                if (hMetaParts.length) hPredChg += '<br><span style="font-size:9px;color:#bbb">' + hMetaParts.join(' ') + '</span>';
             }
             html += '<td>' + hPredChg + '</td>';
             // 回测准确率 + 区间

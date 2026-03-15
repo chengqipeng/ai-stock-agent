@@ -48,6 +48,9 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction (
     pred_weekly_chg DOUBLE COMMENT '预测下周涨跌幅(%)',
     pred_chg_low DOUBLE COMMENT '预测涨跌幅下限(%)',
     pred_chg_high DOUBLE COMMENT '预测涨跌幅上限(%)',
+    pred_chg_mae DOUBLE COMMENT '涨跌幅预测MAE-平均绝对误差(%)',
+    pred_chg_hit_rate DOUBLE COMMENT '涨跌幅区间命中率(%)',
+    pred_chg_samples INT COMMENT '涨跌幅预测回测样本数',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_code (stock_code),
@@ -97,6 +100,9 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction_history (
     pred_weekly_chg DOUBLE COMMENT '预测下周涨跌幅(%)',
     pred_chg_low DOUBLE COMMENT '预测涨跌幅下限(%)',
     pred_chg_high DOUBLE COMMENT '预测涨跌幅上限(%)',
+    pred_chg_mae DOUBLE COMMENT '涨跌幅预测MAE-平均绝对误差(%)',
+    pred_chg_hit_rate DOUBLE COMMENT '涨跌幅区间命中率(%)',
+    pred_chg_samples INT COMMENT '涨跌幅预测回测样本数',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_week (stock_code, iso_year, iso_week),
     INDEX idx_predict_date (predict_date),
@@ -129,6 +135,9 @@ def ensure_tables():
             ("pred_weekly_chg", "DOUBLE COMMENT '预测下周涨跌幅(%)'", "suggested_buy_reason"),
             ("pred_chg_low", "DOUBLE COMMENT '预测涨跌幅下限(%)'", "pred_weekly_chg"),
             ("pred_chg_high", "DOUBLE COMMENT '预测涨跌幅上限(%)'", "pred_chg_low"),
+            ("pred_chg_mae", "DOUBLE COMMENT '涨跌幅预测MAE-平均绝对误差(%)'", "pred_chg_high"),
+            ("pred_chg_hit_rate", "DOUBLE COMMENT '涨跌幅区间命中率(%)'", "pred_chg_mae"),
+            ("pred_chg_samples", "INT COMMENT '涨跌幅预测回测样本数'", "pred_chg_hit_rate"),
         ]
         for tbl in ("stock_weekly_prediction", "stock_weekly_prediction_history"):
             for col_name, col_def, after_col in _migrate_cols:
@@ -166,7 +175,8 @@ def upsert_latest_prediction(prediction: dict):
                  backtest_accuracy, backtest_lowo_accuracy,
                  backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date,
                  suggested_buy_date, suggested_buy_price, suggested_buy_reason,
-                 pred_weekly_chg, pred_chg_low, pred_chg_high)
+                 pred_weekly_chg, pred_chg_low, pred_chg_high,
+                 pred_chg_mae, pred_chg_hit_rate, pred_chg_samples)
             VALUES
                 (%(stock_code)s, %(stock_name)s, %(predict_date)s,
                  %(iso_year)s, %(iso_week)s,
@@ -178,7 +188,8 @@ def upsert_latest_prediction(prediction: dict):
                  %(backtest_accuracy)s, %(backtest_lowo_accuracy)s,
                  %(backtest_weeks)s, %(backtest_samples)s, %(backtest_start_date)s, %(backtest_end_date)s,
                  %(suggested_buy_date)s, %(suggested_buy_price)s, %(suggested_buy_reason)s,
-                 %(pred_weekly_chg)s, %(pred_chg_low)s, %(pred_chg_high)s)
+                 %(pred_weekly_chg)s, %(pred_chg_low)s, %(pred_chg_high)s,
+                 %(pred_chg_mae)s, %(pred_chg_hit_rate)s, %(pred_chg_samples)s)
             ON DUPLICATE KEY UPDATE
                 stock_name = VALUES(stock_name),
                 predict_date = VALUES(predict_date),
@@ -211,7 +222,10 @@ def upsert_latest_prediction(prediction: dict):
                 suggested_buy_reason = VALUES(suggested_buy_reason),
                 pred_weekly_chg = VALUES(pred_weekly_chg),
                 pred_chg_low = VALUES(pred_chg_low),
-                pred_chg_high = VALUES(pred_chg_high)
+                pred_chg_high = VALUES(pred_chg_high),
+                pred_chg_mae = VALUES(pred_chg_mae),
+                pred_chg_hit_rate = VALUES(pred_chg_hit_rate),
+                pred_chg_samples = VALUES(pred_chg_samples)
         """, prediction)
         conn.commit()
     finally:
@@ -237,7 +251,8 @@ def batch_upsert_latest_predictions(predictions: list[dict]):
                  backtest_accuracy, backtest_lowo_accuracy,
                  backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date,
                  suggested_buy_date, suggested_buy_price, suggested_buy_reason,
-                 pred_weekly_chg, pred_chg_low, pred_chg_high)
+                 pred_weekly_chg, pred_chg_low, pred_chg_high,
+                 pred_chg_mae, pred_chg_hit_rate, pred_chg_samples)
             VALUES
                 (%(stock_code)s, %(stock_name)s, %(predict_date)s,
                  %(iso_year)s, %(iso_week)s,
@@ -249,7 +264,8 @@ def batch_upsert_latest_predictions(predictions: list[dict]):
                  %(backtest_accuracy)s, %(backtest_lowo_accuracy)s,
                  %(backtest_weeks)s, %(backtest_samples)s, %(backtest_start_date)s, %(backtest_end_date)s,
                  %(suggested_buy_date)s, %(suggested_buy_price)s, %(suggested_buy_reason)s,
-                 %(pred_weekly_chg)s, %(pred_chg_low)s, %(pred_chg_high)s)
+                 %(pred_weekly_chg)s, %(pred_chg_low)s, %(pred_chg_high)s,
+                 %(pred_chg_mae)s, %(pred_chg_hit_rate)s, %(pred_chg_samples)s)
             ON DUPLICATE KEY UPDATE
                 stock_name = VALUES(stock_name),
                 predict_date = VALUES(predict_date),
@@ -282,7 +298,10 @@ def batch_upsert_latest_predictions(predictions: list[dict]):
                 suggested_buy_reason = VALUES(suggested_buy_reason),
                 pred_weekly_chg = VALUES(pred_weekly_chg),
                 pred_chg_low = VALUES(pred_chg_low),
-                pred_chg_high = VALUES(pred_chg_high)
+                pred_chg_high = VALUES(pred_chg_high),
+                pred_chg_mae = VALUES(pred_chg_mae),
+                pred_chg_hit_rate = VALUES(pred_chg_hit_rate),
+                pred_chg_samples = VALUES(pred_chg_samples)
         """, predictions)
         conn.commit()
         logger.info("批量更新最新预测: %d 条", len(predictions))
@@ -309,7 +328,8 @@ def batch_insert_history(predictions: list[dict]):
                  backtest_accuracy, backtest_lowo_accuracy,
                  backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date,
                  suggested_buy_date, suggested_buy_price, suggested_buy_reason,
-                 pred_weekly_chg, pred_chg_low, pred_chg_high)
+                 pred_weekly_chg, pred_chg_low, pred_chg_high,
+                 pred_chg_mae, pred_chg_hit_rate, pred_chg_samples)
             VALUES
                 (%(stock_code)s, %(stock_name)s, %(predict_date)s,
                  %(iso_year)s, %(iso_week)s,
@@ -321,7 +341,8 @@ def batch_insert_history(predictions: list[dict]):
                  %(backtest_accuracy)s, %(backtest_lowo_accuracy)s,
                  %(backtest_weeks)s, %(backtest_samples)s, %(backtest_start_date)s, %(backtest_end_date)s,
                  %(suggested_buy_date)s, %(suggested_buy_price)s, %(suggested_buy_reason)s,
-                 %(pred_weekly_chg)s, %(pred_chg_low)s, %(pred_chg_high)s)
+                 %(pred_weekly_chg)s, %(pred_chg_low)s, %(pred_chg_high)s,
+                 %(pred_chg_mae)s, %(pred_chg_hit_rate)s, %(pred_chg_samples)s)
             ON DUPLICATE KEY UPDATE
                 predict_date = VALUES(predict_date),
                 pred_direction = VALUES(pred_direction),
@@ -351,7 +372,10 @@ def batch_insert_history(predictions: list[dict]):
                 suggested_buy_reason = VALUES(suggested_buy_reason),
                 pred_weekly_chg = VALUES(pred_weekly_chg),
                 pred_chg_low = VALUES(pred_chg_low),
-                pred_chg_high = VALUES(pred_chg_high)
+                pred_chg_high = VALUES(pred_chg_high),
+                pred_chg_mae = VALUES(pred_chg_mae),
+                pred_chg_hit_rate = VALUES(pred_chg_hit_rate),
+                pred_chg_samples = VALUES(pred_chg_samples)
         """, predictions)
         conn.commit()
         logger.info("批量插入历史预测: %d 条", len(predictions))
@@ -523,6 +547,7 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
                    backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date,
                    suggested_buy_date, suggested_buy_price, suggested_buy_reason,
                    pred_weekly_chg, pred_chg_low, pred_chg_high,
+                   pred_chg_mae, pred_chg_hit_rate, pred_chg_samples,
                    concept_boards
             FROM stock_weekly_prediction
             {where_sql}

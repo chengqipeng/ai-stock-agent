@@ -646,6 +646,9 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
         'pred_weekly_chg': None,  # 后续由回测数据填充
         'pred_chg_low': None,
         'pred_chg_high': None,
+        'pred_chg_mae': None,
+        'pred_chg_hit_rate': None,
+        'pred_chg_samples': None,
     }
 
 
@@ -773,7 +776,15 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
                     median = sorted_chgs[len(sorted_chgs) // 2]
                     p25 = sorted_chgs[max(0, len(sorted_chgs) // 4)]
                     p75 = sorted_chgs[min(len(sorted_chgs) - 1, len(sorted_chgs) * 3 // 4)]
-                    strat_chg[s] = {'median': round(median, 2), 'p25': round(p25, 2), 'p75': round(p75, 2)}
+                    # MAE: 用中位数作为预测值，计算平均绝对误差
+                    mae = _mean([abs(c - median) for c in chgs])
+                    # 区间命中率: 实际涨跌幅落在 [p25, p75] 内的比例
+                    hits = sum(1 for c in chgs if p25 <= c <= p75)
+                    hit_rate = round(hits / len(chgs) * 100, 1)
+                    strat_chg[s] = {
+                        'median': round(median, 2), 'p25': round(p25, 2), 'p75': round(p75, 2),
+                        'mae': round(mae, 2), 'hit_rate': hit_rate, 'samples': len(chgs),
+                    }
             per_stock[code] = {
                 'accuracy': stock_acc,
                 'total': stock_total,
@@ -927,6 +938,9 @@ def run_batch_weekly_prediction():
                 p['pred_weekly_chg'] = strat_chg['median']
                 p['pred_chg_low'] = strat_chg['p25']
                 p['pred_chg_high'] = strat_chg['p75']
+                p['pred_chg_mae'] = strat_chg['mae']
+                p['pred_chg_hit_rate'] = strat_chg['hit_rate']
+                p['pred_chg_samples'] = strat_chg['samples']
                 filled_pred_chg += 1
     logger.info("  预测涨跌幅填充: %d 只(有策略级历史数据)", filled_pred_chg)
 
