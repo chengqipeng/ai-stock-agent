@@ -850,6 +850,7 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
                 'strategy_acc': strat_acc,
                 'strategy_chg': strat_chg,
                 'strategy_dir_chg': strat_dir_chg,
+                '_strategy_raw': dict(strategy_stats),  # {strategy: [correct, total]}
             }
 
     full_accuracy = round(global_correct / global_count * 100, 1) if global_count > 0 else 0
@@ -955,6 +956,8 @@ def run_batch_weekly_prediction():
     global_bt = bt_result['global']
 
     # 填充回测准确率：优先使用个股+策略准确率，其次个股整体准确率，最后全局
+    # 注意：策略级样本量过小时（<3），统计不可靠，回退到个股整体准确率
+    MIN_STRATEGY_SAMPLES = 3
     filled_per_stock = 0
     filled_per_strategy = 0
     bt_start = global_bt.get('start_date')
@@ -965,9 +968,11 @@ def run_batch_weekly_prediction():
         strategy = p.get('strategy', '')
         stock_bt = per_stock_bt.get(code)
         if stock_bt:
-            # 优先使用该股票在当前策略下的准确率
+            # 优先使用该股票在当前策略下的准确率（需样本量≥3）
             strat_acc = stock_bt.get('strategy_acc', {}).get(strategy)
-            if strat_acc is not None:
+            strat_raw = stock_bt.get('_strategy_raw', {}).get(strategy, [0, 0])
+            strat_samples = strat_raw[1] if isinstance(strat_raw, (list, tuple)) else 0
+            if strat_acc is not None and strat_samples >= MIN_STRATEGY_SAMPLES:
                 p['backtest_accuracy'] = strat_acc
                 filled_per_strategy += 1
             else:
