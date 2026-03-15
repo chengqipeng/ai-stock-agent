@@ -165,7 +165,7 @@ async function loadSummary() {
         html += card('低置信', d.low_count || 0, '', 'd4/d3模糊信号');
         html += card('回测准确率', (d.avg_backtest_accuracy || 0) + '%', '', 'LOWO: ' + (d.avg_lowo_accuracy || 0) + '%');
         document.getElementById('summaryRow').innerHTML = html;
-    } catch (e) { /* silent */ }
+    } catch (e) { console.error('loadSummary error:', e); }
 }
 
 function card(label, value, cls, sub) {
@@ -192,7 +192,10 @@ async function loadList() {
     try {
         const resp = await fetch(url);
         const json = await resp.json();
-        if (!json.success) return;
+        if (!json.success) {
+            document.getElementById('tableWrap').innerHTML = '<p style="color:red;padding:20px;">加载失败: ' + (json.error || '未知错误') + '</p>';
+            return;
+        }
         totalCount = json.total;
         document.getElementById('listInfo').textContent = '共 ' + totalCount + ' 条';
         renderTable(json.data);

@@ -365,13 +365,17 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
     try:
-        # 排除指数：只保留个股代码（6开头.SH, 0/3开头.SZ，且非399xxx.SZ）
+        # 排除指数：只保留个股代码（6开头.SH, 0/3开头.SZ，且非399xxx、000001.SH）
         where_parts = [
-            "(stock_code REGEXP '^[036][0-9]{5}\\\\.(SH|SZ)$')",
-            "stock_code NOT LIKE '399%'",
-            "stock_code != '000001.SH'",
+            "("
+            "  (stock_code LIKE %s)"
+            "  OR (stock_code LIKE %s)"
+            "  OR (stock_code LIKE %s)"
+            ")",
+            "stock_code NOT LIKE %s",
+            "stock_code != %s",
         ]
-        params = []
+        params = ['6%.SH', '0%.SZ', '3%.SZ', '399%', '000001.SH']
         if direction:
             where_parts.append("pred_direction = %s")
             params.append(direction)
@@ -441,8 +445,8 @@ def get_prediction_summary() -> dict:
                 SUM(strategy = 'd3_fuzzy') as d3_fuzzy_count,
                 SUM(strategy = 'suspended') as suspended_strategy_count
             FROM stock_weekly_prediction
-            WHERE stock_code REGEXP '^[036][0-9]{5}\\\\.(SH|SZ)$'
-              AND stock_code NOT LIKE '399%%'
+            WHERE (stock_code LIKE '6%.SH' OR stock_code LIKE '0%.SZ' OR stock_code LIKE '3%.SZ')
+              AND stock_code NOT LIKE '399%'
               AND stock_code != '000001.SH'
         """)
         return cur.fetchone()
