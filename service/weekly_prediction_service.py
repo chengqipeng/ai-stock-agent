@@ -66,12 +66,209 @@ def _mean(lst):
     return sum(lst) / len(lst) if lst else 0.0
 
 
+def _std(lst):
+    if len(lst) < 2:
+        return 0.0
+    m = _mean(lst)
+    return (sum((x - m) ** 2 for x in lst) / (len(lst) - 1)) ** 0.5
+
+
 def _add_suffix(code_6: str) -> str:
     if code_6.startswith(('0', '3')):
         return f'{code_6}.SZ'
     elif code_6.startswith('6'):
         return f'{code_6}.SH'
     return code_6
+
+
+# ═══════════════════════════════════════════════════════════
+# 行业分类 → 策略配置
+# ═══════════════════════════════════════════════════════════
+
+# 行业分类 → 策略类型映射
+# 使用 sector_mapping_utils 的7大板块分类
+# reversal: 低波动/周内反转频繁的行业，fuzzy区间用反向预测
+# momentum: 趋势性强的行业，保持动量延续
+# adaptive: 根据个股波动率自动选择
+_SECTOR_STRATEGY_MAP = {
+    # 趋势性强 → 动量策略
+    '科技': 'momentum',
+    '有色金属': 'momentum',
+    '新能源': 'momentum',
+    # 周期性/低波动 → 自适应（个股行为决定）
+    '制造': 'adaptive',
+    '汽车': 'adaptive',
+    '化工': 'adaptive',
+    '医药': 'adaptive',
+    # 未分类的股票默认 adaptive
+}
+
+# 每种策略类型的参数配置
+_STRATEGY_PROFILES = {
+    'momentum': {
+        'strong_threshold': 2.0,
+        'fuzzy_threshold': 0.8,
+        'fuzzy_mode': 'follow',       # fuzzy区间跟随d4方向
+        'vol_adjust': False,
+    },
+    'reversal': {
+        'strong_threshold': 2.0,
+        'fuzzy_threshold': 0.5,        # 更窄的fuzzy区间
+        'fuzzy_mode': 'reverse',       # fuzzy区间反向预测
+        'vol_adjust': False,
+    },
+    'adaptive': {
+        'strong_threshold': 2.0,
+        'fuzzy_threshold': 0.8,
+        'fuzzy_mode': 'auto',          # 根据个股历史反转率决定
+        'vol_adjust': True,            # 根据波动率调整阈值
+    },
+}
+
+
+def _classify_stock_behavior(weekly_klines: list[dict]) -> dict:
+    """分析个股历史行为特征，用于选择最优策略。
+
+    基于最近的周K线数据，计算：
+    - avg_daily_vol: 日均波动率(涨跌幅绝对值均值)
+    - reversal_rate: 周内反转率(d4方向与全周方向不一致的比例)
+    - fuzzy_ratio: 落入fuzzy区间的比例
+
+    Args:
+        weekly_klines: 按日期排序的日K线列表，需包含 date, change_percent
+
+    Returns:
+        {'avg_daily_vol': float, 'reversal_rate': float, 'fuzzy_ratio': float,
+         'recommended_fuzzy_mode': 'follow'|'reverse'|'skip'}
+    """
+    if len(weekly_klines) < 20:
+        return {
+            'avg_daily_vol': 0.0, 'reversal_rate': 0.0, 'fuzzy_ratio': 0.0,
+            'recommended_fuzzy_mode': 'follow',
+        }
+
+    # 日均波动率
+    daily_abs = [abs(k['change_percent']) for k in weekly_klines]
+    avg_daily_vol = _mean(daily_abs)
+
+    # 按ISO周分组
+    week_groups = defaultdict(list)
+    for k in weekly_klines:
+        dt = datetime.strptime(k['date'], '%Y-%m-%d')
+        iw = dt.isocalendar()[:2]
+        week_groups[iw].append(k)
+
+    reversal_count = 0
+    fuzzy_count = 0
+    total_weeks = 0
+
+    for iw, days in week_groups.items():
+        days.sort(key=lambda x: x['date'])
+        if len(days) < 4:
+            continue
+        pcts = [d['change_percent'] for d in days]
+        d4 = _compound_return(pcts[:4])
+        weekly = _compound_return(pcts)
+        total_weeks += 1
+
+        if abs(d4) <= D4_FUZZY_THRESHOLD:
+            fuzzy_count += 1
+
+        # 反转：d4方向与全周方向不一致
+        if (d4 >= 0) != (weekly >= 0):
+            reversal_count += 1
+
+    reversal_rate = reversal_count / total_weeks if total_weeks > 0 else 0.0
+    fuzzy_ratio = fuzzy_count / total_weeks if total_weeks > 0 else 0.0
+
+    # 推荐fuzzy模式
+    if reversal_rate > 0.55:
+        recommended = 'reverse'
+    elif reversal_rate < 0.35:
+        recommended = 'follow'
+    else:
+        recommended = 'skip'  # 不确定，标记为低置信
+
+    return {
+        'avg_daily_vol': round(avg_daily_vol, 4),
+        'reversal_rate': round(reversal_rate, 4),
+        'fuzzy_ratio': round(fuzzy_ratio, 4),
+        'recommended_fuzzy_mode': recommended,
+    }
+
+
+def _get_stock_strategy_profile(code: str, sector: str, behavior: dict) -> dict:
+    """根据行业和个股行为特征，返回该股票应使用的策略参数。"""
+    # 1. 先看行业是否有硬编码策略
+    strategy_type = _SECTOR_STRATEGY_MAP.get(sector, 'adaptive')
+    profile = _STRATEGY_PROFILES[strategy_type].copy()
+
+    # 2. adaptive模式下，根据个股行为微调
+    if strategy_type == 'adaptive' or profile['fuzzy_mode'] == 'auto':
+        profile['fuzzy_mode'] = behavior.get('recommended_fuzzy_mode', 'follow')
+
+    # 3. 波动率自适应阈值：低波动股票收窄fuzzy区间
+    if profile.get('vol_adjust') and behavior.get('avg_daily_vol', 0) > 0:
+        vol = behavior['avg_daily_vol']
+        if vol < 1.0:
+            # 低波动股：收窄阈值，更多信号归入fuzzy
+            profile['fuzzy_threshold'] = max(0.3, vol * 0.6)
+            profile['strong_threshold'] = max(1.0, vol * 1.5)
+        elif vol > 3.0:
+            # 高波动股：放宽阈值
+            profile['fuzzy_threshold'] = min(1.5, vol * 0.3)
+            profile['strong_threshold'] = min(4.0, vol * 0.8)
+
+    return profile
+
+
+def _predict_with_profile(d4_chg, d3_chg, is_suspended, n_days, daily_pcts,
+                          profile: dict) -> tuple:
+    """使用策略配置进行预测。
+
+    Returns:
+        (pred_up: bool, confidence: str, strategy: str, reason: str)
+    """
+    strong_th = profile['strong_threshold']
+    fuzzy_th = profile['fuzzy_threshold']
+    fuzzy_mode = profile['fuzzy_mode']
+
+    if is_suspended:
+        return True, 'high', 'suspended_up', '停牌:前3天全0'
+
+    if d4_chg is not None:
+        if abs(d4_chg) > strong_th:
+            return (d4_chg >= 0), 'high', 'follow_d4(strong)', f'd4强信号:{d4_chg:+.2f}%'
+        elif abs(d4_chg) > fuzzy_th:
+            return (d4_chg >= 0), 'medium', 'follow_d4(medium)', f'd4中等:{d4_chg:+.2f}%'
+        else:
+            # fuzzy区间：根据策略配置决定方向
+            if fuzzy_mode == 'reverse':
+                pred_up = d4_chg < 0  # 反向
+                return pred_up, 'low', 'reverse_d4(fuzzy)', f'd4模糊反转:{d4_chg:+.2f}%'
+            elif fuzzy_mode == 'skip':
+                # 不确定时仍给预测，但标记为极低置信
+                return (d4_chg >= 0), 'low', 'uncertain_d4(fuzzy)', f'd4不确定:{d4_chg:+.2f}%'
+            else:
+                return (d4_chg >= 0), 'low', 'follow_d4(fuzzy)', f'd4模糊:{d4_chg:+.2f}%'
+
+    if d3_chg is not None:
+        if abs(d3_chg) > strong_th:
+            return (d3_chg > 0), 'high', 'follow_d3(strong)', f'd3强信号:{d3_chg:+.2f}%'
+        elif abs(d3_chg) > fuzzy_th:
+            return (d3_chg > 0), 'medium', 'follow_d3(medium)', f'd3中等:{d3_chg:+.2f}%'
+        else:
+            if fuzzy_mode == 'reverse':
+                pred_up = d3_chg < 0
+                return pred_up, 'low', 'reverse_d3(fuzzy)', f'd3模糊反转:{d3_chg:+.2f}%'
+            elif fuzzy_mode == 'skip':
+                return (d3_chg >= 0), 'low', 'uncertain_d3(fuzzy)', f'd3不确定:{d3_chg:+.2f}%'
+            else:
+                return (d3_chg >= 0), 'low', 'follow_d3(fuzzy)', f'd3模糊:{d3_chg:+.2f}%'
+
+    # 数据不足
+    cum = _compound_return(daily_pcts)
+    return (cum >= 0), 'low', f'partial_d{n_days}', f'仅{n_days}天数据:{cum:+.2f}%'
 
 
 # ═══════════════════════════════════════════════════════════
@@ -213,12 +410,46 @@ def _load_prediction_data(stock_codes: list[str], latest_date: str) -> dict:
                 len(stock_klines), len(stock_boards),
                 len(board_kline_map), len(market_klines))
 
+    # 6. 行业分类（申万一级）
+    stock_sectors = {}
+    conn2 = get_connection(use_dict_cursor=True)
+    cur2 = conn2.cursor()
+    try:
+        # 从 stock_concept_board_stock 中提取行业板块（board_code 以 BK 开头的通常是行业板块）
+        # 但更可靠的方式是从 stock_analysis_detail 或直接用 sector_mapping_utils
+        pass
+    finally:
+        cur2.close()
+        conn2.close()
+
+    # 使用本地行业映射工具
+    try:
+        from common.utils.sector_mapping_utils import parse_industry_list_md
+        sector_mapping = parse_industry_list_md()
+        for code in stock_codes:
+            if code in sector_mapping:
+                stock_sectors[code] = sector_mapping[code]
+    except Exception as e:
+        logger.warning("[数据加载] 行业映射加载失败: %s", e)
+
+    # 7. 个股行为特征分析（基于已加载的K线数据）
+    stock_behaviors = {}
+    for code in stock_codes:
+        kl = stock_klines.get(code, [])
+        if len(kl) >= 20:
+            stock_behaviors[code] = _classify_stock_behavior(kl)
+
+    logger.info("[数据加载] 行业映射 %d 只, 行为分析 %d 只",
+                len(stock_sectors), len(stock_behaviors))
+
     return {
         'stock_klines': dict(stock_klines),
         'stock_boards': dict(stock_boards),
         'board_kline_map': dict(board_kline_map),
         'market_klines': market_klines,
         'stock_names': stock_names,
+        'stock_sectors': stock_sectors,
+        'stock_behaviors': stock_behaviors,
     }
 
 
@@ -312,56 +543,13 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
         if valid_boards > 0:
             concept_consensus = round(boards_up / valid_boards, 3)
 
-    # ── 预测逻辑（与v4回测引擎完全一致） ──
-    pred_up = None
-    confidence = 'low'
-    strategy = ''
-    reason = ''
+    # ── 预测逻辑（v5: 行业自适应 + 个股行为分析） ──
+    sector = data.get('stock_sectors', {}).get(code, '')
+    behavior = data.get('stock_behaviors', {}).get(code, {})
+    profile = _get_stock_strategy_profile(code, sector, behavior)
 
-    if is_suspended:
-        pred_up = True
-        confidence = 'high'
-        strategy = 'suspended_up'
-        reason = '停牌:前3天全0'
-    elif d4_chg is not None:
-        if abs(d4_chg) > D4_STRONG_THRESHOLD:
-            pred_up = d4_chg >= 0
-            confidence = 'high'
-            strategy = 'follow_d4(strong)'
-            reason = f'd4强信号:{d4_chg:+.2f}%'
-        elif abs(d4_chg) > D4_FUZZY_THRESHOLD:
-            pred_up = d4_chg >= 0
-            confidence = 'medium'
-            strategy = 'follow_d4(medium)'
-            reason = f'd4中等:{d4_chg:+.2f}%'
-        else:
-            pred_up = d4_chg >= 0
-            confidence = 'low'
-            strategy = 'follow_d4(fuzzy)'
-            reason = f'd4模糊:{d4_chg:+.2f}%'
-    elif d3_chg is not None:
-        if abs(d3_chg) > D3_STRONG_THRESHOLD:
-            pred_up = d3_chg > 0
-            confidence = 'high'
-            strategy = 'follow_d3(strong)'
-            reason = f'd3强信号:{d3_chg:+.2f}%'
-        elif abs(d3_chg) > D3_FUZZY_THRESHOLD:
-            pred_up = d3_chg > 0
-            confidence = 'medium'
-            strategy = 'follow_d3(medium)'
-            reason = f'd3中等:{d3_chg:+.2f}%'
-        else:
-            pred_up = d3_chg >= 0
-            confidence = 'low'
-            strategy = 'follow_d3(fuzzy)'
-            reason = f'd3模糊:{d3_chg:+.2f}%'
-    else:
-        # 本周数据不足3天，用已有数据的复合涨跌方向
-        cum = _compound_return(daily_pcts)
-        pred_up = cum >= 0
-        confidence = 'low'
-        strategy = f'partial_d{n_days}'
-        reason = f'仅{n_days}天数据:{cum:+.2f}%'
+    pred_up, confidence, strategy, reason = _predict_with_profile(
+        d4_chg, d3_chg, is_suspended, n_days, daily_pcts, profile)
 
     stock_name = data['stock_names'].get(code, '')
 
@@ -460,6 +648,11 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
         if not klines or len(klines) < 5:
             continue
 
+        # 获取该股票的策略配置（与预测一致）
+        sector = data.get('stock_sectors', {}).get(code, '')
+        behavior = data.get('stock_behaviors', {}).get(code, {})
+        profile = _get_stock_strategy_profile(code, sector, behavior)
+
         wg = defaultdict(list)
         for k in klines:
             dt = datetime.strptime(k['date'], '%Y-%m-%d')
@@ -483,26 +676,9 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
             d4 = _compound_return(pcts[:4]) if len(days) >= 4 else None
             is_susp = all(p == 0 for p in pcts[:3])
 
-            # 预测 + 策略分类（与_predict_stock_weekly一致）
-            if is_susp:
-                pred_up = True
-                strat = 'suspended_up'
-            elif d4 is not None:
-                pred_up = d4 >= 0
-                if abs(d4) > D4_STRONG_THRESHOLD:
-                    strat = 'follow_d4(strong)'
-                elif abs(d4) > D4_FUZZY_THRESHOLD:
-                    strat = 'follow_d4(medium)'
-                else:
-                    strat = 'follow_d4(fuzzy)'
-            else:
-                pred_up = d3 >= 0
-                if abs(d3) > D3_STRONG_THRESHOLD:
-                    strat = 'follow_d3(strong)'
-                elif abs(d3) > D3_FUZZY_THRESHOLD:
-                    strat = 'follow_d3(medium)'
-                else:
-                    strat = 'follow_d3(fuzzy)'
+            # 使用与预测相同的自适应策略
+            pred_up, _conf, strat, _reason = _predict_with_profile(
+                d4, d3, is_susp, len(days), pcts, profile)
 
             correct = pred_up == actual_up
             if correct:
