@@ -771,7 +771,7 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
                 if n > 0:
                     strat_acc[s] = round(ok / n * 100, 1)
             for s, chgs in strategy_chg_dist.items():
-                if len(chgs) >= 3:
+                if len(chgs) >= 2:
                     sorted_chgs = sorted(chgs)
                     median = sorted_chgs[len(sorted_chgs) // 2]
                     p25 = sorted_chgs[max(0, len(sorted_chgs) // 4)]
@@ -785,6 +785,22 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
                         'median': round(median, 2), 'p25': round(p25, 2), 'p75': round(p75, 2),
                         'mae': round(mae, 2), 'hit_rate': hit_rate, 'samples': len(chgs),
                     }
+            # 汇总所有策略的涨跌幅作为兜底（当某策略样本不足时使用）
+            all_chgs = []
+            for chgs in strategy_chg_dist.values():
+                all_chgs.extend(chgs)
+            if len(all_chgs) >= 2:
+                sorted_all = sorted(all_chgs)
+                all_median = sorted_all[len(sorted_all) // 2]
+                all_p25 = sorted_all[max(0, len(sorted_all) // 4)]
+                all_p75 = sorted_all[min(len(sorted_all) - 1, len(sorted_all) * 3 // 4)]
+                all_mae = _mean([abs(c - all_median) for c in all_chgs])
+                all_hits = sum(1 for c in all_chgs if all_p25 <= c <= all_p75)
+                all_hit_rate = round(all_hits / len(all_chgs) * 100, 1)
+                strat_chg['_all'] = {
+                    'median': round(all_median, 2), 'p25': round(all_p25, 2), 'p75': round(all_p75, 2),
+                    'mae': round(all_mae, 2), 'hit_rate': all_hit_rate, 'samples': len(all_chgs),
+                }
             per_stock[code] = {
                 'accuracy': stock_acc,
                 'total': stock_total,
@@ -927,12 +943,14 @@ def run_batch_weekly_prediction():
 
     # 填充预测涨跌幅：基于回测中同股票+同策略的历史实际周涨跌幅分布
     filled_pred_chg = 0
+    filled_pred_chg_fallback = 0
     for p in predictions:
         code = p['stock_code']
         strategy = p.get('strategy', '')
         stock_bt = per_stock_bt.get(code)
         if stock_bt:
-            strat_chg = stock_bt.get('strategy_chg', {}).get(strategy)
+            strat_chg_map = stock_bt.get('strategy_chg', {})
+            strat_chg = strat_chg_map.get(strategy)
             if strat_chg:
                 # 使用该股票在当前策略下的历史涨跌幅中位数
                 p['pred_weekly_chg'] = strat_chg['median']
@@ -942,7 +960,17 @@ def run_batch_weekly_prediction():
                 p['pred_chg_hit_rate'] = strat_chg['hit_rate']
                 p['pred_chg_samples'] = strat_chg['samples']
                 filled_pred_chg += 1
-    logger.info("  预测涨跌幅填充: %d 只(有策略级历史数据)", filled_pred_chg)
+            elif '_all' in strat_chg_map:
+                # 兜底：使用该股票所有策略的汇总涨跌幅分布
+                fallback = strat_chg_map['_all']
+                p['pred_weekly_chg'] = fallback['median']
+                p['pred_chg_low'] = fallback['p25']
+                p['pred_chg_high'] = fallback['p75']
+                p['pred_chg_mae'] = fallback['mae']
+                p['pred_chg_hit_rate'] = fallback['hit_rate']
+                p['pred_chg_samples'] = fallback['samples']
+                filled_pred_chg_fallback += 1
+    logger.info("  预测涨跌幅填充: 策略级%d只, 个股兜底%d只", filled_pred_chg, filled_pred_chg_fallback)
 
     logger.info("  回测填充: 策略级%d只, 个股级%d只, 全局兜底%d只",
                 filled_per_strategy, filled_per_stock,
