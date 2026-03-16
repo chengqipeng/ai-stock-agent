@@ -1072,36 +1072,84 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
 # 核心发现：跌反转+大盘配合是最强信号
 # - 跌>2%+大盘跌>1%→涨: 71.5%准确率 (N=5341)
 # - 跌>2%+大盘跌>0.5%+连跌>=2→涨: 73.9%准确率 (N=3356)
-# 下周预测规则引擎 — 分层规则
+# 下周预测规则引擎 — 多维分层规则（v2: 结合资金流向、量价、财报）
 # Tier 1 (高置信): 大盘深跌+个股跌 → 反弹, 准确率~72%, 仅大盘跌>1%时触发
+#   - 大盘使用个股对应指数（沪→上证, 深→深证成指, 北→北证50）
+# Tier 1b (高置信): 资金流入+量价配合 → 涨
 # Tier 2 (参考): 不依赖大盘条件, 准确率~57%, 在任何市场环境下触发
-#   - 基于 _nw_tier2_analysis.py / _nw_tier2_board_test.py 实证
-#   - 动量效应: 非系统性下跌(大盘未深跌)时个股跌势更可能延续
+# Tier 3 (参考): 资金持续流出+缩量 → 跌
 # 互斥匹配: 按顺序匹配, 命中第一条即停止
-# 361板块回测: T1=72.3%(N=986) T2=57.3%(N=796) 总=65.6% 覆盖=19.1%
-# 高置信(T1)单独准确率: 72.3% ≥ 70%
 _NW_RULES = [
     # ── Tier 1: 大盘深跌 + 个股跌 → 反弹 ──
-    # 361板块回测: 72.3% (N=986), 覆盖~10.6%
     {
         'name': '跌>2%+大盘跌>1%→涨',
         'pred_up': True,
         'tier': 1,
-        'check': lambda chg, mkt, cd, cu, ld: chg < -2 and mkt < -1,
+        'check': lambda chg, mkt, cd, cu, ld, **kw: chg < -2 and mkt < -1,
+    },
+    # ── Tier 1b: 个股跌+资金大幅流入+放量 → 反弹 ──
+    # 主力逆势吸筹信号
+    {
+        'name': '跌>2%+主力流入+放量→涨',
+        'pred_up': True,
+        'tier': 1,
+        'check': lambda chg, mkt, cd, cu, ld, **kw: (
+            chg < -2
+            and kw.get('ff_signal', 0) is not None
+            and (kw.get('ff_signal') or 0) > 0.3
+            and kw.get('vol_ratio') is not None
+            and (kw.get('vol_ratio') or 0) > 1.2
+        ),
+    },
+    # ── Tier 1c: 强势上涨+资金流入+量价齐升 → 继续涨 ──
+    {
+        'name': '涨>3%+资金流入+量价齐升→涨',
+        'pred_up': True,
+        'tier': 1,
+        'check': lambda chg, mkt, cd, cu, ld, **kw: (
+            chg > 3
+            and (kw.get('ff_signal') or 0) > 0.2
+            and (kw.get('vol_ratio') or 0) > 1.0
+            and (kw.get('vol_price_corr') or 0) > 0.3
+        ),
     },
     # ── Tier 2: 个股大跌(不要求大盘) → 继续跌 ──
-    # 361板块回测残余: 57.3% (N=796), 动量延续效应
     {
         'name': '周跌>5%→继续跌',
         'pred_up': False,
         'tier': 2,
-        'check': lambda chg, mkt, cd, cu, ld: chg < -5,
+        'check': lambda chg, mkt, cd, cu, ld, **kw: chg < -5,
+    },
+    # ── Tier 3: 资金持续流出+缩量 → 跌 ──
+    {
+        'name': '资金流出+缩量→跌',
+        'pred_up': False,
+        'tier': 3,
+        'check': lambda chg, mkt, cd, cu, ld, **kw: (
+            (kw.get('ff_signal') or 0) < -0.4
+            and kw.get('vol_ratio') is not None
+            and (kw.get('vol_ratio') or 0) < 0.7
+            and chg < 0
+        ),
+    },
+    # ── Tier 3b: 财报利好+资金流入 → 涨 ──
+    {
+        'name': '财报利好+资金流入→涨',
+        'pred_up': True,
+        'tier': 3,
+        'check': lambda chg, mkt, cd, cu, ld, **kw: (
+            (kw.get('finance_score') or 0) > 0.5
+            and (kw.get('ff_signal') or 0) > 0.2
+        ),
     },
 ]
 
 
-def _nw_extract_features(daily_pcts: list[float], market_chg: float) -> dict:
-    """从日K线数据中提取下周预测所需的特征。"""
+def _nw_extract_features(daily_pcts: list[float], market_chg: float,
+                         ff_signal: float = None, vol_ratio: float = None,
+                         vol_price_corr: float = None,
+                         finance_score: float = None) -> dict:
+    """从日K线数据和多维信号中提取下周预测所需的特征。"""
     this_week_chg = _compound_return(daily_pcts)
     last_day_chg = daily_pcts[-1] if daily_pcts else 0.0
 
@@ -1126,6 +1174,10 @@ def _nw_extract_features(daily_pcts: list[float], market_chg: float) -> dict:
         'consec_down': consec_down,
         'consec_up': consec_up,
         'last_day_chg': last_day_chg,
+        'ff_signal': ff_signal,
+        'vol_ratio': vol_ratio,
+        'vol_price_corr': vol_price_corr,
+        'finance_score': finance_score,
     }
 
 
@@ -1136,9 +1188,16 @@ def _nw_match_rule(feat: dict) -> dict | None:
     cd = feat['consec_down']
     cu = feat['consec_up']
     ld = feat['last_day_chg']
+    # 多维信号传递给规则的 **kw
+    extra = {
+        'ff_signal': feat.get('ff_signal'),
+        'vol_ratio': feat.get('vol_ratio'),
+        'vol_price_corr': feat.get('vol_price_corr'),
+        'finance_score': feat.get('finance_score'),
+    }
 
     for rule in _NW_RULES:
-        if rule['check'](chg, mkt, cd, cu, ld):
+        if rule['check'](chg, mkt, cd, cu, ld, **extra):
             return rule
     return None
 
