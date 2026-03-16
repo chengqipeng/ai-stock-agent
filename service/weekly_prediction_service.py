@@ -1268,9 +1268,12 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
 
     if rule is None:
         # 不确定 - 无条件匹配
+        idx_code = _get_stock_index(code)
+        idx_names = {'000001.SH': '上证', '399001.SZ': '深证', '899050.SZ': '北证50'}
+        idx_label = idx_names.get(idx_code, idx_code)
         reason = f'本周{feat["this_week_chg"]:+.1f}%，未触发预测条件'
         if feat['market_chg'] != 0:
-            reason += f'(大盘{feat["market_chg"]:+.1f}%)'
+            reason += f'({idx_label}{feat["market_chg"]:+.1f}%)'
         return {
             'nw_pred_direction': None,
             'nw_confidence': None,
@@ -1381,22 +1384,33 @@ def _compute_next_week_backtest(stock_codes: list[str], data: dict,
                 'change_percent': _to_float(row['change_percent']),
             })
 
-    # 大盘K线
+    # 大盘K线（加载所有需要的指数）
+    all_index_codes = list(set(_get_stock_index(c) for c in stock_codes))
+    for idx in ('000001.SH', '399001.SZ', '899050.SZ'):
+        if idx not in all_index_codes:
+            all_index_codes.append(idx)
+    ph_idx = ','.join(['%s'] * len(all_index_codes))
     cur.execute(
-        "SELECT `date`, change_percent FROM stock_kline "
-        "WHERE stock_code = '000001.SH' AND `date` >= %s AND `date` <= %s "
-        "ORDER BY `date`", (start_date, end_date))
-    market_klines = [{'date': r['date'],
-                      'change_percent': _to_float(r['change_percent'])}
-                     for r in cur.fetchall()]
+        f"SELECT stock_code, `date`, change_percent FROM stock_kline "
+        f"WHERE stock_code IN ({ph_idx}) AND `date` >= %s AND `date` <= %s "
+        f"ORDER BY `date`", all_index_codes + [start_date, end_date])
+    market_klines_by_index = defaultdict(list)
+    for r in cur.fetchall():
+        market_klines_by_index[r['stock_code']].append({
+            'date': r['date'],
+            'change_percent': _to_float(r['change_percent']),
+        })
     conn.close()
 
-    # 按ISO周分组大盘
-    market_by_week = defaultdict(list)
-    for k in market_klines:
-        dt = datetime.strptime(k['date'], '%Y-%m-%d')
-        iw = dt.isocalendar()[:2]
-        market_by_week[iw].append(k)
+    # 按ISO周分组各指数K线
+    market_by_week_by_index = {}  # {index_code: {iso_week: [klines]}}
+    for idx_code, klines_list in market_klines_by_index.items():
+        by_week = defaultdict(list)
+        for k in klines_list:
+            dt = datetime.strptime(k['date'], '%Y-%m-%d')
+            iw = dt.isocalendar()[:2]
+            by_week[iw].append(k)
+        market_by_week_by_index[idx_code] = by_week
 
     global_correct = 0
     global_total = 0
@@ -1436,8 +1450,10 @@ def _compute_next_week_backtest(stock_codes: list[str], data: dict,
             next_week_chg = _compound_return(next_pcts)
             actual_next_up = next_week_chg >= 0
 
-            # 大盘本周涨跌幅
-            mw = market_by_week.get(iw_this, [])
+            # 大盘本周涨跌幅（使用个股对应的指数）
+            stock_idx = _get_stock_index(code)
+            idx_by_week = market_by_week_by_index.get(stock_idx, {})
+            mw = idx_by_week.get(iw_this, [])
             market_chg = _compound_return(
                 [k['change_percent'] for k in sorted(mw, key=lambda x: x['date'])]
             ) if len(mw) >= 3 else 0.0
@@ -1445,7 +1461,7 @@ def _compute_next_week_backtest(stock_codes: list[str], data: dict,
             stock_all_weeks += 1
             global_all_weeks += 1
 
-            # 提取特征 & 匹配规则
+            # 提取特征 & 匹配规则（回测中无资金流/财报信号，仅用K线+大盘）
             feat = _nw_extract_features(this_pcts, market_chg)
             rule = _nw_match_rule(feat)
 
@@ -1566,13 +1582,22 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
 
+    # 加载所有需要的指数K线（不再固定000001.SH）
+    all_index_codes = list(set(_get_stock_index(c) for c in stock_codes))
+    for idx in ('000001.SH', '399001.SZ', '899050.SZ'):
+        if idx not in all_index_codes:
+            all_index_codes.append(idx)
+    ph_idx = ','.join(['%s'] * len(all_index_codes))
     cur.execute(
-        "SELECT `date`, change_percent FROM stock_kline "
-        "WHERE stock_code = '000001.SH' AND `date` >= %s AND `date` <= %s "
-        "ORDER BY `date`", (start_date, end_date))
-    market_klines = [{'date': r['date'],
-                      'change_percent': _to_float(r['change_percent'])}
-                     for r in cur.fetchall()]
+        f"SELECT stock_code, `date`, change_percent FROM stock_kline "
+        f"WHERE stock_code IN ({ph_idx}) AND `date` >= %s AND `date` <= %s "
+        f"ORDER BY `date`", all_index_codes + [start_date, end_date])
+    bt_market_by_index = defaultdict(list)
+    for r in cur.fetchall():
+        bt_market_by_index[r['stock_code']].append({
+            'date': r['date'],
+            'change_percent': _to_float(r['change_percent']),
+        })
 
     stock_klines = defaultdict(list)
     batch_size = 200
@@ -1591,8 +1616,10 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
             })
 
     conn.close()
-    logger.info("[回测数据] %d只股票K线, 大盘%d天, 区间%s~%s",
-                len(stock_klines), len(market_klines), start_date, end_date)
+    total_mkt_days = sum(len(v) for v in bt_market_by_index.values())
+    logger.info("[回测数据] %d只股票K线, %d个指数共%d天, 区间%s~%s",
+                len(stock_klines), len(bt_market_by_index), total_mkt_days,
+                start_date, end_date)
 
     # 全局统计
     global_correct = 0

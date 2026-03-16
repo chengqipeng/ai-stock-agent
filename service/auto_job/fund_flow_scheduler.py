@@ -118,7 +118,8 @@ def _save_persisted_status(status):
 
 _job_status = {
     "running": False, "last_run_date": None, "last_run_time": None,
-    "last_success": None, "total": 0, "success": 0, "failed": 0, "error": None,
+    "last_success": None, "total": 0, "success": 0, "failed": 0,
+    "skipped": 0, "error": None,
 }
 _persisted = _load_persisted_status()
 if _persisted.get("last_run_date"):
@@ -242,6 +243,7 @@ async def _execute_job_inner():
         _job_status["total"] = total
         _job_status["success"] = 0
         _job_status["failed"] = 0
+        _job_status["skipped"] = 0
         counter = {"success": 0, "failed": 0, "skipped": 0}
         sem = asyncio.Semaphore(3)
         today_str = start_time.date().isoformat()
@@ -249,7 +251,8 @@ async def _execute_job_inner():
         async def _task(s):
             async with sem:
                 await _fetch_fund_flow_for_stock(s["code"], counter, today_str=today_str)
-                _job_status["success"] = counter["success"]
+                _job_status["success"] = counter["success"] + counter["skipped"]
+                _job_status["skipped"] = counter["skipped"]
                 _job_status["failed"] = counter["failed"]
                 await asyncio.sleep(0.8)
 
