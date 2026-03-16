@@ -49,6 +49,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
 .conf-high{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(102,126,234,0.15);color:#667eea}
 .conf-medium{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(240,173,78,0.15);color:#d4a017}
 .conf-low{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(0,0,0,0.06);color:#8e8e93}
+.conf-reference{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(255,152,0,0.12);color:#e67e22}
 .chg-val{font-family:'SF Mono',Menlo,monospace;font-size:12px}
 .chg-pos{color:#e74c3c}
 .chg-neg{color:#2ecc71}
@@ -391,7 +392,7 @@ function dirBadge(d) {
 }
 
 function confBadge(c) {
-    const m = {high: '高', medium: '中', low: '低'};
+    const m = {high: '高', medium: '中', low: '低', reference: '参考'};
     return '<span class="conf-' + c + '">' + (m[c] || c) + '</span>';
 }
 
