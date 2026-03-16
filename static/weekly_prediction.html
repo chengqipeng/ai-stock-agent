@@ -120,6 +120,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
             <option value="high">高置信</option>
             <option value="medium">中置信</option>
             <option value="low">低置信</option>
+            <option value="reference">参考</option>
         </select>
         <input id="searchInput" type="text" placeholder="搜索代码/名称（逗号/空格分隔可搜多只）..." style="width:260px" oninput="debounceSearch()" onkeydown="handleSearchEnter(event)" onpaste="handleSearchPaste(event)">
         <span id="searchClear" onclick="clearSearch()" style="cursor:pointer;color:#999;font-size:14px;display:none" title="清空搜索">&times;</span>
@@ -276,10 +277,11 @@ const INDICATOR_TIPS = {
     'nw_pred_direction': {
         title: '下周预测方向',
         sections: [
-            {h: '预测原理', p: '基于规则引擎的选择性高置信预测。只在满足特定高置信条件时输出预测方向，其余标记为"不确定"。'},
-            {h: '核心规则', p: '当本周个股跌幅>2%且大盘跌幅>1%时，预测下周涨（反弹）。回测准确率约71.5%。这是唯一输出明确方向的条件。'},
-            {h: '不确定', p: '未满足上述条件的股票标记为"不确定"，不输出预测方向。这是为了保证整体准确率>=70%的核心策略。'},
-            {h: '覆盖率', p: '约10%的股票会获得明确预测方向，其余为不确定。覆盖率取决于当周大盘行情——大盘下跌周覆盖率更高。'},
+            {h: '预测原理', p: '基于规则引擎的分层预测。Tier 1（高置信）在大盘深跌时触发反弹预测；Tier 2（参考）在任何市场环境下基于个股跌幅触发动量延续预测。'},
+            {h: 'Tier 1 高置信', p: '当本周个股跌>2%且大盘跌>1%时，预测下周涨（反弹）。回测准确率约72%。大盘与个股同步下跌后反弹概率高。'},
+            {h: 'Tier 2 参考', p: '当个股本周跌>5%时（不要求大盘条件），预测下周继续跌（动量延续）。回测准确率约57%。标记为"参考"级别，适用于任何市场环境。'},
+            {h: '不确定', p: '未满足任何规则的股票标记为"不确定"。通常是本周涨跌幅较小、无明显趋势的个股。'},
+            {h: '覆盖率', p: 'Tier 1 覆盖约10%（仅大盘深跌周），Tier 2 额外覆盖约8%。大盘平稳周主要由Tier 2参考信号覆盖。'},
             {h: '日期范围', p: '方向下方显示的日期范围表示预测针对的下一周（周一~周五）。'},
         ],
     },
@@ -289,7 +291,7 @@ const INDICATOR_TIPS = {
             {h: '计算方式', p: '基于该股票在下周预测策略下的历史实际下周涨跌幅分布，取中位数作为预测值。'},
             {h: '区间范围', p: '第二行显示预测区间（p10~p90），表示历史上大约80%的下周涨跌幅落在此范围内。'},
             {h: 'MAE', p: '预测值与实际值之间的平均绝对误差。'},
-            {h: '回测准确率', p: '该股票下周方向预测的历史准确率。由于采用选择性预测，准确率应>=70%。'},
+            {h: '回测准确率', p: '该股票下周方向预测的历史准确率。高置信(Tier 1)准确率≥70%，参考级(Tier 2)准确率约57%。'},
             {h: '注意', p: '只有获得明确预测方向的股票才会有涨跌幅预测。"不确定"的股票无涨跌幅预测。'},
         ],
     },
@@ -439,7 +441,7 @@ async function loadSummary() {
             html += card('下周回测准确率', nwBtAcc, '', '等待触发条件');
         } else if (nwHigh === 0 && nwReference > 0) {
             // 只有参考级信号，无高置信
-            html += card('下周预测', nwTotal + '只(参考)', '', '涨' + nwUp + ' 跌' + nwDown + ' 不确定' + nwUncertain + '  均为参考信号(~56-59%)' + (nwDateRange ? '  ' + nwDateRange : ''));
+            html += card('下周预测', nwTotal + '只(参考)', '', '涨' + nwUp + ' 跌' + nwDown + ' 不确定' + nwUncertain + '  均为参考信号(~57%)' + (nwDateRange ? '  ' + nwDateRange : ''));
             html += card('下周回测准确率', nwBtAcc, '', '参考级  覆盖率: ' + nwCoverage + '  MAE: ' + nwMae);
         } else {
             const highLabel = nwHigh > 0 ? '高置信' + nwHigh : '';
@@ -754,6 +756,7 @@ async function showHistory(code, name) {
             let hNwDir = '-';
             if (r.nw_pred_direction) {
                 hNwDir = dirBadge(r.nw_pred_direction);
+                if (r.nw_confidence) hNwDir += '<br>' + confBadge(r.nw_confidence);
                 if (r.nw_date_range) hNwDir += '<br><span style="font-size:10px;color:#aaa">' + fmtDateRange(r.nw_date_range) + '</span>';
             } else if (r.nw_date_range) {
                 hNwDir = '<span style="color:#999;font-size:11px">不确定</span>';

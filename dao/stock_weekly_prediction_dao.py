@@ -526,6 +526,8 @@ def get_prediction_summary() -> dict:
                 SUM(nw_pred_direction IS NULL AND nw_date_range IS NOT NULL) as nw_uncertain_count,
                 SUM(nw_confidence = 'reference') as nw_reference_count,
                 SUM(nw_confidence = 'high') as nw_high_count,
+                ROUND(AVG(CASE WHEN nw_backtest_accuracy IS NOT NULL AND nw_confidence = 'high' THEN nw_backtest_accuracy END), 1) as nw_high_avg_accuracy,
+                ROUND(AVG(CASE WHEN nw_backtest_accuracy IS NOT NULL AND nw_confidence = 'reference' THEN nw_backtest_accuracy END), 1) as nw_ref_avg_accuracy,
                 ROUND(AVG(CASE WHEN nw_backtest_accuracy IS NOT NULL THEN nw_backtest_accuracy END), 1) as nw_avg_backtest_accuracy,
                 ROUND(AVG(CASE WHEN nw_pred_chg_mae IS NOT NULL THEN nw_pred_chg_mae END), 2) as nw_avg_pred_chg_mae,
                 ROUND(AVG(CASE WHEN nw_pred_chg_hit_rate IS NOT NULL THEN nw_pred_chg_hit_rate END), 1) as nw_avg_pred_chg_hit_rate,

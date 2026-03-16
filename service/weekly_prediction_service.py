@@ -679,43 +679,28 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
 # - 跌>2%+大盘跌>0.5%+连跌>=2→涨: 73.9%准确率 (N=3356)
 # 下周预测规则引擎 — 分层规则
 # Tier 1 (高置信): 大盘深跌+个股跌 → 反弹, 准确率~72%, 仅大盘跌>1%时触发
-# Tier 2 (参考): 不依赖大盘条件, 准确率~56-59%, 在任何市场环境下触发
-#   - Tier 2 规则基于 _nw_tier2_analysis.py 实证: 非大盘深跌周中,
-#     个股大跌后继续跌的概率(55-59%)略高于反弹概率(41-45%)
-#   - 这是动量效应: 非系统性下跌(大盘未深跌)时个股跌势更可能延续
+# Tier 2 (参考): 不依赖大盘条件, 准确率~57%, 在任何市场环境下触发
+#   - 基于 _nw_tier2_analysis.py / _nw_tier2_board_test.py 实证
+#   - 动量效应: 非系统性下跌(大盘未深跌)时个股跌势更可能延续
 # 互斥匹配: 按顺序匹配, 命中第一条即停止
+# 361板块回测: T1=72.3%(N=986) T2=57.3%(N=796) 总=65.6% 覆盖=19.1%
+# 高置信(T1)单独准确率: 72.3% ≥ 70%
 _NW_RULES = [
     # ── Tier 1: 大盘深跌 + 个股跌 → 反弹 ──
-    # 准确率: 71.5% (全局), 覆盖~10%
+    # 361板块回测: 72.3% (N=986), 覆盖~10.6%
     {
         'name': '跌>2%+大盘跌>1%→涨',
         'pred_up': True,
         'tier': 1,
         'check': lambda chg, mkt, cd, cu, ld: chg < -2 and mkt < -1,
     },
-    # ── Tier 2: 个股极端下跌(不要求大盘) → 继续跌 ──
-    # 非深跌周准确率: 58.7% (N=4121), 动量延续效应
+    # ── Tier 2: 个股大跌(不要求大盘) → 继续跌 ──
+    # 361板块回测残余: 57.3% (N=796), 动量延续效应
     {
         'name': '周跌>5%→继续跌',
         'pred_up': False,
         'tier': 2,
         'check': lambda chg, mkt, cd, cu, ld: chg < -5,
-    },
-    # ── Tier 2: 个股中等下跌+连跌 → 继续跌 ──
-    # 非深跌周准确率: ~56% (N≈2000), 连跌动量
-    {
-        'name': '跌>3%+连跌≥3天→继续跌',
-        'pred_up': False,
-        'tier': 2,
-        'check': lambda chg, mkt, cd, cu, ld: chg < -3 and cd >= 3,
-    },
-    # ── Tier 2: 个股中等下跌 → 继续跌 ──
-    # 非深跌周准确率: 55.9% (N=7518), 覆盖面最广
-    {
-        'name': '周跌>3%→继续跌',
-        'pred_up': False,
-        'tier': 2,
-        'check': lambda chg, mkt, cd, cu, ld: chg < -3,
     },
 ]
 
@@ -766,12 +751,11 @@ def _nw_match_rule(feat: dict) -> dict | None:
 
 def _predict_next_week(code: str, data: dict, latest_date: str,
                        this_week_pred: dict) -> dict | None:
-    """预测下周方向（规则引擎 - 选择性高置信预测）。
+    """预测下周方向（规则引擎 - 分层预测）。
 
-    只在高置信条件下输出预测方向，其余标记为 None（不确定）。
-    基于 _nw_signal_deep_analysis2.py 的实证分析结果：
-    - 跌反转信号远强于涨反转信号
-    - 只预测高置信条件，覆盖率约20-40%，但准确率>=70%
+    Tier 1 (高置信): 大盘深跌+个股跌 → 反弹, 准确率~72%
+    Tier 2 (参考): 个股大跌(不要求大盘) → 继续跌, 准确率~57%
+    未命中任何规则的标记为 None（不确定）。
 
     Returns:
         dict with next_week fields, or None if insufficient data
@@ -820,12 +804,15 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
     nw_iso = nw_monday.isocalendar()
 
     if rule is None:
-        # 不确定 - 无高置信条件匹配
+        # 不确定 - 无条件匹配
+        reason = f'本周{feat["this_week_chg"]:+.1f}%，未触发预测条件'
+        if feat['market_chg'] != 0:
+            reason += f'(大盘{feat["market_chg"]:+.1f}%)'
         return {
             'nw_pred_direction': None,
             'nw_confidence': None,
             'nw_strategy': None,
-            'nw_reason': '无高置信条件匹配',
+            'nw_reason': reason[:200],
             'nw_composite_score': None,
             'nw_this_week_chg': round(feat['this_week_chg'], 4),
             'nw_iso_year': nw_iso[0],
@@ -1158,6 +1145,7 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
 
         stock_correct = 0
         stock_total = 0
+        stock_week_results = []  # [(iw, correct_bool)] 用于计算个股LOWO
         strategy_stats = defaultdict(lambda: [0, 0])  # strategy -> [correct, total]
         strategy_chg_dist = defaultdict(list)  # strategy -> [actual_weekly_chg, ...]
         # 按 (strategy, pred_direction) 分别收集涨跌幅，保证方向一致性
@@ -1181,6 +1169,7 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
                 d4, d3, is_susp, len(days), pcts, profile)
 
             correct = pred_up == actual_up
+            stock_week_results.append((iw, correct))
             if correct:
                 stock_correct += 1
                 global_correct += 1
@@ -1270,8 +1259,20 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
             all_down_stats = _calc_chg_stats(all_down_chgs)
             if all_down_stats:
                 strat_dir_chg[('_all', 'DOWN')] = all_down_stats
+            # 计算个股LOWO：逐周留一法，每次去掉一周计算剩余准确率，取平均
+            if stock_total >= 2:
+                loo_accs = []
+                for _iw, c in stock_week_results:
+                    rest_correct = stock_correct - (1 if c else 0)
+                    rest_total = stock_total - 1
+                    loo_accs.append(rest_correct / rest_total * 100)
+                stock_lowo = round(_mean(loo_accs), 1)
+            else:
+                stock_lowo = stock_acc
+
             per_stock[code] = {
                 'accuracy': stock_acc,
+                'lowo': stock_lowo,
                 'total': stock_total,
                 'n_weeks': stock_total,
                 'strategy_acc': strat_acc,
@@ -1516,7 +1517,7 @@ def run_batch_weekly_prediction():
             else:
                 p['backtest_accuracy'] = stock_bt['accuracy']
                 filled_per_stock += 1
-            p['backtest_lowo_accuracy'] = stock_bt['accuracy']
+            p['backtest_lowo_accuracy'] = stock_bt.get('lowo', stock_bt['accuracy'])
             p['backtest_samples'] = stock_bt['total']
         else:
             # 无该股票历史数据，使用全局准确率
