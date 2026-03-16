@@ -257,6 +257,7 @@ const INDICATOR_TIPS = {
         title: '预测涨跌幅（本周）',
         sections: [
             {h: '计算方式', p: '基于该股票在当前策略下的历史实际周涨跌幅分布，取中位数作为预测值。例如某股票使用follow_d4(strong)策略，统计历史上所有d4强信号周的实际涨跌幅中位数。'},
+            {h: '日期范围', p: '涨跌幅后方括号中的日期范围（如03-10~03-14）表示预测针对的交易周（周一~周五），即预测这一整周的涨跌幅。'},
             {h: '区间范围 (p25~p75)', p: '第二行显示25%~75%分位数区间，表示历史上该策略下大约50%的周涨跌幅落在此范围内。'},
             {h: 'MAE (平均绝对误差)', p: '衡量预测值(中位数)与实际值之间的平均偏差。MAE越小说明预测越精准。例如MAE=1.5%表示预测值平均偏离实际值1.5个百分点。'},
             {h: '区间命中率', p: '实际周涨跌幅落在预测的[p25, p75]区间内的比例。例如命中率72%表示历史上72%的周，实际涨跌幅都在p25~p75区间内。理论上p25~p75覆盖中间50%的分布，命中率>50%说明实际分布较集中、区间估计偏保守。命中率越高说明区间预测越可靠。'},
@@ -538,12 +539,17 @@ function renderTable(rows) {
         // d3涨跌：显示涨跌幅 + 日期区间
         const d3DateRange = r.d3_date_range || '';
         html += '<td>' + fmtChg(r.d3_chg) + (d3DateRange ? '<br><span style="font-size:10px;color:#aaa">' + fmtDateRange(d3DateRange) + '</span>' : '') + '</td>';
-        // 预测涨跌幅：显示中位数 + 区间 + MAE/命中率
+        // 预测涨跌幅：显示中位数 + 日期范围 + 区间 + MAE/命中率
         let predChgHtml = '-';
         if (r.pred_weekly_chg != null) {
             const n = parseFloat(r.pred_weekly_chg);
             const cls = n > 0 ? 'chg-pos' : n < 0 ? 'chg-neg' : '';
             predChgHtml = '<span class="chg-val ' + cls + '" style="font-weight:600">' + (n > 0 ? '+' : '') + n.toFixed(2) + '%</span>';
+            // 显示预测针对的周日期范围
+            const predWeekRange = getWeekRange(r.predict_date);
+            if (predWeekRange) {
+                predChgHtml += ' <span style="font-size:10px;color:#aaa">(' + predWeekRange + ')</span>';
+            }
             if (r.pred_chg_low != null && r.pred_chg_high != null) {
                 predChgHtml += '<br><span style="font-size:10px;color:#aaa">' + parseFloat(r.pred_chg_low).toFixed(1) + '~' + parseFloat(r.pred_chg_high).toFixed(1) + '%</span>';
             }
@@ -723,12 +729,16 @@ async function showHistory(code, name) {
             // d3涨跌 + 日期区间
             const hd3Range = r.d3_date_range || '';
             html += '<td>' + fmtChg(r.d3_chg) + (hd3Range ? '<br><span style="font-size:10px;color:#aaa">' + fmtDateRange(hd3Range) + '</span>' : '') + '</td>';
-            // 预测涨跌幅 + 区间 + MAE/命中率
+            // 预测涨跌幅 + 日期范围 + 区间 + MAE/命中率
             let hPredChg = '-';
             if (r.pred_weekly_chg != null) {
                 const pn = parseFloat(r.pred_weekly_chg);
                 const pcls = pn > 0 ? 'chg-pos' : pn < 0 ? 'chg-neg' : '';
                 hPredChg = '<span class="chg-val ' + pcls + '">' + (pn > 0 ? '+' : '') + pn.toFixed(2) + '%</span>';
+                const hWeekRange = getWeekRange(r.predict_date);
+                if (hWeekRange) {
+                    hPredChg += ' <span style="font-size:10px;color:#aaa">(' + hWeekRange + ')</span>';
+                }
                 if (r.pred_chg_low != null && r.pred_chg_high != null) {
                     hPredChg += '<br><span style="font-size:10px;color:#aaa">' + parseFloat(r.pred_chg_low).toFixed(1) + '~' + parseFloat(r.pred_chg_high).toFixed(1) + '%</span>';
                 }

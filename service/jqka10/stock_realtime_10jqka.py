@@ -4,6 +4,9 @@ import json
 import logging
 import aiohttp
 
+from common.constants.stocks_data import INDEX_CODES_FULL
+from service.jqka10.stock_day_kline_data_10jqka import _jqka_symbol
+
 logger = logging.getLogger(__name__)
 
 HEADERS = {
@@ -66,18 +69,58 @@ async def _get_prev_close(stock_code: str, market: str = "hs") -> float | None:
     return float(pre) if pre else None
 
 
-async def get_today_kline_as_str(stock_code: str) -> str | None:
+def _resolve_symbol(stock_code_normalize: str) -> str:
+    """
+    根据标准化代码（如 '000300.SH'）返回同花顺实时接口使用的 symbol。
+    复用 _jqka_symbol 的映射规则，保证与日K接口一致。
+    """
+    return _jqka_symbol(stock_code_normalize)
+
+
+async def get_today_kline_as_str(stock_code: str, stock_code_normalize: str = None) -> str | None:
     """
     获取今日实时K线，返回与 get_stock_day_range_kline 格式一致的逗号分隔字符串：
     date,open_price,close_price,high_price,low_price,trading_volume,trading_amount,amplitude,change_percent,change_amount,change_hand
+
+    :param stock_code: 纯数字代码，如 '002371'（向后兼容）
+    :param stock_code_normalize: 标准化代码，如 '000300.SH'（指数需要此参数以正确映射 symbol）
     """
-    raw, prev_close = await asyncio.gather(
-        get_today_trade_data(stock_code),
-        _get_prev_close(stock_code),
-    )
-    item = raw.get(f"hs_{stock_code}", {})
+    # 确定 symbol 和 response key
+    if stock_code_normalize and stock_code_normalize in INDEX_CODES_FULL:
+        symbol = _resolve_symbol(stock_code_normalize)
+    else:
+        symbol = f"hs_{stock_code}"
+
+    # 实时接口使用 symbol 构造 URL
+    url_today = f"https://d.10jqka.com.cn/v6/line/{symbol}/01/defer/today.js"
+    url_prev = f"https://d.10jqka.com.cn/v6/time/{symbol}/last.js"
+
+    async with aiohttp.ClientSession(headers=HEADERS) as session:
+        resp_today, resp_prev = await asyncio.gather(
+            session.get(url_today),
+            session.get(url_prev),
+        )
+        resp_today.raise_for_status()
+        text_today = await resp_today.text()
+        text_prev = await resp_prev.text()
+
+    # 解析 today
+    match = re.search(r"\((\{.*\})\)", text_today, re.DOTALL)
+    if not match:
+        raise ValueError(f"Unexpected response format: {text_today[:200]}")
+    today_data = json.loads(match.group(1))
+    item = today_data.get(symbol, {})
+
+    # 解析 prev_close
+    prev_close = None
+    match_prev = re.search(r"\((.+)\)", text_prev, re.DOTALL)
+    if match_prev:
+        prev_data = json.loads(match_prev.group(1))
+        pre = prev_data.get(symbol, {}).get("pre")
+        prev_close = float(pre) if pre else None
+
     if not item:
-        logger.error("[%s] 实时K线数据为空：hs_%s 不存在于响应中", stock_code, stock_code)
+        logger.error("[%s] 实时K线数据为空：%s 不存在于响应中", stock_code, symbol)
     trade_date = item.get("1", "")
     if len(trade_date) == 8:
         trade_date = f"{trade_date[:4]}-{trade_date[4:6]}-{trade_date[6:]}"

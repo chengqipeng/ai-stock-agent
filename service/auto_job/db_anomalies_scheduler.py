@@ -36,8 +36,7 @@
 19. 价格逻辑异常：close_price <= 0 / high < low
 20. 日期重复：同一板块存在重复日期
 
-发现K线异常时：调用 get_stock_day_kline_10jqka 重新拉取数据，重新检测，
-若通过则覆盖写入数据库，否则输出日志。
+发现K线异常时：仅记录异常结果到日志和调度记录中，不重新拉取数据。
 发现资金流向异常时：先同花顺增量修复，若仍有异常则东方财富全量修复+同花顺覆盖，
 重新检测，若通过则标记已修复，否则输出日志。
 """
@@ -261,9 +260,8 @@ async def _repair_board_kline(board_code: str, board_name: str,
 
 async def _execute_job():
     """执行一次数据异常检测与修复"""
-    from dao.stock_kline_dao import check_db, save_kline_to_db, get_all_stock_codes
+    from dao.stock_kline_dao import check_db, get_all_stock_codes
     from dao.stock_fund_flow_dao import check_fund_flow_db, batch_upsert_fund_flow
-    from service.jqka10.stock_day_kline_data_10jqka import get_stock_day_kline_10jqka
     from service.jqka10.stock_history_fund_flow_10jqka import get_fund_flow_history as get_fund_flow_jqka
     from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history as get_fund_flow_em
     from service.auto_job.fund_flow_scheduler import _convert_em_klines_to_dicts
@@ -280,59 +278,6 @@ async def _execute_job():
 
     counter = {"total": 0, "checked": 0, "anomalies": 0, "repaired": 0}
     _job_status["_counter"] = counter
-
-    _ALL_FIELDS = ("date", "open_price", "close_price", "high_price", "low_price",
-                   "trading_volume", "trading_amount", "amplitude", "change_percent",
-                   "change_amount", "change_hand")
-
-    async def _repair_stock(stock_code: str, active_issues: list[dict]):
-        """拉取最新数据，重新检测，通过则保存，否则记录日志"""
-        logger.info("[数据异常检测 %s] 发现 %d 条异常，开始重新拉取数据...",
-                    stock_code, len(active_issues))
-        for iss in active_issues:
-            logger.info("  [%s] 日期=%s  %s", iss["type"], iss["date"], iss["detail"])
-
-        try:
-            stock_info = get_stock_info_by_code(stock_code)
-        except Exception as e:
-            logger.error("[数据异常检测 %s] 获取 StockInfo 失败: %s", stock_code, e)
-            return False
-
-        try:
-            klines = await get_stock_day_kline_10jqka(stock_info, limit=800)
-        except Exception as e:
-            logger.error("[数据异常检测 %s] 拉取K线数据失败: %s", stock_code, e)
-            return False
-
-        if not klines:
-            logger.error("[数据异常检测 %s] 拉取到空数据，跳过", stock_code)
-            return False
-
-        clean_klines = []
-        for k in klines:
-            empty_fields = [f for f in _ALL_FIELDS if k.get(f) is None or k.get(f) == ""]
-            if empty_fields:
-                logger.error("[数据异常检测 %s] K线数据存在空字段，date=%s, 空字段=%s，跳过该条",
-                             stock_code, k.get("date"), empty_fields)
-            else:
-                clean_klines.append(k)
-
-        if not clean_klines:
-            logger.error("[数据异常检测 %s] 过滤空字段后无有效数据，跳过写入", stock_code)
-            return False
-
-        save_kline_to_db(stock_code, clean_klines)
-
-        re_issues = check_db(stock_code)
-        if not re_issues:
-            logger.info("[数据异常检测 %s] 重新拉取后检测通过，数据已更新 ✓", stock_code)
-            return True
-        else:
-            logger.warning("[数据异常检测 %s] 重新拉取后仍有 %d 条异常，请人工核查：",
-                           stock_code, len(re_issues))
-            for iss in re_issues:
-                logger.warning("  [%s] 日期=%s  %s", iss["type"], iss["date"], iss["detail"])
-            return False
 
     try:
         anomaly_details = []
@@ -360,15 +305,14 @@ async def _execute_job():
                     counter["anomalies"] += 1
                     total_issues += len(active_issues)
 
-                    # 收集异常详情
+                    # 收集异常详情（仅记录，不重新拉取修复）
                     issue_lines = [f"[{iss['type']}] 日期={iss['date']} {iss['detail']}" for iss in active_issues]
-                    repaired = await _repair_stock(stock_code, active_issues)
-                    status_tag = "已修复" if repaired else "未修复"
-                    anomaly_details.append(f"{stock_code}({status_tag}): " + "; ".join(issue_lines))
-                    if repaired:
-                        counter["repaired"] += 1
+                    logger.warning("[数据异常检测 %s] 发现 %d 条异常（仅记录）:", stock_code, len(active_issues))
+                    for iss in active_issues:
+                        logger.warning("  [%s] 日期=%s  %s", iss["type"], iss["date"], iss["detail"])
+                    anomaly_details.append(f"{stock_code}(仅记录): " + "; ".join(issue_lines))
 
-                logger.info("[数据异常检测] K线检测完成：共 %d 只股票，%d 只有异常，共 %d 条异常记录",
+                logger.info("[数据异常检测] K线检测完成：共 %d 只股票，%d 只有异常，共 %d 条异常记录（仅记录，未修复）",
                             len(stock_codes), counter["anomalies"], total_issues)
 
         except Exception as e:

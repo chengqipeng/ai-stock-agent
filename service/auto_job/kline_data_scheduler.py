@@ -143,17 +143,24 @@ async def _process_single_kline(stock_code, stock_name, limit, counter):
     t0 = asyncio.get_event_loop().time()
 
     # 仅缺最新一天时，直接从同花顺实时接口获取
+    realtime_failed_index = False
     if len(missing_days) == 1 and missing_days[0] == today_cst:
         try:
             pure_code = stock_code.split('.')[0]
-            kline_str = await get_today_kline_as_str(pure_code)
+            kline_str = await get_today_kline_as_str(pure_code, stock_code_normalize=stock_code)
             klines = [kline_str] if kline_str else []
             elapsed = asyncio.get_event_loop().time() - t0
         except Exception as e:
             logger.error("[K线 %s] 实时K线获取失败: %s", stock_name, e)
-            counter['failed'] += 1
-            return
-    else:
+            # 指数实时接口失败时回退到完整拉取，不直接放弃
+            if stock_code in _INDEX_CODES:
+                logger.info("[K线 %s] 指数实时接口失败，回退到完整拉取", stock_name)
+                realtime_failed_index = True
+            else:
+                counter['failed'] += 1
+                return
+
+    if realtime_failed_index or not (len(missing_days) == 1 and missing_days[0] == today_cst):
         _RETRYABLE_KEYWORDS = ('Server disconnected', 'Connection closed abruptly',
                                'Expecting value', '空响应', 'JSONP解包后为空',
                                'JSON解析失败', 'ClientResponseError')
