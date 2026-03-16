@@ -69,12 +69,18 @@ def clean_jsonp_response(text):
     return json_text
 
 
-async def fetch_eastmoney_api(url, params, headers=None, referer=None, max_retries=3):
-    """通用的东方财富API请求方法，带重试机制"""
+async def fetch_eastmoney_api(url, params, headers=None, referer=None, max_retries=3,
+                              session: aiohttp.ClientSession = None):
+    """通用的东方财富API请求方法，带重试机制。
+
+    Args:
+        session: 可选的外部 ClientSession，传入时复用连接池，不传则每次新建。
+    """
     import asyncio
     import logging
 
     logger = logging.getLogger(__name__)
+    _own_session = session is None
 
     for attempt in range(1, max_retries + 1):
         if headers is None:
@@ -83,17 +89,32 @@ async def fetch_eastmoney_api(url, params, headers=None, referer=None, max_retri
             req_headers = headers.copy()
         if referer:
             req_headers["Referer"] = referer
+        cur_session = None
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params, headers=req_headers, timeout=aiohttp.ClientTimeout(total=30)) as response:
-                    text = await response.text()
-                    json_text = clean_jsonp_response(text)
-                    return json.loads(json_text)
-        except (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError, aiohttp.ClientResponseError, asyncio.TimeoutError) as e:
+            if _own_session:
+                connector = aiohttp.TCPConnector(limit=5, force_close=True)
+                cur_session = aiohttp.ClientSession(connector=connector)
+            else:
+                cur_session = session
+            async with cur_session.get(url, params=params, headers=req_headers,
+                                       timeout=aiohttp.ClientTimeout(total=30)) as response:
+                text = await response.text()
+                json_text = clean_jsonp_response(text)
+                return json.loads(json_text)
+        except (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError,
+                aiohttp.ClientResponseError, aiohttp.ServerDisconnectedError,
+                asyncio.TimeoutError, ConnectionResetError) as e:
             if attempt < max_retries:
-                wait = 2 ** attempt + random.uniform(0, 1)
-                logger.warning("fetch_eastmoney_api 第%d次请求失败，%0.1f秒后重试: %s", attempt, wait, e)
+                # ServerDisconnected / ConnectionReset 通常是限流，退避更久
+                if isinstance(e, (aiohttp.ServerDisconnectedError, ConnectionResetError)):
+                    wait = 4 ** attempt + random.uniform(1, 3)
+                else:
+                    wait = 2 ** attempt + random.uniform(0, 1)
+                logger.warning("fetch_eastmoney_api 第%d次请求失败，%.1f秒后重试: %s", attempt, wait, e)
                 await asyncio.sleep(wait)
             else:
                 logger.error("fetch_eastmoney_api 重试%d次后仍失败: %s", max_retries, e)
                 raise
+        finally:
+            if _own_session and cur_session:
+                await cur_session.close()

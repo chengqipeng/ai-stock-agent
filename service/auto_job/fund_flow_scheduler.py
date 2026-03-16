@@ -7,6 +7,7 @@
 import asyncio
 import json
 import logging
+import random
 from datetime import datetime, timedelta, time as dtime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -173,7 +174,8 @@ async def _fetch_fund_flow_for_stock(code, counter, today_str=None):
             counter["skipped"] += 1
             return
 
-    for attempt in range(1, 3):
+    max_attempts = 4
+    for attempt in range(1, max_attempts + 1):
         try:
             stock_info = get_stock_info_by_code(code)
             if not stock_info:
@@ -213,8 +215,10 @@ async def _fetch_fund_flow_for_stock(code, counter, today_str=None):
                 conn.close()
             return
         except Exception as e:
-            if attempt < 2:
-                await asyncio.sleep(2)
+            if attempt < max_attempts:
+                wait = 3 ** attempt + random.uniform(1, 3)
+                logger.warning("[资金流] %s 第%d次失败，%.1f秒后重试: %s", stock_code, attempt, wait, e)
+                await asyncio.sleep(wait)
             else:
                 logger.error("[资金流] %s 异常: %s", stock_code, e)
                 counter["failed"] += 1
@@ -245,7 +249,7 @@ async def _execute_job_inner():
         _job_status["failed"] = 0
         _job_status["skipped"] = 0
         counter = {"success": 0, "failed": 0, "skipped": 0}
-        sem = asyncio.Semaphore(3)
+        sem = asyncio.Semaphore(2)
         today_str = start_time.date().isoformat()
 
         async def _task(s):
@@ -254,7 +258,7 @@ async def _execute_job_inner():
                 _job_status["success"] = counter["success"] + counter["skipped"]
                 _job_status["skipped"] = counter["skipped"]
                 _job_status["failed"] = counter["failed"]
-                await asyncio.sleep(0.8)
+                await asyncio.sleep(1.2 + random.uniform(0, 0.8))
 
         await asyncio.gather(*[_task(s) for s in stocks])
         _job_status["last_success"] = counter["failed"] == 0
