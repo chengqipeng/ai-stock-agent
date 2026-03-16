@@ -60,8 +60,14 @@ _job_status = {
     "stock_board_success": 0,
     "stock_board_failed": 0,
     "stock_board_done": False,
+    # 板块K线增量拉取
+    "board_kline_total": 0,
+    "board_kline_success": 0,
+    "board_kline_skipped": 0,
+    "board_kline_failed": 0,
+    "board_kline_rows": 0,
     # 当前阶段
-    "stage": "",  # "board_market" | "stock_board" | ""
+    "stage": "",  # "board_kline_sync" | "board_market" | "stock_board" | ""
 }
 _persisted = _load_persisted_status()
 _job_status.update(_persisted)
@@ -119,6 +125,30 @@ async def _execute_job():
     logger.info("[概念强弱势调度] ===== 开始执行 trade_date=%s =====", trade_date)
 
     try:
+        # ── 前置阶段: 增量拉取板块K线 ──
+        _job_status["stage"] = "board_kline_sync"
+        _save_persisted_status(_job_status)
+        logger.info("[概念强弱势调度] 前置阶段: 增量拉取板块K线数据")
+        try:
+            from service.jqka10.concept_board_kline_10jqka import fetch_and_save_all_boards_kline
+            kline_result = await fetch_and_save_all_boards_kline(
+                limit=800, delay=0.5, incremental=True,
+            )
+            _job_status["board_kline_total"] = kline_result.get("total_boards", 0)
+            _job_status["board_kline_success"] = kline_result.get("success", 0)
+            _job_status["board_kline_skipped"] = kline_result.get("skipped", 0)
+            _job_status["board_kline_failed"] = kline_result.get("failed", 0)
+            _job_status["board_kline_rows"] = kline_result.get("total_klines", 0)
+            logger.info(
+                "[概念强弱势调度] 板块K线增量拉取完成: 总%d 成功%d 跳过%d 失败%d 写入%d条",
+                kline_result.get("total_boards", 0), kline_result.get("success", 0),
+                kline_result.get("skipped", 0), kline_result.get("failed", 0),
+                kline_result.get("total_klines", 0),
+            )
+        except Exception as e:
+            logger.error("[概念强弱势调度] 板块K线增量拉取异常(不影响后续计算): %s", e, exc_info=True)
+        _save_persisted_status(_job_status)
+
         # ── 阶段1: 概念板块 vs 大盘强弱势 ──
         _job_status["stage"] = "board_market"
         _job_status["board_market_total"] = 0
