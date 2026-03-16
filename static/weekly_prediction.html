@@ -251,7 +251,7 @@ const INDICATOR_TIPS = {
         ],
     },
     'pred_weekly_chg': {
-        title: '预测涨跌幅',
+        title: '预测涨跌幅（本周）',
         sections: [
             {h: '计算方式', p: '基于该股票在当前策略下的历史实际周涨跌幅分布，取中位数作为预测值。例如某股票使用follow_d4(strong)策略，统计历史上所有d4强信号周的实际涨跌幅中位数。'},
             {h: '区间范围 (p25~p75)', p: '第二行显示25%~75%分位数区间，表示历史上该策略下大约50%的周涨跌幅落在此范围内。'},
@@ -260,6 +260,36 @@ const INDICATOR_TIPS = {
             {h: '样本数', p: '用于计算预测涨跌幅的回测样本数（该股票在当前策略下的历史周数）。样本数越多统计越可靠，至少需要2周数据才会给出预测。'},
             {h: '汇总卡片说明', p: '页面顶部"涨跌幅预测误差"卡片中：大字为所有股票的平均MAE；"区间命中率"为所有股票的平均命中率；"有预测N只"为本批次有涨跌幅预测数据的股票数量。'},
             {h: '注意', p: '预测涨跌幅基于历史统计，不代表未来一定如此。市场环境变化可能导致实际偏差较大。'},
+        ],
+    },
+    'week_realized_chg': {
+        title: '已实现/剩余涨跌幅',
+        sections: [
+            {h: '已实现涨跌幅', p: '本周截至预测日已有交易日的复合涨跌幅。公式：(1+r₁)×(1+r₂)×...×(1+rₙ) - 1，其中rᵢ为每日涨跌幅。'},
+            {h: '剩余涨跌幅', p: '预测本周涨跌幅 - 已实现涨跌幅。表示模型预测本周剩余交易日还需要涨跌多少才能达到预测的本周总涨跌幅。'},
+            {h: '天数信息', p: '显示已有交易天数和剩余天数（按5天工作日计算）。例如"3天/剩2天"表示本周已有3天数据，还剩2个交易日。'},
+            {h: '使用场景', p: '如果剩余涨跌幅为正且较大，说明模型认为后续交易日还有上涨空间；如果为负，说明模型认为已经涨过头或还会继续跌。'},
+        ],
+    },
+    'nw_pred_direction': {
+        title: '下周预测方向',
+        sections: [
+            {h: '预测原理', p: '基于多信号集成方法预测下周涨跌方向。与本周预测（基于d3/d4信号）不同，下周预测使用均值回归、尾日反转、板块动量、大盘环境等多个弱信号加权集成。'},
+            {h: '均值回归（主信号）', p: '本周涨跌幅绝对值越大，下周反转概率越高。本周涨幅>2%时，下周偏向跌；本周跌幅>2%时，下周偏向涨。历史准确率约55.7%。'},
+            {h: '尾日反转', p: '周五（或周四）的涨跌方向与下周方向存在一定反转关系。历史准确率约53.7%。'},
+            {h: '置信度', p: '基于综合评分的绝对值：>0.3为高置信，0.15~0.3为中置信，<0.15为低置信。由于下周预测本身难度较高，高置信比例较低。'},
+            {h: '日期范围', p: '方向下方显示的日期范围表示预测针对的下一周（周一~周五）。'},
+            {h: '注意', p: '下周预测准确率（约55%）显著低于本周预测（约87%），因为下周预测本质上是跨周预测，信号衰减严重。仅供参考。'},
+        ],
+    },
+    'nw_pred_chg': {
+        title: '下周预测涨跌幅',
+        sections: [
+            {h: '计算方式', p: '基于该股票在下周预测策略下的历史实际下周涨跌幅分布，取中位数作为预测值。'},
+            {h: '区间范围', p: '第二行显示预测区间（p10~p90），表示历史上大约80%的下周涨跌幅落在此范围内。'},
+            {h: 'MAE', p: '预测值与实际值之间的平均绝对误差。下周预测的MAE通常大于本周预测。'},
+            {h: '回测准确率', p: '该股票下周方向预测的历史准确率。全市场平均约55%。'},
+            {h: '注意', p: '下周涨跌幅预测的不确定性较大，区间较宽，仅供参考。'},
         ],
     },
 };
@@ -376,7 +406,8 @@ async function loadSummary() {
             '预测日期: ' + (d.predict_date || '-') + '  Y' + (d.iso_year || '') + '-W' + String(d.iso_week || '').padStart(2, '0') +
             (weekRange ? ' (' + weekRange + ')' : '') +
             '  共' + (d.total || 0) + '只  方向回测' + (d.avg_backtest_accuracy || 0) + '%' +
-            '  涨跌幅预测误差(MAE):' + (d.avg_pred_chg_mae || '-') + '%';
+            '  涨跌幅MAE:' + (d.avg_pred_chg_mae || '-') + '%' +
+            '  下周预测' + (d.nw_total || 0) + '只 回测' + (d.nw_avg_backtest_accuracy || '-') + '%';
 
         let html = '';
         html += card('总股票数', d.total || 0, '');
@@ -391,6 +422,15 @@ async function loadSummary() {
         const predChgHit = d.avg_pred_chg_hit_rate != null ? d.avg_pred_chg_hit_rate + '%' : '-';
         const predChgCnt = d.pred_chg_count || 0;
         html += card('涨跌幅预测误差', predChgMae, '', '区间命中率: ' + predChgHit + '  有预测: ' + predChgCnt + '只');
+        // 下周预测汇总
+        const nwTotal = d.nw_total || 0;
+        const nwUp = d.nw_up_count || 0;
+        const nwDown = d.nw_down_count || 0;
+        const nwDateRange = d.nw_date_range ? fmtDateRange(d.nw_date_range) : '';
+        const nwBtAcc = d.nw_avg_backtest_accuracy != null ? d.nw_avg_backtest_accuracy + '%' : '-';
+        const nwMae = d.nw_avg_pred_chg_mae != null ? d.nw_avg_pred_chg_mae + '%' : '-';
+        html += card('下周预测', nwTotal + '只', '', '涨' + nwUp + ' 跌' + nwDown + (nwDateRange ? '  ' + nwDateRange : ''));
+        html += card('下周回测准确率', nwBtAcc, '', '涨跌幅MAE: ' + nwMae);
         document.getElementById('summaryRow').innerHTML = html;
     } catch (e) { console.error('loadSummary error:', e); }
 }
@@ -436,12 +476,15 @@ function renderTable(rows) {
     const cols = [
         {key:'stock_code', label:'代码'},
         {key:'stock_name', label:'名称'},
-        {key:'pred_direction', label:'方向'},
+        {key:'pred_direction', label:'本周方向'},
         {key:'confidence', label:'置信度'},
         {key:'strategy', label:'策略'},
         {key:'d4_chg', label:'d4涨跌%'},
         {key:'d3_chg', label:'d3涨跌%'},
-        {key:'pred_weekly_chg', label:'预测涨跌幅'},
+        {key:'pred_weekly_chg', label:'本周预测涨跌幅'},
+        {key:'week_realized_chg', label:'已实现/剩余'},
+        {key:'nw_pred_direction', label:'下周方向'},
+        {key:'nw_pred_chg', label:'下周预测涨跌幅'},
         {key:'predict_date', label:'预测日期'},
         {key:'backtest_accuracy', label:'回测准确率'},
         {key:'suggested_buy_date', label:'买入建议'},
@@ -493,6 +536,52 @@ function renderTable(rows) {
             if (metaParts.length) predChgHtml += '<br><span style="font-size:9px;color:#bbb">' + metaParts.join(' ') + '</span>';
         }
         html += '<td>' + predChgHtml + '</td>';
+        // 已实现/剩余涨跌幅
+        let realizedHtml = '-';
+        if (r.week_realized_chg != null) {
+            const rn = parseFloat(r.week_realized_chg);
+            const rcls = rn > 0 ? 'chg-pos' : rn < 0 ? 'chg-neg' : '';
+            realizedHtml = '<span style="font-size:10px;color:#888">已:</span><span class="chg-val ' + rcls + '">' + (rn > 0 ? '+' : '') + rn.toFixed(2) + '%</span>';
+            if (r.pred_remaining_chg != null) {
+                const rmn = parseFloat(r.pred_remaining_chg);
+                const rmcls = rmn > 0 ? 'chg-pos' : rmn < 0 ? 'chg-neg' : '';
+                realizedHtml += '<br><span style="font-size:10px;color:#888">余:</span><span class="chg-val ' + rmcls + '" style="font-weight:600">' + (rmn > 0 ? '+' : '') + rmn.toFixed(2) + '%</span>';
+            }
+            if (r.week_day_count != null) {
+                realizedHtml += '<br><span style="font-size:9px;color:#bbb">' + r.week_day_count + '天/剩' + (5 - r.week_day_count) + '天</span>';
+            }
+        }
+        html += '<td>' + realizedHtml + '</td>';
+        // 下周预测方向
+        let nwDirHtml = '-';
+        if (r.nw_pred_direction) {
+            nwDirHtml = dirBadge(r.nw_pred_direction);
+            if (r.nw_date_range) {
+                nwDirHtml += '<br><span style="font-size:10px;color:#aaa">' + fmtDateRange(r.nw_date_range) + '</span>';
+            }
+            if (r.nw_confidence) nwDirHtml += '<br>' + confBadge(r.nw_confidence);
+        }
+        html += '<td>' + nwDirHtml + '</td>';
+        // 下周预测涨跌幅
+        let nwChgHtml = '-';
+        if (r.nw_pred_chg != null) {
+            const nwn = parseFloat(r.nw_pred_chg);
+            const nwcls = nwn > 0 ? 'chg-pos' : nwn < 0 ? 'chg-neg' : '';
+            nwChgHtml = '<span class="chg-val ' + nwcls + '" style="font-weight:600">' + (nwn > 0 ? '+' : '') + nwn.toFixed(2) + '%</span>';
+            if (r.nw_pred_chg_low != null && r.nw_pred_chg_high != null) {
+                nwChgHtml += '<br><span style="font-size:10px;color:#aaa">' + parseFloat(r.nw_pred_chg_low).toFixed(1) + '~' + parseFloat(r.nw_pred_chg_high).toFixed(1) + '%</span>';
+            }
+            let nwMeta = [];
+            if (r.nw_pred_chg_mae != null) nwMeta.push('MAE:' + parseFloat(r.nw_pred_chg_mae).toFixed(1) + '%');
+            if (r.nw_backtest_accuracy != null) nwMeta.push('准确率:' + parseFloat(r.nw_backtest_accuracy).toFixed(0) + '%');
+            if (r.nw_pred_chg_samples != null) nwMeta.push(r.nw_pred_chg_samples + '条');
+            if (nwMeta.length) nwChgHtml += '<br><span style="font-size:9px;color:#bbb">' + nwMeta.join(' ') + '</span>';
+        } else if (r.nw_pred_direction) {
+            // 有方向但无涨跌幅
+            nwChgHtml = '<span style="font-size:10px;color:#aaa">数据不足</span>';
+            if (r.nw_backtest_accuracy != null) nwChgHtml += '<br><span style="font-size:9px;color:#bbb">准确率:' + parseFloat(r.nw_backtest_accuracy).toFixed(0) + '%</span>';
+        }
+        html += '<td>' + nwChgHtml + '</td>';
         html += '<td style="color:#666">' + (r.predict_date || '-') + '</td>';
         // 回测准确率：显示准确率 + 回测区间和样本数
         const btAcc = r.backtest_accuracy != null ? r.backtest_accuracy.toFixed(1) + '%' : '-';
@@ -587,7 +676,8 @@ async function showHistory(code, name) {
         }
         let html = '<table class="hist-table"><thead><tr>';
         html += '<th>周</th><th>预测日期</th><th>方向</th><th>置信度</th><th>策略</th>';
-        html += '<th>d4涨跌%</th><th>d3涨跌%</th><th>预测涨跌幅</th>';
+        html += '<th>d4涨跌%</th><th>d3涨跌%</th><th>预测涨跌幅</th><th>已实现/剩余</th>';
+        html += '<th>下周方向</th><th>下周涨跌幅</th>';
         html += '<th>回测准确率</th><th>买入建议</th>';
         html += '<th>实际方向</th><th>实际涨跌%</th><th>正确</th><th>概念板块</th>';
         html += '</tr></thead><tbody>';
@@ -620,6 +710,35 @@ async function showHistory(code, name) {
                 if (hMetaParts.length) hPredChg += '<br><span style="font-size:9px;color:#bbb">' + hMetaParts.join(' ') + '</span>';
             }
             html += '<td>' + hPredChg + '</td>';
+            // 已实现/剩余
+            let hRealized = '-';
+            if (r.week_realized_chg != null) {
+                const hrn = parseFloat(r.week_realized_chg);
+                const hrcls = hrn > 0 ? 'chg-pos' : hrn < 0 ? 'chg-neg' : '';
+                hRealized = '<span style="font-size:10px;color:#888">已:</span><span class="chg-val ' + hrcls + '">' + (hrn > 0 ? '+' : '') + hrn.toFixed(2) + '%</span>';
+                if (r.pred_remaining_chg != null) {
+                    const hrmn = parseFloat(r.pred_remaining_chg);
+                    const hrmcls = hrmn > 0 ? 'chg-pos' : hrmn < 0 ? 'chg-neg' : '';
+                    hRealized += '<br><span style="font-size:10px;color:#888">余:</span><span class="chg-val ' + hrmcls + '">' + (hrmn > 0 ? '+' : '') + hrmn.toFixed(2) + '%</span>';
+                }
+            }
+            html += '<td>' + hRealized + '</td>';
+            // 下周方向
+            let hNwDir = '-';
+            if (r.nw_pred_direction) {
+                hNwDir = dirBadge(r.nw_pred_direction);
+                if (r.nw_date_range) hNwDir += '<br><span style="font-size:10px;color:#aaa">' + fmtDateRange(r.nw_date_range) + '</span>';
+            }
+            html += '<td>' + hNwDir + '</td>';
+            // 下周涨跌幅
+            let hNwChg = '-';
+            if (r.nw_pred_chg != null) {
+                const nwn = parseFloat(r.nw_pred_chg);
+                const nwcls = nwn > 0 ? 'chg-pos' : nwn < 0 ? 'chg-neg' : '';
+                hNwChg = '<span class="chg-val ' + nwcls + '">' + (nwn > 0 ? '+' : '') + nwn.toFixed(2) + '%</span>';
+                if (r.nw_backtest_accuracy != null) hNwChg += '<br><span style="font-size:9px;color:#bbb">准确率:' + parseFloat(r.nw_backtest_accuracy).toFixed(0) + '%</span>';
+            }
+            html += '<td>' + hNwChg + '</td>';
             // 回测准确率 + 区间
             let hBtAcc = '-';
             if (r.backtest_accuracy != null) {

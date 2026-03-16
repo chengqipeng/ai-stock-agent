@@ -45,12 +45,31 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction (
     suggested_buy_date VARCHAR(20) COMMENT '建议买入日期',
     suggested_buy_price DOUBLE COMMENT '建议买入价格',
     suggested_buy_reason VARCHAR(200) COMMENT '买入建议理由',
-    pred_weekly_chg DOUBLE COMMENT '预测下周涨跌幅(%)',
+    pred_weekly_chg DOUBLE COMMENT '预测本周涨跌幅(%)',
     pred_chg_low DOUBLE COMMENT '预测涨跌幅下限(%)',
     pred_chg_high DOUBLE COMMENT '预测涨跌幅上限(%)',
     pred_chg_mae DOUBLE COMMENT '涨跌幅预测MAE-平均绝对误差(%)',
     pred_chg_hit_rate DOUBLE COMMENT '涨跌幅区间命中率(%)',
     pred_chg_samples INT COMMENT '涨跌幅预测回测样本数',
+    week_realized_chg DOUBLE COMMENT '本周已实现涨跌幅(%)',
+    pred_remaining_chg DOUBLE COMMENT '本周剩余天数预测涨跌幅(%)',
+    nw_pred_direction VARCHAR(4) COMMENT '下周预测方向: UP/DOWN',
+    nw_confidence VARCHAR(10) COMMENT '下周预测置信度',
+    nw_strategy VARCHAR(30) COMMENT '下周预测策略',
+    nw_reason VARCHAR(200) COMMENT '下周预测理由',
+    nw_composite_score DOUBLE COMMENT '下周预测综合评分',
+    nw_this_week_chg DOUBLE COMMENT '本周涨跌幅(%)',
+    nw_iso_year INT COMMENT '下周ISO年',
+    nw_iso_week INT COMMENT '下周ISO周',
+    nw_date_range VARCHAR(50) COMMENT '下周日期范围',
+    nw_pred_chg DOUBLE COMMENT '下周预测涨跌幅(%)',
+    nw_pred_chg_low DOUBLE COMMENT '下周预测涨跌幅下限(%)',
+    nw_pred_chg_high DOUBLE COMMENT '下周预测涨跌幅上限(%)',
+    nw_pred_chg_mae DOUBLE COMMENT '下周涨跌幅MAE(%)',
+    nw_pred_chg_hit_rate DOUBLE COMMENT '下周涨跌幅命中率(%)',
+    nw_pred_chg_samples INT COMMENT '下周涨跌幅样本数',
+    nw_backtest_accuracy DOUBLE COMMENT '下周预测回测准确率(%)',
+    nw_backtest_samples INT COMMENT '下周预测回测样本数',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_code (stock_code),
@@ -97,12 +116,31 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction_history (
     suggested_buy_date VARCHAR(20) COMMENT '建议买入日期',
     suggested_buy_price DOUBLE COMMENT '建议买入价格',
     suggested_buy_reason VARCHAR(200) COMMENT '买入建议理由',
-    pred_weekly_chg DOUBLE COMMENT '预测下周涨跌幅(%)',
+    pred_weekly_chg DOUBLE COMMENT '预测本周涨跌幅(%)',
     pred_chg_low DOUBLE COMMENT '预测涨跌幅下限(%)',
     pred_chg_high DOUBLE COMMENT '预测涨跌幅上限(%)',
     pred_chg_mae DOUBLE COMMENT '涨跌幅预测MAE-平均绝对误差(%)',
     pred_chg_hit_rate DOUBLE COMMENT '涨跌幅区间命中率(%)',
     pred_chg_samples INT COMMENT '涨跌幅预测回测样本数',
+    week_realized_chg DOUBLE COMMENT '本周已实现涨跌幅(%)',
+    pred_remaining_chg DOUBLE COMMENT '本周剩余天数预测涨跌幅(%)',
+    nw_pred_direction VARCHAR(4) COMMENT '下周预测方向: UP/DOWN',
+    nw_confidence VARCHAR(10) COMMENT '下周预测置信度',
+    nw_strategy VARCHAR(30) COMMENT '下周预测策略',
+    nw_reason VARCHAR(200) COMMENT '下周预测理由',
+    nw_composite_score DOUBLE COMMENT '下周预测综合评分',
+    nw_this_week_chg DOUBLE COMMENT '本周涨跌幅(%)',
+    nw_iso_year INT COMMENT '下周ISO年',
+    nw_iso_week INT COMMENT '下周ISO周',
+    nw_date_range VARCHAR(50) COMMENT '下周日期范围',
+    nw_pred_chg DOUBLE COMMENT '下周预测涨跌幅(%)',
+    nw_pred_chg_low DOUBLE COMMENT '下周预测涨跌幅下限(%)',
+    nw_pred_chg_high DOUBLE COMMENT '下周预测涨跌幅上限(%)',
+    nw_pred_chg_mae DOUBLE COMMENT '下周涨跌幅MAE(%)',
+    nw_pred_chg_hit_rate DOUBLE COMMENT '下周涨跌幅命中率(%)',
+    nw_pred_chg_samples INT COMMENT '下周涨跌幅样本数',
+    nw_backtest_accuracy DOUBLE COMMENT '下周预测回测准确率(%)',
+    nw_backtest_samples INT COMMENT '下周预测回测样本数',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_week (stock_code, iso_year, iso_week),
     INDEX idx_predict_date (predict_date),
@@ -111,6 +149,45 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction_history (
     INDEX idx_is_correct (is_correct)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='周预测历史记录(每只股票每周一条)'
 """
+
+# ── 共享列列表（用于动态生成 INSERT/UPDATE SQL） ──
+_PREDICTION_COLUMNS = [
+    'stock_code', 'stock_name', 'predict_date', 'iso_year', 'iso_week',
+    'pred_direction', 'confidence', 'strategy', 'reason',
+    'd3_chg', 'd3_date_range', 'd4_chg', 'd4_date_range',
+    'is_suspended', 'week_day_count',
+    'board_momentum', 'concept_consensus', 'fund_flow_signal',
+    'market_d3_chg', 'market_d4_chg', 'concept_boards',
+    'backtest_accuracy', 'backtest_lowo_accuracy',
+    'backtest_weeks', 'backtest_samples', 'backtest_start_date', 'backtest_end_date',
+    'suggested_buy_date', 'suggested_buy_price', 'suggested_buy_reason',
+    'pred_weekly_chg', 'pred_chg_low', 'pred_chg_high',
+    'pred_chg_mae', 'pred_chg_hit_rate', 'pred_chg_samples',
+    'week_realized_chg', 'pred_remaining_chg',
+    'nw_pred_direction', 'nw_confidence', 'nw_strategy', 'nw_reason',
+    'nw_composite_score', 'nw_this_week_chg',
+    'nw_iso_year', 'nw_iso_week', 'nw_date_range',
+    'nw_pred_chg', 'nw_pred_chg_low', 'nw_pred_chg_high',
+    'nw_pred_chg_mae', 'nw_pred_chg_hit_rate', 'nw_pred_chg_samples',
+    'nw_backtest_accuracy', 'nw_backtest_samples',
+]
+
+# 不参与 ON DUPLICATE KEY UPDATE 的列（主键/唯一键）
+_SKIP_UPDATE_COLS = {'stock_code'}
+
+
+def _build_upsert_sql(table: str) -> str:
+    """动态生成 INSERT ... ON DUPLICATE KEY UPDATE SQL。"""
+    cols_str = ', '.join(_PREDICTION_COLUMNS)
+    vals_str = ', '.join(f'%({c})s' for c in _PREDICTION_COLUMNS)
+    update_parts = [f'{c} = VALUES({c})' for c in _PREDICTION_COLUMNS if c not in _SKIP_UPDATE_COLS]
+    update_str = ',\n                '.join(update_parts)
+    return f"""
+        INSERT INTO {table} ({cols_str})
+        VALUES ({vals_str})
+        ON DUPLICATE KEY UPDATE
+                {update_str}
+    """
 
 
 def ensure_tables():
@@ -132,12 +209,31 @@ def ensure_tables():
             ("suggested_buy_date", "VARCHAR(20) COMMENT '建议买入日期'", "backtest_end_date"),
             ("suggested_buy_price", "DOUBLE COMMENT '建议买入价格'", "suggested_buy_date"),
             ("suggested_buy_reason", "VARCHAR(200) COMMENT '买入建议理由'", "suggested_buy_price"),
-            ("pred_weekly_chg", "DOUBLE COMMENT '预测下周涨跌幅(%)'", "suggested_buy_reason"),
+            ("pred_weekly_chg", "DOUBLE COMMENT '预测本周涨跌幅(%)'", "suggested_buy_reason"),
             ("pred_chg_low", "DOUBLE COMMENT '预测涨跌幅下限(%)'", "pred_weekly_chg"),
             ("pred_chg_high", "DOUBLE COMMENT '预测涨跌幅上限(%)'", "pred_chg_low"),
             ("pred_chg_mae", "DOUBLE COMMENT '涨跌幅预测MAE-平均绝对误差(%)'", "pred_chg_high"),
             ("pred_chg_hit_rate", "DOUBLE COMMENT '涨跌幅区间命中率(%)'", "pred_chg_mae"),
             ("pred_chg_samples", "INT COMMENT '涨跌幅预测回测样本数'", "pred_chg_hit_rate"),
+            ("week_realized_chg", "DOUBLE COMMENT '本周已实现涨跌幅(%)'", "pred_chg_samples"),
+            ("pred_remaining_chg", "DOUBLE COMMENT '本周剩余天数预测涨跌幅(%)'", "week_realized_chg"),
+            ("nw_pred_direction", "VARCHAR(4) COMMENT '下周预测方向: UP/DOWN'", "pred_remaining_chg"),
+            ("nw_confidence", "VARCHAR(10) COMMENT '下周预测置信度'", "nw_pred_direction"),
+            ("nw_strategy", "VARCHAR(30) COMMENT '下周预测策略'", "nw_confidence"),
+            ("nw_reason", "VARCHAR(200) COMMENT '下周预测理由'", "nw_strategy"),
+            ("nw_composite_score", "DOUBLE COMMENT '下周预测综合评分'", "nw_reason"),
+            ("nw_this_week_chg", "DOUBLE COMMENT '本周涨跌幅(%)'", "nw_composite_score"),
+            ("nw_iso_year", "INT COMMENT '下周ISO年'", "nw_this_week_chg"),
+            ("nw_iso_week", "INT COMMENT '下周ISO周'", "nw_iso_year"),
+            ("nw_date_range", "VARCHAR(50) COMMENT '下周日期范围'", "nw_iso_week"),
+            ("nw_pred_chg", "DOUBLE COMMENT '下周预测涨跌幅(%)'", "nw_date_range"),
+            ("nw_pred_chg_low", "DOUBLE COMMENT '下周预测涨跌幅下限(%)'", "nw_pred_chg"),
+            ("nw_pred_chg_high", "DOUBLE COMMENT '下周预测涨跌幅上限(%)'", "nw_pred_chg_low"),
+            ("nw_pred_chg_mae", "DOUBLE COMMENT '下周涨跌幅MAE(%)'", "nw_pred_chg_high"),
+            ("nw_pred_chg_hit_rate", "DOUBLE COMMENT '下周涨跌幅命中率(%)'", "nw_pred_chg_mae"),
+            ("nw_pred_chg_samples", "INT COMMENT '下周涨跌幅样本数'", "nw_pred_chg_hit_rate"),
+            ("nw_backtest_accuracy", "DOUBLE COMMENT '下周预测回测准确率(%)'", "nw_pred_chg_samples"),
+            ("nw_backtest_samples", "INT COMMENT '下周预测回测样本数'", "nw_backtest_accuracy"),
         ]
         for tbl in ("stock_weekly_prediction", "stock_weekly_prediction_history"):
             for col_name, col_def, after_col in _migrate_cols:
@@ -164,69 +260,7 @@ def upsert_latest_prediction(prediction: dict):
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("""
-            INSERT INTO stock_weekly_prediction
-                (stock_code, stock_name, predict_date, iso_year, iso_week,
-                 pred_direction, confidence, strategy, reason,
-                 d3_chg, d3_date_range, d4_chg, d4_date_range,
-                 is_suspended, week_day_count,
-                 board_momentum, concept_consensus, fund_flow_signal,
-                 market_d3_chg, market_d4_chg, concept_boards,
-                 backtest_accuracy, backtest_lowo_accuracy,
-                 backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date,
-                 suggested_buy_date, suggested_buy_price, suggested_buy_reason,
-                 pred_weekly_chg, pred_chg_low, pred_chg_high,
-                 pred_chg_mae, pred_chg_hit_rate, pred_chg_samples)
-            VALUES
-                (%(stock_code)s, %(stock_name)s, %(predict_date)s,
-                 %(iso_year)s, %(iso_week)s,
-                 %(pred_direction)s, %(confidence)s, %(strategy)s, %(reason)s,
-                 %(d3_chg)s, %(d3_date_range)s, %(d4_chg)s, %(d4_date_range)s,
-                 %(is_suspended)s, %(week_day_count)s,
-                 %(board_momentum)s, %(concept_consensus)s, %(fund_flow_signal)s,
-                 %(market_d3_chg)s, %(market_d4_chg)s, %(concept_boards)s,
-                 %(backtest_accuracy)s, %(backtest_lowo_accuracy)s,
-                 %(backtest_weeks)s, %(backtest_samples)s, %(backtest_start_date)s, %(backtest_end_date)s,
-                 %(suggested_buy_date)s, %(suggested_buy_price)s, %(suggested_buy_reason)s,
-                 %(pred_weekly_chg)s, %(pred_chg_low)s, %(pred_chg_high)s,
-                 %(pred_chg_mae)s, %(pred_chg_hit_rate)s, %(pred_chg_samples)s)
-            ON DUPLICATE KEY UPDATE
-                stock_name = VALUES(stock_name),
-                predict_date = VALUES(predict_date),
-                iso_year = VALUES(iso_year),
-                iso_week = VALUES(iso_week),
-                pred_direction = VALUES(pred_direction),
-                confidence = VALUES(confidence),
-                strategy = VALUES(strategy),
-                reason = VALUES(reason),
-                d3_chg = VALUES(d3_chg),
-                d3_date_range = VALUES(d3_date_range),
-                d4_chg = VALUES(d4_chg),
-                d4_date_range = VALUES(d4_date_range),
-                is_suspended = VALUES(is_suspended),
-                week_day_count = VALUES(week_day_count),
-                board_momentum = VALUES(board_momentum),
-                concept_consensus = VALUES(concept_consensus),
-                fund_flow_signal = VALUES(fund_flow_signal),
-                market_d3_chg = VALUES(market_d3_chg),
-                market_d4_chg = VALUES(market_d4_chg),
-                concept_boards = VALUES(concept_boards),
-                backtest_accuracy = VALUES(backtest_accuracy),
-                backtest_lowo_accuracy = VALUES(backtest_lowo_accuracy),
-                backtest_weeks = VALUES(backtest_weeks),
-                backtest_samples = VALUES(backtest_samples),
-                backtest_start_date = VALUES(backtest_start_date),
-                backtest_end_date = VALUES(backtest_end_date),
-                suggested_buy_date = VALUES(suggested_buy_date),
-                suggested_buy_price = VALUES(suggested_buy_price),
-                suggested_buy_reason = VALUES(suggested_buy_reason),
-                pred_weekly_chg = VALUES(pred_weekly_chg),
-                pred_chg_low = VALUES(pred_chg_low),
-                pred_chg_high = VALUES(pred_chg_high),
-                pred_chg_mae = VALUES(pred_chg_mae),
-                pred_chg_hit_rate = VALUES(pred_chg_hit_rate),
-                pred_chg_samples = VALUES(pred_chg_samples)
-        """, prediction)
+        cur.execute(_build_upsert_sql("stock_weekly_prediction"), prediction)
         conn.commit()
     finally:
         cur.close()
@@ -240,69 +274,7 @@ def batch_upsert_latest_predictions(predictions: list[dict]):
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.executemany("""
-            INSERT INTO stock_weekly_prediction
-                (stock_code, stock_name, predict_date, iso_year, iso_week,
-                 pred_direction, confidence, strategy, reason,
-                 d3_chg, d3_date_range, d4_chg, d4_date_range,
-                 is_suspended, week_day_count,
-                 board_momentum, concept_consensus, fund_flow_signal,
-                 market_d3_chg, market_d4_chg, concept_boards,
-                 backtest_accuracy, backtest_lowo_accuracy,
-                 backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date,
-                 suggested_buy_date, suggested_buy_price, suggested_buy_reason,
-                 pred_weekly_chg, pred_chg_low, pred_chg_high,
-                 pred_chg_mae, pred_chg_hit_rate, pred_chg_samples)
-            VALUES
-                (%(stock_code)s, %(stock_name)s, %(predict_date)s,
-                 %(iso_year)s, %(iso_week)s,
-                 %(pred_direction)s, %(confidence)s, %(strategy)s, %(reason)s,
-                 %(d3_chg)s, %(d3_date_range)s, %(d4_chg)s, %(d4_date_range)s,
-                 %(is_suspended)s, %(week_day_count)s,
-                 %(board_momentum)s, %(concept_consensus)s, %(fund_flow_signal)s,
-                 %(market_d3_chg)s, %(market_d4_chg)s, %(concept_boards)s,
-                 %(backtest_accuracy)s, %(backtest_lowo_accuracy)s,
-                 %(backtest_weeks)s, %(backtest_samples)s, %(backtest_start_date)s, %(backtest_end_date)s,
-                 %(suggested_buy_date)s, %(suggested_buy_price)s, %(suggested_buy_reason)s,
-                 %(pred_weekly_chg)s, %(pred_chg_low)s, %(pred_chg_high)s,
-                 %(pred_chg_mae)s, %(pred_chg_hit_rate)s, %(pred_chg_samples)s)
-            ON DUPLICATE KEY UPDATE
-                stock_name = VALUES(stock_name),
-                predict_date = VALUES(predict_date),
-                iso_year = VALUES(iso_year),
-                iso_week = VALUES(iso_week),
-                pred_direction = VALUES(pred_direction),
-                confidence = VALUES(confidence),
-                strategy = VALUES(strategy),
-                reason = VALUES(reason),
-                d3_chg = VALUES(d3_chg),
-                d3_date_range = VALUES(d3_date_range),
-                d4_chg = VALUES(d4_chg),
-                d4_date_range = VALUES(d4_date_range),
-                is_suspended = VALUES(is_suspended),
-                week_day_count = VALUES(week_day_count),
-                board_momentum = VALUES(board_momentum),
-                concept_consensus = VALUES(concept_consensus),
-                fund_flow_signal = VALUES(fund_flow_signal),
-                market_d3_chg = VALUES(market_d3_chg),
-                market_d4_chg = VALUES(market_d4_chg),
-                concept_boards = VALUES(concept_boards),
-                backtest_accuracy = VALUES(backtest_accuracy),
-                backtest_lowo_accuracy = VALUES(backtest_lowo_accuracy),
-                backtest_weeks = VALUES(backtest_weeks),
-                backtest_samples = VALUES(backtest_samples),
-                backtest_start_date = VALUES(backtest_start_date),
-                backtest_end_date = VALUES(backtest_end_date),
-                suggested_buy_date = VALUES(suggested_buy_date),
-                suggested_buy_price = VALUES(suggested_buy_price),
-                suggested_buy_reason = VALUES(suggested_buy_reason),
-                pred_weekly_chg = VALUES(pred_weekly_chg),
-                pred_chg_low = VALUES(pred_chg_low),
-                pred_chg_high = VALUES(pred_chg_high),
-                pred_chg_mae = VALUES(pred_chg_mae),
-                pred_chg_hit_rate = VALUES(pred_chg_hit_rate),
-                pred_chg_samples = VALUES(pred_chg_samples)
-        """, predictions)
+        cur.executemany(_build_upsert_sql("stock_weekly_prediction"), predictions)
         conn.commit()
         logger.info("批量更新最新预测: %d 条", len(predictions))
     finally:
@@ -317,66 +289,7 @@ def batch_insert_history(predictions: list[dict]):
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.executemany("""
-            INSERT INTO stock_weekly_prediction_history
-                (stock_code, stock_name, predict_date, iso_year, iso_week,
-                 pred_direction, confidence, strategy, reason,
-                 d3_chg, d3_date_range, d4_chg, d4_date_range,
-                 is_suspended, week_day_count,
-                 board_momentum, concept_consensus, fund_flow_signal,
-                 market_d3_chg, market_d4_chg, concept_boards,
-                 backtest_accuracy, backtest_lowo_accuracy,
-                 backtest_weeks, backtest_samples, backtest_start_date, backtest_end_date,
-                 suggested_buy_date, suggested_buy_price, suggested_buy_reason,
-                 pred_weekly_chg, pred_chg_low, pred_chg_high,
-                 pred_chg_mae, pred_chg_hit_rate, pred_chg_samples)
-            VALUES
-                (%(stock_code)s, %(stock_name)s, %(predict_date)s,
-                 %(iso_year)s, %(iso_week)s,
-                 %(pred_direction)s, %(confidence)s, %(strategy)s, %(reason)s,
-                 %(d3_chg)s, %(d3_date_range)s, %(d4_chg)s, %(d4_date_range)s,
-                 %(is_suspended)s, %(week_day_count)s,
-                 %(board_momentum)s, %(concept_consensus)s, %(fund_flow_signal)s,
-                 %(market_d3_chg)s, %(market_d4_chg)s, %(concept_boards)s,
-                 %(backtest_accuracy)s, %(backtest_lowo_accuracy)s,
-                 %(backtest_weeks)s, %(backtest_samples)s, %(backtest_start_date)s, %(backtest_end_date)s,
-                 %(suggested_buy_date)s, %(suggested_buy_price)s, %(suggested_buy_reason)s,
-                 %(pred_weekly_chg)s, %(pred_chg_low)s, %(pred_chg_high)s,
-                 %(pred_chg_mae)s, %(pred_chg_hit_rate)s, %(pred_chg_samples)s)
-            ON DUPLICATE KEY UPDATE
-                predict_date = VALUES(predict_date),
-                pred_direction = VALUES(pred_direction),
-                confidence = VALUES(confidence),
-                strategy = VALUES(strategy),
-                reason = VALUES(reason),
-                d3_chg = VALUES(d3_chg),
-                d3_date_range = VALUES(d3_date_range),
-                d4_chg = VALUES(d4_chg),
-                d4_date_range = VALUES(d4_date_range),
-                is_suspended = VALUES(is_suspended),
-                week_day_count = VALUES(week_day_count),
-                board_momentum = VALUES(board_momentum),
-                concept_consensus = VALUES(concept_consensus),
-                fund_flow_signal = VALUES(fund_flow_signal),
-                market_d3_chg = VALUES(market_d3_chg),
-                market_d4_chg = VALUES(market_d4_chg),
-                concept_boards = VALUES(concept_boards),
-                backtest_accuracy = VALUES(backtest_accuracy),
-                backtest_lowo_accuracy = VALUES(backtest_lowo_accuracy),
-                backtest_weeks = VALUES(backtest_weeks),
-                backtest_samples = VALUES(backtest_samples),
-                backtest_start_date = VALUES(backtest_start_date),
-                backtest_end_date = VALUES(backtest_end_date),
-                suggested_buy_date = VALUES(suggested_buy_date),
-                suggested_buy_price = VALUES(suggested_buy_price),
-                suggested_buy_reason = VALUES(suggested_buy_reason),
-                pred_weekly_chg = VALUES(pred_weekly_chg),
-                pred_chg_low = VALUES(pred_chg_low),
-                pred_chg_high = VALUES(pred_chg_high),
-                pred_chg_mae = VALUES(pred_chg_mae),
-                pred_chg_hit_rate = VALUES(pred_chg_hit_rate),
-                pred_chg_samples = VALUES(pred_chg_samples)
-        """, predictions)
+        cur.executemany(_build_upsert_sql("stock_weekly_prediction_history"), predictions)
         conn.commit()
         logger.info("批量插入历史预测: %d 条", len(predictions))
     finally:
@@ -538,6 +451,8 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
             'stock_code', 'stock_name', 'pred_direction', 'confidence',
             'd3_chg', 'd4_chg', 'strategy', 'predict_date', 'backtest_accuracy',
             'suggested_buy_date', 'suggested_buy_price', 'pred_weekly_chg',
+            'week_realized_chg', 'pred_remaining_chg',
+            'nw_pred_direction', 'nw_pred_chg', 'nw_backtest_accuracy',
         }
         if sort_by not in allowed_sorts:
             sort_by = 'stock_code'
@@ -556,6 +471,13 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
                    p.suggested_buy_date, p.suggested_buy_price, p.suggested_buy_reason,
                    p.pred_weekly_chg, p.pred_chg_low, p.pred_chg_high,
                    p.pred_chg_mae, p.pred_chg_hit_rate, p.pred_chg_samples,
+                   p.week_realized_chg, p.pred_remaining_chg,
+                   p.nw_pred_direction, p.nw_confidence, p.nw_strategy, p.nw_reason,
+                   p.nw_composite_score, p.nw_this_week_chg,
+                   p.nw_iso_year, p.nw_iso_week, p.nw_date_range,
+                   p.nw_pred_chg, p.nw_pred_chg_low, p.nw_pred_chg_high,
+                   p.nw_pred_chg_mae, p.nw_pred_chg_hit_rate, p.nw_pred_chg_samples,
+                   p.nw_backtest_accuracy, p.nw_backtest_samples,
                    p.concept_boards
             FROM stock_weekly_prediction p
             {where_sql}
@@ -597,7 +519,15 @@ def get_prediction_summary() -> dict:
                 SUM(strategy = 'd3_strong') as d3_strong_count,
                 SUM(strategy = 'd3_medium') as d3_medium_count,
                 SUM(strategy = 'd3_fuzzy') as d3_fuzzy_count,
-                SUM(strategy = 'suspended') as suspended_strategy_count
+                SUM(strategy = 'suspended') as suspended_strategy_count,
+                SUM(nw_pred_direction IS NOT NULL) as nw_total,
+                SUM(nw_pred_direction = 'UP') as nw_up_count,
+                SUM(nw_pred_direction = 'DOWN') as nw_down_count,
+                ROUND(AVG(CASE WHEN nw_backtest_accuracy IS NOT NULL THEN nw_backtest_accuracy END), 1) as nw_avg_backtest_accuracy,
+                ROUND(AVG(CASE WHEN nw_pred_chg_mae IS NOT NULL THEN nw_pred_chg_mae END), 2) as nw_avg_pred_chg_mae,
+                ROUND(AVG(CASE WHEN nw_pred_chg_hit_rate IS NOT NULL THEN nw_pred_chg_hit_rate END), 1) as nw_avg_pred_chg_hit_rate,
+                SUM(nw_pred_chg IS NOT NULL) as nw_pred_chg_count,
+                MAX(nw_date_range) as nw_date_range
             FROM stock_weekly_prediction
             WHERE (stock_code LIKE '6%.SH' OR stock_code LIKE '0%.SZ' OR stock_code LIKE '3%.SZ')
               AND stock_code NOT LIKE '399%'

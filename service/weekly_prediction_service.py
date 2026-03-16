@@ -89,6 +89,18 @@ def _next_trade_date(dt: datetime) -> datetime:
     return dt_next
 
 
+def _next_week_monday(dt: datetime) -> datetime:
+    """获取下一周的周一日期。"""
+    days_ahead = 7 - dt.weekday()  # weekday(): 0=Mon
+    return dt + timedelta(days=days_ahead)
+
+
+def _next_week_friday(dt: datetime) -> datetime:
+    """获取下一周的周五日期。"""
+    mon = _next_week_monday(dt)
+    return mon + timedelta(days=4)
+
+
 # ═══════════════════════════════════════════════════════════
 # 行业分类 → 策略配置
 # ═══════════════════════════════════════════════════════════
@@ -649,6 +661,425 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
         'pred_chg_mae': None,
         'pred_chg_hit_rate': None,
         'pred_chg_samples': None,
+        'week_realized_chg': round(_compound_return(daily_pcts), 4) if daily_pcts else None,
+        'pred_remaining_chg': None,  # 后续由 pred_weekly_chg - week_realized_chg 计算
+    }
+
+
+# ═══════════════════════════════════════════════════════════
+# 下周预测（多信号集成）
+# ═══════════════════════════════════════════════════════════
+
+# 下周预测信号权重（基于信号分析结果）
+_NEXT_WEEK_SIGNAL_WEIGHTS = {
+    'mean_reversion_strong': 0.35,   # 本周|chg|>2%时反转，准确率~55.7%
+    'mean_reversion_general': 0.25,  # 一般均值回归，准确率~54.8%
+    'friday_reversal': 0.20,         # 周五反转信号，准确率~53.7%
+    'board_momentum': 0.10,          # 板块动量延续
+    'market_regime': 0.10,           # 大盘环境
+}
+
+
+def _predict_next_week(code: str, data: dict, latest_date: str,
+                       this_week_pred: dict) -> dict | None:
+    """预测下周方向和涨跌幅。
+
+    使用多信号集成方法：
+    1. 均值回归（强）：本周涨跌幅绝对值>2%时，下周反转概率较高
+    2. 均值回归（一般）：本周涨跌方向的一般反转倾向
+    3. 周五反转：周五涨跌方向与下周方向的反转关系
+    4. 板块动量：所属板块近期趋势延续
+    5. 大盘环境：大盘趋势对个股的影响
+
+    每个信号输出 score ∈ [-1, 1]，正=看涨，负=看跌。
+    加权求和后判定方向和置信度。
+
+    Returns:
+        dict with next_week fields, or None if insufficient data
+    """
+    klines = data['stock_klines'].get(code, [])
+    if not klines:
+        return None
+
+    dt_latest = datetime.strptime(latest_date, '%Y-%m-%d')
+    iso_cal = dt_latest.isocalendar()
+    iso_year, iso_week = iso_cal[0], iso_cal[1]
+
+    # 获取本周K线
+    week_klines = []
+    for k in klines:
+        dt = datetime.strptime(k['date'], '%Y-%m-%d')
+        ical = dt.isocalendar()
+        if ical[0] == iso_year and ical[1] == iso_week:
+            week_klines.append(k)
+    week_klines.sort(key=lambda x: x['date'])
+
+    if len(week_klines) < 3:
+        return None
+
+    daily_pcts = [k['change_percent'] for k in week_klines]
+    this_week_chg = _compound_return(daily_pcts)
+    n_days = len(week_klines)
+
+    # ── 信号1: 均值回归（强） ──
+    # 本周涨跌幅绝对值>2%时，下周反转概率~55.7%
+    signal_reversion_strong = 0.0
+    if abs(this_week_chg) > 2.0:
+        # 强反转信号：方向取反，强度与涨跌幅成正比
+        intensity = min(abs(this_week_chg) / 5.0, 1.0)  # 5%封顶
+        signal_reversion_strong = -1.0 * (1 if this_week_chg > 0 else -1) * intensity
+    elif abs(this_week_chg) > 1.0:
+        # 中等反转
+        intensity = abs(this_week_chg) / 5.0
+        signal_reversion_strong = -1.0 * (1 if this_week_chg > 0 else -1) * intensity * 0.5
+
+    # ── 信号2: 均值回归（一般） ──
+    # 不论涨跌幅大小，都有一定反转倾向
+    signal_reversion_general = 0.0
+    if this_week_chg != 0:
+        signal_reversion_general = -0.3 * (1 if this_week_chg > 0 else -1)
+
+    # ── 信号3: 周五反转 ──
+    signal_friday = 0.0
+    if n_days >= 5:
+        fri_chg = daily_pcts[-1]  # 最后一天（周五）
+        if abs(fri_chg) > 0.5:
+            # 周五涨跌方向与下周反转
+            signal_friday = -0.5 * (1 if fri_chg > 0 else -1) * min(abs(fri_chg) / 3.0, 1.0)
+    elif n_days >= 4:
+        # 周四作为替代
+        thu_chg = daily_pcts[-1]
+        if abs(thu_chg) > 0.5:
+            signal_friday = -0.3 * (1 if thu_chg > 0 else -1) * min(abs(thu_chg) / 3.0, 1.0)
+
+    # ── 信号4: 板块动量 ──
+    signal_board = 0.0
+    boards = data['stock_boards'].get(code, [])
+    if boards:
+        board_kline_map = data['board_kline_map']
+        momentums = []
+        for b in boards:
+            bk = board_kline_map.get(b['board_code'], [])
+            valid_bk = [k for k in bk if k['date'] <= latest_date]
+            if len(valid_bk) >= 5:
+                avg_chg = _mean([k['change_percent'] for k in valid_bk[-5:]])
+                momentums.append(avg_chg)
+        if momentums:
+            avg_momentum = _mean(momentums)
+            signal_board = max(-1.0, min(1.0, avg_momentum / 2.0))
+
+    # ── 信号5: 大盘环境 ──
+    signal_market = 0.0
+    market_klines = data['market_klines']
+    market_week = []
+    for k in market_klines:
+        dt = datetime.strptime(k['date'], '%Y-%m-%d')
+        ical = dt.isocalendar()
+        if ical[0] == iso_year and ical[1] == iso_week:
+            market_week.append(k)
+    if len(market_week) >= 3:
+        market_chg = _compound_return([k['change_percent'] for k in market_week])
+        # 大盘也有均值回归倾向，但弱于个股
+        signal_market = -0.2 * (1 if market_chg > 0 else -1) * min(abs(market_chg) / 3.0, 1.0)
+
+    # ── 加权集成 ──
+    weights = _NEXT_WEEK_SIGNAL_WEIGHTS
+    composite_score = (
+        weights['mean_reversion_strong'] * signal_reversion_strong +
+        weights['mean_reversion_general'] * signal_reversion_general +
+        weights['friday_reversal'] * signal_friday +
+        weights['board_momentum'] * signal_board +
+        weights['market_regime'] * signal_market
+    )
+
+    # 方向判定
+    nw_pred_up = composite_score >= 0
+
+    # 置信度：基于综合分数的绝对值
+    abs_score = abs(composite_score)
+    if abs_score > 0.3:
+        nw_confidence = 'high'
+    elif abs_score > 0.15:
+        nw_confidence = 'medium'
+    else:
+        nw_confidence = 'low'
+
+    # 策略标签
+    # 找出贡献最大的信号
+    signal_contributions = {
+        'mean_reversion_strong': abs(weights['mean_reversion_strong'] * signal_reversion_strong),
+        'mean_reversion_general': abs(weights['mean_reversion_general'] * signal_reversion_general),
+        'friday_reversal': abs(weights['friday_reversal'] * signal_friday),
+        'board_momentum': abs(weights['board_momentum'] * signal_board),
+        'market_regime': abs(weights['market_regime'] * signal_market),
+    }
+    dominant_signal = max(signal_contributions, key=signal_contributions.get)
+    nw_strategy = f'nw_{dominant_signal}'
+
+    # 理由
+    parts = []
+    if abs(signal_reversion_strong) > 0.01:
+        parts.append(f'本周{this_week_chg:+.1f}%反转')
+    if abs(signal_friday) > 0.01:
+        fri_day = daily_pcts[-1] if n_days >= 4 else 0
+        parts.append(f'尾日{fri_day:+.1f}%反转')
+    if abs(signal_board) > 0.01:
+        parts.append(f'板块{"偏多" if signal_board > 0 else "偏空"}')
+    nw_reason = '; '.join(parts) if parts else f'综合评分{composite_score:+.3f}'
+
+    # 下周日期范围
+    nw_monday = _next_week_monday(dt_latest)
+    nw_friday = nw_monday + timedelta(days=4)
+    nw_iso = nw_monday.isocalendar()
+
+    return {
+        'nw_pred_direction': 'UP' if nw_pred_up else 'DOWN',
+        'nw_confidence': nw_confidence,
+        'nw_strategy': nw_strategy[:30],
+        'nw_reason': nw_reason[:200],
+        'nw_composite_score': round(composite_score, 4),
+        'nw_this_week_chg': round(this_week_chg, 4),
+        'nw_iso_year': nw_iso[0],
+        'nw_iso_week': nw_iso[1],
+        'nw_date_range': f'{nw_monday.strftime("%Y-%m-%d")}~{nw_friday.strftime("%Y-%m-%d")}',
+        # 涨跌幅预测字段（后续由回测数据填充）
+        'nw_pred_chg': None,
+        'nw_pred_chg_low': None,
+        'nw_pred_chg_high': None,
+        'nw_pred_chg_mae': None,
+        'nw_pred_chg_hit_rate': None,
+        'nw_pred_chg_samples': None,
+        # 回测准确率（后续填充）
+        'nw_backtest_accuracy': None,
+        'nw_backtest_samples': None,
+    }
+
+
+def _compute_next_week_backtest(stock_codes: list[str], data: dict,
+                                end_date: str, n_weeks: int = 29) -> dict:
+    """计算下周预测的回测准确率。
+
+    对每只股票回溯n_weeks周，用本周数据预测下周方向，与实际下周方向对比。
+
+    Returns:
+        {
+            'per_stock': {code: {'accuracy': float, 'total': int,
+                                 'strategy_dir_chg': {(strategy, dir): stats}}},
+            'global': {'accuracy': float, 'total': int},
+        }
+    """
+    dt_end = datetime.strptime(end_date, '%Y-%m-%d')
+    dt_start = dt_end - timedelta(days=(n_weeks + 2) * 7)
+    start_date = dt_start.strftime('%Y-%m-%d')
+
+    # 加载更长时间范围的K线数据
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+
+    stock_klines = defaultdict(list)
+    batch_size = 200
+    for i in range(0, len(stock_codes), batch_size):
+        batch = stock_codes[i:i + batch_size]
+        ph = ','.join(['%s'] * len(batch))
+        cur.execute(
+            f"SELECT stock_code, `date`, change_percent "
+            f"FROM stock_kline WHERE stock_code IN ({ph}) "
+            f"AND `date` >= %s AND `date` <= %s ORDER BY `date`",
+            batch + [start_date, end_date])
+        for row in cur.fetchall():
+            stock_klines[row['stock_code']].append({
+                'date': row['date'],
+                'change_percent': _to_float(row['change_percent']),
+            })
+
+    # 大盘K线
+    cur.execute(
+        "SELECT `date`, change_percent FROM stock_kline "
+        "WHERE stock_code = '000001.SH' AND `date` >= %s AND `date` <= %s "
+        "ORDER BY `date`", (start_date, end_date))
+    market_klines = [{'date': r['date'],
+                      'change_percent': _to_float(r['change_percent'])}
+                     for r in cur.fetchall()]
+    conn.close()
+
+    # 按ISO周分组大盘
+    market_by_week = defaultdict(list)
+    for k in market_klines:
+        dt = datetime.strptime(k['date'], '%Y-%m-%d')
+        iw = dt.isocalendar()[:2]
+        market_by_week[iw].append(k)
+
+    global_correct = 0
+    global_total = 0
+    per_stock = {}
+
+    for code in stock_codes:
+        klines = stock_klines.get(code, [])
+        if not klines or len(klines) < 20:
+            continue
+
+        # 按ISO周分组
+        wg = defaultdict(list)
+        for k in klines:
+            dt = datetime.strptime(k['date'], '%Y-%m-%d')
+            iw = dt.isocalendar()[:2]
+            wg[iw].append(k)
+
+        # 按周排序
+        sorted_weeks = sorted(wg.keys())
+        stock_correct = 0
+        stock_total = 0
+        # 收集 (strategy, direction) -> [actual_next_week_chg]
+        strategy_dir_chg = defaultdict(list)
+
+        for idx in range(len(sorted_weeks) - 1):
+            iw_this = sorted_weeks[idx]
+            iw_next = sorted_weeks[idx + 1]
+
+            this_days = sorted(wg[iw_this], key=lambda x: x['date'])
+            next_days = sorted(wg[iw_next], key=lambda x: x['date'])
+
+            if len(this_days) < 3 or len(next_days) < 3:
+                continue
+
+            this_pcts = [d['change_percent'] for d in this_days]
+            this_week_chg = _compound_return(this_pcts)
+            n_days = len(this_days)
+
+            next_pcts = [d['change_percent'] for d in next_days]
+            next_week_chg = _compound_return(next_pcts)
+            actual_next_up = next_week_chg >= 0
+
+            # ── 复现信号计算逻辑 ──
+            # 信号1: 均值回归（强）
+            sig_rev_strong = 0.0
+            if abs(this_week_chg) > 2.0:
+                intensity = min(abs(this_week_chg) / 5.0, 1.0)
+                sig_rev_strong = -1.0 * (1 if this_week_chg > 0 else -1) * intensity
+            elif abs(this_week_chg) > 1.0:
+                intensity = abs(this_week_chg) / 5.0
+                sig_rev_strong = -1.0 * (1 if this_week_chg > 0 else -1) * intensity * 0.5
+
+            # 信号2: 均值回归（一般）
+            sig_rev_general = 0.0
+            if this_week_chg != 0:
+                sig_rev_general = -0.3 * (1 if this_week_chg > 0 else -1)
+
+            # 信号3: 尾日反转
+            sig_friday = 0.0
+            if n_days >= 5:
+                fri_chg = this_pcts[-1]
+                if abs(fri_chg) > 0.5:
+                    sig_friday = -0.5 * (1 if fri_chg > 0 else -1) * min(abs(fri_chg) / 3.0, 1.0)
+            elif n_days >= 4:
+                thu_chg = this_pcts[-1]
+                if abs(thu_chg) > 0.5:
+                    sig_friday = -0.3 * (1 if thu_chg > 0 else -1) * min(abs(thu_chg) / 3.0, 1.0)
+
+            # 信号4: 大盘
+            sig_market = 0.0
+            mw = market_by_week.get(iw_this, [])
+            if len(mw) >= 3:
+                mkt_chg = _compound_return([k['change_percent'] for k in sorted(mw, key=lambda x: x['date'])])
+                sig_market = -0.2 * (1 if mkt_chg > 0 else -1) * min(abs(mkt_chg) / 3.0, 1.0)
+
+            # 加权
+            w = _NEXT_WEEK_SIGNAL_WEIGHTS
+            composite = (
+                w['mean_reversion_strong'] * sig_rev_strong +
+                w['mean_reversion_general'] * sig_rev_general +
+                w['friday_reversal'] * sig_friday +
+                w['board_momentum'] * 0.0 +  # 回测中简化，不加载板块数据
+                w['market_regime'] * sig_market
+            )
+
+            pred_next_up = composite >= 0
+            correct = pred_next_up == actual_next_up
+
+            # 策略标签
+            contribs = {
+                'mean_reversion_strong': abs(w['mean_reversion_strong'] * sig_rev_strong),
+                'mean_reversion_general': abs(w['mean_reversion_general'] * sig_rev_general),
+                'friday_reversal': abs(w['friday_reversal'] * sig_friday),
+                'market_regime': abs(w['market_regime'] * sig_market),
+            }
+            dominant = max(contribs, key=contribs.get)
+            strat = f'nw_{dominant}'
+            pred_dir = 'UP' if pred_next_up else 'DOWN'
+
+            if correct:
+                stock_correct += 1
+                global_correct += 1
+            stock_total += 1
+            global_total += 1
+
+            strategy_dir_chg[(strat, pred_dir)].append(next_week_chg)
+
+        if stock_total > 0:
+            stock_acc = round(stock_correct / stock_total * 100, 1)
+
+            # 计算涨跌幅分布
+            strat_dir_chg_stats = {}
+            all_up_chgs = []
+            all_down_chgs = []
+            for (s, d), chgs in strategy_dir_chg.items():
+                if d == 'UP':
+                    all_up_chgs.extend(chgs)
+                else:
+                    all_down_chgs.extend(chgs)
+                if len(chgs) >= 2:
+                    sorted_c = sorted(chgs)
+                    n = len(sorted_c)
+                    median = sorted_c[n // 2]
+                    mae = _mean([abs(c - median) for c in chgs])
+                    std_val = _std(chgs) if n >= 3 else mae
+                    k_factor = 3.0 if n < 5 else (2.2 if n < 10 else (1.8 if n < 20 else 1.5))
+                    spread = max(std_val, mae, 0.5)
+                    low = median - k_factor * spread
+                    high = median + k_factor * spread
+                    hits = sum(1 for c in chgs if low <= c <= high)
+                    strat_dir_chg_stats[(s, d)] = {
+                        'median': round(median, 2),
+                        'p10': round(low, 2), 'p90': round(high, 2),
+                        'mae': round(mae, 2),
+                        'hit_rate': round(hits / n * 100, 1),
+                        'samples': n,
+                    }
+
+            # 汇总 _all
+            for label, chgs in [('UP', all_up_chgs), ('DOWN', all_down_chgs)]:
+                if len(chgs) >= 2:
+                    sorted_c = sorted(chgs)
+                    n = len(sorted_c)
+                    median = sorted_c[n // 2]
+                    mae = _mean([abs(c - median) for c in chgs])
+                    std_val = _std(chgs) if n >= 3 else mae
+                    k_factor = 3.0 if n < 5 else (2.2 if n < 10 else (1.8 if n < 20 else 1.5))
+                    spread = max(std_val, mae, 0.5)
+                    low = median - k_factor * spread
+                    high = median + k_factor * spread
+                    hits = sum(1 for c in chgs if low <= c <= high)
+                    strat_dir_chg_stats[('_all', label)] = {
+                        'median': round(median, 2),
+                        'p10': round(low, 2), 'p90': round(high, 2),
+                        'mae': round(mae, 2),
+                        'hit_rate': round(hits / n * 100, 1),
+                        'samples': n,
+                    }
+
+            per_stock[code] = {
+                'accuracy': stock_acc,
+                'total': stock_total,
+                'strategy_dir_chg': strat_dir_chg_stats,
+            }
+
+    global_acc = round(global_correct / global_total * 100, 1) if global_total > 0 else 0
+    logger.info("[下周回测] %d只股票, %d样本, 准确率=%.1f%%",
+                len(per_stock), global_total, global_acc)
+
+    return {
+        'per_stock': per_stock,
+        'global': {'accuracy': global_acc, 'total': global_total},
     }
 
 
@@ -955,6 +1386,79 @@ def run_batch_weekly_prediction():
     per_stock_bt = bt_result['per_stock']
     global_bt = bt_result['global']
 
+    # 6b. 下周预测 + 下周回测
+    logger.info("[3b/4] 下周预测 + 回测...")
+    nw_bt_result = _compute_next_week_backtest(all_codes, data, latest_date)
+    nw_per_stock_bt = nw_bt_result['per_stock']
+    nw_global_bt = nw_bt_result['global']
+
+    nw_count = 0
+    nw_up = 0
+    for p in predictions:
+        code = p['stock_code']
+        nw = _predict_next_week(code, data, latest_date, p)
+        if nw:
+            # 合并下周预测字段到 prediction dict
+            p.update(nw)
+            nw_count += 1
+            if nw['nw_pred_direction'] == 'UP':
+                nw_up += 1
+
+            # 填充下周回测准确率
+            nw_stock_bt = nw_per_stock_bt.get(code)
+            if nw_stock_bt:
+                p['nw_backtest_accuracy'] = nw_stock_bt['accuracy']
+                p['nw_backtest_samples'] = nw_stock_bt['total']
+
+                # 填充下周预测涨跌幅
+                strat = nw.get('nw_strategy', '')
+                pred_dir = nw['nw_pred_direction']
+                sdc = nw_stock_bt.get('strategy_dir_chg', {})
+
+                # 优先: 同策略+同方向
+                chg_stats = sdc.get((strat, pred_dir))
+                # 兜底: 所有策略+同方向
+                if not chg_stats:
+                    chg_stats = sdc.get(('_all', pred_dir))
+                if chg_stats:
+                    median = chg_stats['median']
+                    # 强制符号一致
+                    if pred_dir == 'UP' and median < 0:
+                        median = abs(median)
+                    elif pred_dir == 'DOWN' and median > 0:
+                        median = -abs(median)
+                    p['nw_pred_chg'] = median
+                    p['nw_pred_chg_low'] = chg_stats['p10']
+                    p['nw_pred_chg_high'] = chg_stats['p90']
+                    p['nw_pred_chg_mae'] = chg_stats['mae']
+                    p['nw_pred_chg_hit_rate'] = chg_stats['hit_rate']
+                    p['nw_pred_chg_samples'] = chg_stats['samples']
+            else:
+                p['nw_backtest_accuracy'] = nw_global_bt['accuracy']
+                p['nw_backtest_samples'] = 0
+        else:
+            # 数据不足，填充空值
+            p['nw_pred_direction'] = None
+            p['nw_confidence'] = None
+            p['nw_strategy'] = None
+            p['nw_reason'] = None
+            p['nw_composite_score'] = None
+            p['nw_this_week_chg'] = None
+            p['nw_iso_year'] = None
+            p['nw_iso_week'] = None
+            p['nw_date_range'] = None
+            p['nw_pred_chg'] = None
+            p['nw_pred_chg_low'] = None
+            p['nw_pred_chg_high'] = None
+            p['nw_pred_chg_mae'] = None
+            p['nw_pred_chg_hit_rate'] = None
+            p['nw_pred_chg_samples'] = None
+            p['nw_backtest_accuracy'] = None
+            p['nw_backtest_samples'] = None
+
+    logger.info("  下周预测: %d只 (涨%d 跌%d), 回测准确率=%.1f%%",
+                nw_count, nw_up, nw_count - nw_up, nw_global_bt['accuracy'])
+
     # 填充回测准确率：优先使用个股+策略准确率，其次个股整体准确率，最后全局
     # 注意：策略级样本量过小时（<3），统计不可靠，回退到个股整体准确率
     MIN_STRATEGY_SAMPLES = 3
@@ -1050,6 +1554,14 @@ def run_batch_weekly_prediction():
     logger.info("  预测涨跌幅填充: 方向匹配%d只, 方向兜底%d只, 符号修正%d只",
                 filled_pred_chg, filled_pred_chg_fallback, filled_pred_chg_dir_mismatch)
 
+    # 计算本周剩余天数预测涨跌幅 = 预测本周涨跌幅 - 本周已实现涨跌幅
+    filled_remaining = 0
+    for p in predictions:
+        if p.get('pred_weekly_chg') is not None and p.get('week_realized_chg') is not None:
+            p['pred_remaining_chg'] = round(p['pred_weekly_chg'] - p['week_realized_chg'], 4)
+            filled_remaining += 1
+    logger.info("  剩余涨跌幅填充: %d只", filled_remaining)
+
     logger.info("  回测填充: 策略级%d只, 个股级%d只, 全局兜底%d只",
                 filled_per_strategy, filled_per_stock,
                 len(predictions) - filled_per_strategy - filled_per_stock)
@@ -1073,6 +1585,8 @@ def run_batch_weekly_prediction():
     logger.info("  回测准确率: %.1f%% (LOWO: %.1f%%, %d周, %d样本)",
                 global_bt['full_accuracy'], global_bt['lowo_accuracy'],
                 global_bt['n_weeks'], global_bt['total_samples'])
+    logger.info("  下周预测: %d只, 回测准确率: %.1f%% (%d样本)",
+                nw_count, nw_global_bt['accuracy'], nw_global_bt['total'])
     logger.info("  耗时: %.1fs", elapsed)
     logger.info("=" * 70)
 
@@ -1084,6 +1598,9 @@ def run_batch_weekly_prediction():
         'up_count': up_count,
         'down_count': down_count,
         'backtest': global_bt,
+        'next_week_backtest': nw_global_bt,
+        'next_week_count': nw_count,
+        'next_week_up': nw_up,
         'elapsed': round(elapsed, 1),
     }
 
