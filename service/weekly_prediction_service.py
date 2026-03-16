@@ -1236,8 +1236,8 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
 
     daily_pcts = [k['change_percent'] for k in week_klines]
 
-    # 获取大盘本周涨跌幅
-    market_klines = data['market_klines']
+    # 获取个股对应大盘指数的本周涨跌幅
+    market_klines = _get_market_klines_for_stock(code, data)
     market_week = []
     for k in market_klines:
         dt = datetime.strptime(k['date'], '%Y-%m-%d')
@@ -1248,8 +1248,17 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
         [k['change_percent'] for k in sorted(market_week, key=lambda x: x['date'])]
     ) if len(market_week) >= 3 else 0.0
 
-    # 提取特征 & 匹配规则
-    feat = _nw_extract_features(daily_pcts, market_chg)
+    # 多维信号（从 this_week_pred 中获取已计算的信号）
+    ff_signal = this_week_pred.get('fund_flow_signal') if this_week_pred else None
+    vol_ratio = this_week_pred.get('vol_ratio') if this_week_pred else None
+    vol_price_corr = this_week_pred.get('vol_price_corr') if this_week_pred else None
+    finance_score = this_week_pred.get('finance_score') if this_week_pred else None
+
+    # 提取特征 & 匹配规则（含多维信号）
+    feat = _nw_extract_features(daily_pcts, market_chg,
+                                ff_signal=ff_signal, vol_ratio=vol_ratio,
+                                vol_price_corr=vol_price_corr,
+                                finance_score=finance_score)
     rule = _nw_match_rule(feat)
 
     # 下周日期范围
