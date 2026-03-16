@@ -677,17 +677,45 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
 # 核心发现：跌反转+大盘配合是最强信号
 # - 跌>2%+大盘跌>1%→涨: 71.5%准确率 (N=5341)
 # - 跌>2%+大盘跌>0.5%+连跌>=2→涨: 73.9%准确率 (N=3356)
-# - 跌>2%+大盘跌>0.5%+尾日跌>1%→涨: 77.0%准确率 (N=3545)
-# 互斥组合后: ~70.9%准确率, ~10.5%覆盖率
+# 下周预测规则引擎 — 分层规则
+# Tier 1 (高置信): 大盘深跌+个股跌 → 反弹, 准确率~72%, 仅大盘跌>1%时触发
+# Tier 2 (参考): 不依赖大盘条件, 准确率~56-59%, 在任何市场环境下触发
+#   - Tier 2 规则基于 _nw_tier2_analysis.py 实证: 非大盘深跌周中,
+#     个股大跌后继续跌的概率(55-59%)略高于反弹概率(41-45%)
+#   - 这是动量效应: 非系统性下跌(大盘未深跌)时个股跌势更可能延续
+# 互斥匹配: 按顺序匹配, 命中第一条即停止
 _NW_RULES = [
-    # ── 唯一规则: 大盘跌>1% + 个股跌>2% → 下周涨 ──
-    # 独立准确率: 71.5% (N=5341/51717, 覆盖10.3%)
-    # 核心逻辑: 大盘与个股同步下跌时，下周反弹概率高
+    # ── Tier 1: 大盘深跌 + 个股跌 → 反弹 ──
+    # 准确率: 71.5% (全局), 覆盖~10%
     {
         'name': '跌>2%+大盘跌>1%→涨',
         'pred_up': True,
         'tier': 1,
         'check': lambda chg, mkt, cd, cu, ld: chg < -2 and mkt < -1,
+    },
+    # ── Tier 2: 个股极端下跌(不要求大盘) → 继续跌 ──
+    # 非深跌周准确率: 58.7% (N=4121), 动量延续效应
+    {
+        'name': '周跌>5%→继续跌',
+        'pred_up': False,
+        'tier': 2,
+        'check': lambda chg, mkt, cd, cu, ld: chg < -5,
+    },
+    # ── Tier 2: 个股中等下跌+连跌 → 继续跌 ──
+    # 非深跌周准确率: ~56% (N≈2000), 连跌动量
+    {
+        'name': '跌>3%+连跌≥3天→继续跌',
+        'pred_up': False,
+        'tier': 2,
+        'check': lambda chg, mkt, cd, cu, ld: chg < -3 and cd >= 3,
+    },
+    # ── Tier 2: 个股中等下跌 → 继续跌 ──
+    # 非深跌周准确率: 55.9% (N=7518), 覆盖面最广
+    {
+        'name': '周跌>3%→继续跌',
+        'pred_up': False,
+        'tier': 2,
+        'check': lambda chg, mkt, cd, cu, ld: chg < -3,
     },
 ]
 
@@ -816,13 +844,18 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
     # 命中规则
     nw_pred_up = rule['pred_up']
     tier = rule['tier']
-    confidence = 'high' if tier == 1 else ('medium' if tier == 2 else 'low')
+    if tier == 1:
+        confidence = 'high'
+    else:
+        confidence = 'reference'  # Tier 2: 参考级, 准确率~56-59%
 
     # 构建理由
     parts = [rule['name']]
     parts.append(f'本周{feat["this_week_chg"]:+.1f}%')
     if feat['market_chg'] != 0:
         parts.append(f'大盘{feat["market_chg"]:+.1f}%')
+    if tier == 2:
+        parts.append('参考信号')
     nw_reason = '; '.join(parts)
 
     return {
@@ -1358,6 +1391,7 @@ def run_batch_weekly_prediction():
     nw_count = 0
     nw_up = 0
     nw_uncertain = 0
+    nw_reference = 0  # Tier 2 参考级预测数量
     for p in predictions:
         code = p['stock_code']
         nw = _predict_next_week(code, data, latest_date, p)
@@ -1370,6 +1404,8 @@ def run_batch_weekly_prediction():
                 nw_count += 1
                 if nw['nw_pred_direction'] == 'UP':
                     nw_up += 1
+                if nw.get('nw_confidence') == 'reference':
+                    nw_reference += 1
 
                 # 填充下周回测准确率
                 nw_stock_bt = nw_per_stock_bt.get(code)
@@ -1428,22 +1464,35 @@ def run_batch_weekly_prediction():
             p['nw_backtest_samples'] = None
 
     nw_coverage = round(nw_count / len(predictions) * 100, 1) if predictions else 0
-    logger.info("  下周预测: %d只 (涨%d 跌%d), 不确定%d只, 覆盖率=%.1f%%, 回测准确率=%.1f%%",
-                nw_count, nw_up, nw_count - nw_up, nw_uncertain, nw_coverage,
+    logger.info("  下周预测: %d只 (涨%d 跌%d 参考%d), 不确定%d只, 覆盖率=%.1f%%, 回测准确率=%.1f%%",
+                nw_count, nw_up, nw_count - nw_up, nw_reference, nw_uncertain, nw_coverage,
                 nw_global_bt['accuracy'])
 
     # 填充回测准确率：优先使用个股+策略准确率，其次个股整体准确率，最后全局
-    # 改进：
-    #   1. MIN_STRATEGY_SAMPLES 提高到 5，减少小样本极端值
-    #   2. 策略级准确率过低（<20%）且为 fuzzy 类弱信号策略时，回退到个股整体准确率
-    #      因为 fuzzy 区间信号极弱，策略级准确率不具代表性
-    MIN_STRATEGY_SAMPLES = 5
-    MIN_FUZZY_STRATEGY_ACC = 20.0  # fuzzy策略准确率低于此值时回退
-    _FUZZY_STRATEGIES = {'follow_d4(fuzzy)', 'reverse_d4(fuzzy)', 'uncertain_d4(fuzzy)',
-                         'follow_d3(fuzzy)', 'reverse_d3(fuzzy)', 'uncertain_d3(fuzzy)'}
+    #
+    # 小样本策略级准确率的问题：
+    #   fuzzy/medium 策略在某些股票上只有3~8个样本，准确率波动极大（0%~40%），
+    #   但同一股票的整体准确率通常在70~90%（因为 strong 策略占多数且准确率极高）。
+    #   策略级准确率不能代表该股票的真实可预测性，需要回退到个股整体准确率。
+    #
+    # 回退规则：
+    #   1. 样本量 < MIN_STRATEGY_SAMPLES(8) → 直接用个股整体准确率
+    #   2. 弱信号策略(fuzzy/medium/uncertain) 且策略准确率 < 50% → 回退到个股整体
+    #      原因：这些策略信号强度不够，周五一天的波动就能翻转全周方向，
+    #      策略级准确率反映的是信号强度不足的问题，不是该股票不可预测
+    #   3. strong 策略始终使用策略级准确率（信号强，样本充足，准确率可靠）
+    MIN_STRATEGY_SAMPLES = 8
+    MIN_WEAK_STRATEGY_ACC = 50.0  # 弱信号策略准确率低于此值时回退
+    _WEAK_STRATEGIES = {
+        # fuzzy: d4/d3 信号极弱（接近0），方向预测本质上是随机的
+        'follow_d4(fuzzy)', 'reverse_d4(fuzzy)', 'uncertain_d4(fuzzy)',
+        'follow_d3(fuzzy)', 'reverse_d3(fuzzy)', 'uncertain_d3(fuzzy)',
+        # medium: 信号中等（|d4| 0.8~2.0%），周五反转概率高
+        'follow_d4(medium)', 'follow_d3(medium)',
+    }
     filled_per_stock = 0
     filled_per_strategy = 0
-    filled_fuzzy_fallback = 0
+    filled_weak_fallback = 0
     bt_start = global_bt.get('start_date')
     bt_end = global_bt.get('end_date')
     bt_n_weeks = global_bt.get('n_weeks', 0)
@@ -1452,20 +1501,15 @@ def run_batch_weekly_prediction():
         strategy = p.get('strategy', '')
         stock_bt = per_stock_bt.get(code)
         if stock_bt:
-            # 优先使用该股票在当前策略下的准确率（需样本量≥5）
             strat_acc = stock_bt.get('strategy_acc', {}).get(strategy)
             strat_raw = stock_bt.get('_strategy_raw', {}).get(strategy, [0, 0])
             strat_samples = strat_raw[1] if isinstance(strat_raw, (list, tuple)) else 0
             use_strategy_acc = (strat_acc is not None and strat_samples >= MIN_STRATEGY_SAMPLES)
 
-            # fuzzy 类弱信号策略：准确率过低时回退到个股整体准确率
-            # 原因：fuzzy 区间 d4/d3 信号极弱（接近0），方向预测本质上是随机的，
-            # 策略级准确率不能代表该股票的真实可预测性
-            if use_strategy_acc and strategy in _FUZZY_STRATEGIES and strat_acc < MIN_FUZZY_STRATEGY_ACC:
+            # 弱信号策略（fuzzy + medium）：准确率过低时回退到个股整体准确率
+            if use_strategy_acc and strategy in _WEAK_STRATEGIES and strat_acc < MIN_WEAK_STRATEGY_ACC:
                 p['backtest_accuracy'] = stock_bt['accuracy']
-                p['_fuzzy_fallback'] = True  # 标记：fuzzy策略回退
-                p['_strat_acc_original'] = strat_acc  # 保留原始策略准确率供前端展示
-                filled_fuzzy_fallback += 1
+                filled_weak_fallback += 1
             elif use_strategy_acc:
                 p['backtest_accuracy'] = strat_acc
                 filled_per_strategy += 1
@@ -1483,9 +1527,9 @@ def run_batch_weekly_prediction():
         p['backtest_start_date'] = bt_start
         p['backtest_end_date'] = bt_end
 
-    logger.info("  回测填充: 策略级%d只, 个股级%d只, fuzzy回退%d只, 全局兜底%d只",
-                filled_per_strategy, filled_per_stock, filled_fuzzy_fallback,
-                len(predictions) - filled_per_strategy - filled_per_stock - filled_fuzzy_fallback)
+    logger.info("  回测填充: 策略级%d只, 个股级%d只, 弱信号回退%d只, 全局兜底%d只",
+                filled_per_strategy, filled_per_stock, filled_weak_fallback,
+                len(predictions) - filled_per_strategy - filled_per_stock - filled_weak_fallback)
 
     # 填充预测涨跌幅：基于回测中同股票+同策略+同方向的历史实际周涨跌幅分布
     filled_pred_chg = 0
@@ -1577,8 +1621,9 @@ def run_batch_weekly_prediction():
     logger.info("  回测准确率: %.1f%% (LOWO: %.1f%%, %d周, %d样本)",
                 global_bt['full_accuracy'], global_bt['lowo_accuracy'],
                 global_bt['n_weeks'], global_bt['total_samples'])
-    logger.info("  下周预测: %d只(覆盖%.1f%%), 回测准确率: %.1f%% (%d样本, 覆盖%.1f%%)",
-                nw_count, nw_coverage, nw_global_bt['accuracy'],
+    logger.info("  下周预测: %d只(高置信%d 参考%d 覆盖%.1f%%), 回测准确率: %.1f%% (%d样本, 覆盖%.1f%%)",
+                nw_count, nw_count - nw_reference, nw_reference, nw_coverage,
+                nw_global_bt['accuracy'],
                 nw_global_bt['total'], nw_global_bt.get('coverage', 0))
     logger.info("  耗时: %.1fs", elapsed)
     logger.info("=" * 70)
@@ -1595,6 +1640,7 @@ def run_batch_weekly_prediction():
         'next_week_count': nw_count,
         'next_week_up': nw_up,
         'next_week_uncertain': nw_uncertain,
+        'next_week_reference': nw_reference,
         'next_week_coverage': nw_coverage,
         'elapsed': round(elapsed, 1),
     }
