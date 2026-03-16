@@ -1433,10 +1433,17 @@ def run_batch_weekly_prediction():
                 nw_global_bt['accuracy'])
 
     # 填充回测准确率：优先使用个股+策略准确率，其次个股整体准确率，最后全局
-    # 注意：策略级样本量过小时（<3），统计不可靠，回退到个股整体准确率
-    MIN_STRATEGY_SAMPLES = 3
+    # 改进：
+    #   1. MIN_STRATEGY_SAMPLES 提高到 5，减少小样本极端值
+    #   2. 策略级准确率过低（<20%）且为 fuzzy 类弱信号策略时，回退到个股整体准确率
+    #      因为 fuzzy 区间信号极弱，策略级准确率不具代表性
+    MIN_STRATEGY_SAMPLES = 5
+    MIN_FUZZY_STRATEGY_ACC = 20.0  # fuzzy策略准确率低于此值时回退
+    _FUZZY_STRATEGIES = {'follow_d4(fuzzy)', 'reverse_d4(fuzzy)', 'uncertain_d4(fuzzy)',
+                         'follow_d3(fuzzy)', 'reverse_d3(fuzzy)', 'uncertain_d3(fuzzy)'}
     filled_per_stock = 0
     filled_per_strategy = 0
+    filled_fuzzy_fallback = 0
     bt_start = global_bt.get('start_date')
     bt_end = global_bt.get('end_date')
     bt_n_weeks = global_bt.get('n_weeks', 0)
@@ -1445,11 +1452,21 @@ def run_batch_weekly_prediction():
         strategy = p.get('strategy', '')
         stock_bt = per_stock_bt.get(code)
         if stock_bt:
-            # 优先使用该股票在当前策略下的准确率（需样本量≥3）
+            # 优先使用该股票在当前策略下的准确率（需样本量≥5）
             strat_acc = stock_bt.get('strategy_acc', {}).get(strategy)
             strat_raw = stock_bt.get('_strategy_raw', {}).get(strategy, [0, 0])
             strat_samples = strat_raw[1] if isinstance(strat_raw, (list, tuple)) else 0
-            if strat_acc is not None and strat_samples >= MIN_STRATEGY_SAMPLES:
+            use_strategy_acc = (strat_acc is not None and strat_samples >= MIN_STRATEGY_SAMPLES)
+
+            # fuzzy 类弱信号策略：准确率过低时回退到个股整体准确率
+            # 原因：fuzzy 区间 d4/d3 信号极弱（接近0），方向预测本质上是随机的，
+            # 策略级准确率不能代表该股票的真实可预测性
+            if use_strategy_acc and strategy in _FUZZY_STRATEGIES and strat_acc < MIN_FUZZY_STRATEGY_ACC:
+                p['backtest_accuracy'] = stock_bt['accuracy']
+                p['_fuzzy_fallback'] = True  # 标记：fuzzy策略回退
+                p['_strat_acc_original'] = strat_acc  # 保留原始策略准确率供前端展示
+                filled_fuzzy_fallback += 1
+            elif use_strategy_acc:
                 p['backtest_accuracy'] = strat_acc
                 filled_per_strategy += 1
             else:
@@ -1465,6 +1482,10 @@ def run_batch_weekly_prediction():
         p['backtest_weeks'] = bt_n_weeks
         p['backtest_start_date'] = bt_start
         p['backtest_end_date'] = bt_end
+
+    logger.info("  回测填充: 策略级%d只, 个股级%d只, fuzzy回退%d只, 全局兜底%d只",
+                filled_per_strategy, filled_per_stock, filled_fuzzy_fallback,
+                len(predictions) - filled_per_strategy - filled_per_stock - filled_fuzzy_fallback)
 
     # 填充预测涨跌幅：基于回测中同股票+同策略+同方向的历史实际周涨跌幅分布
     filled_pred_chg = 0
@@ -1535,9 +1556,7 @@ def run_batch_weekly_prediction():
             filled_remaining += 1
     logger.info("  剩余涨跌幅填充: %d只", filled_remaining)
 
-    logger.info("  回测填充: 策略级%d只, 个股级%d只, 全局兜底%d只",
-                filled_per_strategy, filled_per_stock,
-                len(predictions) - filled_per_strategy - filled_per_stock)
+
 
     # 7. 写入数据库
     logger.info("[4/4] 写入数据库...")
