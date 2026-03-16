@@ -28,6 +28,14 @@
 注意：资金守恒（net_flow = big+mid+small）和占比守恒不作为校验规则，
 因为同花顺数据源的统计口径与东方财富不同，混合数据源下守恒关系不成立。
 
+概念板块K线数据质量校验：
+15. 无指数代码：board_index_code 为空，无法拉取K线
+16. 无K线数据：concept_board_kline 表中无记录
+17. K线过少：不足10条
+18. 数据过旧：最新K线距大盘最新日期超过7天
+19. 价格逻辑异常：close_price <= 0 / high < low
+20. 日期重复：同一板块存在重复日期
+
 发现K线异常时：调用 get_stock_day_kline_10jqka 重新拉取数据，重新检测，
 若通过则覆盖写入数据库，否则输出日志。
 发现资金流向异常时：先同花顺增量修复，若仍有异常则东方财富全量修复+同花顺覆盖，
@@ -103,6 +111,152 @@ def get_db_check_job_status() -> dict:
 def _already_done_today() -> bool:
     now_date = datetime.now(_CST).date().isoformat()
     return _job_status["last_run_date"] == now_date and _job_status["last_success"] is True
+
+
+# ─────────── 概念板块K线校验辅助函数 ───────────
+
+def _check_board_kline(board_code: str, board_name: str, index_code: str | None) -> list[dict]:
+    """
+    校验单个概念板块的K线数据质量。
+
+    检测项：
+    1. 无index_code：板块缺少指数代码映射
+    2. 无K线数据：concept_board_kline 表中无记录
+    3. K线过少：不足10条（新板块除外）
+    4. 数据过旧：最新K线距今超过5个交易日
+    5. 价格逻辑异常：close_price <= 0 / high < low
+    6. 日期重复：同一板块存在重复日期
+    """
+    from dao import get_connection as _get_conn
+    issues = []
+
+    if not index_code:
+        issues.append({"type": "无指数代码", "detail": f"board_index_code 为空，无法拉取K线"})
+
+    conn = _get_conn(use_dict_cursor=True)
+    cur = conn.cursor()
+    try:
+        # K线记录数
+        cur.execute("SELECT COUNT(*) as cnt FROM concept_board_kline WHERE board_code = %s",
+                    (board_code,))
+        cnt = cur.fetchone()["cnt"]
+
+        if cnt == 0:
+            issues.append({"type": "无K线数据", "detail": f"concept_board_kline 中无任何记录"})
+            return issues
+
+        if cnt < 10:
+            issues.append({"type": "K线过少", "detail": f"仅有 {cnt} 条K线记录"})
+
+        # 最新日期
+        cur.execute("SELECT MAX(`date`) as max_d FROM concept_board_kline WHERE board_code = %s",
+                    (board_code,))
+        max_date = cur.fetchone()["max_d"]
+
+        # 与大盘最新日期对比
+        cur.execute("SELECT MAX(`date`) as max_d FROM stock_kline WHERE stock_code = '000001.SH'")
+        market_max = cur.fetchone()["max_d"]
+
+        if max_date and market_max and max_date < market_max:
+            from datetime import date as _date
+            try:
+                board_d = _date.fromisoformat(str(max_date))
+                market_d = _date.fromisoformat(str(market_max))
+                gap = (market_d - board_d).days
+                if gap > 7:
+                    issues.append({
+                        "type": "数据过旧",
+                        "detail": f"最新K线 {max_date}，大盘最新 {market_max}，落后 {gap} 天"
+                    })
+            except (ValueError, TypeError):
+                pass
+
+        # 价格逻辑异常（抽查最近60条）
+        cur.execute(
+            "SELECT `date`, open_price, close_price, high_price, low_price "
+            "FROM concept_board_kline WHERE board_code = %s "
+            "ORDER BY `date` DESC LIMIT 60",
+            (board_code,)
+        )
+        price_issues = 0
+        for row in cur.fetchall():
+            d = row["date"]
+            cp = row["close_price"]
+            hp = row["high_price"]
+            lp = row["low_price"]
+            op = row["open_price"]
+            if cp is not None and cp <= 0:
+                price_issues += 1
+            if hp is not None and lp is not None and hp < lp:
+                price_issues += 1
+        if price_issues > 0:
+            issues.append({"type": "价格异常", "detail": f"最近60条中有 {price_issues} 条价格逻辑异常"})
+
+        # 日期重复
+        cur.execute(
+            "SELECT `date`, COUNT(*) as c FROM concept_board_kline "
+            "WHERE board_code = %s GROUP BY `date` HAVING c > 1",
+            (board_code,)
+        )
+        dup_rows = cur.fetchall()
+        if dup_rows:
+            issues.append({
+                "type": "日期重复",
+                "detail": f"{len(dup_rows)} 个日期存在重复记录"
+            })
+
+    finally:
+        cur.close()
+        conn.close()
+
+    return issues
+
+
+async def _repair_board_kline(board_code: str, board_name: str,
+                              index_code: str | None) -> bool:
+    """尝试修复板块K线：重新拉取并校验"""
+    try:
+        if not index_code:
+            # 尝试从网页获取 index_code
+            from service.jqka10.concept_board_kline_10jqka import fetch_board_index_code
+            index_code = fetch_board_index_code(board_code)
+            if index_code:
+                from dao.stock_concept_board_dao import update_board_index_code
+                update_board_index_code(board_code, index_code)
+                logger.info("[板块K线修复 %s(%s)] 获取到 index_code=%s 并回写",
+                            board_code, board_name, index_code)
+            else:
+                logger.warning("[板块K线修复 %s(%s)] 无法获取 index_code，跳过修复",
+                               board_code, board_name)
+                return False
+
+        from service.jqka10.concept_board_kline_10jqka import fetch_board_kline
+        from dao.concept_board_kline_dao import batch_upsert_klines
+
+        klines = await fetch_board_kline(index_code, limit=800)
+        if not klines:
+            logger.warning("[板块K线修复 %s(%s)] 拉取到空数据", board_code, board_name)
+            return False
+
+        batch_upsert_klines(board_code, klines, board_index_code=index_code)
+        logger.info("[板块K线修复 %s(%s)] 重新写入 %d 条K线", board_code, board_name, len(klines))
+
+        # 重新校验
+        re_issues = _check_board_kline(board_code, board_name, index_code)
+        # 修复后只要没有严重问题（无K线/价格异常/日期重复）就算通过
+        serious = [i for i in re_issues if i["type"] not in ("K线过少",)]
+        if not serious:
+            logger.info("[板块K线修复 %s(%s)] 修复后校验通过 ✓", board_code, board_name)
+            return True
+        else:
+            logger.warning("[板块K线修复 %s(%s)] 修复后仍有异常: %s",
+                           board_code, board_name,
+                           "; ".join(i["detail"] for i in serious))
+            return False
+
+    except Exception as e:
+        logger.error("[板块K线修复 %s(%s)] 异常: %s", board_code, board_name, e, exc_info=True)
+        return False
 
 
 async def _execute_job():
@@ -315,6 +469,60 @@ async def _execute_job():
         except Exception as e:
             logger.error("[资金流向校验] 执行异常: %s", e, exc_info=True)
 
+        # ── 第三阶段：概念板块K线数据质量校验 ──
+        board_kline_counter = {"checked": 0, "anomalies": 0, "repaired": 0}
+        try:
+            from dao import get_connection as _get_conn
+            conn = _get_conn(use_dict_cursor=True)
+            cur = conn.cursor()
+            try:
+                cur.execute("SELECT board_code, board_name, board_index_code "
+                            "FROM stock_concept_board ORDER BY board_code")
+                all_boards = cur.fetchall()
+            finally:
+                cur.close()
+                conn.close()
+
+            logger.info("[板块K线校验] 开始对 %d 个概念板块执行K线数据质量校验...", len(all_boards))
+
+            for board in all_boards:
+                board_code = board["board_code"]
+                board_name = board["board_name"]
+                index_code = board.get("board_index_code")
+                board_kline_counter["checked"] += 1
+
+                if board_kline_counter["checked"] % 50 == 0:
+                    await asyncio.sleep(0)
+
+                issues = _check_board_kline(board_code, board_name, index_code)
+                if not issues:
+                    continue
+
+                board_kline_counter["anomalies"] += 1
+                counter["anomalies"] += 1
+                issue_lines = [f"[{iss['type']}] {iss['detail']}" for iss in issues]
+                logger.warning("[板块K线校验 %s(%s)] 发现 %d 条异常:",
+                               board_code, board_name, len(issues))
+                for iss in issues:
+                    logger.warning("  [%s] %s", iss["type"], iss["detail"])
+
+                # 尝试修复：重新拉取板块K线
+                repaired = await _repair_board_kline(board_code, board_name, index_code)
+                status_tag = "已修复" if repaired else "未修复"
+                anomaly_details.append(
+                    f"{board_code}({board_name})[板块K线]({status_tag}): " + "; ".join(issue_lines)
+                )
+                if repaired:
+                    board_kline_counter["repaired"] += 1
+                    counter["repaired"] += 1
+
+            logger.info("[板块K线校验] 完成：%d 个板块检测，%d 个有异常，%d 个已修复",
+                        board_kline_counter["checked"], board_kline_counter["anomalies"],
+                        board_kline_counter["repaired"])
+
+        except Exception as e:
+            logger.error("[板块K线校验] 执行异常: %s", e, exc_info=True)
+
         now_str = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
         _job_status.update({
             "last_run_time": now_str,
@@ -332,7 +540,9 @@ async def _execute_job():
         detail = (f"共{counter['total']}只股票 异常{counter['anomalies']}只 "
                   f"已修复{counter['repaired']}只\n"
                   f"资金流向校验: {ff_counter['checked']}只检测 "
-                  f"异常{ff_counter['anomalies']}只 已修复{ff_counter['repaired']}只")
+                  f"异常{ff_counter['anomalies']}只 已修复{ff_counter['repaired']}只\n"
+                  f"板块K线校验: {board_kline_counter['checked']}个板块检测 "
+                  f"异常{board_kline_counter['anomalies']}个 已修复{board_kline_counter['repaired']}个")
         if anomaly_details:
             detail += "\n" + "\n".join(anomaly_details)
         # 防止 detail 超出数据库列长度限制
