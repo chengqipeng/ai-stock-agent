@@ -257,7 +257,7 @@ async def _fetch_dragon_tiger(trade_date: str) -> tuple[int, bool]:
 
 # ─────────── 主执行逻辑 ───────────
 
-async def _execute_job():
+async def _execute_job_inner():
     """执行盘后数据拉取任务"""
     _job_status["running"] = True
     _job_status["error"] = None
@@ -362,6 +362,17 @@ async def _execute_job():
         _save_persisted_status(_job_status)
 
 
+async def _execute_job():
+    from service.auto_job.scheduler_orchestrator import scheduler_lock, market_data_done_event
+    async with scheduler_lock:
+        logger.info("[盘后数据调度] 已获取全局调度锁")
+        try:
+            await _execute_job_inner()
+        finally:
+            market_data_done_event.set()
+            logger.info("[盘后数据调度] 已发送完成信号")
+
+
 # ─────────── 调度循环 ───────────
 
 async def _scheduler_loop():
@@ -413,6 +424,10 @@ async def start_market_data_scheduler():
                 await asyncio.sleep(10)
                 await _execute_job()
             asyncio.create_task(_delayed_execute())
+        else:
+            from service.auto_job.scheduler_orchestrator import market_data_done_event
+            market_data_done_event.set()
+            logger.info("[盘后数据调度] 今日无需补拉，已发送完成信号")
 
         asyncio.create_task(_scheduler_loop())
 

@@ -19,6 +19,7 @@
 用法：
     python -m service.weekly_prediction_service
 """
+import json
 import logging
 import sys
 from collections import defaultdict
@@ -35,6 +36,55 @@ from dao.stock_weekly_prediction_dao import (
 from common.constants.stocks_data import get_stock_name
 
 logger = logging.getLogger(__name__)
+
+# ═══════════════════════════════════════════════════════════
+# 个股→大盘指数映射（根据股票代码前缀确定对应的大盘指数）
+# ═══════════════════════════════════════════════════════════
+_INDEX_MAPPING = {
+    "300": "399001.SZ",  # 创业板 → 深证成指
+    "301": "399001.SZ",
+    "000": "399001.SZ",  # 深市主板 → 深证成指
+    "001": "399001.SZ",
+    "002": "399001.SZ",
+    "003": "399001.SZ",
+    "600": "000001.SH",  # 沪市主板 → 上证指数
+    "601": "000001.SH",
+    "603": "000001.SH",
+    "605": "000001.SH",
+    "688": "000001.SH",  # 科创板 → 上证指数
+    "689": "000001.SH",
+    "920": "899050.SZ",  # 北交所 → 北证50
+    "430": "899050.SZ",
+    "830": "899050.SZ",
+    "831": "899050.SZ",
+    "832": "899050.SZ",
+    "833": "899050.SZ",
+    "834": "899050.SZ",
+    "835": "899050.SZ",
+    "836": "899050.SZ",
+    "837": "899050.SZ",
+    "838": "899050.SZ",
+    "839": "899050.SZ",
+    "870": "899050.SZ",
+    "871": "899050.SZ",
+    "872": "899050.SZ",
+    "873": "899050.SZ",
+}
+
+
+def _get_stock_index(stock_code: str) -> str:
+    """根据股票代码返回对应的大盘指数代码。"""
+    prefix3 = stock_code[:3]
+    if prefix3 in _INDEX_MAPPING:
+        return _INDEX_MAPPING[prefix3]
+    # fallback by suffix
+    if stock_code.endswith(".SZ"):
+        return "399001.SZ"
+    if stock_code.endswith(".SH"):
+        return "000001.SH"
+    if stock_code.endswith(".BJ"):
+        return "899050.SZ"
+    return "000001.SH"  # 最终兜底
 
 
 # ═══════════════════════════════════════════════════════════
@@ -282,18 +332,28 @@ def _predict_with_profile(d4_chg, d3_chg, is_suspended, n_days, daily_pcts,
                         f'd4强信号={d4_chg:+.2f}%覆盖d3={d3_chg:+.2f}%'
 
             elif abs(d4_chg) > fuzzy_th:
-                # d4中等信号：与d3方向一致时增强，矛盾时降级
+                # d4中等信号：与d3方向一致时增强，矛盾时以d4为主
                 if (d4_chg >= 0) == d3_direction_up:
                     return d3_direction_up, 'high', 'confirm_d3d4(medium)', \
                         f'd3={d3_chg:+.2f}%,d4={d4_chg:+.2f}%,方向一致'
                 else:
-                    # d3和d4矛盾 → 以d3方向为主（回测更准），但降低置信度
-                    return d3_direction_up, 'low', 'conflict_d3d4', \
-                        f'd3={d3_chg:+.2f}%与d4={d4_chg:+.2f}%矛盾,以d3为主'
+                    # d3和d4矛盾 → d4中等信号更可靠（回测验证），以d4为主
+                    pred_up = d4_chg >= 0
+                    return pred_up, 'low', 'conflict_follow_d4(medium)', \
+                        f'd3={d3_chg:+.2f}%与d4={d4_chg:+.2f}%矛盾,以d4为主'
             else:
-                # d4 fuzzy区间：d4信号太弱，完全依赖d3方向
-                return d3_direction_up, 'medium', 'follow_d3_direction', \
-                    f'd3方向={d3_chg:+.2f}%,d4模糊={d4_chg:+.2f}%'
+                # d4 fuzzy区间：d4信号弱，综合d3和d4判断
+                # d3方向为主，但如果d3也很弱（fuzzy区间），降低置信度
+                if abs(d3_chg) > fuzzy_th:
+                    return d3_direction_up, 'medium', 'follow_d3_direction', \
+                        f'd3方向={d3_chg:+.2f}%,d4模糊={d4_chg:+.2f}%'
+                else:
+                    # d3和d4都在fuzzy区间 → 信号极弱
+                    # 用d3+d4的综合方向
+                    combined = d3_chg + d4_chg
+                    pred_up = combined >= 0
+                    return pred_up, 'low', 'weak_combined_d3d4', \
+                        f'd3={d3_chg:+.2f}%+d4={d4_chg:+.2f}%均弱,综合={combined:+.2f}%'
         else:
             # 仅d3可用（周三收盘）：直接用前3天方向
             if abs(d3_chg) > strong_th:
@@ -352,13 +412,13 @@ def _get_all_stock_codes() -> list[str]:
 
 
 def _get_latest_trade_date() -> str:
-    """获取stock_kline中最新的交易日期。"""
+    """获取stock_kline中最新的交易日期（从主要指数中取最新）。"""
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
     try:
         cur.execute(
             "SELECT MAX(`date`) as max_date FROM stock_kline "
-            "WHERE stock_code = '000001.SH'"
+            "WHERE stock_code IN ('000001.SH', '399001.SZ', '899050.SZ')"
         )
         row = cur.fetchone()
         return row['max_date'] if row else None
@@ -438,14 +498,25 @@ def _load_prediction_data(stock_codes: list[str], latest_date: str) -> dict:
                 'change_percent': _to_float(row['change_percent']),
             })
 
-    # 4. 大盘K线
+    # 4. 大盘K线（按指数分别加载：上证、深证、北证50）
+    all_index_codes = list(set(_get_stock_index(c) for c in stock_codes))
+    # 确保至少包含三大主要指数
+    for idx in ('000001.SH', '399001.SZ', '899050.SZ'):
+        if idx not in all_index_codes:
+            all_index_codes.append(idx)
+    ph_idx = ','.join(['%s'] * len(all_index_codes))
     cur.execute(
-        "SELECT `date`, close_price, change_percent FROM stock_kline "
-        "WHERE stock_code = '000001.SH' AND `date` >= %s AND `date` <= %s "
-        "ORDER BY `date`", (lookback_start, latest_date))
-    market_klines = [{'date': r['date'],
-                      'change_percent': _to_float(r['change_percent'])}
-                     for r in cur.fetchall()]
+        f"SELECT stock_code, `date`, close_price, change_percent FROM stock_kline "
+        f"WHERE stock_code IN ({ph_idx}) AND `date` >= %s AND `date` <= %s "
+        f"ORDER BY `date`", all_index_codes + [lookback_start, latest_date])
+    market_klines_by_index = defaultdict(list)
+    for r in cur.fetchall():
+        market_klines_by_index[r['stock_code']].append({
+            'date': r['date'],
+            'change_percent': _to_float(r['change_percent']),
+        })
+    # 兼容旧接口：market_klines 默认取上证指数
+    market_klines = market_klines_by_index.get('000001.SH', [])
 
     # 5. 股票名称（优先从概念板块成分股表获取，缺失的从本地常量补充）
     stock_names = {}
@@ -466,11 +537,62 @@ def _load_prediction_data(stock_codes: list[str], latest_date: str) -> dict:
     if missing_count:
         logger.info("[数据加载] 从本地常量补充 %d 只股票名称", missing_count)
 
+    # 5b. 资金流向数据（最近20天）
+    stock_fund_flows = defaultdict(list)
+    ff_start = (dt_latest - timedelta(days=30)).strftime('%Y-%m-%d')
+    for i in range(0, len(stock_codes), batch_size):
+        batch = stock_codes[i:i + batch_size]
+        ph = ','.join(['%s'] * len(batch))
+        cur.execute(
+            f"SELECT stock_code, `date`, net_flow, big_net, big_net_pct, "
+            f"mid_net, small_net, main_net_5day "
+            f"FROM stock_fund_flow WHERE stock_code IN ({ph}) "
+            f"AND `date` >= %s AND `date` <= %s ORDER BY `date`",
+            batch + [ff_start, latest_date])
+        for row in cur.fetchall():
+            stock_fund_flows[row['stock_code']].append({
+                'date': row['date'],
+                'net_flow': _to_float(row['net_flow']),
+                'big_net': _to_float(row['big_net']),
+                'big_net_pct': _to_float(row['big_net_pct']),
+                'mid_net': _to_float(row['mid_net']),
+                'small_net': _to_float(row['small_net']),
+                'main_net_5day': _to_float(row['main_net_5day']),
+            })
+    logger.info("[数据加载] 资金流向: %d 只股票有数据", len(stock_fund_flows))
+
+    # 5c. 财报数据（最近2期）
+    stock_finance = {}
+    for i in range(0, len(stock_codes), batch_size):
+        batch = stock_codes[i:i + batch_size]
+        ph = ','.join(['%s'] * len(batch))
+        cur.execute(
+            f"SELECT stock_code, data_json FROM stock_finance "
+            f"WHERE stock_code IN ({ph}) "
+            f"ORDER BY stock_code, report_date DESC",
+            batch)
+        current_code = None
+        count = 0
+        for row in cur.fetchall():
+            sc = row['stock_code']
+            if sc != current_code:
+                current_code = sc
+                count = 0
+            if count < 2:  # 只取最近2期
+                if sc not in stock_finance:
+                    stock_finance[sc] = []
+                try:
+                    stock_finance[sc].append(json.loads(row['data_json']))
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                count += 1
+    logger.info("[数据加载] 财报数据: %d 只股票有数据", len(stock_finance))
+
     conn.close()
 
-    logger.info("[数据加载] %d只股票K线, %d只有板块, %d板块K线, 大盘%d天",
+    logger.info("[数据加载] %d只股票K线, %d只有板块, %d板块K线, 大盘指数%d个",
                 len(stock_klines), len(stock_boards),
-                len(board_kline_map), len(market_klines))
+                len(board_kline_map), len(market_klines_by_index))
 
     # 6. 行业分类（申万一级）
     stock_sectors = {}
@@ -509,9 +631,218 @@ def _load_prediction_data(stock_codes: list[str], latest_date: str) -> dict:
         'stock_boards': dict(stock_boards),
         'board_kline_map': dict(board_kline_map),
         'market_klines': market_klines,
+        'market_klines_by_index': dict(market_klines_by_index),
         'stock_names': stock_names,
         'stock_sectors': stock_sectors,
         'stock_behaviors': stock_behaviors,
+        'stock_fund_flows': dict(stock_fund_flows),
+        'stock_finance': stock_finance,
+    }
+
+
+# ═══════════════════════════════════════════════════════════
+# 多维信号计算（资金流向、成交量、量价比、财报）
+# ═══════════════════════════════════════════════════════════
+
+def _get_market_klines_for_stock(code: str, data: dict) -> list[dict]:
+    """获取个股对应的大盘指数K线数据。"""
+    idx = _get_stock_index(code)
+    mkt_by_idx = data.get('market_klines_by_index', {})
+    klines = mkt_by_idx.get(idx)
+    if klines:
+        return klines
+    # fallback: 上证指数
+    return data.get('market_klines', [])
+
+
+def _compute_fund_flow_signal(code: str, data: dict, latest_date: str,
+                              iso_year: int, iso_week: int) -> dict:
+    """计算资金流向信号。
+
+    Returns:
+        {
+            'fund_flow_signal': float,  # 综合资金流信号 [-1, 1]
+            'big_net_sum': float,       # 本周大单净额合计(万元)
+            'main_net_5day': float,     # 最新5日主力净额(万元)
+            'fund_flow_trend': str,     # 'inflow' / 'outflow' / 'neutral'
+        }
+    """
+    ff_list = data.get('stock_fund_flows', {}).get(code, [])
+    if not ff_list:
+        return {'fund_flow_signal': None, 'big_net_sum': None,
+                'main_net_5day': None, 'fund_flow_trend': None}
+
+    # 本周资金流向
+    week_ff = []
+    for ff in ff_list:
+        try:
+            dt = datetime.strptime(ff['date'], '%Y-%m-%d')
+            ical = dt.isocalendar()
+            if ical[0] == iso_year and ical[1] == iso_week:
+                week_ff.append(ff)
+        except (ValueError, TypeError):
+            continue
+
+    if not week_ff:
+        # 取最近5天
+        recent = sorted(ff_list, key=lambda x: x['date'])[-5:]
+        week_ff = recent
+
+    big_net_sum = sum(f['big_net'] for f in week_ff)
+    net_flow_sum = sum(f['net_flow'] for f in week_ff)
+    latest_main_5d = week_ff[-1].get('main_net_5day', 0) if week_ff else 0
+
+    # 大单净占比均值
+    big_pcts = [f['big_net_pct'] for f in week_ff if f['big_net_pct'] != 0]
+    avg_big_pct = _mean(big_pcts) if big_pcts else 0
+
+    # 综合信号: 归一化到 [-1, 1]
+    # 大单净占比 > 5% 视为强流入, < -5% 视为强流出
+    signal = max(-1.0, min(1.0, avg_big_pct / 5.0))
+
+    # 趋势判断
+    if avg_big_pct > 2:
+        trend = 'inflow'
+    elif avg_big_pct < -2:
+        trend = 'outflow'
+    else:
+        trend = 'neutral'
+
+    return {
+        'fund_flow_signal': round(signal, 4),
+        'big_net_sum': round(big_net_sum, 2),
+        'main_net_5day': round(latest_main_5d, 2),
+        'fund_flow_trend': trend,
+    }
+
+
+def _compute_volume_signal(week_klines: list[dict], all_klines: list[dict]) -> dict:
+    """计算成交量和量价比信号。
+
+    Returns:
+        {
+            'vol_ratio': float,       # 本周均量 / 20日均量
+            'vol_price_corr': float,  # 量价相关性 [-1, 1]
+            'vol_trend': str,         # 'expanding' / 'shrinking' / 'normal'
+        }
+    """
+    if not week_klines or not all_klines:
+        return {'vol_ratio': None, 'vol_price_corr': None, 'vol_trend': None}
+
+    # 本周均量
+    week_vols = [k['volume'] for k in week_klines if k.get('volume', 0) > 0]
+    if not week_vols:
+        return {'vol_ratio': None, 'vol_price_corr': None, 'vol_trend': None}
+    week_avg_vol = _mean(week_vols)
+
+    # 20日均量（排除本周）
+    sorted_klines = sorted(all_klines, key=lambda x: x['date'])
+    if week_klines:
+        first_week_date = week_klines[0]['date']
+        hist_klines = [k for k in sorted_klines if k['date'] < first_week_date]
+    else:
+        hist_klines = sorted_klines
+    hist_vols = [k['volume'] for k in hist_klines[-20:] if k.get('volume', 0) > 0]
+    hist_avg_vol = _mean(hist_vols) if hist_vols else 0
+
+    vol_ratio = round(week_avg_vol / hist_avg_vol, 4) if hist_avg_vol > 0 else None
+
+    # 量价相关性（本周内：量增价涨为正相关）
+    vol_price_corr = None
+    if len(week_klines) >= 3:
+        chgs = [k['change_percent'] for k in week_klines]
+        vols = [k.get('volume', 0) for k in week_klines]
+        if len(chgs) == len(vols) and _std(vols) > 0 and _std(chgs) > 0:
+            n = len(chgs)
+            mean_c = _mean(chgs)
+            mean_v = _mean(vols)
+            cov = sum((chgs[i] - mean_c) * (vols[i] - mean_v) for i in range(n)) / n
+            vol_price_corr = round(cov / (_std(chgs) * _std(vols)), 4)
+
+    # 量能趋势
+    if vol_ratio is not None:
+        if vol_ratio > 1.5:
+            vol_trend = 'expanding'
+        elif vol_ratio < 0.7:
+            vol_trend = 'shrinking'
+        else:
+            vol_trend = 'normal'
+    else:
+        vol_trend = None
+
+    return {
+        'vol_ratio': vol_ratio,
+        'vol_price_corr': vol_price_corr,
+        'vol_trend': vol_trend,
+    }
+
+
+def _compute_finance_signal(code: str, data: dict) -> dict:
+    """从财报数据中提取关键财务信号。
+
+    Returns:
+        {
+            'revenue_yoy': float,     # 营收同比增长率(%)
+            'profit_yoy': float,      # 净利润同比增长率(%)
+            'roe': float,             # ROE(%)
+            'finance_score': float,   # 财务综合评分 [-1, 1]
+        }
+    """
+    fin_list = data.get('stock_finance', {}).get(code, [])
+    if not fin_list:
+        return {'revenue_yoy': None, 'profit_yoy': None,
+                'roe': None, 'finance_score': None}
+
+    latest = fin_list[0]  # 最新一期
+
+    # 提取关键指标（字段名来自同花顺财报JSON）
+    revenue_yoy = None
+    profit_yoy = None
+    roe = None
+
+    for key in ('营业总收入同比增长率(%)', '营业收入同比增长率(%)'):
+        if key in latest:
+            try:
+                revenue_yoy = float(latest[key])
+            except (ValueError, TypeError):
+                pass
+            break
+
+    for key in ('净利润同比增长率(%)', '归属母公司股东的净利润同比增长率(%)'):
+        if key in latest:
+            try:
+                profit_yoy = float(latest[key])
+            except (ValueError, TypeError):
+                pass
+            break
+
+    for key in ('净资产收益率(%)', '加权净资产收益率(%)'):
+        if key in latest:
+            try:
+                roe = float(latest[key])
+            except (ValueError, TypeError):
+                pass
+            break
+
+    # 综合评分: 基于营收增长、利润增长、ROE
+    score_parts = []
+    if revenue_yoy is not None:
+        # 营收增长 > 20% 加分, < -10% 减分
+        score_parts.append(max(-1, min(1, revenue_yoy / 30)))
+    if profit_yoy is not None:
+        # 利润增长 > 30% 加分, < -20% 减分
+        score_parts.append(max(-1, min(1, profit_yoy / 40)))
+    if roe is not None:
+        # ROE > 15% 优秀, < 5% 较差
+        score_parts.append(max(-1, min(1, (roe - 10) / 10)))
+
+    finance_score = round(_mean(score_parts), 4) if score_parts else None
+
+    return {
+        'revenue_yoy': round(revenue_yoy, 2) if revenue_yoy is not None else None,
+        'profit_yoy': round(profit_yoy, 2) if profit_yoy is not None else None,
+        'roe': round(roe, 2) if roe is not None else None,
+        'finance_score': finance_score,
     }
 
 
@@ -566,8 +897,8 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
     # 停牌检测
     is_suspended = n_days >= 3 and all(p == 0 for p in daily_pcts[:3])
 
-    # 大盘本周信号
-    market_klines = data['market_klines']
+    # 大盘本周信号（使用个股对应的大盘指数）
+    market_klines = _get_market_klines_for_stock(code, data)
     market_week = []
     for k in market_klines:
         dt = datetime.strptime(k['date'], '%Y-%m-%d')
@@ -588,7 +919,6 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
     board_names = [b['board_name'] for b in boards[:5]]
     board_momentum = None
     concept_consensus = None
-    fund_flow_signal = None
 
     if boards:
         board_kline_map = data['board_kline_map']
@@ -608,6 +938,17 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
             board_momentum = round(_mean(momentums), 4)
         if valid_boards > 0:
             concept_consensus = round(boards_up / valid_boards, 3)
+
+    # ── 多维信号计算 ──
+    # 资金流向信号
+    ff_result = _compute_fund_flow_signal(code, data, latest_date, iso_year, iso_week)
+    fund_flow_signal = ff_result['fund_flow_signal']
+
+    # 成交量 & 量价比信号
+    vol_result = _compute_volume_signal(week_klines, klines)
+
+    # 财报信号
+    fin_result = _compute_finance_signal(code, data)
 
     # ── 预测逻辑（v5: 行业自适应 + 个股行为分析） ──
     sector = data.get('stock_sectors', {}).get(code, '')
@@ -687,6 +1028,7 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
         'fund_flow_signal': fund_flow_signal,
         'market_d3_chg': market_d3,
         'market_d4_chg': market_d4,
+        'market_index': _get_stock_index(code),
         'concept_boards': ','.join(board_names)[:500] if board_names else None,
         'backtest_accuracy': None,  # 后续填充
         'backtest_lowo_accuracy': None,
@@ -705,6 +1047,17 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
         'pred_chg_samples': None,
         'week_realized_chg': round(_compound_return(daily_pcts), 4) if daily_pcts else None,
         'pred_remaining_chg': None,  # 后续由 pred_weekly_chg - week_realized_chg 计算
+        # 多维信号
+        'vol_ratio': vol_result.get('vol_ratio'),
+        'vol_price_corr': vol_result.get('vol_price_corr'),
+        'vol_trend': vol_result.get('vol_trend'),
+        'fund_flow_trend': ff_result.get('fund_flow_trend'),
+        'big_net_sum': ff_result.get('big_net_sum'),
+        'main_net_5day': ff_result.get('main_net_5day'),
+        'finance_score': fin_result.get('finance_score'),
+        'revenue_yoy': fin_result.get('revenue_yoy'),
+        'profit_yoy': fin_result.get('profit_yoy'),
+        'roe': fin_result.get('roe'),
     }
 
 

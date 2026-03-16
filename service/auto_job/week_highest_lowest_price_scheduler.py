@@ -143,7 +143,7 @@ def _load_stocks() -> list[dict]:
     return all_stocks
 
 
-async def _execute_job():
+async def _execute_job_inner():
     """执行一次最高最低价采集，失败时自动重试直到全部成功"""
     from common.utils.stock_info_utils import get_stock_info_by_name
     from dao.stock_highest_lowest_price_dao import save_price_record, get_today_processed_codes
@@ -275,6 +275,17 @@ async def _execute_job():
             pass
     finally:
         _job_status["running"] = False
+
+
+async def _execute_job():
+    from service.auto_job.scheduler_orchestrator import scheduler_lock, price_done_event
+    async with scheduler_lock:
+        logger.info("[最高最低价调度] 已获取全局调度锁")
+        try:
+            await _execute_job_inner()
+        finally:
+            price_done_event.set()
+            logger.info("[最高最低价调度] 已发送完成信号")
 
 
 async def _scheduler_loop():

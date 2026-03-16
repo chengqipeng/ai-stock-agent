@@ -732,28 +732,6 @@
             <div class="job-progress-bar"><div id="priceJobProgress" class="job-progress-fill" style="width:0%"></div></div>
         </div>
 
-        <div id="dbCheckJobBanner" style="
-            background: rgba(255,255,255,0.2);
-            border-radius: 8px;
-            padding: 4px 8px;
-            font-size: 11px;
-            color: rgba(255,255,255,0.9);
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            min-width: 0;
-            position: relative;
-        ">
-            <span id="dbCheckJobIcon" class="job-icon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
-            <span id="dbCheckJobText" style="overflow: hidden; text-overflow: ellipsis;">数据异常检测状态加载中<span class="job-dots"></span></span>
-            <span id="dbCheckJobElapsed" class="job-elapsed"></span>
-            <button onclick="triggerJob('db_check')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
-            <a href="/scheduler_logs?job_name=数据异常检测" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
-            <div class="job-progress-bar"><div id="dbCheckJobProgress" class="job-progress-fill" style="width:0%"></div></div>
-        </div>
         <div id="marketDataJobBanner" style="
             background: rgba(255,255,255,0.2);
             border-radius: 8px;
@@ -863,6 +841,28 @@
             <button onclick="triggerJob('weekly_prediction')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
             <a href="/scheduler_logs?job_name=周预测" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
             <div class="job-progress-bar"><div id="weeklyPredJobProgress" class="job-progress-fill" style="width:0%"></div></div>
+        </div>
+        <div id="dbCheckJobBanner" style="
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            position: relative;
+        ">
+            <span id="dbCheckJobIcon" class="job-icon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
+            <span id="dbCheckJobText" style="overflow: hidden; text-overflow: ellipsis;">数据异常检测状态加载中<span class="job-dots"></span></span>
+            <span id="dbCheckJobElapsed" class="job-elapsed"></span>
+            <button onclick="triggerJob('db_check')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
+            <a href="/scheduler_logs?job_name=数据异常检测" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
+            <div class="job-progress-bar"><div id="dbCheckJobProgress" class="job-progress-fill" style="width:0%"></div></div>
         </div>
     </div>
 
@@ -2779,15 +2779,15 @@
             const results = await Promise.allSettled([
                 pollKlineJobStatus(),
                 pollPriceJobStatus(),
-                pollDbCheckJobStatus(),
                 pollMarketDataJobStatus(),
                 pollUsMarketJobStatus(),
                 pollFundFlowJobStatus(),
                 pollConceptStrengthJobStatus(),
-                pollWeeklyPredJobStatus()
+                pollWeeklyPredJobStatus(),
+                pollDbCheckJobStatus()
             ]);
             // 检测是否有任务在运行
-            const banners = ['klineJobBanner','priceJobBanner','dbCheckJobBanner','marketDataJobBanner','usMarketJobBanner','fundFlowJobBanner','conceptStrengthJobBanner','weeklyPredJobBanner'];
+            const banners = ['klineJobBanner','priceJobBanner','marketDataJobBanner','usMarketJobBanner','fundFlowJobBanner','conceptStrengthJobBanner','weeklyPredJobBanner','dbCheckJobBanner'];
             _anyJobRunning = banners.some(id => document.getElementById(id)?.classList.contains('banner-running'));
             // 动态调整轮询间隔
             clearTimeout(_pollTimer);

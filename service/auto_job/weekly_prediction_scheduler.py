@@ -108,7 +108,7 @@ def _next_trigger_dt(after: datetime) -> datetime:
 # 核心执行逻辑
 # ═══════════════════════════════════════════════════════════════
 
-async def _execute_job():
+async def _execute_job_inner():
     """执行一次批量周预测"""
     from dao.scheduler_log_dao import insert_log, update_log
 
@@ -188,6 +188,17 @@ async def _execute_job():
         _save_persisted_status(_job_status)
 
 
+async def _execute_job():
+    from service.auto_job.scheduler_orchestrator import scheduler_lock, weekly_prediction_done_event
+    async with scheduler_lock:
+        logger.info("[周预测调度] 已获取全局调度锁")
+        try:
+            await _execute_job_inner()
+        finally:
+            weekly_prediction_done_event.set()
+            logger.info("[周预测调度] 已发送完成信号")
+
+
 # ═══════════════════════════════════════════════════════════════
 # 调度循环
 # ═══════════════════════════════════════════════════════════════
@@ -237,8 +248,15 @@ async def start_weekly_prediction_scheduler():
                 await _execute_job()
 
             asyncio.create_task(_delayed_execute())
-        elif not _is_prediction_day():
-            logger.info("[周预测调度] 今天不是预测日（仅周三/周四），跳过补拉")
+        else:
+            if not _is_prediction_day():
+                logger.info("[周预测调度] 今天不是预测日（仅周三/周四），跳过补拉")
+            else:
+                logger.info("[周预测调度] 今日已执行过，跳过补拉")
+            # 不需要执行时，立即发送完成信号，避免db_check永远等待
+            from service.auto_job.scheduler_orchestrator import weekly_prediction_done_event
+            weekly_prediction_done_event.set()
+            logger.info("[周预测调度] 今日无需执行，已发送完成信号")
 
         asyncio.create_task(_scheduler_loop())
 

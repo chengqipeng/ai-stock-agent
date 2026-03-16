@@ -123,7 +123,7 @@ def _next_trigger_dt(after: datetime) -> datetime:
 # 核心执行逻辑
 # ═══════════════════════════════════════════════════════════════
 
-async def _execute_job():
+async def _execute_job_inner():
     """执行海外市场数据拉取任务"""
     _job_status["running"] = True
     _job_status["error"] = None
@@ -285,6 +285,17 @@ async def _execute_job():
     finally:
         _job_status["running"] = False
         _save_persisted_status(_job_status)
+
+
+async def _execute_job():
+    from service.auto_job.scheduler_orchestrator import scheduler_lock, us_market_done_event
+    async with scheduler_lock:
+        logger.info("[海外数据调度] 已获取全局调度锁")
+        try:
+            await _execute_job_inner()
+        finally:
+            us_market_done_event.set()
+            logger.info("[海外数据调度] 已发送完成信号")
 
 
 # ═══════════════════════════════════════════════════════════════

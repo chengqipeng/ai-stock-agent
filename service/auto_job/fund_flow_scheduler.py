@@ -210,7 +210,7 @@ async def _fetch_fund_flow_for_stock(code, counter):
                 counter["failed"] += 1
 
 
-async def _execute_job():
+async def _execute_job_inner():
     _job_status["running"] = True
     _job_status["error"] = None
     start_time = datetime.now(_CST)
@@ -259,6 +259,17 @@ async def _execute_job():
         _save_persisted_status(_job_status)
 
 
+async def _execute_job():
+    from service.auto_job.scheduler_orchestrator import scheduler_lock, fund_flow_done_event
+    async with scheduler_lock:
+        logger.info("[资金流调度] 已获取全局调度锁")
+        try:
+            await _execute_job_inner()
+        finally:
+            fund_flow_done_event.set()
+            logger.info("[资金流调度] 已发送完成信号")
+
+
 async def _scheduler_loop():
     while True:
         try:
@@ -294,6 +305,11 @@ async def start_fund_flow_scheduler():
                 await asyncio.sleep(15)
                 await _execute_job()
             asyncio.create_task(_delayed())
+        else:
+            # 不需要执行时，立即发送完成信号
+            from service.auto_job.scheduler_orchestrator import fund_flow_done_event
+            fund_flow_done_event.set()
+            logger.info("[资金流调度] 今日无需补拉，已发送完成信号")
         asyncio.create_task(_scheduler_loop())
     asyncio.create_task(_deferred_start())
     logger.info("[资金流调度] 调度器已注册")

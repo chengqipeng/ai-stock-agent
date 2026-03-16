@@ -48,6 +48,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from service.auto_job.kline_data_scheduler import app_ready, kline_done_event_for_dbcheck
+from service.auto_job.scheduler_orchestrator import scheduler_lock, wait_all_data_jobs_done
 
 _CST = ZoneInfo("Asia/Shanghai")
 logger = logging.getLogger(__name__)
@@ -513,18 +514,25 @@ async def _execute_job():
 
 
 async def _scheduler_loop():
-    """调度主循环：等待日线完成信号后执行"""
+    """调度主循环：等待所有数据拉取任务完成后执行"""
     while True:
         try:
-            await kline_done_event_for_dbcheck.wait()
-            kline_done_event_for_dbcheck.clear()
+            # 等待所有数据拉取任务完成（kline, price, market_data, us_market, fund_flow, concept_strength, weekly_prediction）
+            await wait_all_data_jobs_done()
 
             if _already_done_today():
                 logger.info("[数据异常检测] 今日已完成，跳过")
+                # 等待下一轮信号（需要等事件被重置）
+                await asyncio.sleep(3600)
                 continue
 
-            logger.info("[数据异常检测] 收到日线完成信号，开始执行数据异常检测")
-            await _execute_job()
+            logger.info("[数据异常检测] 所有数据任务已完成，开始执行数据异常检测")
+            async with scheduler_lock:
+                logger.info("[数据异常检测] 已获取全局调度锁")
+                await _execute_job()
+
+            # 执行完后等待较长时间，避免重复触发
+            await asyncio.sleep(3600)
 
         except asyncio.CancelledError:
             logger.info("[数据异常检测] 调度循环被取消")
@@ -541,17 +549,20 @@ async def start_db_check_scheduler():
         await app_ready.wait()
         logger.info("[数据异常检测] 应用已就绪，调度器开始工作")
 
-        from service.auto_job.kline_data_scheduler import get_job_status as get_kline_status
-        kline_status = get_kline_status()
-        today_str = datetime.now(_CST).date().isoformat()
-        if (kline_status.get("last_run_date") == today_str
-                and not kline_status.get("running")
-                and not _already_done_today()):
-            logger.info("[数据异常检测] 启动补拉：日线今日已完成但异常检测未执行，将在5秒后执行")
-            async def _delayed_execute():
-                await asyncio.sleep(5)
-                await _execute_job()
-            asyncio.create_task(_delayed_execute())
+        # 启动时检查：如果所有数据任务今日已完成但异常检测未执行 → 补拉
+        if not _already_done_today():
+            from service.auto_job.kline_data_scheduler import get_job_status as get_kline_status
+            kline_status = get_kline_status()
+            today_str = datetime.now(_CST).date().isoformat()
+            if (kline_status.get("last_run_date") == today_str
+                    and not kline_status.get("running")):
+                logger.info("[数据异常检测] 启动补拉：日线今日已完成但异常检测未执行，将在5秒后执行")
+                async def _delayed_execute():
+                    await asyncio.sleep(5)
+                    async with scheduler_lock:
+                        logger.info("[数据异常检测] 已获取全局调度锁（补拉）")
+                        await _execute_job()
+                asyncio.create_task(_delayed_execute())
 
         asyncio.create_task(_scheduler_loop())
 
