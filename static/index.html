@@ -2666,6 +2666,8 @@
                         msg += '  ' + pct + '%  ' + doneAll + '/' + totalAll;
                         if (remaining > 0) msg += '  剩余' + remaining;
                         if (failAll > 0) msg += '  失败' + failAll;
+                    } else if (d.error) {
+                        msg = '日线数据 ' + d.error;
                     }
                     text.textContent = msg;
                     updateJobProgress('klineJobProgress', 'klineJobElapsed', doneAll, totalAll, d.start_time);
@@ -2737,6 +2739,8 @@
                         msg += '  ' + pct + '%  ' + pDone + '/' + pTotal;
                         if (remaining > 0) msg += '  剩余' + remaining;
                         if (pFail > 0) msg += '  失败' + pFail;
+                    } else if (d.error) {
+                        msg = '最高最低价 ' + d.error;
                     }
                     text.textContent = msg;
                     updateJobProgress('priceJobProgress', 'priceJobElapsed', pDone, pTotal, d.start_time);
@@ -2970,6 +2974,8 @@
                     let msg = '海外数据拉取中';
                     if (kline + idx + rank > 0) {
                         msg += '  K线' + kline + '  指数' + idx + '  涨幅榜' + rank;
+                    } else if (d.error) {
+                        msg = '海外数据 ' + d.error;
                     }
                     text.textContent = msg;
                     updateJobProgress('usMarketJobProgress', 'usMarketJobElapsed', kline + idx + rank, 572, d.last_run_time);
@@ -3112,6 +3118,9 @@
                         const totalDone = bmSuccess + bmFailed + done;
                         const totalAll = bmTotal + sbTotal;
                         updateJobProgress('conceptStrengthJobProgress', 'conceptStrengthJobElapsed', totalDone, totalAll, d.start_time);
+                    } else if (d.error) {
+                        msg = '概念强弱势 ' + d.error;
+                        updateJobProgress('conceptStrengthJobProgress', 'conceptStrengthJobElapsed', 0, 100, d.start_time);
                     } else {
                         msg += '  准备中...';
                         updateJobProgress('conceptStrengthJobProgress', 'conceptStrengthJobElapsed', 0, 100, d.start_time);
@@ -3183,6 +3192,8 @@
                         msg += '  ' + pct + '%  ' + done + '/' + total;
                         if (d.predict_up > 0) msg += '  涨' + d.predict_up;
                         if (d.predict_down > 0) msg += '  跌' + d.predict_down;
+                    } else if (d.error) {
+                        msg = '周预测 ' + d.error;
                     } else {
                         msg += '  准备中...';
                     }

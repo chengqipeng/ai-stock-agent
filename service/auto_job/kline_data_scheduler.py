@@ -544,8 +544,14 @@ async def _execute_job(manual=False):
             kline_done_event_for_dbcheck.set()
 
     if manual:
-        logger.info("[定时调度] 手动触发，跳过调度锁")
-        await _inner()
+        _job_status["running"] = True
+        _job_status["error"] = "等待手动调度槽位..."
+        logger.info("[定时调度] 手动触发，等待调度槽位")
+        from service.auto_job.scheduler_orchestrator import manual_semaphore
+        async with manual_semaphore:
+            _job_status["error"] = None
+            logger.info("[定时调度] 已获取手动调度槽位")
+            await _inner()
     else:
         async with scheduler_lock:
             logger.info("[定时调度] 已获取全局调度锁")

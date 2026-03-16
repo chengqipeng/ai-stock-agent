@@ -288,13 +288,18 @@ async def _execute_job_inner():
 
 
 async def _execute_job(manual=False):
-    from service.auto_job.scheduler_orchestrator import scheduler_lock, us_market_done_event
+    from service.auto_job.scheduler_orchestrator import scheduler_lock, manual_semaphore, us_market_done_event
     if manual:
-        logger.info("[海外数据调度] 手动触发，跳过调度锁")
-        try:
-            await _execute_job_inner()
-        finally:
-            us_market_done_event.set()
+        _job_status["running"] = True
+        _job_status["error"] = "等待手动调度槽位..."
+        logger.info("[海外数据调度] 手动触发，等待调度槽位")
+        async with manual_semaphore:
+            _job_status["error"] = None
+            logger.info("[海外数据调度] 已获取手动调度槽位")
+            try:
+                await _execute_job_inner()
+            finally:
+                us_market_done_event.set()
     else:
         async with scheduler_lock:
             logger.info("[海外数据调度] 已获取全局调度锁")

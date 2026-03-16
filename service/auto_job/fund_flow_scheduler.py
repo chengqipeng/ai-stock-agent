@@ -273,18 +273,24 @@ async def _execute_job_inner():
 
 
 async def _execute_job(manual=False):
-    from service.auto_job.scheduler_orchestrator import scheduler_lock, fund_flow_done_event
+    from service.auto_job.scheduler_orchestrator import scheduler_lock, manual_semaphore, fund_flow_done_event
     if manual:
-        logger.info("[资金流调度] 手动触发，跳过调度锁")
-        try:
-            await _execute_job_inner()
-        finally:
-            fund_flow_done_event.set()
+        _job_status["running"] = True
+        _job_status["error"] = "等待手动调度槽位..."
+        logger.info("[资金流调度] 手动触发，等待调度槽位")
+        async with manual_semaphore:
+            _job_status["error"] = None
+            logger.info("[资金流调度] 已获取手动调度槽位")
+            try:
+                await _execute_job_inner()
+            finally:
+                fund_flow_done_event.set()
     else:
         _job_status["running"] = True
         _job_status["error"] = "等待调度锁..."
         logger.info("[资金流调度] 等待全局调度锁")
         async with scheduler_lock:
+            _job_status["error"] = None
             logger.info("[资金流调度] 已获取全局调度锁")
             try:
                 await _execute_job_inner()
