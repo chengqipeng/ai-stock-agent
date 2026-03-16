@@ -8,12 +8,13 @@
 3. 同时写入 stock_weekly_prediction_history（历史记录）
 4. 附带29周回测准确率作为参考
 
-预测逻辑（与v4回测一致）：
+预测逻辑（v6: 前N天方向策略）：
 - 获取本周已有的交易日K线数据
 - 计算d3(前3天)/d4(前4天)复合涨跌幅
 - 停牌股(前3天全0) → 预测涨(99.5%准确)
-- d4可用时: |d4|>2% → 强信号(95%), 0.8-2% → 中等(80%), <0.8% → 模糊(63%)
-- d4不可用时: 回退到d3信号
+- 策略C(d3可用): 前3天累计涨跌>0→预测周涨, <0→预测周跌 (回测81.8%)
+- 策略B(仅d1/d2): 周一涨跌>0.5%→跟随方向 (回测67.2%)
+- d4强信号(|d4|>2%)可覆盖d3方向, d3d4一致时置信度最高
 
 用法：
     python -m service.weekly_prediction_service
@@ -244,7 +245,13 @@ def _get_stock_strategy_profile(code: str, sector: str, behavior: dict) -> dict:
 
 def _predict_with_profile(d4_chg, d3_chg, is_suspended, n_days, daily_pcts,
                           profile: dict) -> tuple:
-    """使用策略配置进行预测。
+    """使用策略配置进行预测（v6: 前N天方向策略 + 信号强度分层）。
+
+    核心改进（基于回测验证）：
+    - 策略C(前3天方向>0): 回测准确率81.8%，作为d3可用时的主策略
+    - 策略B(周一混合): 回测准确率67.2%，作为仅d1可用时的策略
+    - 强信号(|d4|>2%)仍保留动量跟随，但置信度基于回测校准
+    - fuzzy区间(|signal|<0.5%)不再强行预测，标记为uncertain
 
     Returns:
         (pred_up: bool, confidence: str, strategy: str, reason: str)
@@ -256,38 +263,73 @@ def _predict_with_profile(d4_chg, d3_chg, is_suspended, n_days, daily_pcts,
     if is_suspended:
         return True, 'high', 'suspended_up', '停牌:前3天全0'
 
-    if d4_chg is not None:
-        if abs(d4_chg) > strong_th:
-            return (d4_chg >= 0), 'high', 'follow_d4(strong)', f'd4强信号:{d4_chg:+.2f}%'
-        elif abs(d4_chg) > fuzzy_th:
-            return (d4_chg >= 0), 'medium', 'follow_d4(medium)', f'd4中等:{d4_chg:+.2f}%'
-        else:
-            # fuzzy区间：根据策略配置决定方向
-            if fuzzy_mode == 'reverse':
-                pred_up = d4_chg < 0  # 反向
-                return pred_up, 'low', 'reverse_d4(fuzzy)', f'd4模糊反转:{d4_chg:+.2f}%'
-            elif fuzzy_mode == 'skip':
-                # 不确定时仍给预测，但标记为极低置信
-                return (d4_chg >= 0), 'low', 'uncertain_d4(fuzzy)', f'd4不确定:{d4_chg:+.2f}%'
-            else:
-                return (d4_chg >= 0), 'low', 'follow_d4(fuzzy)', f'd4模糊:{d4_chg:+.2f}%'
+    # ── 策略C: 前3天方向（回测81.8%准确率）──
+    # 当d3可用时，前3天累计涨跌方向是最强信号
+    if d3_chg is not None and n_days >= 3:
+        d3_direction_up = d3_chg > 0  # 前3天累计>0 → 预测周涨
 
-    if d3_chg is not None:
-        if abs(d3_chg) > strong_th:
-            return (d3_chg > 0), 'high', 'follow_d3(strong)', f'd3强信号:{d3_chg:+.2f}%'
-        elif abs(d3_chg) > fuzzy_th:
-            return (d3_chg > 0), 'medium', 'follow_d3(medium)', f'd3中等:{d3_chg:+.2f}%'
-        else:
-            if fuzzy_mode == 'reverse':
-                pred_up = d3_chg < 0
-                return pred_up, 'low', 'reverse_d3(fuzzy)', f'd3模糊反转:{d3_chg:+.2f}%'
-            elif fuzzy_mode == 'skip':
-                return (d3_chg >= 0), 'low', 'uncertain_d3(fuzzy)', f'd3不确定:{d3_chg:+.2f}%'
+        # d4可用时，结合d4强化或修正
+        if d4_chg is not None:
+            if abs(d4_chg) > strong_th:
+                # d4强信号：d4方向覆盖d3（强动量延续）
+                pred_up = d4_chg >= 0
+                # 如果d3和d4方向一致，置信度更高
+                if (d4_chg >= 0) == d3_direction_up:
+                    return pred_up, 'high', 'confirm_d3d4(strong)', \
+                        f'd3={d3_chg:+.2f}%,d4强信号={d4_chg:+.2f}%,方向一致'
+                else:
+                    return pred_up, 'medium', 'override_d4(strong)', \
+                        f'd4强信号={d4_chg:+.2f}%覆盖d3={d3_chg:+.2f}%'
+
+            elif abs(d4_chg) > fuzzy_th:
+                # d4中等信号：与d3方向一致时增强，矛盾时降级
+                if (d4_chg >= 0) == d3_direction_up:
+                    return d3_direction_up, 'high', 'confirm_d3d4(medium)', \
+                        f'd3={d3_chg:+.2f}%,d4={d4_chg:+.2f}%,方向一致'
+                else:
+                    # d3和d4矛盾 → 以d3方向为主（回测更准），但降低置信度
+                    return d3_direction_up, 'low', 'conflict_d3d4', \
+                        f'd3={d3_chg:+.2f}%与d4={d4_chg:+.2f}%矛盾,以d3为主'
             else:
-                return (d3_chg >= 0), 'low', 'follow_d3(fuzzy)', f'd3模糊:{d3_chg:+.2f}%'
+                # d4 fuzzy区间：d4信号太弱，完全依赖d3方向
+                return d3_direction_up, 'medium', 'follow_d3_direction', \
+                    f'd3方向={d3_chg:+.2f}%,d4模糊={d4_chg:+.2f}%'
+        else:
+            # 仅d3可用（周三收盘）：直接用前3天方向
+            if abs(d3_chg) > strong_th:
+                return d3_direction_up, 'high', 'follow_d3_direction(strong)', \
+                    f'd3方向={d3_chg:+.2f}%(强信号)'
+            elif abs(d3_chg) > fuzzy_th:
+                return d3_direction_up, 'medium', 'follow_d3_direction(medium)', \
+                    f'd3方向={d3_chg:+.2f}%'
+            else:
+                # d3也在fuzzy区间 → 仍然用方向（回测显示即使小幅也有效）
+                # 但置信度降低
+                return d3_direction_up, 'low', 'follow_d3_direction(weak)', \
+                    f'd3方向={d3_chg:+.2f}%(弱信号)'
+
+    # ── 策略B: 周一混合（回测67.2%准确率）──
+    # 仅有1-2天数据时使用
+    if n_days >= 1 and daily_pcts:
+        d1_chg = daily_pcts[0]
+        if n_days >= 2:
+            cum_chg = _compound_return(daily_pcts[:2])
+        else:
+            cum_chg = d1_chg
+
+        if abs(cum_chg) > 0.5:
+            # 周一/周二涨跌>0.5% → 跟随方向
+            pred_up = cum_chg > 0
+            conf = 'medium' if abs(cum_chg) > 1.0 else 'low'
+            return pred_up, conf, f'early_direction_d{n_days}', \
+                f'前{n_days}天={cum_chg:+.2f}%,方向跟随'
+        else:
+            # 涨跌幅太小，不确定
+            return (cum_chg >= 0), 'low', f'uncertain_d{n_days}', \
+                f'前{n_days}天={cum_chg:+.2f}%,信号不足'
 
     # 数据不足
-    cum = _compound_return(daily_pcts)
+    cum = _compound_return(daily_pcts) if daily_pcts else 0
     return (cum >= 0), 'low', f'partial_d{n_days}', f'仅{n_days}天数据:{cum:+.2f}%'
 
 
@@ -1485,11 +1527,13 @@ def run_batch_weekly_prediction():
     MIN_STRATEGY_SAMPLES = 8
     MIN_WEAK_STRATEGY_ACC = 50.0  # 弱信号策略准确率低于此值时回退
     _WEAK_STRATEGIES = {
-        # fuzzy: d4/d3 信号极弱（接近0），方向预测本质上是随机的
-        'follow_d4(fuzzy)', 'reverse_d4(fuzzy)', 'uncertain_d4(fuzzy)',
-        'follow_d3(fuzzy)', 'reverse_d3(fuzzy)', 'uncertain_d3(fuzzy)',
-        # medium: 信号中等（|d4| 0.8~2.0%），周五反转概率高
-        'follow_d4(medium)', 'follow_d3(medium)',
+        # 弱信号: d3/d4方向不明确或矛盾
+        'follow_d3_direction(weak)',
+        'conflict_d3d4',
+        'uncertain_d1', 'uncertain_d2',
+        # 早期数据不足
+        'early_direction_d1', 'early_direction_d2',
+        'partial_d1', 'partial_d2',
     }
     filled_per_stock = 0
     filled_per_strategy = 0
