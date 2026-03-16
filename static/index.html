@@ -2892,6 +2892,8 @@
                         msg += '  ' + pct + '%  分时' + tDone + '/' + tTotal + '  盘口' + oDone + '/' + oTotal;
                         if (dtCount > 0) msg += '  龙虎榜' + dtCount + '条';
                         if (totalFail > 0) msg += '  失败' + totalFail;
+                    } else if (d.error) {
+                        msg = '盘后数据 ' + d.error;
                     }
                     text.textContent = msg;
                     updateJobProgress('marketDataJobProgress', 'marketDataJobElapsed', doneAll, totalAll, d.start_time);
@@ -3036,6 +3038,8 @@
                     if (sTotal > 0) {
                         msg += '  ' + pct + '%  ' + done + '/' + sTotal;
                         if (sFailed > 0) msg += '  失败' + sFailed;
+                    } else if (d.error) {
+                        msg = '资金流向 ' + d.error;
                     }
                     text.textContent = msg;
                     updateJobProgress('fundFlowJobProgress', 'fundFlowJobElapsed', done, sTotal, d.last_run_time);

@@ -1072,32 +1072,37 @@ def _predict_stock_weekly(code: str, data: dict, latest_date: str) -> dict | Non
 # 核心发现：跌反转+大盘配合是最强信号
 # - 跌>2%+大盘跌>1%→涨: 71.5%准确率 (N=5341)
 # - 跌>2%+大盘跌>0.5%+连跌>=2→涨: 73.9%准确率 (N=3356)
-# 下周预测规则引擎 — 多维分层规则（v2: 结合资金流向、量价、财报）
-# Tier 1 (高置信): 大盘深跌+个股跌 → 反弹, 准确率~72%, 仅大盘跌>1%时触发
-#   - 大盘使用个股对应指数（沪→上证, 深→深证成指, 北→北证50）
-# Tier 1b (高置信): 资金流入+量价配合 → 涨
-# Tier 2 (参考): 不依赖大盘条件, 准确率~57%, 在任何市场环境下触发
-# Tier 3 (参考): 资金持续流出+缩量 → 跌
-# 互斥匹配: 按顺序匹配, 命中第一条即停止
+# 下周预测规则引擎 — 多维分层规则（v2: 多指数自适应 + 资金流向/量价/财报）
+#
+# 回测实证（5531只股票, 29周）:
+#   上证指数: Tier1=71.7%(N=6096), Tier2=54.8%(N=4601)
+#   深证成指: Tier1=62.7%(N=9742), Tier2=47.8%(N=4933) ← 深市阈值需收紧
+#   北证50:   Tier1未触发, Tier2=53.9%(N=1210)
+#
+# 策略调整:
+#   - Tier 1 对深市/北交所收紧大盘阈值（深证跌>1.5%, 北证跌>2%）
+#   - Tier 2 仅保留沪市（深市反向，北交所边际）
+#   - 新增 Tier 1b/1c/3 基于资金流向和量价信号（实盘时触发）
 _NW_RULES = [
-    # ── Tier 1: 大盘深跌 + 个股跌 → 反弹 ──
+    # ── Tier 1: 大盘深跌 + 个股跌 → 反弹（按指数自适应阈值）──
+    # 上证: 跌>1% 即可 (71.7%), 深证: 需跌>1.5%, 北证: 需跌>2%
     {
-        'name': '跌>2%+大盘跌>1%→涨',
+        'name': '跌>2%+大盘深跌→涨',
         'pred_up': True,
         'tier': 1,
-        'check': lambda chg, mkt, cd, cu, ld, **kw: chg < -2 and mkt < -1,
+        'check': lambda chg, mkt, cd, cu, ld, **kw: (
+            chg < -2 and mkt < -(kw.get('_mkt_threshold', 1.0))
+        ),
     },
     # ── Tier 1b: 个股跌+资金大幅流入+放量 → 反弹 ──
-    # 主力逆势吸筹信号
+    # 主力逆势吸筹信号（实盘时触发，回测中无资金流数据）
     {
         'name': '跌>2%+主力流入+放量→涨',
         'pred_up': True,
         'tier': 1,
         'check': lambda chg, mkt, cd, cu, ld, **kw: (
             chg < -2
-            and kw.get('ff_signal', 0) is not None
             and (kw.get('ff_signal') or 0) > 0.3
-            and kw.get('vol_ratio') is not None
             and (kw.get('vol_ratio') or 0) > 1.2
         ),
     },
@@ -1113,12 +1118,15 @@ _NW_RULES = [
             and (kw.get('vol_price_corr') or 0) > 0.3
         ),
     },
-    # ── Tier 2: 个股大跌(不要求大盘) → 继续跌 ──
+    # ── Tier 2: 个股大跌 → 继续跌（仅沪市有效）──
+    # 深市47.8%反向，北交所53.9%边际，仅沪市54.8%有效
     {
         'name': '周跌>5%→继续跌',
         'pred_up': False,
         'tier': 2,
-        'check': lambda chg, mkt, cd, cu, ld, **kw: chg < -5,
+        'check': lambda chg, mkt, cd, cu, ld, **kw: (
+            chg < -5 and kw.get('_market_suffix', '') == 'SH'
+        ),
     },
     # ── Tier 3: 资金持续流出+缩量 → 跌 ──
     {
@@ -1143,6 +1151,13 @@ _NW_RULES = [
         ),
     },
 ]
+
+# 不同指数的大盘跌幅阈值（Tier 1 触发条件）
+_INDEX_MKT_THRESHOLD = {
+    '000001.SH': 1.0,   # 上证: 跌>1% (回测71.7%)
+    '399001.SZ': 1.5,   # 深证: 收紧到跌>1.5%
+    '899050.SZ': 2.0,   # 北证: 收紧到跌>2%
+}
 
 
 def _nw_extract_features(daily_pcts: list[float], market_chg: float,

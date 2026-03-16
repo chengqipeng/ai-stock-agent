@@ -445,12 +445,11 @@ def _already_done_today() -> bool:
     return _job_status["last_run_date"] == now_date
 
 
-async def _execute_job():
+async def _execute_job(manual=False):
     """执行一次K线+财报采集"""
     from dao.scheduler_log_dao import insert_log, update_log
 
-    async with scheduler_lock:
-        logger.info("[定时调度] 已获取全局调度锁")
+    async def _inner():
         _job_status["running"] = True
         _job_status["error"] = None
         _job_status["start_time"] = datetime.now(_CST).isoformat()
@@ -543,6 +542,14 @@ async def _execute_job():
             kline_done_event.set()
             kline_done_event_for_kscore.set()
             kline_done_event_for_dbcheck.set()
+
+    if manual:
+        logger.info("[定时调度] 手动触发，跳过调度锁")
+        await _inner()
+    else:
+        async with scheduler_lock:
+            logger.info("[定时调度] 已获取全局调度锁")
+            await _inner()
 
 
 async def _scheduler_loop():

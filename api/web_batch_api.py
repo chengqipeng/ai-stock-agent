@@ -229,7 +229,7 @@ async def trigger_kline_job():
     status = get_job_status()
     if status.get("running"):
         return {"success": False, "message": "日线数据任务正在执行中"}
-    asyncio.create_task(_kline_execute_job())
+    asyncio.create_task(_kline_execute_job(manual=True))
     return {"success": True, "message": "日线数据任务已触发"}
 
 
@@ -239,7 +239,7 @@ async def trigger_price_job():
     status = get_price_job_status()
     if status.get("running"):
         return {"success": False, "message": "最高最低价任务正在执行中"}
-    asyncio.create_task(_price_execute_job())
+    asyncio.create_task(_price_execute_job(manual=True))
     return {"success": True, "message": "最高最低价任务已触发"}
 
 
@@ -275,7 +275,7 @@ async def trigger_market_data_job():
     status = get_market_data_job_status()
     if status.get("running"):
         return {"success": False, "message": "盘后数据任务正在执行中"}
-    asyncio.create_task(_market_data_execute_job())
+    asyncio.create_task(_market_data_execute_job(manual=True))
     return {"success": True, "message": "盘后数据任务已触发（分时/盘口/龙虎榜）"}
 
 
@@ -291,7 +291,7 @@ async def trigger_us_market_job():
     status = get_us_market_job_status()
     if status.get("running"):
         return {"success": False, "message": "海外市场数据任务正在执行中"}
-    asyncio.create_task(_us_market_execute_job())
+    asyncio.create_task(_us_market_execute_job(manual=True))
     return {"success": True, "message": "海外市场数据任务已触发（美股K线/全球指数/涨幅榜）"}
 
 
@@ -307,7 +307,7 @@ async def trigger_fund_flow_job():
     status = get_fund_flow_job_status()
     if status.get("running"):
         return {"success": False, "message": "资金流向任务正在执行中"}
-    asyncio.create_task(_fund_flow_execute_job())
+    asyncio.create_task(_fund_flow_execute_job(manual=True))
     return {"success": True, "message": "资金流向数据任务已触发"}
 
 
@@ -323,7 +323,7 @@ async def trigger_concept_strength_job():
     status = get_concept_strength_job_status()
     if status.get("running"):
         return {"success": False, "message": "概念板块强弱势任务正在执行中"}
-    asyncio.create_task(_concept_strength_execute_job())
+    asyncio.create_task(_concept_strength_execute_job(manual=True))
     return {"success": True, "message": "概念板块强弱势任务已触发（板块大盘强弱势 + 个股板块强弱势）"}
 
 
@@ -339,7 +339,7 @@ async def trigger_weekly_prediction_job():
     status = get_weekly_prediction_job_status()
     if status.get("running"):
         return {"success": False, "message": "周预测任务正在执行中"}
-    asyncio.create_task(_weekly_prediction_execute_job())
+    asyncio.create_task(_weekly_prediction_execute_job(manual=True))
     return {"success": True, "message": "周预测任务已触发"}
 
 

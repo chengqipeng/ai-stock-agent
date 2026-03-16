@@ -232,15 +232,22 @@ async def _execute_job_inner():
         _save_persisted_status(_job_status)
 
 
-async def _execute_job():
+async def _execute_job(manual=False):
     from service.auto_job.scheduler_orchestrator import scheduler_lock, concept_strength_done_event
-    async with scheduler_lock:
-        logger.info("[概念强弱势调度] 已获取全局调度锁")
+    if manual:
+        logger.info("[概念强弱势调度] 手动触发，跳过调度锁")
         try:
             await _execute_job_inner()
         finally:
             concept_strength_done_event.set()
-            logger.info("[概念强弱势调度] 已发送完成信号")
+    else:
+        async with scheduler_lock:
+            logger.info("[概念强弱势调度] 已获取全局调度锁")
+            try:
+                await _execute_job_inner()
+            finally:
+                concept_strength_done_event.set()
+                logger.info("[概念强弱势调度] 已发送完成信号")
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -188,15 +188,22 @@ async def _execute_job_inner():
         _save_persisted_status(_job_status)
 
 
-async def _execute_job():
+async def _execute_job(manual=False):
     from service.auto_job.scheduler_orchestrator import scheduler_lock, weekly_prediction_done_event
-    async with scheduler_lock:
-        logger.info("[周预测调度] 已获取全局调度锁")
+    if manual:
+        logger.info("[周预测调度] 手动触发，跳过调度锁")
         try:
             await _execute_job_inner()
         finally:
             weekly_prediction_done_event.set()
-            logger.info("[周预测调度] 已发送完成信号")
+    else:
+        async with scheduler_lock:
+            logger.info("[周预测调度] 已获取全局调度锁")
+            try:
+                await _execute_job_inner()
+            finally:
+                weekly_prediction_done_event.set()
+                logger.info("[周预测调度] 已发送完成信号")
 
 
 # ═══════════════════════════════════════════════════════════════

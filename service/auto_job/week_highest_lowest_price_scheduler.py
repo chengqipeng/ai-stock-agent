@@ -277,15 +277,22 @@ async def _execute_job_inner():
         _job_status["running"] = False
 
 
-async def _execute_job():
+async def _execute_job(manual=False):
     from service.auto_job.scheduler_orchestrator import scheduler_lock, price_done_event
-    async with scheduler_lock:
-        logger.info("[最高最低价调度] 已获取全局调度锁")
+    if manual:
+        logger.info("[最高最低价调度] 手动触发，跳过调度锁")
         try:
             await _execute_job_inner()
         finally:
             price_done_event.set()
-            logger.info("[最高最低价调度] 已发送完成信号")
+    else:
+        async with scheduler_lock:
+            logger.info("[最高最低价调度] 已获取全局调度锁")
+            try:
+                await _execute_job_inner()
+            finally:
+                price_done_event.set()
+                logger.info("[最高最低价调度] 已发送完成信号")
 
 
 async def _scheduler_loop():

@@ -272,15 +272,25 @@ async def _execute_job_inner():
         _save_persisted_status(_job_status)
 
 
-async def _execute_job():
+async def _execute_job(manual=False):
     from service.auto_job.scheduler_orchestrator import scheduler_lock, fund_flow_done_event
-    async with scheduler_lock:
-        logger.info("[资金流调度] 已获取全局调度锁")
+    if manual:
+        logger.info("[资金流调度] 手动触发，跳过调度锁")
         try:
             await _execute_job_inner()
         finally:
             fund_flow_done_event.set()
-            logger.info("[资金流调度] 已发送完成信号")
+    else:
+        _job_status["running"] = True
+        _job_status["error"] = "等待调度锁..."
+        logger.info("[资金流调度] 等待全局调度锁")
+        async with scheduler_lock:
+            logger.info("[资金流调度] 已获取全局调度锁")
+            try:
+                await _execute_job_inner()
+            finally:
+                fund_flow_done_event.set()
+                logger.info("[资金流调度] 已发送完成信号")
 
 
 async def _scheduler_loop():
