@@ -170,7 +170,8 @@ def run_backtest(n_weeks=29, sample_limit=0):
             market_stats[suffix]['all_weeks'] += 1
 
             # 提取特征 & 匹配规则
-            feat = _nw_extract_features(this_pcts, market_chg)
+            feat = _nw_extract_features(this_pcts, market_chg,
+                                        market_index=stock_idx)
             rule = _nw_match_rule(feat)
 
             if rule is None:
@@ -273,7 +274,8 @@ def run_backtest(n_weeks=29, sample_limit=0):
             market_chg = _compound_return(
                 [k['change_percent'] for k in sorted(mw, key=lambda x: x['date'])]
             ) if len(mw) >= 3 else 0.0
-            feat = _nw_extract_features(this_pcts, market_chg)
+            feat = _nw_extract_features(this_pcts, market_chg,
+                                        market_index=stock_idx)
             rule = _nw_match_rule(feat)
             if rule is None:
                 continue
@@ -322,7 +324,8 @@ def run_backtest(n_weeks=29, sample_limit=0):
             market_chg = _compound_return(
                 [k['change_percent'] for k in sorted(mw, key=lambda x: x['date'])]
             ) if len(mw) >= 3 else 0.0
-            feat = _nw_extract_features(this_pcts, market_chg)
+            feat = _nw_extract_features(this_pcts, market_chg,
+                                        market_index='000001.SH')
             rule = _nw_match_rule(feat)
             if rule is None:
                 continue

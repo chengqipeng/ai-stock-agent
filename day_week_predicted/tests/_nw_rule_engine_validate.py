@@ -193,7 +193,8 @@ def main():
 
             total_all += 1
 
-            feat = _nw_extract_features(this_pcts, market_chg)
+            feat = _nw_extract_features(this_pcts, market_chg,
+                                        market_index='000001.SH')
             rule = _nw_match_rule(feat)
 
             if rule is None:

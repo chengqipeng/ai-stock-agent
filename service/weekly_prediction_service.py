@@ -1163,8 +1163,13 @@ _INDEX_MKT_THRESHOLD = {
 def _nw_extract_features(daily_pcts: list[float], market_chg: float,
                          ff_signal: float = None, vol_ratio: float = None,
                          vol_price_corr: float = None,
-                         finance_score: float = None) -> dict:
-    """从日K线数据和多维信号中提取下周预测所需的特征。"""
+                         finance_score: float = None,
+                         market_index: str = '000001.SH') -> dict:
+    """从日K线数据和多维信号中提取下周预测所需的特征。
+
+    Args:
+        market_index: 个股对应的大盘指数代码，用于自适应阈值
+    """
     this_week_chg = _compound_return(daily_pcts)
     last_day_chg = daily_pcts[-1] if daily_pcts else 0.0
 
@@ -1183,6 +1188,10 @@ def _nw_extract_features(daily_pcts: list[float], market_chg: float,
         else:
             break
 
+    # 根据指数代码确定自适应阈值和市场后缀
+    mkt_threshold = _INDEX_MKT_THRESHOLD.get(market_index, 1.0)
+    market_suffix = market_index.split('.')[-1] if '.' in market_index else ''
+
     return {
         'this_week_chg': this_week_chg,
         'market_chg': market_chg,
@@ -1193,6 +1202,8 @@ def _nw_extract_features(daily_pcts: list[float], market_chg: float,
         'vol_ratio': vol_ratio,
         'vol_price_corr': vol_price_corr,
         'finance_score': finance_score,
+        '_mkt_threshold': mkt_threshold,
+        '_market_suffix': market_suffix,
     }
 
 
@@ -1203,12 +1214,14 @@ def _nw_match_rule(feat: dict) -> dict | None:
     cd = feat['consec_down']
     cu = feat['consec_up']
     ld = feat['last_day_chg']
-    # 多维信号传递给规则的 **kw
+    # 多维信号 + 指数自适应参数传递给规则的 **kw
     extra = {
         'ff_signal': feat.get('ff_signal'),
         'vol_ratio': feat.get('vol_ratio'),
         'vol_price_corr': feat.get('vol_price_corr'),
         'finance_score': feat.get('finance_score'),
+        '_mkt_threshold': feat.get('_mkt_threshold', 1.0),
+        '_market_suffix': feat.get('_market_suffix', ''),
     }
 
     for rule in _NW_RULES:
@@ -1269,11 +1282,13 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
     vol_price_corr = this_week_pred.get('vol_price_corr') if this_week_pred else None
     finance_score = this_week_pred.get('finance_score') if this_week_pred else None
 
-    # 提取特征 & 匹配规则（含多维信号）
+    # 提取特征 & 匹配规则（含多维信号 + 指数自适应阈值）
+    stock_idx = _get_stock_index(code)
     feat = _nw_extract_features(daily_pcts, market_chg,
                                 ff_signal=ff_signal, vol_ratio=vol_ratio,
                                 vol_price_corr=vol_price_corr,
-                                finance_score=finance_score)
+                                finance_score=finance_score,
+                                market_index=stock_idx)
     rule = _nw_match_rule(feat)
 
     # 下周日期范围
@@ -1476,8 +1491,9 @@ def _compute_next_week_backtest(stock_codes: list[str], data: dict,
             stock_all_weeks += 1
             global_all_weeks += 1
 
-            # 提取特征 & 匹配规则（回测中无资金流/财报信号，仅用K线+大盘）
-            feat = _nw_extract_features(this_pcts, market_chg)
+            # 提取特征 & 匹配规则（回测中无资金流/财报信号，仅用K线+大盘+指数自适应阈值）
+            feat = _nw_extract_features(this_pcts, market_chg,
+                                        market_index=stock_idx)
             rule = _nw_match_rule(feat)
 
             if rule is None:
