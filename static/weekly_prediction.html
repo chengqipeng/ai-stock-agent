@@ -427,15 +427,24 @@ async function loadSummary() {
         const nwUp = d.nw_up_count || 0;
         const nwDown = d.nw_down_count || 0;
         const nwUncertain = d.nw_uncertain_count || 0;
+        const nwReference = d.nw_reference_count || 0;
+        const nwHigh = d.nw_high_count || 0;
         const nwDateRange = d.nw_date_range ? fmtDateRange(d.nw_date_range) : '';
         const nwBtAcc = d.nw_avg_backtest_accuracy != null ? d.nw_avg_backtest_accuracy + '%' : '-';
         const nwMae = d.nw_avg_pred_chg_mae != null ? d.nw_avg_pred_chg_mae + '%' : '-';
         const nwCoverage = nwTotal + nwUncertain > 0 ? Math.round(nwTotal / (nwTotal + nwUncertain) * 100) + '%' : '-';
         if (nwTotal === 0 && nwUncertain > 0) {
-            html += card('下周预测', '无高置信信号', '', '本周大盘未大跌(>1%)，不满足预测条件  ' + (nwDateRange || ''));
-            html += card('下周回测准确率', nwBtAcc, '', '仅在大盘跌>1%+个股跌>2%时输出预测');
+            html += card('下周预测', '无信号', '', '本周无满足条件的个股  ' + (nwDateRange || ''));
+            html += card('下周回测准确率', nwBtAcc, '', '等待触发条件');
+        } else if (nwHigh === 0 && nwReference > 0) {
+            // 只有参考级信号，无高置信
+            html += card('下周预测', nwTotal + '只(参考)', '', '涨' + nwUp + ' 跌' + nwDown + ' 不确定' + nwUncertain + '  均为参考信号(~56-59%)' + (nwDateRange ? '  ' + nwDateRange : ''));
+            html += card('下周回测准确率', nwBtAcc, '', '参考级  覆盖率: ' + nwCoverage + '  MAE: ' + nwMae);
         } else {
-            html += card('下周预测', nwTotal + '只', '', '涨' + nwUp + ' 跌' + nwDown + ' 不确定' + nwUncertain + (nwDateRange ? '  ' + nwDateRange : ''));
+            const highLabel = nwHigh > 0 ? '高置信' + nwHigh : '';
+            const refLabel = nwReference > 0 ? '参考' + nwReference : '';
+            const tierInfo = [highLabel, refLabel].filter(Boolean).join(' ');
+            html += card('下周预测', nwTotal + '只', '', '涨' + nwUp + ' 跌' + nwDown + ' 不确定' + nwUncertain + (tierInfo ? '  ' + tierInfo : '') + (nwDateRange ? '  ' + nwDateRange : ''));
             html += card('下周回测准确率', nwBtAcc, '', '覆盖率: ' + nwCoverage + '  MAE: ' + nwMae);
         }
         document.getElementById('summaryRow').innerHTML = html;
