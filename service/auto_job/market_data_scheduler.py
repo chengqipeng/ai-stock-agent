@@ -114,14 +114,12 @@ def _next_trigger_dt(after: datetime) -> datetime:
 
 
 def _already_done_today() -> bool:
-    """判断今天的盘后数据是否已拉取完成。
+    """判断今天的盘后数据是否已拉取完成（用于自动调度循环跳过判断）。
 
     规则：如果上次执行的目标交易日 == 今天的目标交易日，
     且上次执行时间在 15:00（收盘）之后，则认为数据已完整，无需重复拉取。
-    即使上次有部分失败，收盘后拉取的数据也是完整的盘后数据。
     """
     now = datetime.now(_CST)
-    # 计算今天的目标交易日（与 _execute_job_inner 逻辑一致）
     target_date = now.date()
     if now.time() < dtime(15, 0) or not is_a_share_trading_day(target_date):
         target_date = target_date - timedelta(days=1)
@@ -132,7 +130,6 @@ def _already_done_today() -> bool:
     if _job_status.get("last_run_date") != target_str:
         return False
 
-    # 检查上次执行时间是否在 15:00 之后（收盘后数据完整）
     last_run_time_str = _job_status.get("last_run_time")
     if not last_run_time_str:
         return False
@@ -145,9 +142,18 @@ def _already_done_today() -> bool:
 
 # ─────────── 分时数据拉取 ───────────
 
-async def _fetch_time_data_for_stock(stock_code_normalize: str, trade_date: str, counter: dict):
-    """拉取单只股票的分时数据并入库"""
+async def _fetch_time_data_for_stock(stock_code_normalize: str, trade_date: str, counter: dict,
+                                     after_close: bool = False):
+    """拉取单只股票的分时数据并入库。
+
+    after_close=True 时，如果该股票当天数据已存在则直接跳过（收盘后数据不会再变）。
+    """
     stock_code = stock_code_normalize.split(".")[0]
+
+    # 收盘后：数据已存在则无需网络请求，直接计入成功
+    if after_close and has_time_data(stock_code, trade_date):
+        counter["success"] += 1
+        return
 
     max_retries = 2
     for attempt in range(1, max_retries + 1):
@@ -201,9 +207,18 @@ async def _fetch_time_data_for_stock(stock_code_normalize: str, trade_date: str,
 
 # ─────────── 盘口数据拉取 ───────────
 
-async def _fetch_order_book_for_stock(stock_code_normalize: str, trade_date: str, counter: dict):
-    """拉取单只股票的盘口数据并入库"""
+async def _fetch_order_book_for_stock(stock_code_normalize: str, trade_date: str, counter: dict,
+                                      after_close: bool = False):
+    """拉取单只股票的盘口数据并入库。
+
+    after_close=True 时，如果该股票当天数据已存在则直接跳过（收盘后数据不会再变）。
+    """
     stock_code = stock_code_normalize.split(".")[0]
+
+    # 收盘后：数据已存在则无需网络请求，直接计入成功
+    if after_close and has_order_book(stock_code, trade_date):
+        counter["success"] += 1
+        return
 
     max_retries = 2
     for attempt in range(1, max_retries + 1):
@@ -302,6 +317,9 @@ async def _execute_job_inner():
 
     logger.info("[盘后数据调度] ===== 开始执行 %s =====", today_str)
 
+    # 判断是否在收盘之后（15:00后数据不会再变，已有数据可跳过）
+    after_close = start_time.time() >= dtime(15, 0)
+
     try:
         # 1. 建表
         conn = get_connection()
@@ -330,7 +348,8 @@ async def _execute_job_inner():
 
         async def _time_task(s):
             async with sem:
-                await _fetch_time_data_for_stock(s["code"], today_str, time_counter)
+                await _fetch_time_data_for_stock(s["code"], today_str, time_counter,
+                                                 after_close=after_close)
                 _job_status["time_data_success"] = time_counter["success"]
                 _job_status["time_data_failed"] = time_counter["failed"]
                 await asyncio.sleep(0.5)
@@ -347,7 +366,8 @@ async def _execute_job_inner():
 
         async def _ob_task(s):
             async with sem:
-                await _fetch_order_book_for_stock(s["code"], today_str, ob_counter)
+                await _fetch_order_book_for_stock(s["code"], today_str, ob_counter,
+                                                  after_close=after_close)
                 _job_status["order_book_success"] = ob_counter["success"]
                 _job_status["order_book_failed"] = ob_counter["failed"]
                 await asyncio.sleep(0.5)
