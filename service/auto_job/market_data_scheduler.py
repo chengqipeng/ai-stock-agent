@@ -114,8 +114,33 @@ def _next_trigger_dt(after: datetime) -> datetime:
 
 
 def _already_done_today() -> bool:
-    today_str = datetime.now(_CST).date().isoformat()
-    return _job_status.get("last_run_date") == today_str and _job_status.get("last_success")
+    """判断今天的盘后数据是否已拉取完成。
+
+    规则：如果上次执行的目标交易日 == 今天的目标交易日，
+    且上次执行时间在 15:00（收盘）之后，则认为数据已完整，无需重复拉取。
+    即使上次有部分失败，收盘后拉取的数据也是完整的盘后数据。
+    """
+    now = datetime.now(_CST)
+    # 计算今天的目标交易日（与 _execute_job_inner 逻辑一致）
+    target_date = now.date()
+    if now.time() < dtime(15, 0) or not is_a_share_trading_day(target_date):
+        target_date = target_date - timedelta(days=1)
+        while not is_a_share_trading_day(target_date):
+            target_date = target_date - timedelta(days=1)
+    target_str = target_date.isoformat()
+
+    if _job_status.get("last_run_date") != target_str:
+        return False
+
+    # 检查上次执行时间是否在 15:00 之后（收盘后数据完整）
+    last_run_time_str = _job_status.get("last_run_time")
+    if not last_run_time_str:
+        return False
+    try:
+        last_run_dt = datetime.strptime(last_run_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=_CST)
+        return last_run_dt.time() >= dtime(15, 0)
+    except (ValueError, TypeError):
+        return False
 
 
 # ─────────── 分时数据拉取 ───────────

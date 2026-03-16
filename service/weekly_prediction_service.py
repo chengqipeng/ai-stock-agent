@@ -1299,12 +1299,24 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
     else:
         confidence = 'reference'  # Tier 2: 参考级, 准确率~56-59%
 
-    # 构建理由
+    # 构建理由（包含指数名称和多维信号）
+    idx_code = _get_stock_index(code)
+    idx_names = {'000001.SH': '上证', '399001.SZ': '深证', '899050.SZ': '北证50'}
+    idx_label = idx_names.get(idx_code, idx_code)
+
     parts = [rule['name']]
     parts.append(f'本周{feat["this_week_chg"]:+.1f}%')
     if feat['market_chg'] != 0:
-        parts.append(f'大盘{feat["market_chg"]:+.1f}%')
-    if tier == 2:
+        parts.append(f'{idx_label}{feat["market_chg"]:+.1f}%')
+    if ff_signal is not None and ff_signal != 0:
+        ff_label = '流入' if ff_signal > 0 else '流出'
+        parts.append(f'资金{ff_label}')
+    if vol_ratio is not None and vol_ratio != 0:
+        if vol_ratio > 1.3:
+            parts.append('放量')
+        elif vol_ratio < 0.7:
+            parts.append('缩量')
+    if tier >= 2:
         parts.append('参考信号')
     nw_reason = '; '.join(parts)
 

@@ -15,10 +15,10 @@ from common.constants.stocks_data import MAIN_STOCK
 from common.utils.stock_info_utils import get_stock_info_by_code
 from dao import get_connection
 from dao.stock_fund_flow_dao import create_fund_flow_table, batch_upsert_fund_flow
+from dao.stock_fund_flow_dao import get_fund_flow_count, get_fund_flow_latest_date
 from service.auto_job.kline_data_scheduler import app_ready, is_a_share_trading_day
 from service.jqka10.stock_history_fund_flow_10jqka import get_fund_flow_history as get_fund_flow_history_jqka
 from service.eastmoney.stock_info.stock_history_flow import get_fund_flow_history as get_fund_flow_history_em
-from dao.stock_fund_flow_dao import get_fund_flow_count
 
 _CST = ZoneInfo("Asia/Shanghai")
 logger = logging.getLogger(__name__)
@@ -155,14 +155,23 @@ def _already_done_today():
             and _job_status.get("last_success") is True)
 
 
-async def _fetch_fund_flow_for_stock(code, counter):
+async def _fetch_fund_flow_for_stock(code, counter, today_str=None):
     """拉取单只股票的资金流向数据。
 
     策略：
+    - 如果该股票当天数据已存在，跳过不拉取
     - 数据库中记录 < 60 条时，使用东方财富全量拉取（~120条），经 _convert_em_klines_to_dicts 转换后写入
     - 数据库中记录 >= 60 条时，使用同花顺增量拉取（~30条）覆盖最近数据
     """
     stock_code = code.split(".")[0]
+
+    # 跳过已有当天数据的股票
+    if today_str:
+        latest_date = get_fund_flow_latest_date(code)
+        if latest_date and str(latest_date) >= today_str:
+            counter["skipped"] += 1
+            return
+
     for attempt in range(1, 3):
         try:
             stock_info = get_stock_info_by_code(code)
@@ -233,12 +242,13 @@ async def _execute_job_inner():
         _job_status["total"] = total
         _job_status["success"] = 0
         _job_status["failed"] = 0
-        counter = {"success": 0, "failed": 0}
+        counter = {"success": 0, "failed": 0, "skipped": 0}
         sem = asyncio.Semaphore(3)
+        today_str = start_time.date().isoformat()
 
         async def _task(s):
             async with sem:
-                await _fetch_fund_flow_for_stock(s["code"], counter)
+                await _fetch_fund_flow_for_stock(s["code"], counter, today_str=today_str)
                 _job_status["success"] = counter["success"]
                 _job_status["failed"] = counter["failed"]
                 await asyncio.sleep(0.8)
@@ -248,8 +258,8 @@ async def _execute_job_inner():
         if counter["failed"] > 0:
             _job_status["error"] = "失败 {} 只".format(counter["failed"])
         elapsed = (datetime.now(_CST) - start_time).total_seconds()
-        logger.info("[资金流调度] 完成 成功%d 失败%d 耗时%.1fs",
-                    counter["success"], counter["failed"], elapsed)
+        logger.info("[资金流调度] 完成 成功%d 失败%d 跳过%d 耗时%.1fs",
+                    counter["success"], counter["failed"], counter["skipped"], elapsed)
     except Exception as e:
         _job_status["last_success"] = False
         _job_status["error"] = str(e)
