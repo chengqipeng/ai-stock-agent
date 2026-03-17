@@ -206,6 +206,8 @@ def _synthesize_single_board(cur, board_code: str, board_name: str,
 
     member_codes_raw = [m["stock_code"] for m in members]
     member_codes_norm = [_normalize_stock_code(c) for c in member_codes_raw]
+    # 过滤北交所个股
+    member_codes_norm = [c for c in member_codes_norm if not c.endswith('.BJ')]
     total_members = len(member_codes_norm)
 
     # 2. 查询成分股当日K线（分批避免 IN 过长）

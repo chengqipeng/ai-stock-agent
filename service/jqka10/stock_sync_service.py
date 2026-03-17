@@ -282,6 +282,8 @@ async def sync_new_stocks(stocks: list[dict],
         code_norm = _normalize_stock_code(raw_code)
         if not code_norm:
             continue
+        if code_norm.endswith('.BJ'):
+            continue  # 忽略北交所个股
 
         is_new = False
         if code_norm not in existing_codes:

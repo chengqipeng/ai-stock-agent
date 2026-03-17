@@ -32,7 +32,10 @@ def parse_score_list(fp):
         for line in f:
             m = re.match(r'(.+?) \((\d{6}\.\w{2})\) - 打分：(\d+)', line.strip())
             if m:
-                stocks[m.group(2)] = m.group(1).strip()
+                code = m.group(2)
+                if code.endswith('.BJ'):
+                    continue  # 忽略北交所个股
+                stocks[code] = m.group(1).strip()
     return stocks
 
 # ============================================================

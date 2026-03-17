@@ -117,6 +117,10 @@ def analyze_board_stock_strength(
         # stock_concept_board_stock 中的 stock_code 是6位纯数字，
         # 而 stock_kline 中的 stock_code 带市场后缀（如 000001.SZ），需要转换
         normalized_codes = [_normalize_stock_code(c) for c in codes]
+        # 过滤北交所个股
+        bj_codes = {c for c, nc in zip(codes, normalized_codes) if nc.endswith('.BJ')}
+        codes = [c for c in codes if c not in bj_codes]
+        normalized_codes = [_normalize_stock_code(c) for c in codes]
         norm_to_raw = {_normalize_stock_code(c): c for c in codes}
 
         logger.debug("[概念强弱] board=%s 成分股%d只, 板块日期范围=%s~%s, "

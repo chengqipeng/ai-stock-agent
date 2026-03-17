@@ -26,6 +26,8 @@ def parse_stock_list(file_path: str) -> List[Dict]:
                 score = int(match[2])
                 if stock_name in seen_names or stock_code in seen_codes:
                     continue
+                if stock_code.endswith('.BJ'):
+                    continue  # 忽略北交所个股
                 seen_names.add(stock_name)
                 seen_codes.add(stock_code)
                 stocks.append({
