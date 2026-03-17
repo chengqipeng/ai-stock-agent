@@ -9,6 +9,7 @@ import ast
 import logging
 import uuid
 from datetime import datetime, date
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ def _safe_loads(s: str, **kw):
 
 
 class _DateTimeEncoder(json.JSONEncoder):
-    """处理 MySQL 返回的 datetime / date / timedelta 对象"""
+    """处理 MySQL 返回的 datetime / date / timedelta / Decimal 对象"""
     def default(self, obj):
         if isinstance(obj, datetime):
             return obj.isoformat()
@@ -43,6 +44,8 @@ class _DateTimeEncoder(json.JSONEncoder):
             return obj.isoformat()
         if hasattr(obj, 'total_seconds'):  # timedelta
             return str(obj)
+        if isinstance(obj, Decimal):
+            return float(obj)
         return super().default(obj)
 
 
