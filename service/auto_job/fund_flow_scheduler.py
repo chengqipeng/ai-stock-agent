@@ -139,6 +139,212 @@ def _build_stock_list():
     stocks += [s for s in MAIN_STOCK if s["code"] not in main_codes]
     return stocks
 
+def _batch_check_completeness(stock_codes: list[str], target_date: str) -> tuple[set[str], set[str]]:
+    """批量检查股票过去120个交易日的资金流向数据完整性。
+
+    利用 A 股统一交易日历，先确定120个交易日前的日期下界，
+    再用 COUNT + GROUP BY 在该窗口内对比 kline 和 fund_flow 记录数。
+
+    Returns:
+        (complete_codes, only_latest_missing_codes)
+    """
+    if not stock_codes:
+        return set(), set()
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # 1) 确定120个交易日的窗口下界
+        #    从任意一只活跃股票的 kline 中取最近120天的最小日期
+        cursor.execute(
+            "SELECT `date` FROM stock_kline "
+            "WHERE `date` <= %s "
+            "GROUP BY `date` ORDER BY `date` DESC LIMIT 120",
+            (target_date,),
+        )
+        trade_dates = [str(r[0]) for r in cursor.fetchall()]
+        if not trade_dates:
+            return set(), set()
+        window_start = trade_dates[-1]  # 第120个交易日
+        window_size = len(trade_dates)  # 实际交易日数（可能 < 120）
+
+        # 2) 在窗口内批量统计 kline 和 fund_flow 的记录数
+        ph = ",".join(["%s"] * len(stock_codes))
+
+        cursor.execute(
+            f"SELECT stock_code, COUNT(*) as cnt, MAX(`date`) as max_d "
+            f"FROM stock_kline "
+            f"WHERE stock_code IN ({ph}) AND `date` >= %s AND `date` <= %s "
+            f"GROUP BY stock_code",
+            (*stock_codes, window_start, target_date),
+        )
+        kline_stats = {}  # code -> (cnt, max_date)
+        for row in cursor.fetchall():
+            kline_stats[row[0]] = (row[1], str(row[2]))
+
+        codes_with_kline = [c for c in stock_codes if c in kline_stats]
+        if not codes_with_kline:
+            return set(), set()
+
+        ph2 = ",".join(["%s"] * len(codes_with_kline))
+        cursor.execute(
+            f"SELECT stock_code, COUNT(*) as cnt, MAX(`date`) as max_d "
+            f"FROM stock_fund_flow "
+            f"WHERE stock_code IN ({ph2}) AND `date` >= %s AND `date` <= %s "
+            f"GROUP BY stock_code",
+            (*codes_with_kline, window_start, target_date),
+        )
+        ff_stats = {}  # code -> (cnt, max_date)
+        for row in cursor.fetchall():
+            ff_stats[row[0]] = (row[1], str(row[2]))
+
+        # 3) 对比
+        complete_codes = set()
+        only_latest_missing_codes = set()
+        for code in codes_with_kline:
+            k_cnt, k_max = kline_stats[code]
+            f_cnt, f_max = ff_stats.get(code, (0, ""))
+
+            if f_cnt >= k_cnt:
+                complete_codes.add(code)
+            elif f_cnt == k_cnt - 1 and k_max == target_date and f_max != target_date:
+                only_latest_missing_codes.add(code)
+
+        return complete_codes, only_latest_missing_codes
+    finally:
+        cursor.close()
+        conn.close()
+
+
+
+async def _fill_latest_day_from_realtime(stock_codes: list[str], target_date: str) -> set[str]:
+    """对仅缺最新一个交易日的股票，通过东方财富实时资金流向API补全。
+
+    调用实时API获取当日资金流向原始数据（元），转换为万元写入 stock_fund_flow 表。
+    close_price / change_pct 从 stock_kline 获取。
+
+    Returns:
+        成功补全的股票代码集合
+    """
+    if not stock_codes:
+        return set()
+
+    # 1) 批量获取 K 线中 target_date 的 close_price / change_pct
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+    try:
+        ph = ",".join(["%s"] * len(stock_codes))
+        cur.execute(
+            f"SELECT stock_code, close_price, change_percent "
+            f"FROM stock_kline WHERE stock_code IN ({ph}) AND `date` = %s",
+            (*stock_codes, target_date),
+        )
+        kline_map = {r["stock_code"]: r for r in cur.fetchall()}
+
+        # 获取前4天 big_net 用于计算 main_net_5day
+        # 只需最近4个交易日，用10天自然日窗口足够覆盖（含节假日）
+        from collections import defaultdict
+        date_obj = datetime.fromisoformat(target_date).date()
+        prev_window_start = (date_obj - timedelta(days=10)).isoformat()
+        prev_big_net_map = defaultdict(list)
+        cur.execute(
+            f"SELECT stock_code, big_net FROM stock_fund_flow "
+            f"WHERE stock_code IN ({ph}) AND `date` < %s AND `date` >= %s "
+            f"ORDER BY stock_code, `date` DESC",
+            (*stock_codes, target_date, prev_window_start),
+        )
+        for r in cur.fetchall():
+            if len(prev_big_net_map[r["stock_code"]]) < 4:
+                prev_big_net_map[r["stock_code"]].append(r["big_net"])
+    finally:
+        cur.close()
+        conn.close()
+
+    # 2) 逐只调用实时资金流向 API
+    filled_codes = set()
+    sem = asyncio.Semaphore(5)
+
+    async def _fetch_one(code):
+        async with sem:
+            try:
+                stock_info = get_stock_info_by_code(code)
+                if not stock_info:
+                    return
+
+                # 直接调用东方财富实时资金流向 API 获取原始数值（元）
+                from common.http.http_utils import EASTMONEY_PUSH_API_URL, fetch_eastmoney_api
+                url = f"{EASTMONEY_PUSH_API_URL}/ulist.np/get"
+                params = {
+                    "fltt": "2",
+                    "secids": stock_info.secid,
+                    "fields": "f62,f184,f78,f84,f6,f124",
+                    "ut": "b2884a393a59ad64002292a3e90d46a5"
+                }
+                data = await fetch_eastmoney_api(
+                    url, params, referer="https://quote.eastmoney.com/")
+                if not (data.get("data") and data["data"].get("diff")):
+                    return
+                d = data["data"]["diff"][0]
+
+                # 原始值（元）
+                main_net_yuan = d.get("f62", 0) or 0  # 主力净流入 = big_net
+                mid_net_yuan = d.get("f78", 0) or 0
+                small_net_yuan = d.get("f84", 0) or 0
+                amount_yuan = d.get("f6", 0) or 0
+                main_pct = d.get("f184", 0) or 0  # 主力净占比
+
+                # 转万元
+                big_net = round(main_net_yuan / 10000, 2)
+                mid_net = round(mid_net_yuan / 10000, 2)
+                small_net = round(small_net_yuan / 10000, 2)
+                net_flow = round(big_net + mid_net + small_net, 2)
+                big_net_pct = round(main_pct, 2)
+                mid_net_pct = round(mid_net_yuan / amount_yuan * 100, 2) if amount_yuan else None
+                small_net_pct = round(small_net_yuan / amount_yuan * 100, 2) if amount_yuan else None
+
+                # close_price / change_pct 从 K 线获取
+                kline = kline_map.get(code)
+                close_price = kline["close_price"] if kline else None
+                change_pct = kline["change_percent"] if kline else None
+
+                # main_net_5day: 当天 big_net + 前4天 big_net
+                prev_bigs = prev_big_net_map.get(code, [])
+                valid_bigs = [b for b in prev_bigs if b is not None]
+                if len(valid_bigs) == 4:
+                    main_net_5day = round(big_net + sum(valid_bigs), 2)
+                else:
+                    main_net_5day = None
+
+                record = {
+                    "date": target_date,
+                    "close_price": close_price,
+                    "change_pct": change_pct,
+                    "net_flow": net_flow,
+                    "main_net_5day": main_net_5day,
+                    "big_net": big_net,
+                    "big_net_pct": big_net_pct,
+                    "mid_net": mid_net,
+                    "mid_net_pct": mid_net_pct,
+                    "small_net": small_net,
+                    "small_net_pct": small_net_pct,
+                }
+
+                conn2 = get_connection()
+                cur2 = conn2.cursor()
+                try:
+                    batch_upsert_fund_flow(code, [record], cursor=cur2)
+                    conn2.commit()
+                    filled_codes.add(code)
+                finally:
+                    cur2.close()
+                    conn2.close()
+
+            except Exception as e:
+                logger.warning("[实时资金流向补全] %s 失败: %s", code, e)
+
+    await asyncio.gather(*[_fetch_one(c) for c in stock_codes])
+    return filled_codes
+
 
 def _next_trigger_dt(after):
     d = after.date()
@@ -161,67 +367,77 @@ async def _fetch_fund_flow_for_stock(code, counter, today_str=None):
     """拉取单只股票的资金流向数据。
 
     策略：
-    - 如果该股票当天数据已存在，跳过不拉取
-    - 数据库中记录 < 60 条时，使用东方财富全量拉取（~120条），经 _convert_em_klines_to_dicts 转换后写入
-    - 数据库中记录 >= 60 条时，使用同花顺增量拉取（~30条）覆盖最近数据
+    - 数据库中记录 < 60 条时，使用东方财富全量拉取（~120条）
+    - 数据库中记录 >= 60 条时，优先同花顺增量拉取（~30条）
+    - 同花顺连续失败3次后，自动切换东方财富全量拉取
     """
     stock_code = code.split(".")[0]
+    JQKA_MAX_RETRIES = 3
 
-    # 跳过已有当天数据的股票
-    if today_str:
-        latest_date = get_fund_flow_latest_date(code)
-        if latest_date and str(latest_date) >= today_str:
-            counter["skipped"] += 1
+    try:
+        stock_info = get_stock_info_by_code(code)
+        if not stock_info:
+            counter["failed"] += 1
             return
 
-    max_attempts = 4
-    for attempt in range(1, max_attempts + 1):
-        try:
-            stock_info = get_stock_info_by_code(code)
-            if not stock_info:
-                counter["failed"] += 1
-                return
+        existing_count = get_fund_flow_count(code)
+        use_em = existing_count < 60
 
-            existing_count = get_fund_flow_count(code)
-            use_em = existing_count < 60
+        data_list = None
+        source = None
 
-            if use_em:
-                # 东方财富全量拉取（返回字符串列表，需转换）
-                klines = await get_fund_flow_history_em(stock_info)
-                print(f"{code} em_full {len(klines)}")
-                if not klines:
-                    counter["success"] += 1
-                    return
+        if use_em:
+            # 东方财富全量拉取（返回字符串列表，需转换）
+            klines = await get_fund_flow_history_em(stock_info)
+            if klines:
                 data_list = _convert_em_klines_to_dicts(klines)
-                if not data_list:
-                    counter["success"] += 1
-                    return
-            else:
-                # 同花顺增量拉取（返回 dict 列表，可直接写入）
-                data_list = await get_fund_flow_history_jqka(stock_info)
-                print(f"{code} jqka_inc {len(data_list)}")
-                if not data_list:
-                    counter["success"] += 1
-                    return
+                source = "em_full"
+        else:
+            # 同花顺增量拉取，失败3次后切换东方财富
+            for jqka_attempt in range(1, JQKA_MAX_RETRIES + 1):
+                try:
+                    data_list = await get_fund_flow_history_jqka(stock_info)
+                    if data_list:
+                        source = "jqka_inc"
+                    break
+                except Exception as je:
+                    if jqka_attempt < JQKA_MAX_RETRIES:
+                        wait = 3 ** jqka_attempt + random.uniform(1, 3)
+                        logger.warning("[资金流] %s 同花顺第%d次失败，%.1f秒后重试: %s",
+                                       stock_code, jqka_attempt, wait, je)
+                        await asyncio.sleep(wait)
+                    else:
+                        logger.warning("[资金流] %s 同花顺%d次均失败，切换东方财富: %s",
+                                       stock_code, JQKA_MAX_RETRIES, je)
 
-            conn = get_connection()
-            cursor = conn.cursor()
-            try:
-                batch_upsert_fund_flow(code, data_list, cursor=cursor)
-                conn.commit()
-                counter["success"] += 1
-            finally:
-                cursor.close()
-                conn.close()
+            if not data_list:
+                # 东方财富备用全量拉取
+                try:
+                    klines = await get_fund_flow_history_em(stock_info)
+                    if klines:
+                        data_list = _convert_em_klines_to_dicts(klines)
+                        source = "em_fallback"
+                except Exception as em_e:
+                    logger.warning("[资金流] %s 东方财富备用也失败: %s", stock_code, em_e)
+
+        if not data_list:
+            counter["success"] += 1
             return
-        except Exception as e:
-            if attempt < max_attempts:
-                wait = 3 ** attempt + random.uniform(1, 3)
-                logger.warning("[资金流] %s 第%d次失败，%.1f秒后重试: %s", stock_code, attempt, wait, e)
-                await asyncio.sleep(wait)
-            else:
-                logger.error("[资金流] %s 异常: %s", stock_code, e)
-                counter["failed"] += 1
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            batch_upsert_fund_flow(code, data_list, cursor=cursor)
+            conn.commit()
+            counter["success"] += 1
+            if source == "em_fallback":
+                logger.info("[资金流] %s 东方财富备用成功 %d条", stock_code, len(data_list))
+        finally:
+            cursor.close()
+            conn.close()
+    except Exception as e:
+        logger.error("[资金流] %s 异常: %s", stock_code, e)
+        counter["failed"] += 1
 
 
 async def _execute_job_inner():
@@ -229,9 +445,21 @@ async def _execute_job_inner():
     _job_status["error"] = None
     start_time = datetime.now(_CST)
     today_str = start_time.date().isoformat()
+
+    # 判断当前是否已收盘：未收盘时目标日期回退到上一个交易日
+    if start_time.time() < dtime(15, 0) and is_a_share_trading_day(start_time.date()):
+        d = start_time.date() - timedelta(days=1)
+        while not is_a_share_trading_day(d):
+            d -= timedelta(days=1)
+        target_date = d.isoformat()
+        logger.info("[资金流调度] 当前未收盘(%s)，目标日期回退到 %s",
+                    start_time.strftime("%H:%M"), target_date)
+    else:
+        target_date = today_str
+
     _job_status["last_run_time"] = start_time.strftime("%Y-%m-%d %H:%M:%S")
-    _job_status["last_run_date"] = today_str
-    logger.info("[资金流调度] 开始执行 %s", today_str)
+    _job_status["last_run_date"] = target_date
+    logger.info("[资金流调度] 开始执行 目标日期=%s", target_date)
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -250,38 +478,74 @@ async def _execute_job_inner():
         _job_status["skipped"] = 0
         counter = {"success": 0, "failed": 0, "skipped": 0}
         sem = asyncio.Semaphore(2)
-        today_str = start_time.date().isoformat()
 
-        async def _task(s):
-            async with sem:
-                await _fetch_fund_flow_for_stock(s["code"], counter, today_str=today_str)
-                _job_status["success"] = counter["success"] + counter["skipped"]
-                _job_status["skipped"] = counter["skipped"]
-                _job_status["failed"] = counter["failed"]
-                await asyncio.sleep(1.2 + random.uniform(0, 0.8))
+        def _sync_status():
+            _job_status["success"] = counter["success"] + counter["skipped"]
+            _job_status["skipped"] = counter["skipped"]
+            _job_status["failed"] = counter["failed"]
 
-        await asyncio.gather(*[_task(s) for s in stocks])
+        # ── 分批处理：每 BATCH_SIZE 只一批，检查 → 实时补全 → 网络拉取 ──
+        BATCH_SIZE = 10
 
-        # ── 补全阶段: 用K线数据补全缺失的资金流向 ──
+        for batch_start in range(0, len(stocks), BATCH_SIZE):
+            batch = stocks[batch_start:batch_start + BATCH_SIZE]
+            batch_codes = [s["code"] for s in batch]
+
+            # 1) 批量完整性检查
+            skip_codes = set()
+            rt_fill_codes = set()
+            try:
+                skip_codes, rt_fill_codes = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda bc=batch_codes: _batch_check_completeness(bc, target_date)
+                )
+            except Exception as e:
+                logger.warning("[资金流调度] 批次%d预检查异常: %s", batch_start, e)
+
+            # 2) 仅缺最新日的股票 → 实时资金流向补全
+            if rt_fill_codes:
+                try:
+                    filled = await _fill_latest_day_from_realtime(
+                        list(rt_fill_codes), target_date)
+                    skip_codes = skip_codes | filled
+                except Exception as e:
+                    logger.warning("[资金流调度] 实时补全异常: %s", e)
+
+            # 3) 分类：跳过 vs 需拉取
+            to_fetch = []
+            for s in batch:
+                if s["code"] in skip_codes:
+                    counter["skipped"] += 1
+                else:
+                    to_fetch.append(s)
+            _sync_status()
+
+            # 4) 网络拉取需要的股票
+            async def _task(s):
+                async with sem:
+                    await _fetch_fund_flow_for_stock(
+                        s["code"], counter, today_str=target_date)
+                    _sync_status()
+                    await asyncio.sleep(1.2 + random.uniform(0, 0.8))
+
+            if to_fetch:
+                await asyncio.gather(*[_task(s) for s in to_fetch])
+
+        # ── 补全阶段: 用K线数据补全拉取失败的 ──
         if counter["failed"] > 0:
             try:
                 from service.analysis.fund_flow_fallback import fill_missing_fund_flow_from_kline
                 all_codes = [s["code"] for s in stocks]
                 fb_result = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: fill_missing_fund_flow_from_kline(all_codes, today_str)
+                    None, lambda: fill_missing_fund_flow_from_kline(all_codes, target_date)
                 )
                 fb_filled = fb_result.get("filled", 0)
-                fb_trade_date = fb_result.get("trade_date", today_str)
                 if fb_filled > 0:
-                    logger.info("[资金流调度] K线补全(目标日%s): 缺失%d 补全%d 跳过%d",
-                                fb_trade_date, fb_result.get("missing", 0), fb_filled,
-                                fb_result.get("skipped", 0))
+                    logger.info("[资金流调度] K线补全: 补全%d只", fb_filled)
                     counter["success"] += fb_filled
                     counter["failed"] = max(0, counter["failed"] - fb_filled)
-                    _job_status["success"] = counter["success"] + counter["skipped"]
-                    _job_status["failed"] = counter["failed"]
+                    _sync_status()
             except Exception as e:
-                logger.error("[资金流调度] K线补全异常(不影响结果): %s", e, exc_info=True)
+                logger.error("[资金流调度] K线补全异常: %s", e, exc_info=True)
 
         _job_status["last_success"] = counter["failed"] == 0
         if counter["failed"] > 0:

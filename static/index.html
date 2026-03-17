@@ -3041,21 +3041,25 @@
                     const pct = sTotal > 0 ? Math.round((done / sTotal) * 100) : 0;
                     icon.textContent = '🔄';
                     let msg = '资金流向拉取中';
-                    if (sTotal > 0) {
-                        msg += '  ' + pct + '%  ' + done + '/' + sTotal;
-                        if (sFailed > 0) msg += '  失败' + sFailed;
-                    } else if (d.error) {
+                    if (d.error) {
                         msg = '资金流向 ' + d.error;
+                    } else if (sTotal > 0) {
+                        msg += '  ' + pct + '%  ' + done + '/' + sTotal;
+                        if (d.skipped > 0) msg += '  跳过' + d.skipped;
+                        if (sFailed > 0) msg += '  失败' + sFailed;
                     }
                     text.textContent = msg;
                     updateJobProgress('fundFlowJobProgress', 'fundFlowJobElapsed', done, sTotal, d.last_run_time);
                 } else if (d.last_run_time) {
                     const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
-                    const isToday = d.last_run_date === today;
+                    const runDate = d.last_run_time ? d.last_run_time.substring(0, 10) : '';
+                    const isToday = runDate === today || d.last_run_date === today;
                     if (isToday) {
                         if (d.last_success) {
                             icon.textContent = '✅';
-                            text.textContent = d.last_run_time + ' 资金流向完成  成功' + (d.success || 0);
+                            let doneMsg = d.last_run_time + ' 资金流向完成  成功' + (d.success || 0);
+                            if (d.skipped > 0) doneMsg += '  跳过' + d.skipped;
+                            text.textContent = doneMsg;
                             banner.style.background = 'rgba(92,184,92,0.25)';
                         } else {
                             icon.textContent = '⚠️';
