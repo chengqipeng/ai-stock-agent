@@ -923,20 +923,16 @@ def _detect_volume_patterns(week_klines: list[dict], all_klines: list[dict]) -> 
 
 def _adjust_nw_confidence_by_volume(pred_up: bool, confidence: str,
                                      vol_patterns: dict) -> tuple[str, str]:
-    """根据成交量形态修正下周预测置信度。
+    """根据成交量形态标注下周预测（仅标签，不修正置信度）。
 
-    回测验证：确认70.5% vs 矛盾52.7%（差距17.8%）
-    - 确认 → 置信度提升（仅强信号时提升）
-    - 矛盾 → 置信度降低
-    - 无信号 → 保持不变
-
-    优化改进：
-    - 引入信号强度(vol_strength)做精细化修正，避免弱信号过度影响
-    - 矛盾时根据强度分级降低：强矛盾降两级，弱矛盾降一级
-    - 确认时仅强信号(strength>0.5)才提升，避免噪声干扰
+    交叉验证结果（5531只A股×29周）：
+    - 全样本：确认70.5% vs 矛盾52.7%（差距+17.8pp）
+    - 交叉验证：确认70.6% vs 矛盾79.8%（差距-9.2pp，方向反转）
+    - 结论：成交量信号的确认/矛盾区分在样本外失效，不应用于修正置信度
+    - 保留信号标签作为参考信息，供用户自行判断
 
     Returns:
-        (adjusted_confidence, vol_note)
+        (unchanged_confidence, vol_note)
     """
     vol_dir = vol_patterns.get('vol_direction')
     if vol_dir is None:
@@ -1611,12 +1607,14 @@ def _nw_match_rule(feat: dict) -> dict | None:
 
 def _predict_next_week(code: str, data: dict, latest_date: str,
                        this_week_pred: dict) -> dict | None:
-    """预测下周方向（规则引擎V4 - 全场景覆盖版 + 板块置信度修正）。
+    """预测下周方向（规则引擎V5 - 交叉验证优化版 + 板块置信度修正）。
 
-    V4回测: 80.9% (11,455/14,156) 覆盖10.0%
-    涨信号: R1(大盘深跌89.6%), R2-R4(上证+大盘跌68-73%), R5a-c(深证+大盘微跌75-89%)
-    跌信号: R6a-c(深证+大盘跌66-73%), R7(趋势反转71.7%), R8(上证+大盘微跌73.4%)
-    置信度修正: 板块确认86.3% vs 矛盾70.2%, 成交量确认70.5% vs 矛盾52.7%
+    V5改进（基于5531只A股×29周时间序列交叉验证）：
+    - 全样本81.5% vs CV82.7%，过拟合差距-1.2%（规则整体稳健）
+    - 移除R4(CV样本不足)、R6b(CV57.1%≈随机)
+    - R2/R6a/R8降为Tier2（CV差距>9%，存在过拟合）
+    - 成交量信号改为仅标签不修正（CV中确认/矛盾差距反转-9.2pp）
+    稳健规则: R1(CV89.5%), R5a(CV90.6%), R5b(CV86.4%), R5c(CV79.6%), R7(CV73.7%)
     未命中任何规则的标记为 None（不确定）。
 
     Returns:
