@@ -104,7 +104,7 @@ async def lifespan(application: FastAPI):
             logger.error("[lifespan] 启动最高最低价调度器异常: %s", e, exc_info=True)
 
         try:
-            await start_db_check_scheduler()
+            # await start_db_check_scheduler()
             logger.info("[lifespan] 数据异常检测调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动数据异常检测调度器异常: %s", e, exc_info=True)
