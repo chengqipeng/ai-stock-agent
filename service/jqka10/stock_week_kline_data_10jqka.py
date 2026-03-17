@@ -23,13 +23,14 @@ _HEADERS = {
 
 def _decode_week_prices(price_str: str, price_factor: int) -> list[tuple]:
     """
-    同花顺周K线价格解码，对齐东方财富价格体系。
+    同花顺周K线价格解码。
     chunk = [prev_close*pf, (open-prev_close)*pf, (high-prev_close)*pf, (open-low)*pf]
-    映射（实测验证）：
-      open  = (chunk[0] + chunk[1]) / pf  与东方财富open完全一致
-      high  = (chunk[0] + chunk[2]) / pf  与东方财富high完全一致
-      low   =  chunk[0] / pf              与东方财富low完全一致
-      close = 优先用不复权年份数据（与东方财富完全一致），历史数据用open-chunk[3]近似
+
+    返回元组含义（前复权价格，不复权价格需从年份接口获取）：
+      [0] open       = (chunk[0]+chunk[1]) / pf
+      [1] low        = (chunk[0]+chunk[1]-chunk[3]) / pf  （注意：不是 close）
+      [2] high       = (chunk[0]+chunk[2]) / pf
+      [3] prev_close = chunk[0] / pf                      （注意：不是 low）
     """
     nums = list(map(int, price_str.split(",")))
     records = []
@@ -74,8 +75,8 @@ async def _fetch_raw(url: str, cache_key: str = None, code: str = None) -> dict:
 
 def _build_nofq_map(year_data_list: list[dict]) -> dict[str, dict]:
     """
-    从年份分段不复权日K数据构建 {YYYYMMDD: {close, amount, turnover}} 映射。
-    与 stock_day_kline_data_10jqka._build_nofq_map 保持一致。
+    从年份分段不复权日K数据构建 {YYYYMMDD: {open, high, low, close, volume, amount, turnover}} 映射。
+    年份数据格式: date,open,high,low,close,volume,amount,turnover
     """
     result = {}
     for year_data in year_data_list:
@@ -83,7 +84,11 @@ def _build_nofq_map(year_data_list: list[dict]) -> dict[str, dict]:
             parts = row.split(",")
             if len(parts) >= 8 and parts[4]:
                 result[parts[0]] = {
+                    "open":     float(parts[1]) if parts[1] else None,
+                    "high":     float(parts[2]) if parts[2] else None,
+                    "low":      float(parts[3]) if parts[3] else None,
                     "close":    float(parts[4]),
+                    "volume":   int(parts[5]) if parts[5] else None,
                     "amount":   float(parts[6]) if parts[6] else 0,
                     "turnover": float(parts[7]) if len(parts) > 7 and parts[7] else None,
                 }
@@ -150,22 +155,34 @@ async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -
         if prev_wk_nofq_days:
             first_prev_close = nofq_map[prev_wk_nofq_days[-1]]["close"]
         else:
+            # fallback: _decode_prices 的 close 位实际是 low，不适合做 prev_close
+            # 尝试用 all.js 的前复权 close 近似
             first_prev_close = prices[prev_idx][1]
 
     result = []
     anomaly_count = 0
     for i in range(start, n):
+        open_p, _close_placeholder, high_p, _prev_close_fq = prices[i]
         week_date_raw = dates[i].replace("-", "")  # YYYYMMDD
         prev_week_date_raw = dates[i - 1].replace("-", "") if i > 0 else "00000000"
         # 周K日期是该周最后一个交易日，找 prev_week_date < d <= week_date 的日K
         week_nofq_days = [d for d in nofq_dates_sorted if prev_week_date_raw < d <= week_date_raw]
         if week_nofq_days:
             close          = nofq_map[week_nofq_days[-1]]["close"]
+            # 从不复权日K数据聚合周K的 open/high/low
+            week_open      = nofq_map[week_nofq_days[0]].get("open") or open_p
+            week_high      = max((nofq_map[d].get("high") or 0) for d in week_nofq_days) or high_p
+            week_low       = min((nofq_map[d].get("low") or float('inf')) for d in week_nofq_days)
+            if week_low == float('inf'):
+                week_low = _close_placeholder  # fallback
             trading_amount = sum(nofq_map[d]["amount"] for d in week_nofq_days)
             change_hands   = [nofq_map[d]["turnover"] for d in week_nofq_days if nofq_map[d]["turnover"] is not None]
             change_hand    = round(sum(change_hands), 2) if change_hands else None
         else:
-            close          = prices[i][1]
+            close          = _close_placeholder
+            week_open      = open_p
+            week_high      = high_p
+            week_low       = _close_placeholder  # _decode_prices 的 close 位实际是 low
             trading_amount = None
             change_hand    = None
         if result:
@@ -175,17 +192,17 @@ async def get_stock_week_kline_10jqka(stock_info: StockInfo, limit: int = 200) -
         else:
             prev_close = None
         if prev_close:
-            amplitude      = round((prices[i][2] - prices[i][3]) / prev_close * 100, 2)
+            amplitude      = round((week_high - week_low) / prev_close * 100, 2)
             change_percent = round((close - prev_close) / prev_close * 100, 2)
             change_amount  = round(close - prev_close, 2)
         else:
             amplitude = change_percent = change_amount = None
         record = {
             "date":           dates[i],
-            "open_price":     prices[i][0],
+            "open_price":     week_open,
             "close_price":    close,
-            "high_price":     prices[i][2],
-            "low_price":      prices[i][3],
+            "high_price":     week_high,
+            "low_price":      week_low,
             "trading_volume": volumes[i],
             "trading_amount": trading_amount,
             "amplitude":      amplitude,

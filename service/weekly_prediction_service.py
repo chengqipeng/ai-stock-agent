@@ -1841,7 +1841,7 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
 # 主入口
 # ═══════════════════════════════════════════════════════════
 
-def run_batch_weekly_prediction():
+def run_batch_weekly_prediction(progress_callback=None):
     """批量周预测主函数。
 
     流程：
@@ -1851,6 +1851,9 @@ def run_batch_weekly_prediction():
     4. 对每只股票进行预测
     5. 计算回测准确率
     6. 写入数据库（最新 + 历史）
+
+    Args:
+        progress_callback: 进度回调函数 (total, done, up_count, down_count)
     """
     t_start = datetime.now()
     logger.info("=" * 70)
@@ -1886,12 +1889,17 @@ def run_batch_weekly_prediction():
     logger.info("[2/4] 批量预测 %d 只股票...", len(all_codes))
     predictions = []
     skipped = 0
-    for code in all_codes:
+    for i, code in enumerate(all_codes):
         pred = _predict_stock_weekly(code, data, latest_date)
         if pred:
             predictions.append(pred)
         else:
             skipped += 1
+        # 实时更新进度
+        if progress_callback and (i % 50 == 0 or i == len(all_codes) - 1):
+            up_so_far = sum(1 for p in predictions if p['pred_direction'] == 'UP')
+            down_so_far = len(predictions) - up_so_far
+            progress_callback(len(all_codes), i + 1, up_so_far, down_so_far)
 
     logger.info("  预测完成: %d 只, 跳过: %d 只", len(predictions), skipped)
 

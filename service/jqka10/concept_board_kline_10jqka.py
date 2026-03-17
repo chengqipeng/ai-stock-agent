@@ -124,7 +124,12 @@ def _build_dates(start: str, sort_year: list, dates_str: str) -> list[str]:
 def _decode_prices(price_str: str, price_factor: int) -> list[tuple]:
     """
     解码同花顺价格数据，每4个数字一组。
-    返回: [(open, close_placeholder, high, low), ...]
+
+    返回元组含义（前复权价格，不复权价格需从年份接口获取）：
+      [0] open       = (chunk[0]+chunk[1]) / pf
+      [1] low        = (chunk[0]+chunk[1]-chunk[3]) / pf  （注意：不是 close）
+      [2] high       = (chunk[0]+chunk[2]) / pf
+      [3] prev_close = chunk[0] / pf                      （注意：不是 low）
     """
     nums = list(map(int, price_str.split(",")))
     records = []
@@ -146,14 +151,21 @@ def _decode_prices(price_str: str, price_factor: int) -> list[tuple]:
 
 
 def _build_nofq_map(year_data_list: list[dict]) -> dict[str, dict]:
-    """从年份分段数据构建 {YYYYMMDD: {close, amount, turnover}} 映射"""
+    """
+    从年份分段数据构建 {YYYYMMDD: {open, high, low, close, volume, amount, turnover}} 映射。
+    年份数据格式: date,open,high,low,close,volume,amount,turnover
+    """
     result = {}
     for year_data in year_data_list:
         for row in year_data.get("data", "").strip().split(";"):
             parts = row.split(",")
             if len(parts) >= 8 and parts[4]:
                 result[parts[0]] = {
+                    "open":     float(parts[1]) if parts[1] else None,
+                    "high":     float(parts[2]) if parts[2] else None,
+                    "low":      float(parts[3]) if parts[3] else None,
                     "close":    float(parts[4]),
+                    "volume":   int(parts[5]) if parts[5] else None,
                     "amount":   float(parts[6]) if parts[6] else None,
                     "turnover": float(parts[7]) if parts[7] else None,
                 }
@@ -265,21 +277,27 @@ async def fetch_board_kline(board_index_code: str, limit: int = 800) -> list[dic
     start = max(0, n - limit)
     result = []
     for i in range(start, n):
-        open_p, close_p, high_p, low_p = prices[i]
-        nofq = nofq_map.get(dates[i].replace("-", ""), {})
-        actual_close = nofq.get("close", close_p)
+        open_p, _close_placeholder, high_p, _prev_close_fq = prices[i]
+        date_key = dates[i].replace("-", "")
+        nofq = nofq_map.get(date_key, {})
+
+        # 优先使用不复权数据（年份接口提供完整 OHLC）
+        actual_open  = nofq.get("open")  or open_p
+        actual_high  = nofq.get("high")  or high_p
+        actual_low   = nofq.get("low")   or _close_placeholder
+        actual_close = nofq.get("close") or _close_placeholder
 
         prev_close = result[-1]["close_price"] if result else None
-        amplitude = round((high_p - low_p) / prev_close * 100, 2) if prev_close else 0
+        amplitude = round((actual_high - actual_low) / prev_close * 100, 2) if prev_close else 0
         change_pct = round((actual_close - prev_close) / prev_close * 100, 2) if prev_close else 0
         change_amt = round(actual_close - prev_close, 2) if prev_close else 0
 
         result.append({
             "date":           dates[i],
-            "open_price":     open_p,
+            "open_price":     actual_open,
             "close_price":    actual_close,
-            "high_price":     high_p,
-            "low_price":      low_p,
+            "high_price":     actual_high,
+            "low_price":      actual_low,
             "trading_volume": volumes[i],
             "trading_amount": nofq.get("amount"),
             "change_percent": change_pct,
@@ -343,6 +361,7 @@ async def fetch_and_save_all_boards_kline(
     delay: float = 0.5,
     force: bool = False,
     incremental: bool = False,
+    progress_callback=None,
 ) -> dict:
     """
     遍历数据库中所有概念板块，抓取每个板块的日K线并写入。
@@ -352,6 +371,7 @@ async def fetch_and_save_all_boards_kline(
         delay: 板块间延迟（秒）
         force: 是否强制重新抓取已有数据的板块
         incremental: 增量模式，仅拉取最新日期之后的数据
+        progress_callback: 进度回调函数 (total, success, skipped, failed)
 
     Returns:
         {"total_boards": N, "success": N, "skipped": N, "failed": N, "total_klines": N}
@@ -424,6 +444,12 @@ async def fetch_and_save_all_boards_kline(
 
         if i < total - 1:
             time.sleep(delay + random.uniform(0, 0.2))
+
+        if progress_callback:
+            try:
+                progress_callback(total, success, skipped, failed)
+            except Exception:
+                pass
 
     return {
         "total_boards": total,

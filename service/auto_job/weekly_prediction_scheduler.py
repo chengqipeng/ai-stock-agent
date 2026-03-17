@@ -52,6 +52,7 @@ _job_status = {
     "last_success": None,
     "error": None,
     "start_time": None,
+    "stage": "",  # "loading_data" | "predicting" | "backtesting" | "writing_db" | ""
     "predict_total": 0,
     "predict_done": 0,
     "predict_up": 0,
@@ -114,6 +115,7 @@ async def _execute_job_inner():
 
     _job_status["running"] = True
     _job_status["error"] = None
+    _job_status["stage"] = "loading_data"
     _job_status["predict_total"] = 0
     _job_status["predict_done"] = 0
     _job_status["predict_up"] = 0
@@ -133,9 +135,16 @@ async def _execute_job_inner():
     try:
         from service.weekly_prediction_service import run_batch_weekly_prediction
 
+        def _prediction_progress(total, done, up_count, down_count):
+            _job_status["stage"] = "predicting"
+            _job_status["predict_total"] = total
+            _job_status["predict_done"] = done
+            _job_status["predict_up"] = up_count
+            _job_status["predict_down"] = down_count
+
         # run_batch_weekly_prediction 是同步阻塞函数，放到线程池执行
         result = await asyncio.get_event_loop().run_in_executor(
-            None, run_batch_weekly_prediction
+            None, lambda: run_batch_weekly_prediction(progress_callback=_prediction_progress)
         )
 
         if result:
@@ -184,6 +193,7 @@ async def _execute_job_inner():
 
     finally:
         _job_status["running"] = False
+        _job_status["stage"] = ""
         _job_status["start_time"] = None
         _save_persisted_status(_job_status)
 

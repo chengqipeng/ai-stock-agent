@@ -279,44 +279,6 @@ def get_all_stock_codes() -> list[str]:
 
 # ─────────────────── 数据检测 & 修复 ───────────────────
 
-def _get_chg_pct_threshold(stock_code: str, trading_day_index: int) -> float:
-    """
-    根据股票代码段和交易日序号，返回合理的涨跌幅阈值。
-
-    规则：
-    - 上市前5个交易日（trading_day_index < 5）：无涨跌幅限制，阈值设为 1000%
-    - 创业板 300xxx / 科创板 688xxx：日常涨跌幅限制 20%，阈值 21%
-    - 北交所 8xxxxx（83/87/43 开头）：日常涨跌幅限制 30%，阈值 31%
-    - 深主板注册制新股 001xxx：上市前5日无限制，之后 10%，阈值 11%
-    - ST 股票等特殊情况由数据源自带，这里不做额外处理
-    - 其他主板：日常 10%，阈值 11%
-
-    注意：复牌首日也可能无涨跌幅限制，但无法仅从代码段判断，
-    因此对所有板块统一放宽到 44%（即允许两个涨停板幅度），
-    超过此值才视为数据异常。
-    """
-    # 上市前5个交易日，所有板块均无涨跌幅限制
-    if trading_day_index < 5:
-        return 1000.0
-
-    code_num = stock_code.split('.')[0]
-
-    # 创业板 300xxx / 301xxx
-    if code_num.startswith('300') or code_num.startswith('301'):
-        return 44.0  # 20% 限制，但复牌首日可无限制，放宽到 44%
-
-    # 科创板 688xxx / 689xxx
-    if code_num.startswith('688') or code_num.startswith('689'):
-        return 44.0  # 同创业板
-
-    # 北交所 83xxxx / 87xxxx / 43xxxx
-    if code_num.startswith('83') or code_num.startswith('87') or code_num.startswith('43'):
-        return 62.0  # 30% 限制，放宽到 62%
-
-    # 其他（沪深主板）：10% 限制，但复牌/摘帽首日可无限制
-    return 44.0
-
-
 def check_db(stock_code: str) -> list[dict]:
     """
     检测指定股票在 stock_kline 表中的数据异常，返回异常列表。
@@ -339,7 +301,6 @@ def check_db(stock_code: str) -> list[dict]:
 
         seen_dates: set[str] = set()
         prev_close_valid = None  # 追踪前一个有效收盘价
-        trading_day_index = 0  # 有效交易日计数（排除停牌）
         for idx, r in enumerate(rows):
             d, op, cp, hp, lp, vol, amt = r[0], r[1], r[2], r[3], r[4], r[5], r[6]
             chg_pct = r[8]
@@ -365,12 +326,31 @@ def check_db(stock_code: str) -> list[dict]:
                 issues.append({"type": "high_lt_low", "date": d_str,
                                "detail": f"high={hp} < low={lp}", "legacy": False})
 
-            # 涨跌幅异常检测（根据板块和上市天数动态调整阈值）
-            chg_threshold = _get_chg_pct_threshold(stock_code, trading_day_index)
-            if chg_pct is not None and abs(chg_pct) > chg_threshold:
-                issues.append({"type": "chg_pct", "date": d_str,
-                               "detail": f"change_percent={chg_pct} (阈值±{chg_threshold}%)",
-                               "legacy": False})
+            # 涨跌幅异常检测：用前收盘价反向验证 change_percent 是否自洽
+            # 如果 change_percent 与价格推算的涨跌幅一致，说明数据正确（即使幅度很大）
+            # 只有 change_percent 与价格不一致时才标记为真正的数据异常
+            if chg_pct is not None and abs(chg_pct) > 21:
+                is_data_error = False
+                if prev_close_valid and prev_close_valid > 0 and cp and cp > 0:
+                    # 用前收盘价推算涨跌幅
+                    calc_pct = (cp - prev_close_valid) / prev_close_valid * 100
+                    # 允许 5 个百分点的误差（数据源精度差异）
+                    if abs(calc_pct - chg_pct) > 5:
+                        is_data_error = True
+                elif prev_close_valid is None:
+                    # 无前收盘价（首条记录或停牌后复牌），无法验证，跳过
+                    pass
+                else:
+                    is_data_error = True
+
+                if is_data_error:
+                    calc_info = ""
+                    if prev_close_valid and prev_close_valid > 0 and cp and cp > 0:
+                        calc_pct = (cp - prev_close_valid) / prev_close_valid * 100
+                        calc_info = f", 推算涨跌幅={calc_pct:.2f}%"
+                    issues.append({"type": "chg_pct", "date": d_str,
+                                   "detail": f"change_percent={chg_pct}{calc_info}",
+                                   "legacy": False})
 
             # 成交量/金额 < 0
             if vol is not None and vol < 0:
@@ -379,8 +359,6 @@ def check_db(stock_code: str) -> list[dict]:
             if amt is not None and amt < 0:
                 issues.append({"type": "neg_amt", "date": d_str,
                                "detail": f"trading_amount={amt}", "legacy": False})
-
-            trading_day_index += 1
 
             # 衍生字段全零异常：价格有变动但 amplitude/change_percent/change_amount 全为 0
             amp = r[7]

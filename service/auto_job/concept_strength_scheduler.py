@@ -127,12 +127,24 @@ async def _execute_job_inner():
     try:
         # ── 前置阶段: 增量拉取板块K线 ──
         _job_status["stage"] = "board_kline_sync"
+        _job_status["board_kline_total"] = 0
+        _job_status["board_kline_success"] = 0
+        _job_status["board_kline_skipped"] = 0
+        _job_status["board_kline_failed"] = 0
         _save_persisted_status(_job_status)
         logger.info("[概念强弱势调度] 前置阶段: 增量拉取板块K线数据")
         try:
             from service.jqka10.concept_board_kline_10jqka import fetch_and_save_all_boards_kline
+
+            def _board_kline_progress(total, success, skipped, failed):
+                _job_status["board_kline_total"] = total
+                _job_status["board_kline_success"] = success
+                _job_status["board_kline_skipped"] = skipped
+                _job_status["board_kline_failed"] = failed
+
             kline_result = await fetch_and_save_all_boards_kline(
                 limit=800, delay=0.5, incremental=True,
+                progress_callback=_board_kline_progress,
             )
             _job_status["board_kline_total"] = kline_result.get("total_boards", 0)
             _job_status["board_kline_success"] = kline_result.get("success", 0)

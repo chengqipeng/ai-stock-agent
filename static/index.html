@@ -3102,7 +3102,16 @@
                     const stage = d.stage || '';
                     icon.textContent = '🔄';
                     let msg = '概念强弱势计算中';
-                    if (stage === 'board_market') {
+                    if (stage === 'board_kline_sync') {
+                        const bkTotal = d.board_kline_total || 0;
+                        const bkDone = (d.board_kline_success || 0) + (d.board_kline_skipped || 0) + (d.board_kline_failed || 0);
+                        const pct = bkTotal > 0 ? Math.round((bkDone / bkTotal) * 100) : 0;
+                        msg += '  前置:板块K线同步';
+                        if (bkTotal > 0) msg += '  ' + pct + '%  ' + bkDone + '/' + bkTotal;
+                        else msg += '  加载板块列表...';
+                        if (d.board_kline_failed > 0) msg += '  失败' + d.board_kline_failed;
+                        updateJobProgress('conceptStrengthJobProgress', 'conceptStrengthJobElapsed', bkDone, bkTotal || 100, d.start_time);
+                    } else if (stage === 'board_market') {
                         const done = bmSuccess + bmFailed;
                         const pct = bmTotal > 0 ? Math.round((done / bmTotal) * 100) : 0;
                         msg += '  阶段1:板块大盘';
@@ -3186,19 +3195,25 @@
                     const total = d.predict_total || 0;
                     const done = d.predict_done || 0;
                     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                    const stage = d.stage || '';
                     icon.textContent = '🔄';
                     let msg = '周预测计算中';
-                    if (total > 0) {
+                    if (stage === 'loading_data') {
+                        msg += '  加载数据中...';
+                        updateJobProgress('weeklyPredJobProgress', 'weeklyPredJobElapsed', 0, 100, d.start_time);
+                    } else if (total > 0) {
                         msg += '  ' + pct + '%  ' + done + '/' + total;
                         if (d.predict_up > 0) msg += '  涨' + d.predict_up;
                         if (d.predict_down > 0) msg += '  跌' + d.predict_down;
+                        updateJobProgress('weeklyPredJobProgress', 'weeklyPredJobElapsed', done, total, d.start_time);
                     } else if (d.error) {
                         msg = '周预测 ' + d.error;
+                        updateJobProgress('weeklyPredJobProgress', 'weeklyPredJobElapsed', 0, 100, d.start_time);
                     } else {
                         msg += '  准备中...';
+                        updateJobProgress('weeklyPredJobProgress', 'weeklyPredJobElapsed', 0, 100, d.start_time);
                     }
                     text.textContent = msg;
-                    updateJobProgress('weeklyPredJobProgress', 'weeklyPredJobElapsed', done, total, d.start_time);
                 } else if (d.last_run_time) {
                     const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
                     const isToday = d.last_run_date === today;
