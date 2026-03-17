@@ -1614,8 +1614,9 @@ def _nw_match_rule(feat: dict) -> dict | None:
 
 
 def _predict_next_week(code: str, data: dict, latest_date: str,
-                       this_week_pred: dict) -> dict | None:
-    """预测下周方向（规则引擎V5 - 交叉验证优化版 + 板块置信度修正）。
+                       this_week_pred: dict,
+                       deepseek_result: dict | None = None) -> dict | None:
+    """预测下周方向（规则引擎V5 + DeepSeek AI增强）。
 
     V5改进（基于5531只A股×29周时间序列交叉验证）：
     - 全样本81.5% vs CV82.7%，过拟合差距-1.2%（规则整体稳健）
@@ -1623,7 +1624,15 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
     - R2/R6a/R8降为Tier2（CV差距>9%，存在过拟合）
     - 成交量信号改为仅标签不修正（CV中确认/矛盾差距反转-9.2pp）
     稳健规则: R1(CV89.5%), R5a(CV90.6%), R5b(CV86.4%), R5c(CV79.6%), R7(CV73.7%)
-    未命中任何规则的标记为 None（不确定）。
+
+    V6增强（DeepSeek AI辅助）：
+    - 规则引擎未命中时，使用 DeepSeek 推理引擎作为 fallback
+    - DeepSeek 置信度≥0.55 时输出预测，否则仍标记为不确定
+    - 策略标记为 'nw_deepseek_ai'，置信度标记为 'ai_reference'
+
+    Args:
+        deepseek_result: DeepSeek预测结果 {'direction': 'UP'|'DOWN',
+                         'confidence': float, 'justification': str} 或 None
 
     Returns:
         dict with next_week fields, or None if insufficient data
@@ -1706,7 +1715,52 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
     nw_iso = nw_monday.isocalendar()
 
     if rule is None:
-        # 不确定 - 无条件匹配
+        # ── DeepSeek AI 增强：规则未命中时使用 AI 推理 ──
+        if deepseek_result and deepseek_result.get('direction') in ('UP', 'DOWN'):
+            ds_dir = deepseek_result['direction']
+            ds_conf = deepseek_result.get('confidence', 0.5)
+            ds_reason = deepseek_result.get('justification', '')
+
+            # 置信度映射：DeepSeek confidence → 系统置信度标签
+            if ds_conf >= 0.75:
+                confidence = 'high'
+            elif ds_conf >= 0.60:
+                confidence = 'reference'
+            else:
+                confidence = 'low'
+
+            # 构建理由
+            idx_code = _get_stock_index(code)
+            idx_names = {'000001.SH': '上证', '399001.SZ': '深证', '899050.SZ': '北证50'}
+            idx_label = idx_names.get(idx_code, idx_code)
+            parts = [f'[AI]{ds_reason}']
+            parts.append(f'本周{feat["this_week_chg"]:+.1f}%')
+            if feat['market_chg'] != 0:
+                parts.append(f'{idx_label}{feat["market_chg"]:+.1f}%')
+            parts.append(f'AI置信{ds_conf:.0%}')
+            nw_reason = '; '.join(parts)
+
+            return {
+                'nw_pred_direction': ds_dir,
+                'nw_confidence': confidence,
+                'nw_strategy': 'nw_deepseek_ai',
+                'nw_reason': nw_reason[:200],
+                'nw_composite_score': round(ds_conf * (1 if ds_dir == 'UP' else -1), 4),
+                'nw_this_week_chg': round(feat['this_week_chg'], 4),
+                'nw_iso_year': nw_iso[0],
+                'nw_iso_week': nw_iso[1],
+                'nw_date_range': f'{nw_monday.strftime("%Y-%m-%d")}~{nw_friday.strftime("%Y-%m-%d")}',
+                'nw_pred_chg': None,
+                'nw_pred_chg_low': None,
+                'nw_pred_chg_high': None,
+                'nw_pred_chg_mae': None,
+                'nw_pred_chg_hit_rate': None,
+                'nw_pred_chg_samples': None,
+                'nw_backtest_accuracy': None,
+                'nw_backtest_samples': None,
+            }
+
+        # 不确定 - 规则未命中且无 DeepSeek 结果
         idx_code = _get_stock_index(code)
         idx_names = {'000001.SH': '上证', '399001.SZ': '深证', '899050.SZ': '北证50'}
         idx_label = idx_names.get(idx_code, idx_code)
