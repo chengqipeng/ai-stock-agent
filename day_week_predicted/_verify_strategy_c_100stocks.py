@@ -65,6 +65,7 @@ print(f"板块映射总数: {len(sector_mapping)}")
 
 # ── 2. 获取DB中所有股票 ──
 all_codes = get_all_stock_codes()
+all_codes = [c for c in all_codes if not c.endswith('.BJ')]  # 忽略北交所
 print(f"DB中股票总数: {len(all_codes)}")
 
 # ── 3. 筛选：有板块映射 + 不在排除列表 + 足够K线 ──

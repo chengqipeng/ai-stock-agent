@@ -79,6 +79,8 @@ class BaseStockProcessor(ABC):
                     parts = line.split(' (')
                     name = parts[0]
                     code = parts[1].split(')')[0]
+                    if code.endswith('.BJ'):
+                        continue  # 忽略北交所个股
                     stocks.append({'code': code, 'name': name})
         
         total = len(stocks)

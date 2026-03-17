@@ -36,6 +36,7 @@ def main():
         stock_codes = [c.strip() for c in args.stock.split(",")]
     else:
         stock_codes = get_all_stock_codes()
+        stock_codes = [c for c in stock_codes if not c.endswith('.BJ')]  # 忽略北交所
 
     if args.top:
         stock_codes = stock_codes[:args.top]

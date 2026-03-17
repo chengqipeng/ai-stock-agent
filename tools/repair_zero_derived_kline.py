@@ -316,6 +316,10 @@ async def main():
     target_codes = [args.stock] if args.stock else None
     diag = diagnose_all(target_codes)
 
+    # 过滤北交所个股
+    diag["affected_stocks"] = [s for s in diag["affected_stocks"]
+                                if not s["stock_code"].endswith('.BJ')]
+
     if args.output:
         Path(args.output).write_text(
             json.dumps(diag, ensure_ascii=False, indent=2), encoding="utf-8"

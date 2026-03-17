@@ -75,6 +75,7 @@ print("=" * 70)
 
 sector_mapping = parse_industry_list_md()
 all_codes = get_all_stock_codes()
+all_codes = [c for c in all_codes if not c.endswith('.BJ')]  # 忽略北交所
 
 codes_by_sector = defaultdict(list)
 for code in all_codes:

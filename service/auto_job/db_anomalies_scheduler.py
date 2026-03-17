@@ -293,6 +293,14 @@ async def _execute_job():
 
     try:
         anomaly_details = []
+
+        def _is_recent_issue(issue: dict) -> bool:
+            """过滤掉2024年之前的数据异常，只关注近期数据"""
+            d = issue.get("date", "")
+            if not d or d == "-":
+                return True  # 无日期的异常（如表为空）保留
+            return d >= "2024-01-01"
+
         try:
             stock_codes = get_all_stock_codes()
             stock_codes = [c for c in stock_codes if not c.endswith('.BJ')]  # 忽略北交所
@@ -311,7 +319,7 @@ async def _execute_job():
                     if not issues:
                         continue
 
-                    active_issues = [i for i in issues if not i.get("legacy")]
+                    active_issues = [i for i in issues if not i.get("legacy") and _is_recent_issue(i)]
                     if not active_issues:
                         continue
 
@@ -347,6 +355,11 @@ async def _execute_job():
                 counter["ff_checked"] = ff_counter["checked"]
                 if ff_counter["checked"] % 50 == 0:
                     await asyncio.sleep(0)
+                if not ff_issues:
+                    continue
+
+                # 过滤掉2024年之前的异常
+                ff_issues = [i for i in ff_issues if _is_recent_issue(i)]
                 if not ff_issues:
                     continue
 

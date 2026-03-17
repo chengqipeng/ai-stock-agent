@@ -238,6 +238,7 @@ async def main():
 
     target = [c.strip() for c in args.stock.split(",")] if args.stock else None
     affected = diagnose_all(target)
+    affected = [c for c in affected if not c.endswith('.BJ')]  # 忽略北交所
 
     if args.diagnose_only:
         logger.info("仅诊断模式。耗时 %.1fs", time.time() - start)
