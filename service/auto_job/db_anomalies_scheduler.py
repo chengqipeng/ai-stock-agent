@@ -104,6 +104,14 @@ def get_db_check_job_status() -> dict:
         status["check_checked"] = sc.get("checked", 0)
         status["check_anomalies"] = sc.get("anomalies", 0)
         status["check_repaired"] = sc.get("repaired", 0)
+        status["phase"] = sc.get("phase", "kline")
+        status["phase_label"] = sc.get("phase_label", "K线检测")
+        # 资金流向阶段进度
+        status["ff_total"] = sc.get("ff_total", 0)
+        status["ff_checked"] = sc.get("ff_checked", 0)
+        # 板块K线阶段进度
+        status["board_total"] = sc.get("board_total", 0)
+        status["board_checked"] = sc.get("board_checked", 0)
     status.pop("_counter", None)
     return status
 
@@ -277,13 +285,17 @@ async def _execute_job():
     log_id = insert_log("数据异常检测", started_at)
     logger.info("[数据异常检测] 开始执行 %s (log_id=%d)", today_str, log_id)
 
-    counter = {"total": 0, "checked": 0, "anomalies": 0, "repaired": 0}
+    counter = {"total": 0, "checked": 0, "anomalies": 0, "repaired": 0,
+               "phase": "kline", "phase_label": "K线检测",
+               "ff_total": 0, "ff_checked": 0,
+               "board_total": 0, "board_checked": 0}
     _job_status["_counter"] = counter
 
     try:
         anomaly_details = []
         try:
             stock_codes = get_all_stock_codes()
+            stock_codes = [c for c in stock_codes if not c.endswith('.BJ')]  # 忽略北交所
             counter["total"] = len(stock_codes)
 
             if not stock_codes:
@@ -322,12 +334,17 @@ async def _execute_job():
         # ── 第二阶段：资金流向强一致性校验 ──
         ff_counter = {"checked": 0, "anomalies": 0, "repaired": 0}
         try:
-            stock_codes = stock_codes if stock_codes else get_all_stock_codes()
+            stock_codes = stock_codes if stock_codes else [c for c in get_all_stock_codes() if not c.endswith('.BJ')]
+            counter["phase"] = "fund_flow"
+            counter["phase_label"] = "资金流向校验"
+            counter["ff_total"] = len(stock_codes)
+            counter["ff_checked"] = 0
             logger.info("[资金流向校验] 开始对 %d 只股票执行强一致性校验...", len(stock_codes))
 
             for stock_code in stock_codes:
                 ff_issues = check_fund_flow_db(stock_code)
                 ff_counter["checked"] += 1
+                counter["ff_checked"] = ff_counter["checked"]
                 if ff_counter["checked"] % 50 == 0:
                     await asyncio.sleep(0)
                 if not ff_issues:

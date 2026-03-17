@@ -398,13 +398,14 @@ def _predict_with_profile(d4_chg, d3_chg, is_suspended, n_days, daily_pcts,
 # ═══════════════════════════════════════════════════════════
 
 def _get_all_stock_codes() -> list[str]:
-    """从stock_kline表获取全部有K线数据的股票代码。"""
+    """从stock_kline表获取全部有K线数据的股票代码（排除北交所）。"""
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
     try:
         cur.execute("SELECT DISTINCT stock_code FROM stock_kline")
-        codes = [r['stock_code'] for r in cur.fetchall()]
-        logger.info("全部股票: %d 只", len(codes))
+        codes = [r['stock_code'] for r in cur.fetchall()
+                 if not r['stock_code'].endswith('.BJ')]
+        logger.info("全部股票: %d 只（已排除北交所）", len(codes))
         return sorted(codes)
     finally:
         cur.close()

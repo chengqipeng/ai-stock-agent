@@ -175,6 +175,11 @@ async def _execute_job():
                         if not stocks:
                             continue
 
+                        # 忽略北交所个股
+                        stocks = [s for s in stocks if not s.get('stock_code', '').endswith('.BJ')]
+                        if not stocks:
+                            continue
+
                         # 断点续传：过滤已完成的股票
                         remaining = [s for s in stocks if s['id'] not in done_stock_ids]
                         skipped = len(stocks) - len(remaining)

@@ -139,7 +139,10 @@ def _load_stocks() -> list[dict]:
     for line in score_list_path.read_text(encoding='utf-8').splitlines():
         m = pattern.match(line.strip())
         if m:
-            all_stocks.append({'name': m.group(1), 'code': m.group(2)})
+            code = m.group(2)
+            if code.endswith('.BJ'):
+                continue  # 忽略北交所个股
+            all_stocks.append({'name': m.group(1), 'code': code})
     return all_stocks
 
 

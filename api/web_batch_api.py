@@ -92,7 +92,7 @@ async def lifespan(application: FastAPI):
     async def _boot():
         # 无论调度器是否成功，都要确保 app_ready 被触发，否则页面会卡住
         try:
-            await start_scheduler()
+            # await start_scheduler()
             logger.info("[lifespan] K线调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动K线调度器异常: %s", e, exc_info=True)
@@ -104,19 +104,19 @@ async def lifespan(application: FastAPI):
             logger.error("[lifespan] 启动最高最低价调度器异常: %s", e, exc_info=True)
 
         try:
-            await start_db_check_scheduler()
+            # await start_db_check_scheduler()
             logger.info("[lifespan] 数据异常检测调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动数据异常检测调度器异常: %s", e, exc_info=True)
 
         try:
-            await start_market_data_scheduler()
+            # await start_market_data_scheduler()
             logger.info("[lifespan] 盘后数据调度器已激活（分时/盘口/龙虎榜）")
         except Exception as e:
             logger.error("[lifespan] 启动盘后数据调度器异常: %s", e, exc_info=True)
 
         try:
-            await start_us_market_data_scheduler()
+            # await start_us_market_data_scheduler()
             logger.info("[lifespan] 海外市场数据调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动海外市场数据调度器异常: %s", e, exc_info=True)
