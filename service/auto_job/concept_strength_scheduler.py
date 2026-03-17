@@ -161,6 +161,25 @@ async def _execute_job_inner():
             logger.error("[概念强弱势调度] 板块K线增量拉取异常(不影响后续计算): %s", e, exc_info=True)
         _save_persisted_status(_job_status)
 
+        # ── 前置阶段补充: 用成分股K线合成缺失的板块当日K线 ──
+        try:
+            from service.analysis.board_kline_fallback import synthesize_missing_board_klines
+            fallback_result = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: synthesize_missing_board_klines(trade_date)
+            )
+            fb_synthesized = fallback_result.get("synthesized", 0)
+            fb_missing = fallback_result.get("missing", 0)
+            if fb_synthesized > 0:
+                logger.info("[概念强弱势调度] 板块K线补全: 缺失%d 合成%d 跳过%d",
+                            fb_missing, fb_synthesized,
+                            fallback_result.get("skipped", 0))
+                _job_status["board_kline_success"] = _job_status.get("board_kline_success", 0) + fb_synthesized
+            elif fb_missing > 0:
+                logger.info("[概念强弱势调度] 板块K线补全: 缺失%d个但均无法合成", fb_missing)
+        except Exception as e:
+            logger.error("[概念强弱势调度] 板块K线补全异常(不影响后续计算): %s", e, exc_info=True)
+        _save_persisted_status(_job_status)
+
         # ── 阶段1: 概念板块 vs 大盘强弱势 ──
         _job_status["stage"] = "board_market"
         _job_status["board_market_total"] = 0

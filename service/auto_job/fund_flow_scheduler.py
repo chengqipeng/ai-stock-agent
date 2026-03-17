@@ -261,6 +261,27 @@ async def _execute_job_inner():
                 await asyncio.sleep(1.2 + random.uniform(0, 0.8))
 
         await asyncio.gather(*[_task(s) for s in stocks])
+
+        # ── 补全阶段: 用K线数据补全缺失的资金流向 ──
+        if counter["failed"] > 0:
+            try:
+                from service.analysis.fund_flow_fallback import fill_missing_fund_flow_from_kline
+                all_codes = [s["code"] for s in stocks]
+                fb_result = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: fill_missing_fund_flow_from_kline(all_codes, today_str)
+                )
+                fb_filled = fb_result.get("filled", 0)
+                if fb_filled > 0:
+                    logger.info("[资金流调度] K线补全: 缺失%d 补全%d 跳过%d",
+                                fb_result.get("missing", 0), fb_filled,
+                                fb_result.get("skipped", 0))
+                    counter["success"] += fb_filled
+                    counter["failed"] = max(0, counter["failed"] - fb_filled)
+                    _job_status["success"] = counter["success"] + counter["skipped"]
+                    _job_status["failed"] = counter["failed"]
+            except Exception as e:
+                logger.error("[资金流调度] K线补全异常(不影响结果): %s", e, exc_info=True)
+
         _job_status["last_success"] = counter["failed"] == 0
         if counter["failed"] > 0:
             _job_status["error"] = "失败 {} 只".format(counter["failed"])
