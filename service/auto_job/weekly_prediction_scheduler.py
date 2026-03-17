@@ -163,9 +163,16 @@ async def _execute_job_inner():
             _job_status["predict_down"] = down_count
 
         # run_batch_weekly_prediction 是同步阻塞函数，放到线程池执行
-        result = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: run_batch_weekly_prediction(progress_callback=_prediction_progress)
-        )
+        # 设置超时保护：最多等待30分钟
+        try:
+            result = await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(
+                    None, lambda: run_batch_weekly_prediction(progress_callback=_prediction_progress)
+                ),
+                timeout=1800,  # 30分钟
+            )
+        except asyncio.TimeoutError:
+            raise TimeoutError("周预测执行超时（超过30分钟），可能是数据库查询阻塞")
 
         if result:
             _job_status["predict_total"] = result.get("total_stocks", 0)

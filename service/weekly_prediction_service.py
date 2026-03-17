@@ -442,6 +442,7 @@ def _load_prediction_data(stock_codes: list[str], latest_date: str) -> dict:
     # 1. 个股K线
     stock_klines = defaultdict(list)
     batch_size = 200
+    logger.info("[数据加载] 开始加载个股K线 (%d只, lookback=%s ~ %s)...", len(stock_codes), lookback_start, latest_date)
     for i in range(0, len(stock_codes), batch_size):
         batch = stock_codes[i:i + batch_size]
         ph = ','.join(['%s'] * len(batch))
@@ -460,6 +461,7 @@ def _load_prediction_data(stock_codes: list[str], latest_date: str) -> dict:
             })
 
     # 2. 个股→板块映射
+    logger.info("[数据加载] 个股K线加载完成 (%d只有数据), 开始加载板块映射...", len(stock_klines))
     stock_boards = defaultdict(list)
     code_6_list = list(set(c[:6] for c in stock_codes))
     for i in range(0, len(code_6_list), batch_size):
@@ -478,6 +480,7 @@ def _load_prediction_data(stock_codes: list[str], latest_date: str) -> dict:
             })
 
     # 3. 板块K线
+    logger.info("[数据加载] 板块映射加载完成 (%d只有板块), 开始加载板块K线...", len(stock_boards))
     all_board_codes = set()
     for boards in stock_boards.values():
         for b in boards:
@@ -500,6 +503,7 @@ def _load_prediction_data(stock_codes: list[str], latest_date: str) -> dict:
             })
 
     # 4. 大盘K线（按指数分别加载：上证、深证、北证50）
+    logger.info("[数据加载] 板块K线加载完成 (%d个板块), 开始加载大盘K线...", len(board_kline_map))
     all_index_codes = list(set(_get_stock_index(c) for c in stock_codes))
     # 确保至少包含三大主要指数
     for idx in ('000001.SH', '399001.SZ', '899050.SZ'):
@@ -520,6 +524,7 @@ def _load_prediction_data(stock_codes: list[str], latest_date: str) -> dict:
     market_klines = market_klines_by_index.get('000001.SH', [])
 
     # 5. 股票名称（优先从概念板块成分股表获取，缺失的从本地常量补充）
+    logger.info("[数据加载] 大盘K线加载完成 (%d个指数), 开始加载股票名称...", len(market_klines_by_index))
     stock_names = {}
     cur.execute(
         "SELECT DISTINCT stock_code, stock_name FROM stock_concept_board_stock")
@@ -539,6 +544,7 @@ def _load_prediction_data(stock_codes: list[str], latest_date: str) -> dict:
         logger.info("[数据加载] 从本地常量补充 %d 只股票名称", missing_count)
 
     # 5b. 资金流向数据（最近20天）
+    logger.info("[数据加载] 股票名称加载完成, 开始加载资金流向...")
     stock_fund_flows = defaultdict(list)
     ff_start = (dt_latest - timedelta(days=30)).strftime('%Y-%m-%d')
     for i in range(0, len(stock_codes), batch_size):
@@ -563,6 +569,7 @@ def _load_prediction_data(stock_codes: list[str], latest_date: str) -> dict:
     logger.info("[数据加载] 资金流向: %d 只股票有数据", len(stock_fund_flows))
 
     # 5c. 财报数据（最近2期）
+    logger.info("[数据加载] 资金流向加载完成, 开始加载财报数据...")
     stock_finance = {}
     for i in range(0, len(stock_codes), batch_size):
         batch = stock_codes[i:i + batch_size]
