@@ -64,7 +64,13 @@ def _load_persisted_status() -> dict:
 def _save_persisted_status(status: dict):
     try:
         _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _STATUS_FILE.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
+        # 只持久化需要跨重启保留的字段，不保存 running 等运行时状态
+        payload = {
+            "last_run_date": status.get("last_run_date"),
+            "last_run_time": status.get("last_run_time"),
+            "last_success": status.get("last_success"),
+        }
+        _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
         logger.warning("[海外数据调度] 状态持久化失败: %s", e)
 
@@ -83,6 +89,9 @@ _job_status = {
 }
 _persisted = _load_persisted_status()
 _job_status.update(_persisted)
+# 启动时强制重置运行时状态，防止上次进程崩溃后 running=True 被持久化导致卡死
+_job_status["running"] = False
+_job_status["error"] = None
 
 
 def get_us_market_job_status() -> dict:

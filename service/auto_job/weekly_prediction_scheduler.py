@@ -39,7 +39,18 @@ def _load_persisted_status() -> dict:
 def _save_persisted_status(status: dict):
     try:
         _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _STATUS_FILE.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
+        # 只持久化需要跨重启保留的字段，不保存 running/stage 等运行时状态
+        payload = {
+            "last_run_date": status.get("last_run_date"),
+            "last_run_time": status.get("last_run_time"),
+            "last_success": status.get("last_success"),
+            "predict_total": status.get("predict_total", 0),
+            "predict_up": status.get("predict_up", 0),
+            "predict_down": status.get("predict_down", 0),
+            "backtest_accuracy": status.get("backtest_accuracy", 0),
+            "backtest_lowo_accuracy": status.get("backtest_lowo_accuracy", 0),
+        }
+        _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
         logger.warning("[周预测调度] 状态持久化失败: %s", e)
 
@@ -62,6 +73,15 @@ _job_status = {
 }
 _persisted = _load_persisted_status()
 _job_status.update(_persisted)
+# 启动时强制重置运行时状态，防止上次进程崩溃后 running=True 被持久化导致卡死
+_job_status["running"] = False
+_job_status["error"] = None
+_job_status["start_time"] = None
+_job_status["stage"] = ""
+_job_status["predict_total"] = 0
+_job_status["predict_done"] = 0
+_job_status["predict_up"] = 0
+_job_status["predict_down"] = 0
 
 
 def get_weekly_prediction_job_status() -> dict:
