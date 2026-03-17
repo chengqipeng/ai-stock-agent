@@ -10,30 +10,82 @@
     （这些资金流特有字段无法从K线推导）
   - main_net_5day: 尝试从前4天的 big_net 累加计算（如果前4天数据存在）
 
-前提条件：
-  - kline_data_scheduler 在 15:05 已完成个股K线拉取
-  - fund_flow_scheduler 在 16:30 执行时，stock_kline 中已有当日数据
+交易日判断：
+  - 如果当前时间在收盘前（< 15:00），使用上一个交易日
+  - 如果当前时间在收盘后（>= 15:00），使用当天
+  - 确保 stock_kline 中有目标日期的数据
 """
 import logging
+from datetime import datetime, timedelta, time as dtime
+from zoneinfo import ZoneInfo
+
 from dao import get_connection
 from dao.stock_fund_flow_dao import TABLE_NAME
 
 logger = logging.getLogger(__name__)
+_CST = ZoneInfo("Asia/Shanghai")
 
 
-def fill_missing_fund_flow_from_kline(stock_codes: list[str], trade_date: str) -> dict:
+def _get_effective_trade_date(trade_date: str = None) -> str:
+    """
+    获取有效的补全目标交易日。
+
+    逻辑：
+      - 如果指定了 trade_date，检查当前是否已收盘：
+        · 如果 trade_date 是今天且未收盘（< 15:00），回退到上一个交易日
+        · 如果 trade_date 是今天且已收盘（>= 15:00），使用今天
+        · 如果 trade_date 不是今天（历史日期），直接使用
+      - 如果未指定 trade_date，自动判断：
+        · 已收盘用今天，未收盘用上一个交易日
+
+    Returns:
+        有效的交易日字符串 (YYYY-MM-DD)
+    """
+    from service.auto_job.kline_data_scheduler import is_a_share_trading_day
+
+    now = datetime.now(_CST)
+    today_str = now.date().isoformat()
+
+    if trade_date and trade_date != today_str:
+        # 指定了历史日期，直接使用
+        return trade_date
+
+    # trade_date 是今天或未指定，需要判断是否收盘
+    if now.time() >= dtime(15, 0):
+        # 已收盘，使用今天（如果是交易日）
+        if is_a_share_trading_day(now.date()):
+            return today_str
+        # 今天不是交易日，回退
+        d = now.date() - timedelta(days=1)
+        while not is_a_share_trading_day(d):
+            d -= timedelta(days=1)
+        return d.isoformat()
+    else:
+        # 未收盘，使用上一个交易日
+        d = now.date() - timedelta(days=1)
+        while not is_a_share_trading_day(d):
+            d -= timedelta(days=1)
+        logger.info("[资金流补全] 当前未收盘(%s)，使用上一个交易日 %s",
+                    now.strftime("%H:%M"), d.isoformat())
+        return d.isoformat()
+
+
+def fill_missing_fund_flow_from_kline(stock_codes: list[str], trade_date: str = None) -> dict:
     """
     对缺少 trade_date 当日资金流向的股票，用 stock_kline 数据补全。
 
     Args:
         stock_codes: 需要检查的股票代码列表
-        trade_date: 目标交易日 (YYYY-MM-DD)
+        trade_date: 目标交易日 (YYYY-MM-DD)，为空则自动判断
 
     Returns:
-        {"checked": N, "missing": N, "filled": N, "skipped": N, "details": [...]}
+        {"checked": N, "missing": N, "filled": N, "skipped": N, "trade_date": str, "details": [...]}
     """
-    if not stock_codes or not trade_date:
+    if not stock_codes:
         return {"checked": 0, "missing": 0, "filled": 0, "skipped": 0, "details": []}
+
+    # 确定有效的补全目标交易日
+    trade_date = _get_effective_trade_date(trade_date)
 
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
@@ -56,7 +108,8 @@ def fill_missing_fund_flow_from_kline(stock_codes: list[str], trade_date: str) -
         missing_codes = [c for c in stock_codes if c not in codes_with_today]
         if not missing_codes:
             logger.info("[资金流补全] %s 所有%d只股票均已有当日数据", trade_date, total)
-            return {"checked": total, "missing": 0, "filled": 0, "skipped": 0, "details": []}
+            return {"checked": total, "missing": 0, "filled": 0, "skipped": 0,
+                    "trade_date": trade_date, "details": []}
 
         logger.info("[资金流补全] %s 共%d只股票，%d只缺少当日数据，开始补全",
                     trade_date, total, len(missing_codes))
@@ -145,6 +198,7 @@ def fill_missing_fund_flow_from_kline(stock_codes: list[str], trade_date: str) -
             "missing": len(missing_codes),
             "filled": filled,
             "skipped": skipped,
+            "trade_date": trade_date,
             "details": details,
         }
 
@@ -152,7 +206,7 @@ def fill_missing_fund_flow_from_kline(stock_codes: list[str], trade_date: str) -
         logger.error("[资金流补全] 异常: %s", e, exc_info=True)
         conn.rollback()
         return {"checked": len(stock_codes), "missing": 0, "filled": 0,
-                "skipped": 0, "error": str(e), "details": []}
+                "skipped": 0, "trade_date": trade_date, "error": str(e), "details": []}
     finally:
         cur.close()
         conn.close()

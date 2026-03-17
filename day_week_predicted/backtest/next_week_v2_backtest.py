@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """
-下周预测v2回测 — 多指数 + 多维信号
-===================================
-验证更新后的下周预测规则引擎准确率，按规则、指数、市场分别统计。
+下周预测v3回测 — 多指数 + 价格位置 + 前周动量 + 成交量修正
+==========================================================
+验证V3规则引擎准确率，按规则、指数、市场、置信度分别统计。
+
+V3新增特征:
+  - price_pos_60: 价格在60日高低点中的位置(0~1)
+  - prev_week_chg: 前一周涨跌幅
+  - 成交量置信度修正
 
 用法：
     python -m day_week_predicted.backtest.next_week_v2_backtest
@@ -31,6 +36,8 @@ from service.weekly_prediction_service import (
     _nw_extract_features,
     _nw_match_rule,
     _NW_RULES,
+    _detect_volume_patterns,
+    _adjust_nw_confidence_by_volume,
 )
 
 
@@ -53,14 +60,14 @@ def run_backtest(n_weeks=29, sample_limit=0):
     logger.info("回测股票数: %d", len(all_codes))
 
     dt_end = datetime.strptime(latest_date, '%Y-%m-%d')
-    dt_start = dt_end - timedelta(days=(n_weeks + 2) * 7)
+    dt_start = dt_end - timedelta(days=(n_weeks + 2) * 7 + 180)
     start_date = dt_start.strftime('%Y-%m-%d')
 
     # ── 加载数据 ──
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
 
-    # 个股K线
+    # 个股K线（含 close_price 用于价格位置计算）
     logger.info("加载个股K线...")
     stock_klines = defaultdict(list)
     batch_size = 200
@@ -68,13 +75,18 @@ def run_backtest(n_weeks=29, sample_limit=0):
         batch = all_codes[i:i + batch_size]
         ph = ','.join(['%s'] * len(batch))
         cur.execute(
-            f"SELECT stock_code, `date`, change_percent "
+            f"SELECT stock_code, `date`, close_price, change_percent, "
+            f"high_price, low_price, trading_volume "
             f"FROM stock_kline WHERE stock_code IN ({ph}) "
             f"AND `date` >= %s AND `date` <= %s ORDER BY `date`",
             batch + [start_date, latest_date])
         for row in cur.fetchall():
             stock_klines[row['stock_code']].append({
                 'date': row['date'],
+                'close': _to_float(row['close_price']),
+                'high': _to_float(row['high_price']),
+                'low': _to_float(row['low_price']),
+                'volume': _to_float(row['trading_volume']),
                 'change_percent': _to_float(row['change_percent']),
             })
 
@@ -123,12 +135,17 @@ def run_backtest(n_weeks=29, sample_limit=0):
     market_stats = defaultdict(lambda: {'correct': 0, 'total': 0, 'all_weeks': 0})
     # 按tier统计
     tier_stats = defaultdict(lambda: {'correct': 0, 'total': 0})
+    # 按置信度统计（含成交量修正）
+    conf_stats = defaultdict(lambda: {'correct': 0, 'total': 0})
 
     idx_names = {'000001.SH': '上证指数', '399001.SZ': '深证成指', '899050.SZ': '北证50'}
 
+    # 用于限制回测周范围
+    dt_cutoff = dt_end - timedelta(days=n_weeks * 7 + 14)
+
     for code in all_codes:
         klines = stock_klines.get(code, [])
-        if not klines or len(klines) < 20:
+        if not klines or len(klines) < 60:
             continue
 
         stock_idx = _get_stock_index(code)
@@ -154,6 +171,10 @@ def run_backtest(n_weeks=29, sample_limit=0):
             if len(this_days) < 3 or len(next_days) < 3:
                 continue
 
+            dt_this = datetime.strptime(this_days[0]['date'], '%Y-%m-%d')
+            if dt_this < dt_cutoff:
+                continue
+
             this_pcts = [d['change_percent'] for d in this_days]
             next_pcts = [d['change_percent'] for d in next_days]
             next_week_chg = _compound_return(next_pcts)
@@ -169,9 +190,32 @@ def run_backtest(n_weeks=29, sample_limit=0):
             index_stats[stock_idx]['all_weeks'] += 1
             market_stats[suffix]['all_weeks'] += 1
 
-            # 提取特征 & 匹配规则
+            # 计算 price_pos_60（与生产代码 _predict_next_week 一致）
+            sorted_all = sorted(klines, key=lambda x: x['date'])
+            first_date = this_days[0]['date']
+            hist = [k for k in sorted_all if k['date'] < first_date]
+
+            price_pos_60 = None
+            if len(hist) >= 20:
+                hist_closes = [k.get('close', 0) for k in hist[-60:] if k.get('close', 0) > 0]
+                if hist_closes:
+                    all_c = hist_closes + [k.get('close', 0) for k in this_days if k.get('close', 0) > 0]
+                    min_c, max_c = min(all_c), max(all_c)
+                    latest_c = this_days[-1].get('close', 0)
+                    if max_c > min_c and latest_c > 0:
+                        price_pos_60 = round((latest_c - min_c) / (max_c - min_c), 4)
+
+            # 计算 prev_week_chg
+            prev_week_chg = None
+            prev_klines = hist[-5:] if len(hist) >= 5 else hist
+            if prev_klines:
+                prev_week_chg = _compound_return([k['change_percent'] for k in prev_klines])
+
+            # 提取特征 & 匹配规则（V3: 含价格位置+前周动量）
             feat = _nw_extract_features(this_pcts, market_chg,
-                                        market_index=stock_idx)
+                                        market_index=stock_idx,
+                                        price_pos_60=price_pos_60,
+                                        prev_week_chg=prev_week_chg)
             rule = _nw_match_rule(feat)
 
             if rule is None:
@@ -182,17 +226,26 @@ def run_backtest(n_weeks=29, sample_limit=0):
             rule_name = rule['name']
             tier = rule['tier']
 
+            # 成交量置信度修正
+            confidence = 'high' if tier == 1 else 'reference'
+            vol_patterns = _detect_volume_patterns(this_days, klines)
+            if vol_patterns.get('vol_direction'):
+                confidence, _ = _adjust_nw_confidence_by_volume(
+                    pred_next_up, confidence, vol_patterns)
+
             if correct:
                 global_correct += 1
                 rule_stats[rule_name]['correct'] += 1
                 index_stats[stock_idx]['correct'] += 1
                 market_stats[suffix]['correct'] += 1
                 tier_stats[tier]['correct'] += 1
+                conf_stats[confidence]['correct'] += 1
             global_total += 1
             rule_stats[rule_name]['total'] += 1
             index_stats[stock_idx]['total'] += 1
             market_stats[suffix]['total'] += 1
             tier_stats[tier]['total'] += 1
+            conf_stats[confidence]['total'] += 1
 
     # ── 输出结果 ──
     elapsed = (datetime.now() - t_start).total_seconds()
@@ -201,7 +254,7 @@ def run_backtest(n_weeks=29, sample_limit=0):
 
     logger.info("")
     logger.info("=" * 70)
-    logger.info("  下周预测v2回测结果 (多指数)")
+    logger.info("  下周预测v3回测结果 (多指数+价格位置+前周动量+成交量修正)")
     logger.info("=" * 70)
     logger.info("  全局准确率: %.1f%% (%d/%d样本, 覆盖%.1f%%)",
                 global_acc, global_correct, global_total, coverage)
@@ -213,6 +266,14 @@ def run_backtest(n_weeks=29, sample_limit=0):
         s = tier_stats[tier]
         acc = round(s['correct'] / s['total'] * 100, 1) if s['total'] > 0 else 0
         logger.info("    Tier %d: %.1f%% (%d/%d)", tier, acc, s['correct'], s['total'])
+
+    # 按置信度统计（含成交量修正）
+    logger.info("")
+    logger.info("  ── 按置信度分层（含成交量修正） ──")
+    for conf in sorted(conf_stats.keys()):
+        s = conf_stats[conf]
+        acc = round(s['correct'] / s['total'] * 100, 1) if s['total'] > 0 else 0
+        logger.info("    %-12s %.1f%% (%d/%d)", conf, acc, s['correct'], s['total'])
 
     # 按规则统计
     logger.info("")
@@ -249,7 +310,7 @@ def run_backtest(n_weeks=29, sample_limit=0):
 
     for code in all_codes:
         klines = stock_klines.get(code, [])
-        if not klines or len(klines) < 20:
+        if not klines or len(klines) < 60:
             continue
         stock_idx = _get_stock_index(code)
         idx_by_week = market_by_week_by_index.get(stock_idx, {})
@@ -266,6 +327,9 @@ def run_backtest(n_weeks=29, sample_limit=0):
             next_days = sorted(wg[iw_next], key=lambda x: x['date'])
             if len(this_days) < 3 or len(next_days) < 3:
                 continue
+            dt_this = datetime.strptime(this_days[0]['date'], '%Y-%m-%d')
+            if dt_this < dt_cutoff:
+                continue
             this_pcts = [d['change_percent'] for d in this_days]
             next_pcts = [d['change_percent'] for d in next_days]
             next_week_chg = _compound_return(next_pcts)
@@ -274,8 +338,28 @@ def run_backtest(n_weeks=29, sample_limit=0):
             market_chg = _compound_return(
                 [k['change_percent'] for k in sorted(mw, key=lambda x: x['date'])]
             ) if len(mw) >= 3 else 0.0
+
+            sorted_all = sorted(klines, key=lambda x: x['date'])
+            first_date = this_days[0]['date']
+            hist = [k for k in sorted_all if k['date'] < first_date]
+            price_pos_60 = None
+            if len(hist) >= 20:
+                hist_closes = [k.get('close', 0) for k in hist[-60:] if k.get('close', 0) > 0]
+                if hist_closes:
+                    all_c = hist_closes + [k.get('close', 0) for k in this_days if k.get('close', 0) > 0]
+                    min_c, max_c = min(all_c), max(all_c)
+                    latest_c = this_days[-1].get('close', 0)
+                    if max_c > min_c and latest_c > 0:
+                        price_pos_60 = round((latest_c - min_c) / (max_c - min_c), 4)
+            prev_week_chg = None
+            prev_klines = hist[-5:] if len(hist) >= 5 else hist
+            if prev_klines:
+                prev_week_chg = _compound_return([k['change_percent'] for k in prev_klines])
+
             feat = _nw_extract_features(this_pcts, market_chg,
-                                        market_index=stock_idx)
+                                        market_index=stock_idx,
+                                        price_pos_60=price_pos_60,
+                                        prev_week_chg=prev_week_chg)
             rule = _nw_match_rule(feat)
             if rule is None:
                 continue
@@ -301,7 +385,7 @@ def run_backtest(n_weeks=29, sample_limit=0):
     old_total = 0
     for code in all_codes:
         klines = stock_klines.get(code, [])
-        if not klines or len(klines) < 20:
+        if not klines or len(klines) < 60:
             continue
         wg = defaultdict(list)
         for k in klines:
@@ -316,6 +400,9 @@ def run_backtest(n_weeks=29, sample_limit=0):
             next_days = sorted(wg[iw_next], key=lambda x: x['date'])
             if len(this_days) < 3 or len(next_days) < 3:
                 continue
+            dt_this = datetime.strptime(this_days[0]['date'], '%Y-%m-%d')
+            if dt_this < dt_cutoff:
+                continue
             this_pcts = [d['change_percent'] for d in this_days]
             next_pcts = [d['change_percent'] for d in next_days]
             next_week_chg = _compound_return(next_pcts)
@@ -324,8 +411,28 @@ def run_backtest(n_weeks=29, sample_limit=0):
             market_chg = _compound_return(
                 [k['change_percent'] for k in sorted(mw, key=lambda x: x['date'])]
             ) if len(mw) >= 3 else 0.0
+
+            sorted_all = sorted(klines, key=lambda x: x['date'])
+            first_date = this_days[0]['date']
+            hist = [k for k in sorted_all if k['date'] < first_date]
+            price_pos_60 = None
+            if len(hist) >= 20:
+                hist_closes = [k.get('close', 0) for k in hist[-60:] if k.get('close', 0) > 0]
+                if hist_closes:
+                    all_c = hist_closes + [k.get('close', 0) for k in this_days if k.get('close', 0) > 0]
+                    min_c, max_c = min(all_c), max(all_c)
+                    latest_c = this_days[-1].get('close', 0)
+                    if max_c > min_c and latest_c > 0:
+                        price_pos_60 = round((latest_c - min_c) / (max_c - min_c), 4)
+            prev_week_chg = None
+            prev_klines = hist[-5:] if len(hist) >= 5 else hist
+            if prev_klines:
+                prev_week_chg = _compound_return([k['change_percent'] for k in prev_klines])
+
             feat = _nw_extract_features(this_pcts, market_chg,
-                                        market_index='000001.SH')
+                                        market_index='000001.SH',
+                                        price_pos_60=price_pos_60,
+                                        prev_week_chg=prev_week_chg)
             rule = _nw_match_rule(feat)
             if rule is None:
                 continue

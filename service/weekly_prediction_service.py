@@ -1640,10 +1640,11 @@ def _compute_next_week_backtest(stock_codes: list[str], data: dict,
         }
     """
     dt_end = datetime.strptime(end_date, '%Y-%m-%d')
-    dt_start = dt_end - timedelta(days=(n_weeks + 2) * 7)
+    # 扩大回溯范围以支持 price_pos_60 计算（需要60日历史收盘价）
+    dt_start = dt_end - timedelta(days=(n_weeks + 2) * 7 + 180)
     start_date = dt_start.strftime('%Y-%m-%d')
 
-    # 加载更长时间范围的K线数据
+    # 加载更长时间范围的K线数据（含 close_price 用于价格位置计算）
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
 
@@ -1653,13 +1654,14 @@ def _compute_next_week_backtest(stock_codes: list[str], data: dict,
         batch = stock_codes[i:i + batch_size]
         ph = ','.join(['%s'] * len(batch))
         cur.execute(
-            f"SELECT stock_code, `date`, change_percent "
+            f"SELECT stock_code, `date`, close_price, change_percent "
             f"FROM stock_kline WHERE stock_code IN ({ph}) "
             f"AND `date` >= %s AND `date` <= %s ORDER BY `date`",
             batch + [start_date, end_date])
         for row in cur.fetchall():
             stock_klines[row['stock_code']].append({
                 'date': row['date'],
+                'close': _to_float(row['close_price']),
                 'change_percent': _to_float(row['change_percent']),
             })
 
@@ -1740,9 +1742,32 @@ def _compute_next_week_backtest(stock_codes: list[str], data: dict,
             stock_all_weeks += 1
             global_all_weeks += 1
 
-            # 提取特征 & 匹配规则（回测中无资金流/财报信号，仅用K线+大盘+指数自适应阈值）
+            # 提取特征 & 匹配规则（含价格位置+前周动量，与生产 _predict_next_week 一致）
+            # 计算 price_pos_60
+            sorted_all = sorted(klines, key=lambda x: x['date'])
+            first_date = this_days[0]['date']
+            hist = [k for k in sorted_all if k['date'] < first_date]
+
+            price_pos_60 = None
+            if len(hist) >= 20:
+                hist_closes = [k.get('close', 0) for k in hist[-60:] if k.get('close', 0) > 0]
+                if hist_closes:
+                    all_c = hist_closes + [k.get('close', 0) for k in this_days if k.get('close', 0) > 0]
+                    min_c, max_c = min(all_c), max(all_c)
+                    latest_c = this_days[-1].get('close', 0)
+                    if max_c > min_c and latest_c > 0:
+                        price_pos_60 = round((latest_c - min_c) / (max_c - min_c), 4)
+
+            # 计算 prev_week_chg
+            prev_week_chg = None
+            prev_klines = hist[-5:] if len(hist) >= 5 else hist
+            if prev_klines:
+                prev_week_chg = _compound_return([k['change_percent'] for k in prev_klines])
+
             feat = _nw_extract_features(this_pcts, market_chg,
-                                        market_index=stock_idx)
+                                        market_index=stock_idx,
+                                        price_pos_60=price_pos_60,
+                                        prev_week_chg=prev_week_chg)
             rule = _nw_match_rule(feat)
 
             if rule is None:

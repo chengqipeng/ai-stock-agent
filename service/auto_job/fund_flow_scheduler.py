@@ -271,9 +271,10 @@ async def _execute_job_inner():
                     None, lambda: fill_missing_fund_flow_from_kline(all_codes, today_str)
                 )
                 fb_filled = fb_result.get("filled", 0)
+                fb_trade_date = fb_result.get("trade_date", today_str)
                 if fb_filled > 0:
-                    logger.info("[资金流调度] K线补全: 缺失%d 补全%d 跳过%d",
-                                fb_result.get("missing", 0), fb_filled,
+                    logger.info("[资金流调度] K线补全(目标日%s): 缺失%d 补全%d 跳过%d",
+                                fb_trade_date, fb_result.get("missing", 0), fb_filled,
                                 fb_result.get("skipped", 0))
                     counter["success"] += fb_filled
                     counter["failed"] = max(0, counter["failed"] - fb_filled)
