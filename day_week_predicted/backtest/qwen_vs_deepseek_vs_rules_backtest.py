@@ -492,15 +492,146 @@ async def main():
         for s in samples:
             rules_results_map[s['code']] = _predict_with_v5_rules(s['features'])
 
-        # ── 并行调用 Qwen 和 DeepSeek ──
-        qwen_tasks = [
-            predict_next_week_with_qwen(s['code'], s['name'], s['features'])
-            for s in samples
-        ]
-        ds_tasks = [
-            predict_next_week_with_deepseek(s['code'], s['name'], s['features'])
-            for s in samples
-        ]
+        # ── 并行调用 Qwen 和 DeepSeek（带并发控制避免 429）──
+        qwen_sem = asyncio.Semaphore(3)   # Qwen 限流 3 并发
+        ds_sem = asyncio.Semaphore(5)     # DeepSeek 限流 5 并发
 
-        qwen_results = await asyncio.gather(*qwen_tasks, return_exceptions=True)
-        ds_results = await asyncio.gather(*ds_tasks, return_exceptions=True)
+        async def _call_qwen(s):
+            async with qwen_sem:
+                return await predict_next_week_with_qwen(s['code'], s['name'], s['features'])
+
+        async def _call_ds(s):
+            async with ds_sem:
+                return await predict_next_week_with_deepseek(s['code'], s['name'], s['features'])
+
+        qwen_results = await asyncio.gather(
+            *[_call_qwen(s) for s in samples], return_exceptions=True)
+        ds_results = await asyncio.gather(
+            *[_call_ds(s) for s in samples], return_exceptions=True)
+
+        # ── 逐只对比输出 ──
+        logger.info("")
+        logger.info("  %-14s │ %-16s │ %-16s │ %-16s │ %s",
+                     "股票", "Qwen3-235B", "DeepSeek", "V5规则", "实际")
+        logger.info("  %s", "─" * 90)
+
+        week_record = {'week': week_label, 'stocks': []}
+
+        for i, s in enumerate(samples):
+            code = s['code']
+            name = s['name']
+            actual = actuals[code]
+
+            # Qwen
+            qr = qwen_results[i] if not isinstance(qwen_results[i], Exception) else None
+            if qr:
+                q_dir, q_conf = qr['direction'], qr['confidence']
+                q_mark = qwen_stats.add(code, name, week_label, q_dir, q_conf, actual)
+                q_label = f"{q_dir:4s} {q_conf:.0%} {q_mark}"
+            else:
+                q_label = "FAIL"
+
+            # DeepSeek
+            dr = ds_results[i] if not isinstance(ds_results[i], Exception) else None
+            if dr:
+                d_dir, d_conf = dr['direction'], dr['confidence']
+                d_mark = ds_stats.add(code, name, week_label, d_dir, d_conf, actual)
+                d_label = f"{d_dir:4s} {d_conf:.0%} {d_mark}"
+            else:
+                d_label = "FAIL"
+
+            # V5 规则
+            rr = rules_results_map[code]
+            r_dir, r_conf = rr['direction'], rr['confidence']
+            r_extra = rr.get('rule_name', '')
+            r_mark = rules_stats.add(code, name, week_label, r_dir, r_conf, actual, r_extra)
+            if r_dir == 'UNCERTAIN':
+                r_label = f"UNCR     {r_mark}"
+            else:
+                r_label = f"{r_dir:4s} T{rr['tier']} {r_mark}"
+
+            logger.info("  %-14s │ %-16s │ %-16s │ %-16s │ %+6.2f%%",
+                         f"{code[:6]}({name[:4]})", q_label, d_label, r_label, actual)
+
+            week_record['stocks'].append({
+                'code': code, 'name': name, 'actual': actual,
+                'qwen': qr if qr else None,
+                'deepseek': dr if dr else None,
+                'rules': rr,
+            })
+
+        weekly_results.append(week_record)
+
+    # ═══════════════════════════════════════════════════════
+    # 汇总统计
+    # ═══════════════════════════════════════════════════════
+    logger.info("")
+    logger.info("=" * 75)
+    logger.info("  三方汇总统计（%d周 × %d只 = 最多%d个样本）",
+                len(test_weeks), len(TEST_STOCKS),
+                len(test_weeks) * len(TEST_STOCKS))
+    logger.info("=" * 75)
+
+    for stats in [qwen_stats, ds_stats, rules_stats]:
+        stats.print_summary()
+        logger.info("")
+
+    # ── 三方对比表 ──
+    logger.info("─" * 75)
+    logger.info("  三方对比")
+    logger.info("─" * 75)
+    logger.info("  %-14s │ %8s │ %8s │ %8s │ %8s",
+                "方法", "准确率", "高置信", "覆盖率", "UNCERTAIN")
+    logger.info("  %s", "─" * 60)
+    for stats in [qwen_stats, ds_stats, rules_stats]:
+        logger.info("  %-14s │ %7.1f%% │ %7.1f%% │ %7.1f%% │ %8d",
+                     stats.name, stats.accuracy, stats.high_conf_accuracy,
+                     stats.coverage, stats.uncertain)
+
+    # ── 规则引擎命中时 LLM 是否一致 ──
+    agree_qwen, agree_ds, rule_hit = 0, 0, 0
+    for wd in weekly_results:
+        for sr in wd['stocks']:
+            rr = sr['rules']
+            if rr['direction'] != 'UNCERTAIN':
+                rule_hit += 1
+                if sr['qwen'] and sr['qwen']['direction'] == rr['direction']:
+                    agree_qwen += 1
+                if sr['deepseek'] and sr['deepseek']['direction'] == rr['direction']:
+                    agree_ds += 1
+
+    if rule_hit > 0:
+        logger.info("")
+        logger.info("  规则引擎命中 %d 次时:", rule_hit)
+        logger.info("    Qwen 与规则方向一致: %d/%d = %.1f%%",
+                     agree_qwen, rule_hit, agree_qwen / rule_hit * 100)
+        logger.info("    DeepSeek 与规则方向一致: %d/%d = %.1f%%",
+                     agree_ds, rule_hit, agree_ds / rule_hit * 100)
+
+    # ── 保存结果 ──
+    output = {
+        'date': latest_date,
+        'test_weeks': [f"W{y}-W{w}" for y, w in test_weeks],
+        'stocks': [f"{c}({n})" for c, n in TEST_STOCKS],
+        'summary': {
+            'qwen': qwen_stats.summary_dict(),
+            'deepseek': ds_stats.summary_dict(),
+            'rules': rules_stats.summary_dict(),
+        },
+        'rule_llm_agreement': {
+            'rule_hit_count': rule_hit,
+            'qwen_agree': agree_qwen,
+            'deepseek_agree': agree_ds,
+        },
+        'weekly_results': weekly_results,
+        'qwen_details': qwen_stats.details,
+        'deepseek_details': ds_stats.details,
+        'rules_details': rules_stats.details,
+    }
+    out_path = Path(__file__).parent.parent.parent / 'data_results' / 'qwen_vs_deepseek_vs_rules_result.json'
+    out_path.write_text(json.dumps(output, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
+    logger.info("\n  结果已保存: %s", out_path)
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
