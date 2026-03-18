@@ -82,6 +82,7 @@ from service.auto_job.concept_strength_scheduler import start_concept_strength_s
 from service.auto_job.concept_strength_scheduler import _execute_job as _concept_strength_execute_job
 from service.auto_job.weekly_prediction_scheduler import start_weekly_prediction_scheduler, get_weekly_prediction_job_status
 from service.auto_job.weekly_prediction_scheduler import _execute_job as _weekly_prediction_execute_job
+from service.auto_job.scheduler_orchestrator import is_auto_job_enabled
 
 GRADE_SCORE_MAP = {
     '积极买入': 95, '逢低建仓': 75, '持股待涨': 60,
@@ -93,6 +94,13 @@ GRADE_SCORE_MAP = {
 async def lifespan(application: FastAPI):
     """应用生命周期：启动时注册定时调度，就绪后触发"""
     async def _boot():
+        # 检查 system.properties 中的 run_auto_job 开关
+        if not is_auto_job_enabled():
+            logger.info("[lifespan] run_auto_job 未启用，跳过所有自动调度器启动（手动触发API仍可用）")
+            app_ready.set()
+            logger.info("[lifespan] 应用启动完成，就绪信号已触发")
+            return
+
         # 无论调度器是否成功，都要确保 app_ready 被触发，否则页面会卡住
         try:
             await start_scheduler()

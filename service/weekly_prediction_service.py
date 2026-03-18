@@ -1722,9 +1722,10 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
             ds_reason = deepseek_result.get('justification', '')
 
             # 置信度映射：DeepSeek confidence → 系统置信度标签
-            if ds_conf >= 0.75:
+            # 回测验证：≥65%准确率57.7%，<65%准确率约50%
+            if ds_conf >= 0.70:
                 confidence = 'high'
-            elif ds_conf >= 0.60:
+            elif ds_conf >= 0.65:
                 confidence = 'reference'
             else:
                 confidence = 'low'
@@ -2441,58 +2442,21 @@ def run_batch_weekly_prediction(progress_callback=None):
     nw_up = 0
     nw_uncertain = 0
     nw_reference = 0  # Tier 2 参考级预测数量
+
     for p in predictions:
         code = p['stock_code']
         nw = _predict_next_week(code, data, latest_date, p)
         if nw:
-            # 合并下周预测字段到 prediction dict
             p.update(nw)
-
             if nw['nw_pred_direction'] is not None:
-                # 有明确预测方向
                 nw_count += 1
                 if nw['nw_pred_direction'] == 'UP':
                     nw_up += 1
                 if nw.get('nw_confidence') == 'reference':
                     nw_reference += 1
-
-                # 填充下周回测准确率
-                nw_stock_bt = nw_per_stock_bt.get(code)
-                if nw_stock_bt:
-                    p['nw_backtest_accuracy'] = nw_stock_bt['accuracy']
-                    p['nw_backtest_samples'] = nw_stock_bt['total']
-
-                    # 填充下周预测涨跌幅
-                    strat = nw.get('nw_strategy', '')
-                    pred_dir = nw['nw_pred_direction']
-                    sdc = nw_stock_bt.get('strategy_dir_chg', {})
-
-                    # 优先: 同策略+同方向
-                    chg_stats = sdc.get((strat, pred_dir))
-                    # 兜底: 所有策略+同方向
-                    if not chg_stats:
-                        chg_stats = sdc.get(('_all', pred_dir))
-                    if chg_stats:
-                        median = chg_stats['median']
-                        # 强制符号一致
-                        if pred_dir == 'UP' and median < 0:
-                            median = abs(median)
-                        elif pred_dir == 'DOWN' and median > 0:
-                            median = -abs(median)
-                        p['nw_pred_chg'] = median
-                        p['nw_pred_chg_low'] = chg_stats['p10']
-                        p['nw_pred_chg_high'] = chg_stats['p90']
-                        p['nw_pred_chg_mae'] = chg_stats['mae']
-                        p['nw_pred_chg_hit_rate'] = chg_stats['hit_rate']
-                        p['nw_pred_chg_samples'] = chg_stats['samples']
-                else:
-                    p['nw_backtest_accuracy'] = nw_global_bt['accuracy']
-                    p['nw_backtest_samples'] = 0
             else:
-                # 不确定 - 无高置信条件匹配
                 nw_uncertain += 1
         else:
-            # 数据不足，填充空值
             nw_uncertain += 1
             p['nw_pred_direction'] = None
             p['nw_confidence'] = None
@@ -2511,6 +2475,45 @@ def run_batch_weekly_prediction(progress_callback=None):
             p['nw_pred_chg_samples'] = None
             p['nw_backtest_accuracy'] = None
             p['nw_backtest_samples'] = None
+
+    logger.info("  规则引擎: %d只有预测, %d只不确定", nw_count, nw_uncertain)
+
+    # ── 填充回测准确率 ──
+    for p in predictions:
+        code = p['stock_code']
+        if p.get('nw_pred_direction') is not None:
+            nw_stock_bt = nw_per_stock_bt.get(code)
+            if nw_stock_bt:
+                p['nw_backtest_accuracy'] = nw_stock_bt['accuracy']
+                p['nw_backtest_samples'] = nw_stock_bt['total']
+
+                # 填充下周预测涨跌幅
+                strat = p.get('nw_strategy', '')
+                pred_dir = p['nw_pred_direction']
+                sdc = nw_stock_bt.get('strategy_dir_chg', {})
+
+                # 优先: 同策略+同方向
+                chg_stats = sdc.get((strat, pred_dir))
+                # 兜底: 所有策略+同方向
+                if not chg_stats:
+                    chg_stats = sdc.get(('_all', pred_dir))
+                if chg_stats:
+                    median = chg_stats['median']
+                    # 强制符号一致
+                    if pred_dir == 'UP' and median < 0:
+                        median = abs(median)
+                    elif pred_dir == 'DOWN' and median > 0:
+                        median = -abs(median)
+                    p['nw_pred_chg'] = median
+                    p['nw_pred_chg_low'] = chg_stats['p10']
+                    p['nw_pred_chg_high'] = chg_stats['p90']
+                    p['nw_pred_chg_mae'] = chg_stats['mae']
+                    p['nw_pred_chg_hit_rate'] = chg_stats['hit_rate']
+                    p['nw_pred_chg_samples'] = chg_stats['samples']
+            else:
+                if p.get('nw_backtest_accuracy') is None:
+                    p['nw_backtest_accuracy'] = nw_global_bt['accuracy']
+                    p['nw_backtest_samples'] = 0
 
     nw_coverage = round(nw_count / len(predictions) * 100, 1) if predictions else 0
     logger.info("  下周预测: %d只 (涨%d 跌%d 参考%d), 不确定%d只, 覆盖率=%.1f%%, 回测准确率=%.1f%%",

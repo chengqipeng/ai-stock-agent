@@ -16,12 +16,15 @@ class StockInfo:
 
 
 def is_bj_stock(code: str) -> bool:
-    """判断是否为北交所个股（代码以 .BJ 结尾，或纯数字以 4/8/9 开头）"""
+    """判断是否为北交所个股（代码以 .BJ 结尾，或无后缀的纯数字以 4/8/9 开头）"""
     if not code:
         return False
     if code.endswith('.BJ'):
         return True
-    # 纯数字代码：4xx / 8xx / 9xx 开头为北交所
+    # 有明确市场后缀（.SH / .SZ）时以后缀为准，不再用首位数字判断
+    if '.' in code:
+        return False
+    # 纯数字代码（无后缀）：4xx / 8xx / 9xx 开头为北交所
     pure = code.split('.')[0]
     if pure.isdigit() and len(pure) == 6 and pure[0] in ('4', '8', '9'):
         return True

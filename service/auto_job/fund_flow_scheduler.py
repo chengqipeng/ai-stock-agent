@@ -13,7 +13,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from common.constants.stocks_data import MAIN_STOCK
-from common.utils.stock_info_utils import get_stock_info_by_code
+from common.utils.stock_info_utils import get_stock_info_by_code, is_bj_stock
 from dao import get_connection
 from dao.stock_fund_flow_dao import create_fund_flow_table, batch_upsert_fund_flow
 from dao.stock_fund_flow_dao import get_fund_flow_count, get_fund_flow_latest_date
@@ -137,6 +137,8 @@ def _build_stock_list():
     stocks = load_stocks_from_score_list()
     main_codes = {s["code"] for s in stocks}
     stocks += [s for s in MAIN_STOCK if s["code"] not in main_codes]
+    # 过滤北交所股票：东方财富资金流向API不支持北交所
+    stocks = [s for s in stocks if not is_bj_stock(s["code"])]
     return stocks
 
 def _batch_check_completeness(stock_codes: list[str], target_date: str) -> tuple[set[str], set[str]]:

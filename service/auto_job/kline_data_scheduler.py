@@ -40,6 +40,17 @@ _project_root = Path(__file__).parent.parent.parent
 # 指数代码集合，用于判断是否为指数类股票
 _INDEX_CODES = {s['code'] for s in MAIN_STOCK}
 
+# 跳过拉取的指数代码（同花顺/东方财富均无法获取实时数据）
+_SKIP_INDEX_CODES = {
+    '899050.SZ',   # 北证50
+    '000904.SH',   # 中证200
+    '000985.SH',   # 中证全指
+    '000010.SH',   # 上证180
+    '000003.SH',   # Ｂ股指数
+    '000013.SH',   # 企债指数
+    '000011.SH',   # 基金指数
+}
+
 # ─────────── 状态持久化 ───────────
 _STATUS_FILE = Path(__file__).parent.parent.parent / "data_results" / ".kline_scheduler_status.json"
 
@@ -121,6 +132,10 @@ def get_job_status() -> dict:
 
 async def _process_single_kline(stock_code, stock_name, limit, counter):
     """处理单只股票的K线数据拉取和存储"""
+    if stock_code in _SKIP_INDEX_CODES:
+        counter['success'] += 1
+        return
+
     stock_info = get_stock_info_by_code(stock_code)
     if not stock_info:
         counter['failed'] += 1
