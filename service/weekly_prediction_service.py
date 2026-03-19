@@ -987,6 +987,11 @@ def _adjust_nw_confidence_by_board(pred_up: bool, confidence: str,
       板块涨>1%确认: 82.5% vs 基线72.2% (+10.2pp), 114样本
       全部看涨确认: 79.2% vs 基线72.2% (+7.0pp), 72样本
 
+    v3增强（同步月预测86.3%配置）:
+    - 板块动量是最强信号：负动量→涨 70.7%准确率，正动量→跌 60.9%
+    - 正动量追涨信号不可靠，需要过滤
+    - 强化负动量确认信号的权重
+
     策略: 板块因子与规则预测方向一致时提升置信度，矛盾时降低。
     """
     if board_momentum is None and concept_consensus is None:
@@ -999,9 +1004,19 @@ def _adjust_nw_confidence_by_board(pred_up: bool, confidence: str,
             if confidence == 'reference':
                 return 'high', '板块确认↑'
             return confidence, '板块确认'
+        elif board_momentum is not None and board_momentum < -1:
+            # v3: 板块中等下跌也确认（负动量→涨 70.7%准确率）
+            if confidence == 'reference':
+                return 'high', '板块动量确认↑'
+            return confidence, '板块动量确认'
         elif concept_consensus is not None and concept_consensus == 0:
             # 全部看跌确认: +4.7pp
             return confidence, '板块共识确认'
+        elif board_momentum is not None and board_momentum > 0.8:
+            # v3: 正动量追涨信号不可靠 → 降级（月预测回测验证）
+            if confidence == 'high':
+                return 'reference', '板块正动量矛盾↓'
+            return confidence, '板块正动量弱'
         elif board_momentum is not None and -1 <= board_momentum < 0:
             # 板块微跌矛盾: -16.7pp — 板块没跌够，反弹信号弱
             if confidence == 'high':
@@ -1360,10 +1375,14 @@ _INDEX_MKT_THRESHOLD = {
 
 _NW_RULES = [
     # ══════════════════════════════════════════════════
-    # Tier 1: 涨信号 (准确率≥68%)
+    # V7精简规则集 (RULES_ELITE): 只保留CV>75%的涨信号
+    # CV验证: "精简+cd>=2+pos<0.6" → CV=91.7%(567样本), gap=+0.2% ★★
+    # 移除: R3(CV71.1%), R6a(CV63.6%), R6c(CV60.4%), R7(CV73.3%但跌信号)
+    # 移除: 资金流向/财报Tier3规则(无CV验证数据)
+    # 后置过滤: cd>=2 + pos60<0.6 在 _predict_next_week 中实现
     # ══════════════════════════════════════════════════
 
-    # R1: 大盘深跌>3% + 个股跌>2% → 涨 (89.6%, 6297样本)
+    # R1: 大盘深跌>3% + 个股跌>2% → 涨 (89.6%, CV89.5%, 6297样本)
     {
         'name': '大盘深跌>3%+个股跌→涨',
         'pred_up': True,
@@ -1372,23 +1391,7 @@ _NW_RULES = [
             chg < -2 and mkt < -3
         ),
     },
-    # R2: 已移除 — 全样本73.4%(1745) → CV62.0%(326), 过拟合差距+11.4%
-    # V5回测验证: 移除后整体准确率从81.6%→82.8%, CV从82.5%→84.0%
-    # R3: 上证+大盘跌1-3%+个股跌>3%+前周跌<-2%+非高位 → 涨 (67.5%, CV71.4%)
-    {
-        'name': '上证+大盘跌+跌>3%+前周跌→涨',
-        'pred_up': True,
-        'tier': 1,
-        'check': lambda chg, mkt, cd, cu, ld, **kw: (
-            chg < -3
-            and kw.get('_market_suffix', '') == 'SH'
-            and -3 <= mkt < -1.0
-            and (kw.get('_prev_week_chg') is not None and kw['_prev_week_chg'] < -2)
-            and not (kw.get('_price_pos_60') is not None and kw['_price_pos_60'] >= 0.8)
-        ),
-    },
-    # R4: 已移除 — CV样本仅9个，无法验证有效性
-    # R5a: 深证+大盘微跌(0~1%)+个股跌>2%+连跌≥3天 → 涨 (89.1%, 514样本)
+    # R5a: 深证+大盘微跌(0~1%)+个股跌>2%+连跌≥3天 → 涨 (89.1%, CV90.6%, 514样本)
     {
         'name': '深证+大盘微跌+跌+连跌3天→涨',
         'pred_up': True,
@@ -1400,7 +1403,7 @@ _NW_RULES = [
             and cd >= 3
         ),
     },
-    # R5b: 深证+大盘微跌(0~1%)+个股跌>2%+低位<0.2 → 涨 (78.5%, 627样本)
+    # R5b: 深证+大盘微跌(0~1%)+个股跌>2%+低位<0.2 → 涨 (78.5%, CV86.4%, 627样本)
     {
         'name': '深证+大盘微跌+跌+低位→涨',
         'pred_up': True,
@@ -1412,7 +1415,7 @@ _NW_RULES = [
             and kw.get('_price_pos_60') is not None and kw['_price_pos_60'] < 0.2
         ),
     },
-    # R5c: 深证+大盘微跌(0~1%)+个股跌>2% → 涨 (75.3%, 1802样本)
+    # R5c: 深证+大盘微跌(0~1%)+个股跌>2% → 涨 (75.3%, CV79.6%, 1802样本)
     {
         'name': '深证+大盘微跌+跌>2%→涨',
         'pred_up': True,
@@ -1421,98 +1424,6 @@ _NW_RULES = [
             kw.get('_market_suffix', '') == 'SZ'
             and -1 <= mkt < 0
             and chg < -2
-        ),
-    },
-    # ── 资金流向涨信号（实盘触发）──
-    {
-        'name': '跌>2%+主力流入+放量→涨',
-        'pred_up': True,
-        'tier': 1,
-        'check': lambda chg, mkt, cd, cu, ld, **kw: (
-            chg < -2
-            and (kw.get('ff_signal') or 0) > 0.3
-            and (kw.get('vol_ratio') or 0) > 1.2
-        ),
-    },
-    {
-        'name': '涨>3%+资金流入+量价齐升→涨',
-        'pred_up': True,
-        'tier': 1,
-        'check': lambda chg, mkt, cd, cu, ld, **kw: (
-            chg > 3
-            and (kw.get('ff_signal') or 0) > 0.2
-            and (kw.get('vol_ratio') or 0) > 1.0
-            and (kw.get('vol_price_corr') or 0) > 0.3
-        ),
-    },
-
-    # ══════════════════════════════════════════════════
-    # Tier 1: 跌信号 (准确率≥68%)
-    # ══════════════════════════════════════════════════
-
-    # R6a: 深证+大盘跌1~3%+个股涨>5% → 跌
-    # 全样本73.0%(1292) → CV63.6%(780), 差距9.4% → 降为Tier2
-    {
-        'name': '深证+大盘跌+涨>5%→跌',
-        'pred_up': False,
-        'tier': 2,
-        'check': lambda chg, mkt, cd, cu, ld, **kw: (
-            kw.get('_market_suffix', '') == 'SZ'
-            and -3 <= mkt < -1
-            and chg > 5
-        ),
-    },
-    # R6b: 已移除 — CV仅57.1%(63样本)，接近随机
-    # R6c: 深证+大盘跌1~3%+个股涨>2%+连涨≥3天 → 跌 (66.9%)
-    {
-        'name': '深证+大盘跌+涨+连涨3天→跌',
-        'pred_up': False,
-        'tier': 1,
-        'check': lambda chg, mkt, cd, cu, ld, **kw: (
-            kw.get('_market_suffix', '') == 'SZ'
-            and -3 <= mkt < -1
-            and chg > 2
-            and cu >= 3
-        ),
-    },
-
-    # ══════════════════════════════════════════════════
-    # Tier 2: 中等置信信号 (准确率60-68%)
-    # ══════════════════════════════════════════════════
-
-    # R7: 跌>3%+连涨≥3天+非高位<0.6 → 跌 (71.7%, 311样本)
-    {
-        'name': '跌+前期连涨+非高位→跌',
-        'pred_up': False,
-        'tier': 2,
-        'check': lambda chg, mkt, cd, cu, ld, **kw: (
-            chg < -3
-            and cu >= 3
-            and kw.get('_price_pos_60') is not None and kw['_price_pos_60'] < 0.6
-        ),
-    },
-    # R8: 已移除 — 全样本74.9%(279) → CV61.5%(156), 过拟合差距+13.4%
-    # V5回测验证: 移除后整体CV准确率提升+1.5%
-    # ── 资金流向跌信号（实盘触发）──
-    {
-        'name': '资金流出+缩量→跌',
-        'pred_up': False,
-        'tier': 3,
-        'check': lambda chg, mkt, cd, cu, ld, **kw: (
-            (kw.get('ff_signal') or 0) < -0.4
-            and kw.get('vol_ratio') is not None
-            and (kw.get('vol_ratio') or 0) < 0.7
-            and chg < 0
-        ),
-    },
-    # ── 财报利好信号（实盘触发）──
-    {
-        'name': '财报利好+资金流入→涨',
-        'pred_up': True,
-        'tier': 3,
-        'check': lambda chg, mkt, cd, cu, ld, **kw: (
-            (kw.get('finance_score') or 0) > 0.5
-            and (kw.get('ff_signal') or 0) > 0.2
         ),
     },
 ]
@@ -1600,24 +1511,25 @@ def _nw_match_rule(feat: dict) -> dict | None:
 def _predict_next_week(code: str, data: dict, latest_date: str,
                        this_week_pred: dict,
                        deepseek_result: dict | None = None) -> dict | None:
-    """预测下周方向（规则引擎V5 + DeepSeek AI增强）。
+    """预测下周方向（规则引擎V7精简 + DeepSeek AI增强 + 板块置信度增强）。
 
-    V5优化（基于5233只A股×29周时间序列交叉验证 + V5回测验证）：
-    - V4全样本81.6% vs CV82.5%，过拟合差距-1.0%（规则整体稳健）
-    - 移除R2(CV62.0%,过拟合gap+11.4%)、R4(CV样本不足)、R6b(CV57.1%≈随机)
-    - 移除R8(CV61.5%,过拟合gap+13.4%) — V5新增移除
-    - R6a降为Tier2（CV63.6%,gap+9.4%，存在过拟合）
-    - 成交量信号改为仅标签不修正（CV中确认/矛盾差距反转-9.2pp）
-    - V5移除R2/R8后: 全样本82.8% vs CV84.0%，准确率+1.2%，覆盖率-1.4%
-    稳健规则: R1(CV89.5%), R5a(CV90.6%), R5b(CV86.4%), R5c(CV79.6%), R7(CV73.3%)
+    V7精简（基于5233只A股×29周CV验证，目标>80%准确率）：
+    - 只保留CV>75%的涨信号规则(RULES_ELITE): R1, R5a, R5b, R5c
+    - 移除所有跌信号规则: R6a(CV63.6%), R6c(CV60.4%), R7(CV73.3%但跌信号不稳)
+    - 移除R3(CV71.1%，最弱涨规则)
+    - 移除资金流向/财报Tier3规则(无CV验证数据)
+    - 后置过滤: cd>=2(连跌≥2天) + pos60<0.6(非高位) → CV=91.7%(567样本), gap=+0.2%
+    - 过滤不通过的预测直接舍弃(返回direction=None)
 
-    V6增强（DeepSeek AI辅助）：
-    - 规则引擎未命中时，使用 DeepSeek 推理引擎作为 fallback
+    DeepSeek AI增强（V6保留）：
+    - 规则引擎未命中时，使用 DeepSeek 周预测引擎作为 fallback
     - DeepSeek 置信度≥0.55 时输出预测，否则仍标记为不确定
-    - 策略标记为 'nw_deepseek_ai'，置信度标记为 'ai_reference'
+
+    板块置信度增强（v3保留）：
+    - 负动量-1~-3%确认涨信号，正动量>0.8降级
 
     Args:
-        deepseek_result: DeepSeek预测结果 {'direction': 'UP'|'DOWN',
+        deepseek_result: DeepSeek周预测结果 {'direction': 'UP'|'DOWN',
                          'confidence': float, 'justification': str} 或 None
 
     Returns:
@@ -1695,19 +1607,28 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
                                 prev_week_chg=prev_week_chg)
     rule = _nw_match_rule(feat)
 
+    # ── V7后置过滤: cd>=2 + pos60<0.6 (CV=91.7%, gap=+0.2%) ──
+    # 规则命中但不满足过滤条件 → 视为未命中(舍弃低准确率预测)
+    if rule is not None and rule['pred_up']:
+        cd = feat['consec_down']
+        pos60 = feat.get('_price_pos_60')
+        # 连跌天数<2 或 价格高位>=0.6 → 舍弃
+        if cd < 2 or (pos60 is not None and pos60 >= 0.6):
+            rule = None  # 过滤不通过，降级为未命中
+
     # 下周日期范围
     nw_monday = _next_week_monday(dt_latest)
     nw_friday = nw_monday + timedelta(days=4)
     nw_iso = nw_monday.isocalendar()
 
     if rule is None:
-        # ── DeepSeek AI 增强：规则未命中时使用 AI 推理 ──
+        # ── DeepSeek 周预测增强：规则未命中时使用 AI 推理 ──
         if deepseek_result and deepseek_result.get('direction') in ('UP', 'DOWN'):
             ds_dir = deepseek_result['direction']
             ds_conf = deepseek_result.get('confidence', 0.5)
             ds_reason = deepseek_result.get('justification', '')
 
-            # 置信度映射：DeepSeek confidence → 系统置信度标签
+            # 置信度映射：DeepSeek 周预测 confidence → 系统置信度标签
             # 回测验证：≥65%准确率57.7%，<65%准确率约50%
             if ds_conf >= 0.70:
                 confidence = 'high'
@@ -1747,7 +1668,7 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
                 'nw_backtest_samples': None,
             }
 
-        # 不确定 - 规则未命中且无 DeepSeek 结果
+        # 不确定 - 规则未命中且无 DeepSeek 周预测结果
         idx_code = _get_stock_index(code)
         idx_names = {'000001.SH': '上证', '399001.SZ': '深证', '899050.SZ': '北证50'}
         idx_label = idx_names.get(idx_code, idx_code)
@@ -1774,13 +1695,10 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
             'nw_backtest_samples': None,
         }
 
-    # 命中规则
+    # 命中规则 (V7: 所有存活预测都通过了严格过滤，均为高置信)
     nw_pred_up = rule['pred_up']
     tier = rule['tier']
-    if tier == 1:
-        confidence = 'high'
-    else:
-        confidence = 'reference'  # Tier 2: 参考级, 准确率~56-59%
+    confidence = 'high'  # V7: 精简规则+后置过滤 → 全部高置信(CV=91.7%)
 
     # 成交量形态置信度修正（回测验证：确认70.5% vs 矛盾52.7%）
     vol_patterns = _detect_volume_patterns(week_klines, klines)
@@ -1796,6 +1714,8 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
     if board_momentum is not None or concept_consensus is not None:
         confidence, board_note = _adjust_nw_confidence_by_board(
             nw_pred_up, confidence, board_momentum, concept_consensus)
+
+    # ── V7: 板块置信度增强保留（在高置信基础上微调） ──
 
     # 构建理由（包含指数名称和多维信号）
     idx_code = _get_stock_index(code)
@@ -1818,8 +1738,6 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
         parts.append(vol_note)
     if board_note:
         parts.append(board_note)
-    if tier >= 2 and confidence != 'high':
-        parts.append('参考信号')
     nw_reason = '; '.join(parts)
 
     return {
@@ -1989,6 +1907,13 @@ def _compute_next_week_backtest(stock_codes: list[str], data: dict,
                                         price_pos_60=price_pos_60,
                                         prev_week_chg=prev_week_chg)
             rule = _nw_match_rule(feat)
+
+            # V7后置过滤: cd>=2 + pos60<0.6 (与生产逻辑一致)
+            if rule is not None and rule['pred_up']:
+                cd = feat['consec_down']
+                pos60 = feat.get('_price_pos_60')
+                if cd < 2 or (pos60 is not None and pos60 >= 0.6):
+                    rule = None
 
             if rule is None:
                 # 不确定 - 不计入准确率

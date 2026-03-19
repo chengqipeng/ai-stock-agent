@@ -81,6 +81,18 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction (
     nw_pred_chg_samples INT COMMENT '下周涨跌幅样本数',
     nw_backtest_accuracy DOUBLE COMMENT '下周预测回测准确率(%)',
     nw_backtest_samples INT COMMENT '下周预测回测样本数',
+    nm_pred_direction VARCHAR(4) COMMENT '下月预测方向: UP/DOWN',
+    nm_confidence VARCHAR(10) COMMENT '下月预测置信度',
+    nm_strategy VARCHAR(30) COMMENT '下月预测策略',
+    nm_reason VARCHAR(200) COMMENT '下月预测理由',
+    nm_composite_score DOUBLE COMMENT '下月预测综合评分',
+    nm_this_month_chg DOUBLE COMMENT '本月涨跌幅(%)',
+    nm_target_year INT COMMENT '预测目标年',
+    nm_target_month INT COMMENT '预测目标月',
+    nm_date_range VARCHAR(50) COMMENT '下月日期范围',
+    nm_backtest_accuracy DOUBLE COMMENT '下月预测回测准确率(%)',
+    nm_backtest_samples INT COMMENT '下月预测回测样本数',
+    nm_dim_scores VARCHAR(500) COMMENT '下月预测各维度评分(JSON)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_code (stock_code),
@@ -163,6 +175,18 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction_history (
     nw_pred_chg_samples INT COMMENT '下周涨跌幅样本数',
     nw_backtest_accuracy DOUBLE COMMENT '下周预测回测准确率(%)',
     nw_backtest_samples INT COMMENT '下周预测回测样本数',
+    nm_pred_direction VARCHAR(4) COMMENT '下月预测方向: UP/DOWN',
+    nm_confidence VARCHAR(10) COMMENT '下月预测置信度',
+    nm_strategy VARCHAR(30) COMMENT '下月预测策略',
+    nm_reason VARCHAR(200) COMMENT '下月预测理由',
+    nm_composite_score DOUBLE COMMENT '下月预测综合评分',
+    nm_this_month_chg DOUBLE COMMENT '本月涨跌幅(%)',
+    nm_target_year INT COMMENT '预测目标年',
+    nm_target_month INT COMMENT '预测目标月',
+    nm_date_range VARCHAR(50) COMMENT '下月日期范围',
+    nm_backtest_accuracy DOUBLE COMMENT '下月预测回测准确率(%)',
+    nm_backtest_samples INT COMMENT '下月预测回测样本数',
+    nm_dim_scores VARCHAR(500) COMMENT '下月预测各维度评分(JSON)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_week (stock_code, iso_year, iso_week),
     INDEX idx_predict_date (predict_date),
@@ -312,6 +336,7 @@ def ensure_tables():
 
 def upsert_latest_prediction(prediction: dict):
     """插入或更新最新预测（stock_weekly_prediction 表，每只股票仅保留最新一条）。"""
+    _ensure_all_columns([prediction])
     conn = get_connection()
     cur = conn.cursor()
     try:
@@ -322,10 +347,20 @@ def upsert_latest_prediction(prediction: dict):
         conn.close()
 
 
+def _ensure_all_columns(predictions: list[dict]) -> list[dict]:
+    """确保每条预测记录包含 _PREDICTION_COLUMNS 中的所有键，缺失的填 None。"""
+    for p in predictions:
+        for col in _PREDICTION_COLUMNS:
+            if col not in p:
+                p[col] = None
+    return predictions
+
+
 def batch_upsert_latest_predictions(predictions: list[dict]):
     """批量插入或更新最新预测。"""
     if not predictions:
         return
+    _ensure_all_columns(predictions)
     conn = get_connection()
     cur = conn.cursor()
     try:
@@ -341,6 +376,7 @@ def batch_insert_history(predictions: list[dict]):
     """批量插入历史预测记录（每只股票每周一条，重复则更新）。"""
     if not predictions:
         return
+    _ensure_all_columns(predictions)
     conn = get_connection()
     cur = conn.cursor()
     try:

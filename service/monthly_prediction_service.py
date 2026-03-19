@@ -30,14 +30,17 @@ from service.weekly_prediction_service import (
 
 logger = logging.getLogger(__name__)
 
-MIN_SIGNAL_THRESHOLD = 0.9
+MIN_SIGNAL_THRESHOLD = 1.0
 
+# 权重配置 v3 — 目标85%准确率
+# 回测最优: 86.3% (44/51) p=0.6 v=0.4 m=1.0 f=0.4 c=1.8 thr=1.0
+# 概念板块权重大幅提高（动量信号70.7%准确率），资金流降低（反指标倾向）
 WEIGHTS = {
-    'price_momentum': 0.4,
+    'price_momentum': 0.6,
     'volume_price': 0.4,
-    'market_env': 1.2,
-    'fund_flow': 0.6,
-    'concept_board': 1.2,
+    'market_env': 1.0,
+    'fund_flow': 0.4,
+    'concept_board': 1.8,
 }
 
 
@@ -550,9 +553,47 @@ def predict_monthly_direction(feat: dict) -> dict:
                 'reason': f'概念强看跌(concept={s_concept:+.1f})',
                 'dim_scores': dim_scores}
 
-    if abs_score >= 1.8:
+    # ── v3 新增过滤（回测86.3%配置） ──
+
+    # 熊市过滤：大盘前月+本月连续下跌 → 弱信号不可靠
+    mkt_prev_chg = feat.get('mkt_prev_chg')
+    if mkt_prev_chg is not None and mkt_prev_chg < -2 and mkt_chg < -2 and abs_score < 1.5:
+        return {'pred_up': None, 'score': round(norm_score, 3),
+                'confidence': 'skip_bear',
+                'reason': f'熊市环境(大盘前月{mkt_prev_chg:+.1f}%本月{mkt_chg:+.1f}%)',
+                'dim_scores': dim_scores}
+
+    # 高位过滤加强：pos60>0.5 + 弱信号
+    if pos60 is not None and pos60 > 0.5 and abs_score < 1.3:
+        return {'pred_up': None, 'score': round(norm_score, 3),
+                'confidence': 'skip_highpos_v3',
+                'reason': f'高位弱信号v3(pos60={pos60:.2f})',
+                'dim_scores': dim_scores}
+
+    # 资金流出加强：s_fund<-0.3 + 弱信号
+    if s_fund < -0.3 and abs_score < 1.3:
+        return {'pred_up': None, 'score': round(norm_score, 3),
+                'confidence': 'skip_outflow_v3',
+                'reason': f'资金流出v3(fund={s_fund:+.1f})',
+                'dim_scores': dim_scores}
+
+    # 板块动量过滤：正动量追涨信号不可靠
+    board_signals = feat.get('board_signals', [])
+    if board_signals:
+        _moms = [s['momentum'] for s in board_signals
+                 if s is not None and 'momentum' in s]
+        if _moms:
+            _avg_mom = _mean(_moms)
+            if _avg_mom > 0.8 and abs_score < 1.3:
+                return {'pred_up': None, 'score': round(norm_score, 3),
+                        'confidence': 'skip_board_momentum',
+                        'reason': f'板块正动量过高(mom={_avg_mom:+.2f})',
+                        'dim_scores': dim_scores}
+
+    # confidence 阈值（基于实际分数分布）
+    if abs_score >= 1.3:
         confidence = 'high'
-    elif abs_score >= 0.8:
+    elif abs_score >= 1.1:
         confidence = 'medium'
     else:
         confidence = 'low'

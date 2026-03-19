@@ -56,42 +56,35 @@ def _get_client():
 # 5. 强调 UNCERTAIN 是合理选项
 #    → 不确定时不要强行给方向，降低错误率
 
-_SYSTEM_PROMPT = """你是A股量化分析师。根据市场数据预测个股下周涨跌方向。
+_SYSTEM_PROMPT = """你是A股量化分析师。分析暴涨股下周是否回调。
 
 ## 输出格式
-只输出JSON：{"direction":"UP/DOWN/UNCERTAIN","confidence":0.50~0.70,"justification":"≤50字"}
+只输出JSON：{"direction":"DOWN/UNCERTAIN","confidence":0.50~0.65,"justification":"≤30字"}
 
-## A股核心事实
-- 任意一周约60%股票下跌、40%上涨，默认预期偏空
-- 涨后回调非常可靠：本周涨>5%→下周约65%回调
-- 跌后反弹不可靠：本周跌>5%→下周方向不确定，不要轻易预测反弹
-- 大盘跌>2%时约70%个股跌，大盘涨>2%时约55%个股涨
+## 背景
+你收到的都是本周涨≥8%的暴涨股。统计上约64%会回调，但36%会继续涨。你的任务是区分这两类。
 
-## 决策规则（严格执行，按优先级匹配第一条命中的规则）
+## 继续涨的特征（必须输出UNCERTAIN）
+- 前一周也大涨(>3%)：连续暴涨说明强趋势，不会轻易回调
+- 前一周涨幅>5%：两周连续大涨是主升浪特征
+- 量比极高(>5.0)：超级放量说明有大资金持续介入
+- 最后一天涨停(涨≥9.5%)：尾盘涨停说明买盘极强，次周大概率继续
 
-### 可以预测DOWN的场景（回测验证准确率>60%）
-D1: 个股本周涨>5% → DOWN (0.63)
-D2: 个股本周涨>3% 且 60日高位>80% → DOWN (0.62)
-D3: 个股本周涨>3% 且 连涨≥3天 → DOWN (0.60)
-D4: 大盘本周涨>2% 但个股跌>2% → DOWN (0.58) [独立弱势]
-D5: 大盘本周跌>2% 且 个股涨>2% 且 连涨≥3天 → DOWN (0.58) [逆势过热]
+## 回调的特征（可以输出DOWN）
+- 前一周平稳或小跌(前周涨跌幅在-5%~3%)：突然暴涨缺乏持续性
+- 量比适中(1.0~3.0)：正常放量而非疯狂抢筹
+- 60日位置极高(>90%)：已在高位，暴涨是最后一波
 
-### 可以预测UP的场景（条件极严格，必须多信号共振）
-U1: 大盘本周涨>2% 且 个股本周跌>3% 且 60日低位<20% → UP (0.58)
-（仅此一条UP规则。预测UP的门槛远高于DOWN，因为UP预测准确率天然偏低）
-
-### 必须输出UNCERTAIN的场景
-- 个股本周跌了（无论跌多少），除非精确命中U1 → UNCERTAIN
-- 大盘震荡(-1%~1%) → UNCERTAIN
-- 大盘小跌(-2%~0%) 且个股涨跌幅在-3%~3% → UNCERTAIN
-- 没有命中上述任何D或U规则 → UNCERTAIN
-- 你不确定 → UNCERTAIN
+## 决策流程
+1. 先看前一周涨跌幅：前周>3%→大概率UNCERTAIN
+2. 再看量比：>5.0→UNCERTAIN
+3. 再看最后一天：涨停→UNCERTAIN
+4. 以上都没命中，且前周<3%→DOWN (0.62)
+5. 有任何犹豫→UNCERTAIN
 
 ## 绝对禁止
-- 禁止因为"个股本周跌了很多"就预测UP（超跌反弹在周频不可靠）
-- 禁止因为"大盘跌了"就预测个股反弹（系统性风险会持续）
-- 禁止给出>0.70的置信度（周频预测没有高确定性）
-- 不确定时禁止猜测方向，必须输出UNCERTAIN"""
+- 禁止输出UP
+- 禁止给出>0.65的置信度"""
 
 
 # ═══════════════════════════════════════════════════════════
@@ -123,6 +116,8 @@ def _build_user_prompt(code: str, stock_name: str, features: dict) -> str:
     prev_chg = features.get('_prev_week_chg')
     if prev_chg is not None:
         parts.append(f"  前一周: {prev_chg:+.2f}%")
+    else:
+        parts.append(f"  前一周: 无数据")
 
     # 相对强弱（关键信号）
     relative = this_chg - mkt_chg
@@ -141,19 +136,29 @@ def _build_user_prompt(code: str, stock_name: str, features: dict) -> str:
     if abs(last_day) > 1:
         parts.append(f"  最后一天: {last_day:+.2f}%")
 
-    # 价格位置
+    # 价格位置 — 始终展示（V16关键信号）
     pos = features.get('_price_pos_60')
     if pos is not None:
         if pos < 0.2:
             parts.append(f"  60日位置: {pos:.0%}（低位）")
-        elif pos > 0.8:
+        elif pos > 0.9:
+            parts.append(f"  60日位置: {pos:.0%}（极高位）")
+        elif pos > 0.7:
             parts.append(f"  60日位置: {pos:.0%}（高位）")
-        # 中间位置不展示，减少噪声
+        else:
+            parts.append(f"  60日位置: {pos:.0%}（中位）")
 
-    # ── 成交量（仅有数据时展示）──
+    # ── 成交量 — 始终展示（V16关键信号）──
     vr = features.get('vol_ratio')
-    if vr is not None and abs(vr - 1.0) > 0.2:
-        label = '放量' if vr > 1.2 else '缩量'
+    if vr is not None:
+        if vr > 5.0:
+            label = '超级放量'
+        elif vr > 1.2:
+            label = '放量'
+        elif vr < 0.8:
+            label = '缩量'
+        else:
+            label = '正常'
         parts.append(f"\n【量能】量比: {vr:.2f}（{label}）")
 
     # ── 资金面（仅有数据时展示）──
@@ -226,6 +231,46 @@ async def predict_next_week_with_deepseek(
         }
         或 None（调用失败/解析失败）
     """
+    # ── V15 严格预过滤：基于50股×16周回测优化 ──
+    # 核心策略：只在"暴涨+高位+放量"时调用LLM，追求80%+准确率
+    # D2规则(涨>=5%+连涨>=3天)在16周数据上0%准确率，已删除
+    market_chg = features.get('market_chg', 0)
+    this_chg = features.get('this_week_chg', 0)
+    price_pos = features.get('_price_pos_60')
+    vol_ratio = features.get('vol_ratio')
+
+    # 硬性排除：涨幅<8%不调用LLM（D1规则要求涨>=8%）
+    if this_chg < 8.0:
+        return {
+            'direction': 'UNCERTAIN', 'confidence': 0.0,
+            'justification': f'预过滤:涨幅{this_chg:+.2f}%<8%',
+        }
+
+    # 硬性排除：60日价格位置<70%（低位暴涨往往是趋势启动，不会回调）
+    if price_pos is None or price_pos < 0.7:
+        return {
+            'direction': 'UNCERTAIN', 'confidence': 0.0,
+            'justification': f'预过滤:60日位{price_pos}不足0.7',
+        }
+
+    # 硬性排除：量比<1.0（缩量暴涨信号不可靠）
+    if vol_ratio is None or vol_ratio < 1.0:
+        return {
+            'direction': 'UNCERTAIN', 'confidence': 0.0,
+            'justification': f'预过滤:量比{vol_ratio}不足1.0',
+        }
+
+    # 硬性排除：大盘暴跌<-3%时不预测（崩盘周暴涨股往往继续涨）
+    if market_chg < -3.0:
+        return {
+            'direction': 'UNCERTAIN', 'confidence': 0.0,
+            'justification': f'预过滤:大盘暴跌{market_chg:+.1f}%',
+        }
+
+    # 通过预过滤：涨>=8% + 60日位>=70% + 量比>=1.0 + 大盘>-3%
+    pass_reason = f'涨{this_chg:+.1f}%+pos{price_pos:.0%}+vol{vol_ratio:.1f}+mkt{market_chg:+.1f}%'
+    logger.debug("预过滤通过: %s %s", code, pass_reason)
+
     client = _get_client()
     user_prompt = _build_user_prompt(code, stock_name, features)
 

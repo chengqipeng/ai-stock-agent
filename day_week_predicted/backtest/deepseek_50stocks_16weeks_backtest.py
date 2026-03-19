@@ -2,20 +2,10 @@
 """
 三方深度对比回测：V4规则 vs V5规则 vs DeepSeek
 ============================================================
-200只不同概念板块个股，8周滚动回测，深度分析。
-
-分析维度：
-  1. 总体准确率/覆盖率/高置信准确率
-  2. 按市场(SH/SZ)分拆
-  3. 按行情类型(大盘涨/跌/震荡)分拆
-  4. 按个股涨跌幅区间分拆
-  5. 方法间一致性分析（ensemble信号）
-  6. 错误案例深度分析
+50只不同概念板块个股，16周滚动回测，深度分析。
 
 用法：
-    .venv/bin/python -m day_week_predicted.backtest.four_way_200stocks_backtest
-
-预计耗时：LLM调用 200只×8周=1600次，约10-15分钟
+    .venv/bin/python -m day_week_predicted.backtest.deepseek_50stocks_16weeks_backtest
 """
 import asyncio
 import json
@@ -32,17 +22,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
-# 同时输出到文件
-_log_path = Path(__file__).parent.parent.parent / 'data_results' / 'four_way_backtest_v14_log.txt'
+_log_path = Path(__file__).parent.parent.parent / 'data_results' / 'four_way_50stocks_16w_log.txt'
 _fh = logging.FileHandler(str(_log_path), mode='w', encoding='utf-8')
 _fh.setLevel(logging.INFO)
 _fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
 logging.getLogger().addHandler(_fh)
 
+NUM_STOCKS = 50
+NUM_WEEKS = 16
 
-# ═══════════════════════════════════════════════════════════
-# 工具函数
-# ═══════════════════════════════════════════════════════════
 
 def _to_float(v) -> float:
     try:
@@ -66,7 +54,6 @@ def _get_iso_week(date_str: str) -> tuple:
 def _prev_iso_week(iso_year: int, iso_week: int) -> tuple:
     if iso_week > 1:
         return iso_year, iso_week - 1
-    # 上一年最后一周
     dec28 = datetime(iso_year - 1, 12, 28)
     return dec28.isocalendar()[0], dec28.isocalendar()[1]
 
@@ -107,19 +94,13 @@ def _get_market_code(code: str) -> str:
     return '000001.SH' if code.endswith('.SH') else '399001.SZ'
 
 
-# ═══════════════════════════════════════════════════════════
-# 从数据库选取200只不同概念板块股票
-# ═══════════════════════════════════════════════════════════
-
-def _select_200_stocks() -> list[tuple[str, str]]:
-    """从概念板块中选取200只股票，每个板块最多取1只，确保多样性。
-    排除北交所(8/4开头)和ST股票。"""
+def _select_stocks() -> list[tuple[str, str]]:
+    """从概念板块中选取50只股票，每个板块最多取1只。"""
     from dao import get_connection
 
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
 
-    # 获取所有概念板块及其成分股
     cur.execute("""
         SELECT b.board_name, s.stock_code, s.stock_name
         FROM stock_concept_board_stock s
@@ -132,25 +113,23 @@ def _select_200_stocks() -> list[tuple[str, str]]:
     """)
     rows = cur.fetchall()
 
-    # 按板块分组，同时转换代码格式（加后缀）
     board_stocks = defaultdict(list)
     all_raw_codes = set()
     code_name_map = {}
     for r in rows:
         raw_code = r['stock_code']
         name = r['stock_name']
-        # 加后缀
         if raw_code.startswith(('600', '601', '603', '605', '688')):
             code = raw_code + '.SH'
         elif raw_code.startswith(('000', '001', '002', '003', '300', '301')):
             code = raw_code + '.SZ'
         else:
-            continue  # 跳过无法识别的代码
+            continue
         board_stocks[r['board_name']].append(code)
         all_raw_codes.add(code)
         code_name_map[code] = name
 
-    # 批量检查哪些股票有足够K线数据（至少80条）
+    # 批量检查K线数据充足性（16周需要更多历史）
     all_codes_list = list(all_raw_codes)
     valid_codes = set()
     bs = 500
@@ -160,24 +139,23 @@ def _select_200_stocks() -> list[tuple[str, str]]:
         cur.execute(
             f"SELECT stock_code FROM stock_kline "
             f"WHERE stock_code IN ({ph}) "
-            f"GROUP BY stock_code HAVING COUNT(*) >= 80",
+            f"GROUP BY stock_code HAVING COUNT(*) >= 120",
             batch
         )
         for r in cur.fetchall():
             valid_codes.add(r['stock_code'])
 
     conn.close()
-    logger.info("有效股票(K线≥80): %d / %d", len(valid_codes), len(all_raw_codes))
+    logger.info("有效股票(K线≥120): %d / %d", len(valid_codes), len(all_raw_codes))
 
-    # 每个板块随机选1只有效股票，直到凑够200只
-    selected = {}  # code -> (code, name)
+    selected = {}
     used_codes = set()
     board_names = list(board_stocks.keys())
-    random.seed(42)  # 可复现
+    random.seed(42)
     random.shuffle(board_names)
 
     for board_name in board_names:
-        if len(selected) >= 200:
+        if len(selected) >= NUM_STOCKS:
             break
         codes = list(board_stocks[board_name])
         random.shuffle(codes)
@@ -187,28 +165,12 @@ def _select_200_stocks() -> list[tuple[str, str]]:
                 used_codes.add(code)
                 break
 
-    # 如果不够200只，从剩余板块中再取第二只
-    if len(selected) < 200:
-        for board_name in board_names:
-            if len(selected) >= 200:
-                break
-            for code in board_stocks[board_name]:
-                if code not in used_codes and code in valid_codes:
-                    selected[code] = (code, code_name_map[code])
-                    used_codes.add(code)
-                    break
-
     result = list(selected.values())
     logger.info("已选取 %d 只股票（来自 %d 个概念板块）", len(result), len(board_names))
     return result
 
 
-# ═══════════════════════════════════════════════════════════
-# 数据加载
-# ═══════════════════════════════════════════════════════════
-
 def _load_kline_data(stock_list: list[tuple[str, str]]) -> tuple[dict, str]:
-    """加载所有股票 + 大盘指数的K线数据。"""
     from dao import get_connection
 
     conn = get_connection(use_dict_cursor=True)
@@ -222,7 +184,8 @@ def _load_kline_data(stock_list: list[tuple[str, str]]) -> tuple[dict, str]:
         return {}, ''
 
     dt_latest = datetime.strptime(latest_date, '%Y-%m-%d')
-    lookback = (dt_latest - timedelta(days=200)).strftime('%Y-%m-%d')
+    # 16周≈112天 + 60日位置 + 余量 → 300天
+    lookback = (dt_latest - timedelta(days=300)).strftime('%Y-%m-%d')
 
     codes = [c for c, _ in stock_list]
     all_codes = codes + ['000001.SH', '399001.SZ', '899050.SZ']
@@ -251,13 +214,8 @@ def _load_kline_data(stock_list: list[tuple[str, str]]) -> tuple[dict, str]:
     return klines, latest_date
 
 
-# ═══════════════════════════════════════════════════════════
-# 特征提取
-# ═══════════════════════════════════════════════════════════
-
 def _extract_features(code: str, name: str, klines: dict,
                       iso_year: int, iso_week: int) -> dict | None:
-    """提取多维特征，兼容 LLM 预测器和 V4/V5 规则引擎。"""
     stock_klines = klines.get(code, [])
     if not stock_klines:
         return None
@@ -282,7 +240,6 @@ def _extract_features(code: str, name: str, klines: dict,
         [k['change_percent'] for k in market_prev]
     ) if len(market_prev) >= 3 else None
 
-    # 连涨/连跌
     cd, cu = 0, 0
     for p in reversed(daily_pcts):
         if p < 0:
@@ -296,7 +253,6 @@ def _extract_features(code: str, name: str, klines: dict,
         else:
             break
 
-    # 价格位置（60日高低点）
     sorted_k = sorted(stock_klines, key=lambda x: x['date'])
     hist = [k for k in sorted_k if k['date'] < week_klines[0]['date']]
     price_pos_60 = None
@@ -309,13 +265,11 @@ def _extract_features(code: str, name: str, klines: dict,
             if mx > mn and lc > 0:
                 price_pos_60 = round((lc - mn) / (mx - mn), 4)
 
-    # 前一周涨跌
     prev_stock_week = _get_week_klines(stock_klines, prev_y, prev_w)
     prev_week_chg = _compound_return(
         [k['change_percent'] for k in prev_stock_week]
     ) if len(prev_stock_week) >= 3 else None
 
-    # 成交量比率
     vol_ratio = None
     if len(hist) >= 20:
         avg_vol = sum(k['volume'] for k in hist[-20:]) / 20
@@ -326,35 +280,25 @@ def _extract_features(code: str, name: str, klines: dict,
     suffix = market_code.split('.')[-1] if '.' in market_code else 'SH'
 
     return {
-        # LLM 预测器字段
         'this_week_chg': round(this_week_chg, 2),
         'market_chg': round(market_chg, 2),
         '_market_prev_week_chg': round(market_prev_chg, 2) if market_prev_chg is not None else None,
-        'consec_down': cd,
-        'consec_up': cu,
+        'consec_down': cd, 'consec_up': cu,
         'last_day_chg': round(daily_pcts[-1], 2),
         '_market_suffix': suffix,
         '_price_pos_60': price_pos_60,
         '_prev_week_chg': round(prev_week_chg, 2) if prev_week_chg is not None else None,
-        'ff_signal': None,
-        'vol_ratio': vol_ratio,
-        'vol_price_corr': None,
-        'board_momentum': None,
-        'concept_consensus': None,
-        'concept_boards': '',
-        'finance_score': None,
-        'revenue_yoy': None,
-        'profit_yoy': None,
-        'roe': None,
-        # 规则引擎额外字段
-        '_daily_pcts': daily_pcts,
-        '_market_code': market_code,
+        'ff_signal': None, 'vol_ratio': vol_ratio,
+        'vol_price_corr': None, 'board_momentum': None,
+        'concept_consensus': None, 'concept_boards': '',
+        'finance_score': None, 'revenue_yoy': None,
+        'profit_yoy': None, 'roe': None,
+        '_daily_pcts': daily_pcts, '_market_code': market_code,
     }
 
 
 def _check_next_week_actual(code: str, klines: dict,
                             iso_year: int, iso_week: int) -> float | None:
-    """获取下一周的实际涨跌幅。"""
     nw_y, nw_w = _next_iso_week(iso_year, iso_week)
     stock_klines = klines.get(code, [])
     nw_klines = _get_week_klines(stock_klines, nw_y, nw_w)
@@ -368,7 +312,6 @@ def _check_next_week_actual(code: str, klines: dict,
 # ═══════════════════════════════════════════════════════════
 
 def _predict_with_v4_rules(features: dict) -> dict:
-    """V4 规则引擎预测（含 R2/R8 等过拟合规则）。"""
     feat = _build_rule_feat(features)
     V4_RULES = [
         {'name': 'R1:大盘深跌+个股跌→涨', 'pred_up': True, 'tier': 1,
@@ -424,8 +367,7 @@ def _predict_with_v4_rules(features: dict) -> dict:
                 return {
                     'direction': 'UP' if rule['pred_up'] else 'DOWN',
                     'confidence': conf_map.get(tier, 0.60),
-                    'rule_name': rule['name'],
-                    'tier': tier,
+                    'rule_name': rule['name'], 'tier': tier,
                 }
         except (TypeError, KeyError):
             continue
@@ -433,7 +375,6 @@ def _predict_with_v4_rules(features: dict) -> dict:
 
 
 def _predict_with_v5_rules(features: dict) -> dict:
-    """V5 规则引擎预测（生产版，复用 weekly_prediction_service）。"""
     from service.weekly_prediction_service import _nw_extract_features, _nw_match_rule
 
     daily_pcts = features['_daily_pcts']
@@ -441,10 +382,8 @@ def _predict_with_v5_rules(features: dict) -> dict:
     market_code = features['_market_code']
 
     feat = _nw_extract_features(
-        daily_pcts=daily_pcts,
-        market_chg=market_chg,
-        ff_signal=features.get('ff_signal'),
-        vol_ratio=features.get('vol_ratio'),
+        daily_pcts=daily_pcts, market_chg=market_chg,
+        ff_signal=features.get('ff_signal'), vol_ratio=features.get('vol_ratio'),
         vol_price_corr=features.get('vol_price_corr'),
         finance_score=features.get('finance_score'),
         market_index=market_code,
@@ -461,13 +400,11 @@ def _predict_with_v5_rules(features: dict) -> dict:
     return {
         'direction': 'UP' if rule['pred_up'] else 'DOWN',
         'confidence': conf_map.get(tier, 0.55),
-        'rule_name': rule['name'],
-        'tier': tier,
+        'rule_name': rule['name'], 'tier': tier,
     }
 
 
 def _build_rule_feat(features: dict) -> dict:
-    """将LLM特征格式转换为规则引擎特征格式。"""
     return {
         'this_chg': features['this_week_chg'],
         'mkt_chg': features['market_chg'],
@@ -482,12 +419,10 @@ def _build_rule_feat(features: dict) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════
-# 统计类（增强版，支持多维分析）
+# 统计类
 # ═══════════════════════════════════════════════════════════
 
 class MethodStats:
-    """单个预测方法的累计统计，支持多维切片分析。"""
-
     def __init__(self, name: str):
         self.name = name
         self.correct = 0
@@ -496,7 +431,6 @@ class MethodStats:
         self.high_conf_correct = 0
         self.high_conf_total = 0
         self.details = []
-        # 多维分拆
         self.by_suffix = defaultdict(lambda: {'correct': 0, 'total': 0, 'uncertain': 0})
         self.by_market_regime = defaultdict(lambda: {'correct': 0, 'total': 0, 'uncertain': 0})
         self.by_stock_chg_bin = defaultdict(lambda: {'correct': 0, 'total': 0, 'uncertain': 0})
@@ -505,8 +439,6 @@ class MethodStats:
 
     def add(self, code, name, week_label, direction, confidence,
             actual, market_chg, this_week_chg, suffix, extra_info=''):
-        """记录一条预测结果，同时更新多维统计。"""
-        # 行情分类
         if market_chg < -2:
             regime = '大盘大跌(<-2%)'
         elif market_chg < -0.5:
@@ -518,7 +450,6 @@ class MethodStats:
         else:
             regime = '大盘大涨(>2%)'
 
-        # 个股涨跌区间
         if this_week_chg < -5:
             chg_bin = '暴跌(<-5%)'
         elif this_week_chg < -2:
@@ -562,7 +493,6 @@ class MethodStats:
             if is_correct:
                 self.high_conf_correct += 1
 
-        # 多维更新
         for dim_dict, key in [
             (self.by_suffix, suffix),
             (self.by_market_regime, regime),
@@ -595,7 +525,6 @@ class MethodStats:
         return self.total / all_count * 100 if all_count > 0 else 0
 
     def summary_dict(self):
-        all_count = self.total + self.uncertain
         return {
             'model': self.name,
             'total_predictions': self.total,
@@ -608,7 +537,6 @@ class MethodStats:
         }
 
     def dim_summary(self, dim_dict, dim_name):
-        """输出某个维度的分拆统计。"""
         lines = [f"  ── 按{dim_name} ──"]
         _p = lambda c, t: f"{c/t*100:.1f}%" if t > 0 else "N/A"
         for key in sorted(dim_dict.keys()):
@@ -619,18 +547,16 @@ class MethodStats:
 
 
 # ═══════════════════════════════════════════════════════════
-# 深度分析函数
+# 深度分析
 # ═══════════════════════════════════════════════════════════
 
 def _deep_analysis(stats_list, weekly_all_results):
-    """对三种方法进行深度交叉分析。"""
     v4, v5, ds = stats_list
     logger.info("")
     logger.info("=" * 80)
     logger.info("  深度分析报告")
     logger.info("=" * 80)
 
-    # 1. 总体对比表
     logger.info("")
     logger.info("  ┌─ 总体对比 ─────────────────────────────────────────┐")
     logger.info("  │ %-16s│%8s│%8s│%8s│%8s│%8s│",
@@ -642,7 +568,6 @@ def _deep_analysis(stats_list, weekly_all_results):
                      s.coverage, s.total, s.uncertain)
     logger.info("  └%s┘", "─" * 57)
 
-    # 2. 多维分拆
     for s in stats_list:
         logger.info("")
         logger.info("  [%s]", s.name)
@@ -650,7 +575,6 @@ def _deep_analysis(stats_list, weekly_all_results):
         logger.info(s.dim_summary(s.by_market_regime, '大盘行情'))
         logger.info(s.dim_summary(s.by_stock_chg_bin, '个股涨跌'))
         logger.info(s.dim_summary(s.by_week, '周'))
-        # UP/DOWN方向准确率
         _p = lambda c, t: f"{c/t*100:.1f}%" if t > 0 else "N/A"
         for d in ['UP', 'DOWN']:
             dd = s.by_direction.get(d, {'correct': 0, 'total': 0})
@@ -658,11 +582,10 @@ def _deep_analysis(stats_list, weekly_all_results):
                         _p(dd['correct'], dd['total']),
                         dd['correct'], dd['total'])
 
-    # 3. 方法间一致性分析（ensemble信号）
+    # 方法间一致性
     logger.info("")
     logger.info("  ┌─ 方法间一致性分析 ──────────────────────────────────┐")
-    # 构建 code+week -> {method: direction} 映射
-    pred_map = defaultdict(dict)  # (code, week) -> {method: direction}
+    pred_map = defaultdict(dict)
     actual_map = {}
     for s in stats_list:
         for d in s.details:
@@ -670,7 +593,6 @@ def _deep_analysis(stats_list, weekly_all_results):
             pred_map[key][s.name] = d['direction']
             actual_map[key] = d['actual']
 
-    # 统计DeepSeek与规则引擎一致时的准确率
     ds_v5_agree_down = {'correct': 0, 'total': 0}
     ds_v4_agree_down = {'correct': 0, 'total': 0}
 
@@ -679,17 +601,13 @@ def _deep_analysis(stats_list, weekly_all_results):
         v4_dir = preds.get('V4规则')
         v5_dir = preds.get('V5规则')
         actual = actual_map.get(key)
-        if not ds_dir or actual is None:
-            continue
-        if ds_dir == 'UNCERTAIN':
+        if not ds_dir or actual is None or ds_dir == 'UNCERTAIN':
             continue
         actual_up = actual > 0
-        # DeepSeek + V5 同时看跌
         if v5_dir and v5_dir != 'UNCERTAIN' and ds_dir == 'DOWN' and v5_dir == 'DOWN':
             ds_v5_agree_down['total'] += 1
             if not actual_up:
                 ds_v5_agree_down['correct'] += 1
-        # DeepSeek + V4 同时看跌
         if v4_dir and v4_dir != 'UNCERTAIN' and ds_dir == 'DOWN' and v4_dir == 'DOWN':
             ds_v4_agree_down['total'] += 1
             if not actual_up:
@@ -703,13 +621,11 @@ def _deep_analysis(stats_list, weekly_all_results):
                 _p(ds_v4_agree_down['correct'], ds_v4_agree_down['total']),
                 ds_v4_agree_down['correct'], ds_v4_agree_down['total'])
 
-    # 规则引擎命中时DeepSeek是否一致
     rule_hit_analysis = {'v4': defaultdict(int), 'v5': defaultdict(int)}
     for key, preds in pred_map.items():
         actual = actual_map.get(key)
         if actual is None:
             continue
-        actual_up = actual > 0
         for rule_name, rule_key in [('V4规则', 'v4'), ('V5规则', 'v5')]:
             r_dir = preds.get(rule_name)
             if r_dir and r_dir != 'UNCERTAIN':
@@ -727,11 +643,11 @@ def _deep_analysis(stats_list, weekly_all_results):
                         label, hit, agree, hit, _p(agree, hit))
     logger.info("  └%s┘", "─" * 57)
 
-    # 4. 三方共识信号
+    # 共识信号
     logger.info("")
     logger.info("  ┌─ 共识信号分析 ──────────────────────────────────────┐")
-    consensus_3 = {'correct': 0, 'total': 0}  # V4+V5+DS三方一致
-    ds_plus_any_rule = {'correct': 0, 'total': 0}  # DS + 任一规则一致
+    consensus_3 = {'correct': 0, 'total': 0}
+    ds_plus_any_rule = {'correct': 0, 'total': 0}
     for key, preds in pred_map.items():
         actual = actual_map.get(key)
         if actual is None:
@@ -740,16 +656,11 @@ def _deep_analysis(stats_list, weekly_all_results):
         ds_d = preds.get('DeepSeek')
         v4_d = preds.get('V4规则')
         v5_d = preds.get('V5规则')
-        # 三方共识
-        non_unc = [d for d in [ds_d, v4_d, v5_d]
-                   if d and d != 'UNCERTAIN']
-        if len(non_unc) == 3:
-            dirs = set(non_unc)
-            if len(dirs) == 1:
-                consensus_3['total'] += 1
-                if (non_unc[0] == 'UP') == actual_up:
-                    consensus_3['correct'] += 1
-        # DS + 任一规则
+        non_unc = [d for d in [ds_d, v4_d, v5_d] if d and d != 'UNCERTAIN']
+        if len(non_unc) == 3 and len(set(non_unc)) == 1:
+            consensus_3['total'] += 1
+            if (non_unc[0] == 'UP') == actual_up:
+                consensus_3['correct'] += 1
         if ds_d and ds_d != 'UNCERTAIN':
             for r_d in [v4_d, v5_d]:
                 if r_d and r_d != 'UNCERTAIN' and r_d == ds_d:
@@ -766,7 +677,7 @@ def _deep_analysis(stats_list, weekly_all_results):
                 ds_plus_any_rule['correct'], ds_plus_any_rule['total'])
     logger.info("  └%s┘", "─" * 57)
 
-    # 5. 错误案例分析 — DeepSeek预测错误的案例
+    # 错误案例
     logger.info("")
     logger.info("  ┌─ DeepSeek错误案例 ─────────────────────────────────┐")
     ds_wrong = []
@@ -780,10 +691,10 @@ def _deep_analysis(stats_list, weekly_all_results):
             v5_d = preds.get('V5规则', 'N/A')
             ds_wrong.append((key[0], key[1], actual, ds_d, v5_d))
 
-    for code, week, actual, ds_d, v5_d in ds_wrong[:15]:
+    for code, week, actual, ds_d, v5_d in ds_wrong[:20]:
         logger.info("  │ %s %s: DS=%s V5=%s 实际=%+.2f%%",
                     code, week, ds_d, v5_d, actual)
-    if len(ds_wrong) > 15:
+    if len(ds_wrong) > 20:
         logger.info("  │ ... 共%d个", len(ds_wrong))
     logger.info("  └%s┘", "─" * 57)
 
@@ -796,16 +707,14 @@ async def main():
     t0 = time.time()
     logger.info("=" * 80)
     logger.info("  三方深度对比回测: V4规则 vs V5规则 vs DeepSeek (V14多维预过滤)")
-    logger.info("  目标: 200只不同概念板块个股, 8周滚动")
+    logger.info("  目标: %d只不同概念板块个股, %d周滚动", NUM_STOCKS, NUM_WEEKS)
     logger.info("=" * 80)
 
-    # 1. 选股
-    stock_list = _select_200_stocks()
-    if len(stock_list) < 50:
-        logger.error("选股不足50只，退出")
+    stock_list = _select_stocks()
+    if len(stock_list) < 20:
+        logger.error("选股不足20只，退出")
         return
 
-    # 2. 加载K线
     klines, latest_date = _load_kline_data(stock_list)
     if not klines:
         return
@@ -813,9 +722,9 @@ async def main():
     dt_latest = datetime.strptime(latest_date, '%Y-%m-%d')
     current_iso = dt_latest.isocalendar()
 
-    # 回测周范围：往前 2~9 周（共8周，跳过最近1周避免数据不全）
+    # 回测周范围：往前 2~(NUM_WEEKS+1) 周（跳过最近1周避免数据不全）
     test_weeks = []
-    for offset in range(2, 10):
+    for offset in range(2, NUM_WEEKS + 2):
         y, w = current_iso[0], current_iso[1] - offset
         while w <= 0:
             y -= 1
@@ -828,7 +737,6 @@ async def main():
                 len(test_weeks), len(stock_list),
                 len(test_weeks) * len(stock_list))
 
-    # 导入 LLM 预测器
     from service.analysis.deepseek_nw_predictor import predict_next_week_with_deepseek
 
     v4_stats = MethodStats('V4规则')
@@ -849,16 +757,13 @@ async def main():
         logger.info("  预测周 W%d → 验证周 W%d", pred_w, nw_w)
         logger.info("─" * 80)
 
-        # 提取特征 & 获取实际涨跌
         samples = []
         actuals = {}
         for code, name in stock_list:
             feat = _extract_features(code, name, klines, pred_y, pred_w)
             actual = _check_next_week_actual(code, klines, pred_y, pred_w)
             if feat and actual is not None:
-                samples.append({
-                    'code': code, 'name': name, 'features': feat
-                })
+                samples.append({'code': code, 'name': name, 'features': feat})
                 actuals[code] = actual
 
         if not samples:
@@ -868,14 +773,12 @@ async def main():
         logger.info("  有效样本: %d", len(samples))
         total_samples += len(samples)
 
-        # ── V4/V5 规则引擎（同步，瞬间完成）──
         v4_results_map = {}
         v5_results_map = {}
         for s in samples:
             v4_results_map[s['code']] = _predict_with_v4_rules(s['features'])
             v5_results_map[s['code']] = _predict_with_v5_rules(s['features'])
 
-        # ── 并行调用 DeepSeek ──
         ds_sem = asyncio.Semaphore(5)
 
         async def _call_ds(s):
@@ -892,10 +795,7 @@ async def main():
         total_llm_calls += len(samples)
         logger.info("  LLM调用完成, 耗时 %.1fs", time.time() - t_llm)
 
-        # ── 逐只记录结果 ──
         week_record = {'week': week_label, 'stocks': []}
-        week_correct = defaultdict(int)
-        week_total = defaultdict(int)
 
         for i, s in enumerate(samples):
             code = s['code']
@@ -906,19 +806,16 @@ async def main():
             this_chg = feat['this_week_chg']
             suffix = feat['_market_suffix']
 
-            # V4
             v4r = v4_results_map[code]
             v4_stats.add(code, name, week_label, v4r['direction'],
                          v4r['confidence'], actual, mkt_chg, this_chg,
                          suffix, v4r.get('rule_name', ''))
 
-            # V5
             v5r = v5_results_map[code]
             v5_stats.add(code, name, week_label, v5r['direction'],
                          v5r['confidence'], actual, mkt_chg, this_chg,
                          suffix, v5r.get('rule_name', ''))
 
-            # DeepSeek
             dr = ds_results[i] if not isinstance(ds_results[i], Exception) else None
             if dr:
                 ds_stats.add(code, name, week_label, dr['direction'],
@@ -929,13 +826,11 @@ async def main():
 
             week_record['stocks'].append({
                 'code': code, 'name': name, 'actual': actual,
-                'v4': v4r, 'v5': v5r,
-                'deepseek': dr,
+                'v4': v4r, 'v5': v5r, 'deepseek': dr,
             })
 
         weekly_all_results.append(week_record)
 
-        # 周内小结
         logger.info("  W%d小结:", pred_w)
         for s in all_stats:
             ws = s.by_week.get(week_label, {'correct': 0, 'total': 0, 'uncertain': 0})
@@ -944,14 +839,8 @@ async def main():
             logger.info("    %-14s 准确%s(%d/%d) 未判%d",
                         s.name, acc, c, t, u)
 
-    # ═══════════════════════════════════════════════════════
-    # 深度分析
-    # ═══════════════════════════════════════════════════════
     _deep_analysis(all_stats, weekly_all_results)
 
-    # ═══════════════════════════════════════════════════════
-    # 保存结果
-    # ═══════════════════════════════════════════════════════
     elapsed = time.time() - t0
     output = {
         'date': latest_date,
@@ -961,11 +850,10 @@ async def main():
         'stock_count': len(stock_list),
         'week_count': len(test_weeks),
         'test_weeks': [f"W{y}-W{w}" for y, w in test_weeks],
-        'stocks': [f"{c}({n})" for c, n in stock_list[:20]] + [f"...共{len(stock_list)}只"],
+        'stocks': [f"{c}({n})" for c, n in stock_list],
         'summary': {s.name: s.summary_dict() for s in all_stats},
     }
 
-    # 多维分析结果
     dim_results = {}
     for s in all_stats:
         dim_results[s.name] = {
@@ -979,7 +867,7 @@ async def main():
     output['weekly_results'] = weekly_all_results
 
     out_path = (Path(__file__).parent.parent.parent
-                / 'data_results' / 'four_way_200stocks_result.json')
+                / 'data_results' / 'four_way_50stocks_16w_result.json')
     out_path.write_text(
         json.dumps(output, ensure_ascii=False, indent=2, default=str),
         encoding='utf-8'
