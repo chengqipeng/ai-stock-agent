@@ -1,7 +1,7 @@
 {
   "last_run_date": "2026-03-19",
-  "last_run_time": "2026-03-19 07:59:49",
+  "last_run_time": "2026-03-19 12:34:46",
   "last_success": true,
   "predict_total": 0,
-  "backtest_accuracy": 67.2
+  "backtest_accuracy": 0
 }
