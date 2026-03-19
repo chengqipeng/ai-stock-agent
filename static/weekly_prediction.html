@@ -18,13 +18,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
 .container{max-width:1400px;margin:12px auto;padding:0 12px}
 
 /* 汇总卡片 */
-.summary-row{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
-.summary-card{flex:1;min-width:140px;background:rgba(255,255,255,0.65);backdrop-filter:blur(24px);border-radius:10px;padding:12px 14px;border:1px solid rgba(255,255,255,0.5);box-shadow:0 2px 12px rgba(0,0,0,0.04)}
-.summary-card .label{font-size:10px;color:#8e8e93;letter-spacing:.3px;margin-bottom:4px}
-.summary-card .value{font-size:20px;font-weight:700;color:#1d1d1f}
+.summary-row{display:flex;gap:6px;margin-bottom:8px;flex-wrap:nowrap}
+.summary-card{flex:1;min-width:0;background:rgba(255,255,255,0.65);backdrop-filter:blur(24px);border-radius:8px;padding:8px 10px;border:1px solid rgba(255,255,255,0.5);box-shadow:0 2px 12px rgba(0,0,0,0.04)}
+.summary-card.wide{flex:1.8}
+.summary-card .label{font-size:9px;color:#8e8e93;letter-spacing:.3px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.summary-card .value{font-size:16px;font-weight:700;color:#1d1d1f}
 .summary-card .value.up{color:#e74c3c}
 .summary-card .value.down{color:#2ecc71}
-.summary-card .sub{font-size:10px;color:#8e8e93;margin-top:2px}
+.summary-card .sub{font-size:9px;color:#8e8e93;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.summary-section{margin-bottom:10px}
+.summary-label{font-size:11px;font-weight:600;color:#48484a;margin-bottom:4px;padding-left:2px;display:flex;align-items:center;gap:4px}
 
 /* 工具栏 */
 .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
@@ -117,7 +120,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
 <div class="container">
     <!-- 周预测内容 -->
     <div id="weeklyContent">
-    <div class="summary-row" id="summaryRow"></div>
+    <div class="summary-section" id="summarySection">
+        <div class="summary-label">📈 本周预测</div>
+        <div class="summary-row" id="summaryRowThisWeek"></div>
+        <div class="summary-label" style="margin-top:8px">📅 下周预测</div>
+        <div class="summary-row" id="summaryRowNextWeek"></div>
+    </div>
     <div class="toolbar">
         <select id="filterDirection" onchange="loadList()">
             <option value="">全部方向</option>
@@ -439,20 +447,23 @@ async function loadSummary() {
             '  涨跌幅MAE:' + (d.avg_pred_chg_mae || '-') + '%' +
             '  下周预测' + (d.nw_total || 0) + '只 回测' + (d.nw_avg_backtest_accuracy || '-') + '%';
 
-        let html = '';
-        html += card('总股票数', d.total || 0, '');
-        html += card('预测涨', d.up_count || 0, 'up', '占比 ' + pct(d.up_count, d.total) + (weekRange ? '  本周' + weekRange : ''));
-        html += card('预测跌', d.down_count || 0, 'down', '占比 ' + pct(d.down_count, d.total) + (weekRange ? '  本周' + weekRange : ''));
-        html += card('高置信', d.high_count || 0, '', 'd4强信号 + 停牌');
-        html += card('中置信', d.medium_count || 0, '', 'd4中等信号');
-        html += card('低置信', d.low_count || 0, '', 'd4/d3模糊信号');
-        html += card('回测准确率', (d.avg_backtest_accuracy || 0) + '%', '', 'LOWO: ' + (d.avg_lowo_accuracy || 0) + '%');
-        // 涨跌幅预测回测
+        // ── 本周预测行 ──
+        let twHtml = '';
+        twHtml += card('总股票数', d.total || 0, '', weekRange || '');
+        twHtml += card('预测涨', d.up_count || 0, 'up', '占比 ' + pct(d.up_count, d.total));
+        twHtml += card('预测跌', d.down_count || 0, 'down', '占比 ' + pct(d.down_count, d.total));
+        twHtml += card('高置信', d.high_count || 0, '', 'd4强信号 + 停牌');
+        twHtml += card('中置信', d.medium_count || 0, '', 'd4中等信号');
+        twHtml += card('低置信', d.low_count || 0, '', 'd4/d3模糊信号');
+        twHtml += card('回测准确率', (d.avg_backtest_accuracy || 0) + '%', '', 'LOWO: ' + (d.avg_lowo_accuracy || 0) + '%');
         const predChgMae = d.avg_pred_chg_mae != null ? d.avg_pred_chg_mae + '%' : '-';
         const predChgHit = d.avg_pred_chg_hit_rate != null ? d.avg_pred_chg_hit_rate + '%' : '-';
         const predChgCnt = d.pred_chg_count || 0;
-        html += card('涨跌幅预测误差', predChgMae, '', '区间命中率: ' + predChgHit + '  有预测: ' + predChgCnt + '只');
-        // 下周预测汇总
+        twHtml += card('涨跌幅预测误差', predChgMae, '', '区间命中率: ' + predChgHit + '  有预测: ' + predChgCnt + '只', 'wide');
+        document.getElementById('summaryRowThisWeek').innerHTML = twHtml;
+
+        // ── 下周预测行 ──
+        let nwHtml = '';
         const nwTotal = d.nw_total || 0;
         const nwUp = d.nw_up_count || 0;
         const nwDown = d.nw_down_count || 0;
@@ -464,25 +475,35 @@ async function loadSummary() {
         const nwMae = d.nw_avg_pred_chg_mae != null ? d.nw_avg_pred_chg_mae + '%' : '-';
         const nwCoverage = nwTotal + nwUncertain > 0 ? Math.round(nwTotal / (nwTotal + nwUncertain) * 100) + '%' : '-';
         if (nwTotal === 0 && nwUncertain > 0) {
-            html += card('下周预测', '无信号', '', '本周无满足条件的个股  ' + (nwDateRange || ''));
-            html += card('下周回测准确率', nwBtAcc, '', '等待触发条件');
+            nwHtml += card('预测总数', '无信号', '', '本周无满足条件的个股');
+            nwHtml += card('预测涨', 0, 'up', nwDateRange || '');
+            nwHtml += card('预测跌', 0, 'down', nwDateRange || '');
+            nwHtml += card('不确定', nwUncertain, '', '');
+            nwHtml += card('回测准确率', nwBtAcc, '', '等待触发条件');
         } else if (nwHigh === 0 && nwReference > 0) {
-            // 只有参考级信号，无高置信
-            html += card('下周预测', nwTotal + '只(参考)', '', '涨' + nwUp + ' 跌' + nwDown + ' 不确定' + nwUncertain + '  均为参考信号(~57%)' + (nwDateRange ? '  ' + nwDateRange : ''));
-            html += card('下周回测准确率', nwBtAcc, '', '参考级  覆盖率: ' + nwCoverage + '  MAE: ' + nwMae);
+            nwHtml += card('预测总数', nwTotal + '只', '', '均为参考信号(~57%)' + (nwDateRange ? '  ' + nwDateRange : ''));
+            nwHtml += card('预测涨', nwUp, 'up', '占比 ' + pct(nwUp, nwTotal + nwUncertain));
+            nwHtml += card('预测跌', nwDown, 'down', '占比 ' + pct(nwDown, nwTotal + nwUncertain));
+            nwHtml += card('不确定', nwUncertain, '', '');
+            nwHtml += card('回测准确率', nwBtAcc, '', '参考级  覆盖率: ' + nwCoverage);
+            nwHtml += card('涨跌幅预测误差', nwMae, '', '', 'wide');
         } else {
             const highLabel = nwHigh > 0 ? '高置信' + nwHigh : '';
             const refLabel = nwReference > 0 ? '参考' + nwReference : '';
             const tierInfo = [highLabel, refLabel].filter(Boolean).join(' ');
-            html += card('下周预测', nwTotal + '只', '', '涨' + nwUp + ' 跌' + nwDown + ' 不确定' + nwUncertain + (tierInfo ? '  ' + tierInfo : '') + (nwDateRange ? '  ' + nwDateRange : ''));
-            html += card('下周回测准确率', nwBtAcc, '', '覆盖率: ' + nwCoverage + '  MAE: ' + nwMae);
+            nwHtml += card('预测总数', nwTotal + '只', '', (tierInfo || '') + (nwDateRange ? '  ' + nwDateRange : ''));
+            nwHtml += card('预测涨', nwUp, 'up', '占比 ' + pct(nwUp, nwTotal + nwUncertain));
+            nwHtml += card('预测跌', nwDown, 'down', '占比 ' + pct(nwDown, nwTotal + nwUncertain));
+            nwHtml += card('不确定', nwUncertain, '', '');
+            nwHtml += card('回测准确率', nwBtAcc, '', '覆盖率: ' + nwCoverage);
+            nwHtml += card('涨跌幅预测误差', nwMae, '', '', 'wide');
         }
-        document.getElementById('summaryRow').innerHTML = html;
+        document.getElementById('summaryRowNextWeek').innerHTML = nwHtml;
     } catch (e) { console.error('loadSummary error:', e); }
 }
 
-function card(label, value, cls, sub) {
-    return '<div class="summary-card"><div class="label">' + label + '</div><div class="value ' + (cls||'') + '">' + value + '</div>' + (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
+function card(label, value, cls, sub, extraCls) {
+    return '<div class="summary-card ' + (extraCls||'') + '"><div class="label">' + label + '</div><div class="value ' + (cls||'') + '">' + value + '</div>' + (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
 }
 
 function pct(a, b) {
