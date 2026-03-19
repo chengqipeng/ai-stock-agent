@@ -142,6 +142,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
             <option value="low">低置信</option>
             <option value="reference">参考</option>
         </select>
+        <select id="filterNwDirection" onchange="loadList()">
+            <option value="">下周预测: 全部</option>
+            <option value="UP">下周预测涨 ↑</option>
+            <option value="DOWN">下周预测跌 ↓</option>
+            <option value="UNCERTAIN">下周不确定</option>
+            <option value="HAS_SIGNAL">下周有信号</option>
+        </select>
         <input id="searchInput" type="text" placeholder="搜索代码/名称（逗号/空格分隔可搜多只）..." style="width:260px" oninput="debounceSearch()" onkeydown="handleSearchEnter(event)" onpaste="handleSearchPaste(event)">
         <span id="searchClear" onclick="clearSearch()" style="cursor:pointer;color:#999;font-size:14px;display:none" title="清空搜索">&times;</span>
         <button class="btn" onclick="loadList()">刷新</button>
@@ -530,6 +537,7 @@ function pct(a, b) {
 async function loadList() {
     const direction = document.getElementById('filterDirection').value;
     const confidence = document.getElementById('filterConfidence').value;
+    const nwDirection = document.getElementById('filterNwDirection').value;
     const keyword = document.getElementById('searchInput').value.trim();
     const offset = (currentPage - 1) * PAGE_SIZE;
 
@@ -537,6 +545,7 @@ async function loadList() {
               '&sort_by=' + currentSort + '&sort_dir=' + currentSortDir;
     if (direction) url += '&direction=' + direction;
     if (confidence) url += '&confidence=' + confidence;
+    if (nwDirection) url += '&nw_direction=' + encodeURIComponent(nwDirection);
     if (keyword) url += '&keyword=' + encodeURIComponent(keyword);
 
     try {

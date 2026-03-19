@@ -36,6 +36,7 @@ async def prediction_summary():
 async def prediction_list(
     direction: str = Query(None, description="UP/DOWN"),
     confidence: str = Query(None, description="high/medium/low"),
+    nw_direction: str = Query(None, description="下周预测方向: UP/DOWN/UNCERTAIN/HAS_SIGNAL"),
     keyword: str = Query(None, description="股票代码或名称，多个用逗号分隔"),
     sort_by: str = Query("stock_code"),
     sort_dir: str = Query("asc"),
@@ -52,6 +53,7 @@ async def prediction_list(
                 keywords = None
         rows, total = get_latest_predictions_page(
             direction=direction, confidence=confidence, keywords=keywords,
+            nw_direction=nw_direction,
             sort_by=sort_by, sort_dir=sort_dir, limit=limit, offset=offset,
         )
         return {"success": True, "data": rows, "total": total}
