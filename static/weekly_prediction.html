@@ -12,6 +12,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
 .header a{color:rgba(255,255,255,0.9);text-decoration:none;font-size:12px}
 .header a:hover{color:white}
 .header .stats{margin-left:auto;font-size:11px;color:rgba(255,255,255,0.8)}
+.tab-btn{padding:4px 14px;border:1px solid rgba(255,255,255,0.4);border-radius:6px;background:transparent;color:rgba(255,255,255,0.8);cursor:pointer;font-size:12px;font-weight:600;transition:all .2s}
+.tab-btn:hover{background:rgba(255,255,255,0.15)}
+.tab-btn.active{background:rgba(255,255,255,0.25);color:white;border-color:rgba(255,255,255,0.6)}
 .container{max-width:1400px;margin:12px auto;padding:0 12px}
 
 /* 汇总卡片 */
@@ -105,9 +108,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
 <div class="header">
     <h1>📊 周预测结果</h1>
     <a href="/">← 返回主页</a>
+    <span style="margin-left:12px;display:flex;gap:4px">
+        <button class="tab-btn active" id="tabWeekly" onclick="switchTab('weekly')">周预测</button>
+        <button class="tab-btn" id="tabMonthly" onclick="switchTab('monthly')">月预测</button>
+    </span>
     <span class="stats" id="headerStats">加载中...</span>
 </div>
 <div class="container">
+    <!-- 周预测内容 -->
+    <div id="weeklyContent">
     <div class="summary-row" id="summaryRow"></div>
     <div class="toolbar">
         <select id="filterDirection" onchange="loadList()">
@@ -130,6 +139,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
     </div>
     <div id="tableWrap"></div>
     <div class="pagination" id="pagination"></div>
+    </div>
+
+    <!-- 月预测内容 -->
+    <div id="monthlyContent" style="display:none">
+    <div class="summary-row" id="nmSummaryRow"></div>
+    <div class="toolbar">
+        <select id="nmFilterConfidence" onchange="loadMonthlyList()">
+            <option value="">全部置信度</option>
+            <option value="high">高置信</option>
+            <option value="medium">中置信</option>
+        </select>
+        <input id="nmSearchInput" type="text" placeholder="搜索代码/名称..." style="width:260px" oninput="debounceMonthlySearch()">
+        <button class="btn" onclick="loadMonthlyList()">刷新</button>
+        <button class="btn" style="background:rgba(231,76,60,0.85)" onclick="triggerMonthlyRecompute()">重新计算</button>
+        <span class="info" id="nmListInfo"></span>
+    </div>
+    <div id="nmTableWrap"></div>
+    <div class="pagination" id="nmPagination"></div>
+    </div>
 </div>
 
 <!-- 指标说明弹窗 -->
@@ -827,6 +855,202 @@ document.getElementById('historyModal').addEventListener('click', function(e) {
 // 初始化
 loadSummary();
 loadList();
+
+// ═══════════════════════════════════════════════════════════
+// 月预测 Tab 逻辑
+// ═══════════════════════════════════════════════════════════
+
+let currentTab = 'weekly';
+let nmCurrentPage = 1;
+let nmTotalCount = 0;
+let _nmSearchTimer = null;
+
+function switchTab(tab) {
+    currentTab = tab;
+    document.getElementById('tabWeekly').classList.toggle('active', tab === 'weekly');
+    document.getElementById('tabMonthly').classList.toggle('active', tab === 'monthly');
+    document.getElementById('weeklyContent').style.display = tab === 'weekly' ? '' : 'none';
+    document.getElementById('monthlyContent').style.display = tab === 'monthly' ? '' : 'none';
+    if (tab === 'monthly' && nmTotalCount === 0) {
+        loadMonthlySummary();
+        loadMonthlyList();
+    }
+}
+
+function debounceMonthlySearch() {
+    clearTimeout(_nmSearchTimer);
+    _nmSearchTimer = setTimeout(() => { nmCurrentPage = 1; loadMonthlyList(); }, 300);
+}
+
+async function loadMonthlySummary() {
+    try {
+        const resp = await fetch('/api/weekly_prediction/summary');
+        const json = await resp.json();
+        if (!json.success || !json.data) return;
+        const d = json.data;
+        let html = '';
+        const nmTotal = d.nm_total || 0;
+        const nmUp = d.nm_up_count || 0;
+        const nmAcc = d.nm_avg_backtest_accuracy != null ? d.nm_avg_backtest_accuracy + '%' : '-';
+        const nmRange = d.nm_date_range || '-';
+        const nmTargetMonth = d.nm_target_year && d.nm_target_month
+            ? d.nm_target_year + '-' + String(d.nm_target_month).padStart(2, '0') : '-';
+        html += card('预测目标月', nmTargetMonth, '', nmRange);
+        html += card('预测涨股票数', nmTotal, 'up', '仅输出涨信号（A股月度跌信号不可靠）');
+        html += card('回测准确率', nmAcc, '', '样本数: ' + (d.nm_avg_backtest_samples || '-'));
+        html += card('模型策略', '多因子融合V1', '', '价格动量+量价+大盘+资金流+概念板块');
+        document.getElementById('nmSummaryRow').innerHTML = html;
+    } catch (e) { console.error('loadMonthlySummary error:', e); }
+}
+
+async function loadMonthlyList() {
+    const confidence = document.getElementById('nmFilterConfidence').value;
+    const keyword = (document.getElementById('nmSearchInput').value || '').trim();
+    const offset = (nmCurrentPage - 1) * PAGE_SIZE;
+
+    let url = '/api/monthly_prediction/list?limit=2000&offset=0&sort_by=nm_composite_score&sort_dir=desc';
+    if (confidence) url += '&confidence=' + encodeURIComponent(confidence);
+    if (keyword) url += '&keyword=' + encodeURIComponent(keyword);
+
+    try {
+        const resp = await fetch(url);
+        const json = await resp.json();
+        if (!json.success) {
+            document.getElementById('nmTableWrap').innerHTML = '<p style="color:red;padding:20px;">加载失败</p>';
+            return;
+        }
+        let rows = json.data || [];
+        nmTotalCount = rows.length;
+        document.getElementById('nmListInfo').textContent = '共 ' + nmTotalCount + ' 条月度预测';
+        // 客户端分页
+        const pageRows = rows.slice(offset, offset + PAGE_SIZE);
+        renderMonthlyTable(pageRows);
+        renderMonthlyPagination();
+    } catch (e) {
+        document.getElementById('nmTableWrap').innerHTML = '<p style="color:red;padding:20px;">加载失败: ' + e.message + '</p>';
+    }
+}
+
+function renderMonthlyTable(rows) {
+    let html = '<table class="pred-table"><thead><tr>';
+    html += '<th>代码</th><th>名称</th><th>预测方向</th><th>置信度</th>';
+    html += '<th>综合评分</th><th>本月涨跌%</th><th>预测目标月</th>';
+    html += '<th>回测准确率</th><th>维度评分</th>';
+    html += '</tr></thead><tbody>';
+
+    if (rows.length === 0) {
+        html += '<tr><td colspan="9" style="text-align:center;color:#999;padding:20px;">暂无月度预测数据（请先点击"重新计算"）</td></tr>';
+    }
+    for (const r of rows) {
+        html += '<tr onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
+        html += '<td style="font-family:\'SF Mono\',Menlo,monospace;color:#667eea;font-weight:600">' + r.stock_code + '</td>';
+        html += '<td>' + (r.stock_name || '-') + '</td>';
+        html += '<td>' + dirBadge('UP') + '<br><span style="font-size:10px;color:#aaa">' + (r.nm_date_range ? fmtDateRange(r.nm_date_range) : '') + '</span></td>';
+        html += '<td>' + confBadge(r.nm_confidence || 'medium') + '</td>';
+        // 综合评分
+        const score = r.nm_composite_score != null ? parseFloat(r.nm_composite_score).toFixed(3) : '-';
+        const scoreCls = r.nm_composite_score > 0 ? 'chg-pos' : '';
+        html += '<td><span class="chg-val ' + scoreCls + '" style="font-weight:600">' + score + '</span></td>';
+        // 本月涨跌
+        html += '<td>' + fmtChg(r.nm_this_month_chg) + '</td>';
+        // 预测目标月
+        const targetMonth = r.nm_target_year && r.nm_target_month
+            ? r.nm_target_year + '-' + String(r.nm_target_month).padStart(2, '0') : '-';
+        html += '<td style="color:#666">' + targetMonth + '</td>';
+        // 回测准确率
+        const btAcc = r.nm_backtest_accuracy != null ? parseFloat(r.nm_backtest_accuracy).toFixed(1) + '%' : '-';
+        const btSamples = r.nm_backtest_samples || '-';
+        html += '<td>' + btAcc + '<br><span style="font-size:10px;color:#aaa">' + btSamples + '样本</span></td>';
+        // 维度评分
+        let dimHtml = '-';
+        if (r.nm_dim_scores) {
+            try {
+                const dims = typeof r.nm_dim_scores === 'string' ? JSON.parse(r.nm_dim_scores) : r.nm_dim_scores;
+                const parts = [];
+                const dimNames = {price_momentum:'价格', volume_price:'量价', market_env:'大盘', fund_flow:'资金', concept_board:'板块'};
+                for (const [k, v] of Object.entries(dims)) {
+                    const cls = v > 0 ? 'chg-pos' : v < 0 ? 'chg-neg' : '';
+                    parts.push('<span class="' + cls + '" style="font-size:10px">' + (dimNames[k]||k) + ':' + (v > 0 ? '+' : '') + v + '</span>');
+                }
+                dimHtml = parts.join(' ');
+            } catch(e) { dimHtml = r.nm_dim_scores; }
+        }
+        html += '<td style="max-width:220px;white-space:normal;line-height:1.6">' + dimHtml + '</td>';
+        html += '</tr>';
+    }
+    html += '</tbody></table>';
+    document.getElementById('nmTableWrap').innerHTML = html;
+}
+
+function renderMonthlyPagination() {
+    const totalPages = Math.ceil(nmTotalCount / PAGE_SIZE);
+    let html = '<span style="font-size:11px;color:#666;margin-right:8px;">共 ' + nmTotalCount + ' 条  ' + totalPages + ' 页</span>';
+    if (totalPages <= 1) { document.getElementById('nmPagination').innerHTML = html; return; }
+    html += '<button class="page-btn" onclick="goMonthlyPage(1)" ' + (nmCurrentPage===1?'disabled':'') + '>首页</button>';
+    html += '<button class="page-btn" onclick="goMonthlyPage(' + (nmCurrentPage-1) + ')" ' + (nmCurrentPage===1?'disabled':'') + '>上一页</button>';
+    const start = Math.max(1, nmCurrentPage - 3);
+    const end = Math.min(totalPages, nmCurrentPage + 3);
+    for (let i = start; i <= end; i++) {
+        html += '<button class="page-btn' + (i===nmCurrentPage?' active':'') + '" onclick="goMonthlyPage(' + i + ')">' + i + '</button>';
+    }
+    html += '<button class="page-btn" onclick="goMonthlyPage(' + (nmCurrentPage+1) + ')" ' + (nmCurrentPage===totalPages?'disabled':'') + '>下一页</button>';
+    document.getElementById('nmPagination').innerHTML = html;
+}
+
+function goMonthlyPage(p) {
+    const totalPages = Math.ceil(nmTotalCount / PAGE_SIZE);
+    if (p < 1 || p > totalPages) return;
+    nmCurrentPage = p;
+    loadMonthlyList();
+}
+
+async function triggerMonthlyRecompute() {
+    if (!confirm('确认重新计算月度预测？\n这将执行全量月度预测并更新数据（耗时约3-5分钟）。')) return;
+    try {
+        const resp = await fetch('/api/trigger_monthly_prediction_job', {method: 'POST'});
+        const json = await resp.json();
+        if (json.success) {
+            alert('月预测任务已触发，请稍等3-5分钟后刷新页面查看结果。');
+            pollMonthlyJobStatus();
+        } else {
+            alert('触发失败: ' + (json.message || json.error || '未知错误'));
+        }
+    } catch (e) {
+        alert('触发失败: ' + e.message);
+    }
+}
+
+function pollMonthlyJobStatus() {
+    const infoEl = document.getElementById('nmListInfo');
+    let pollCount = 0;
+    const timer = setInterval(async () => {
+        pollCount++;
+        try {
+            const resp = await fetch('/api/monthly_prediction_job_status');
+            const json = await resp.json();
+            if (json.success && json.data) {
+                const s = json.data;
+                if (s.running) {
+                    infoEl.textContent = '⏳ 计算中... ' + (s.predict_done || 0) + '/' + (s.predict_total || '?');
+                    infoEl.style.color = '#e74c3c';
+                } else {
+                    clearInterval(timer);
+                    infoEl.style.color = '#666';
+                    if (s.last_success) {
+                        infoEl.textContent = '✅ 计算完成，正在刷新...';
+                        setTimeout(() => { loadMonthlySummary(); loadMonthlyList(); }, 500);
+                    } else {
+                        infoEl.textContent = '❌ 计算失败: ' + (s.error || '未知');
+                    }
+                }
+            }
+        } catch (e) { /* ignore */ }
+        if (pollCount > 300) {
+            clearInterval(timer);
+            infoEl.style.color = '#666';
+        }
+    }, 1000);
+}
 
 async function triggerRecompute() {
     if (!confirm('确认重新计算全部周预测？\n这将重新执行批量预测并更新所有数据（包括d3/d4日期、买入建议等）。')) return;

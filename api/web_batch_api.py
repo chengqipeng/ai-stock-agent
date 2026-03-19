@@ -82,6 +82,8 @@ from service.auto_job.concept_strength_scheduler import start_concept_strength_s
 from service.auto_job.concept_strength_scheduler import _execute_job as _concept_strength_execute_job
 from service.auto_job.weekly_prediction_scheduler import start_weekly_prediction_scheduler, get_weekly_prediction_job_status
 from service.auto_job.weekly_prediction_scheduler import _execute_job as _weekly_prediction_execute_job
+from service.auto_job.monthly_prediction_scheduler import start_monthly_prediction_scheduler, get_monthly_prediction_job_status
+from service.auto_job.monthly_prediction_scheduler import _execute_job as _monthly_prediction_execute_job
 from service.auto_job.scheduler_orchestrator import is_auto_job_enabled
 
 GRADE_SCORE_MAP = {
@@ -149,6 +151,12 @@ async def lifespan(application: FastAPI):
             logger.info("[lifespan] 周预测调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动周预测调度器异常: %s", e, exc_info=True)
+
+        try:
+            await start_monthly_prediction_scheduler()
+            logger.info("[lifespan] 月预测调度器已激活")
+        except Exception as e:
+            logger.error("[lifespan] 启动月预测调度器异常: %s", e, exc_info=True)
 
         # 关键：app_ready 必须在 try 之外，确保一定会被 set
         app_ready.set()
@@ -352,6 +360,22 @@ async def trigger_weekly_prediction_job():
         return {"success": False, "message": "周预测任务正在执行中"}
     asyncio.create_task(_weekly_prediction_execute_job(manual=True))
     return {"success": True, "message": "周预测任务已触发"}
+
+
+@app.get("/api/monthly_prediction_job_status")
+async def monthly_prediction_job_status():
+    """获取月预测定时任务状态"""
+    return {"success": True, "data": get_monthly_prediction_job_status()}
+
+
+@app.post("/api/trigger_monthly_prediction_job")
+async def trigger_monthly_prediction_job():
+    """手动触发月预测"""
+    status = get_monthly_prediction_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "月预测任务正在执行中"}
+    asyncio.create_task(_monthly_prediction_execute_job(manual=True))
+    return {"success": True, "message": "月预测任务已触发"}
 
 
 @app.get("/api/stock_list")

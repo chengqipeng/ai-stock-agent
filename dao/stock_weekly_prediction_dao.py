@@ -195,6 +195,12 @@ _PREDICTION_COLUMNS = [
     'nw_pred_chg', 'nw_pred_chg_low', 'nw_pred_chg_high',
     'nw_pred_chg_mae', 'nw_pred_chg_hit_rate', 'nw_pred_chg_samples',
     'nw_backtest_accuracy', 'nw_backtest_samples',
+    # 月度预测 nm_* 列
+    'nm_pred_direction', 'nm_confidence', 'nm_strategy', 'nm_reason',
+    'nm_composite_score', 'nm_this_month_chg',
+    'nm_target_year', 'nm_target_month', 'nm_date_range',
+    'nm_backtest_accuracy', 'nm_backtest_samples',
+    'nm_dim_scores',
 ]
 
 # 不参与 ON DUPLICATE KEY UPDATE 的列（主键/唯一键）
@@ -259,6 +265,19 @@ def ensure_tables():
             ("nw_pred_chg_samples", "INT COMMENT '下周涨跌幅样本数'", "nw_pred_chg_hit_rate"),
             ("nw_backtest_accuracy", "DOUBLE COMMENT '下周预测回测准确率(%)'", "nw_pred_chg_samples"),
             ("nw_backtest_samples", "INT COMMENT '下周预测回测样本数'", "nw_backtest_accuracy"),
+            # 月度预测 nm_* 列
+            ("nm_pred_direction", "VARCHAR(4) COMMENT '下月预测方向: UP'", "nw_backtest_samples"),
+            ("nm_confidence", "VARCHAR(10) COMMENT '下月预测置信度'", "nm_pred_direction"),
+            ("nm_strategy", "VARCHAR(30) COMMENT '下月预测策略'", "nm_confidence"),
+            ("nm_reason", "VARCHAR(200) COMMENT '下月预测理由'", "nm_strategy"),
+            ("nm_composite_score", "DOUBLE COMMENT '下月预测综合评分'", "nm_reason"),
+            ("nm_this_month_chg", "DOUBLE COMMENT '本月涨跌幅(%)'", "nm_composite_score"),
+            ("nm_target_year", "INT COMMENT '预测目标年'", "nm_this_month_chg"),
+            ("nm_target_month", "INT COMMENT '预测目标月'", "nm_target_year"),
+            ("nm_date_range", "VARCHAR(50) COMMENT '下月日期范围'", "nm_target_month"),
+            ("nm_backtest_accuracy", "DOUBLE COMMENT '下月预测回测准确率(%)'", "nm_date_range"),
+            ("nm_backtest_samples", "INT COMMENT '下月预测回测样本数'", "nm_backtest_accuracy"),
+            ("nm_dim_scores", "VARCHAR(500) COMMENT '下月预测各维度评分(JSON)'", "nm_backtest_samples"),
             ("market_index", "VARCHAR(20) COMMENT '对应大盘指数代码'", "market_d4_chg"),
             ("vol_ratio", "DOUBLE COMMENT '本周均量/20日均量'", "pred_remaining_chg"),
             ("vol_price_corr", "DOUBLE COMMENT '量价相关性[-1,1]'", "vol_ratio"),
@@ -445,11 +464,13 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
                                 keyword: str = None, keywords: list[str] = None,
                                 sort_by: str = 'stock_code',
                                 sort_dir: str = 'asc',
-                                limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
+                                limit: int = 50, offset: int = 0,
+                                monthly_only: bool = False) -> tuple[list[dict], int]:
     """分页查询最新预测结果，支持筛选和排序。返回 (rows, total_count)。
     自动排除指数代码（如000001.SH等非个股代码）。
     keywords: 多关键词列表，任一匹配即命中（OR逻辑）。
     keyword: 兼容旧的单关键词参数。
+    monthly_only: 仅返回有月度预测(nm_pred_direction IS NOT NULL)的行。
     """
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
@@ -465,6 +486,8 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
             "p.stock_code != %s",
         ]
         params = ['6%.SH', '0%.SZ', '3%.SZ', '399%', '000001.SH']
+        if monthly_only:
+            where_parts.append("p.nm_pred_direction IS NOT NULL")
         if direction:
             where_parts.append("p.pred_direction = %s")
             params.append(direction)
@@ -489,6 +512,7 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
             'suggested_buy_date', 'suggested_buy_price', 'pred_weekly_chg',
             'week_realized_chg', 'pred_remaining_chg',
             'nw_pred_direction', 'nw_pred_chg', 'nw_backtest_accuracy',
+            'nm_pred_direction', 'nm_composite_score', 'nm_backtest_accuracy',
         }
         if sort_by not in allowed_sorts:
             sort_by = 'stock_code'
@@ -514,6 +538,10 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
                    p.nw_pred_chg, p.nw_pred_chg_low, p.nw_pred_chg_high,
                    p.nw_pred_chg_mae, p.nw_pred_chg_hit_rate, p.nw_pred_chg_samples,
                    p.nw_backtest_accuracy, p.nw_backtest_samples,
+                   p.nm_pred_direction, p.nm_confidence, p.nm_strategy, p.nm_reason,
+                   p.nm_composite_score, p.nm_this_month_chg,
+                   p.nm_target_year, p.nm_target_month, p.nm_date_range,
+                   p.nm_backtest_accuracy, p.nm_backtest_samples, p.nm_dim_scores,
                    p.concept_boards
             FROM stock_weekly_prediction p
             {where_sql}
@@ -568,7 +596,14 @@ def get_prediction_summary() -> dict:
                 ROUND(AVG(CASE WHEN nw_pred_chg_mae IS NOT NULL THEN nw_pred_chg_mae END), 2) as nw_avg_pred_chg_mae,
                 ROUND(AVG(CASE WHEN nw_pred_chg_hit_rate IS NOT NULL THEN nw_pred_chg_hit_rate END), 1) as nw_avg_pred_chg_hit_rate,
                 SUM(nw_pred_chg IS NOT NULL) as nw_pred_chg_count,
-                MAX(nw_date_range) as nw_date_range
+                MAX(nw_date_range) as nw_date_range,
+                SUM(nm_pred_direction IS NOT NULL) as nm_total,
+                SUM(nm_pred_direction = 'UP') as nm_up_count,
+                ROUND(AVG(CASE WHEN nm_backtest_accuracy IS NOT NULL THEN nm_backtest_accuracy END), 1) as nm_avg_backtest_accuracy,
+                ROUND(AVG(CASE WHEN nm_backtest_samples IS NOT NULL THEN nm_backtest_samples END), 0) as nm_avg_backtest_samples,
+                MAX(nm_date_range) as nm_date_range,
+                MAX(nm_target_year) as nm_target_year,
+                MAX(nm_target_month) as nm_target_month
             FROM stock_weekly_prediction
             WHERE (stock_code LIKE '6%.SH' OR stock_code LIKE '0%.SZ' OR stock_code LIKE '3%.SZ')
               AND stock_code NOT LIKE '399%'

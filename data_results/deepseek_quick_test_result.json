@@ -1,0 +1,1090 @@
+{
+  "date": "2026-03-17",
+  "test_weeks": [
+    "W10→W11",
+    "W9→W10",
+    "W8→W9",
+    "W7→W8",
+    "W6→W7",
+    "W5→W6",
+    "W4→W5",
+    "W3→W4"
+  ],
+  "total_predictions": 72,
+  "total_uncertain": 47,
+  "accuracy": 66.7,
+  "high_conf_accuracy": 59.4,
+  "details": [
+    {
+      "week": "W10→W11",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": 0.83,
+      "correct": "❌"
+    },
+    {
+      "week": "W10→W11",
+      "code": "000858.SZ",
+      "name": "五粮液",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 0.53,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "601318.SH",
+      "name": "中国平安",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -2.36,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "000001.SZ",
+      "name": "平安银行",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 1.02,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "600036.SH",
+      "name": "招商银行",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 1.42,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 6.47,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "300750.SZ",
+      "name": "宁德时代",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 11.91,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 4.83,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 0.44,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 1.03,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 4.3,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "300059.SZ",
+      "name": "东方财富",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -2.14,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -3.59,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "600276.SH",
+      "name": "恒瑞医药",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -0.81,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "002714.SZ",
+      "name": "牧原股份",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 0.91,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "601888.SH",
+      "name": "中国中免",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -4.34,
+      "correct": "✅"
+    },
+    {
+      "week": "W10→W11",
+      "code": "300124.SZ",
+      "name": "汇川技术",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 1.84,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": 0.52,
+      "correct": "❌"
+    },
+    {
+      "week": "W10→W11",
+      "code": "002049.SZ",
+      "name": "紫光国微",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -1.88,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W10→W11",
+      "code": "600809.SH",
+      "name": "山西汾酒",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -0.89,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W9→W10",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": -3.64,
+      "correct": "✅"
+    },
+    {
+      "week": "W9→W10",
+      "code": "000858.SZ",
+      "name": "五粮液",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -1.58,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W9→W10",
+      "code": "601318.SH",
+      "name": "中国平安",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -0.67,
+      "correct": "✅"
+    },
+    {
+      "week": "W9→W10",
+      "code": "000001.SZ",
+      "name": "平安银行",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -0.74,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W9→W10",
+      "code": "600036.SH",
+      "name": "招商银行",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 1.16,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W9→W10",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 6.5,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W9→W10",
+      "code": "300750.SZ",
+      "name": "宁德时代",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": 3.74,
+      "correct": "❌"
+    },
+    {
+      "week": "W9→W10",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -1.74,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W9→W10",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -2.69,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W9→W10",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 4.22,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W9→W10",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -5.8,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W9→W10",
+      "code": "300059.SZ",
+      "name": "东方财富",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -4.27,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W9→W10",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -6.19,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W9→W10",
+      "code": "600276.SH",
+      "name": "恒瑞医药",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -1.77,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W9→W10",
+      "code": "002714.SZ",
+      "name": "牧原股份",
+      "direction": "UP",
+      "confidence": 0.66,
+      "actual": 5.21,
+      "correct": "✅"
+    },
+    {
+      "week": "W9→W10",
+      "code": "601888.SH",
+      "name": "中国中免",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -4.91,
+      "correct": "✅"
+    },
+    {
+      "week": "W9→W10",
+      "code": "300124.SZ",
+      "name": "汇川技术",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -1.99,
+      "correct": "✅"
+    },
+    {
+      "week": "W9→W10",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -7.39,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W9→W10",
+      "code": "002049.SZ",
+      "name": "紫光国微",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -6.25,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W9→W10",
+      "code": "600809.SH",
+      "name": "山西汾酒",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": -0.26,
+      "correct": "✅"
+    },
+    {
+      "week": "W6→W7",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -1.96,
+      "correct": "✅"
+    },
+    {
+      "week": "W6→W7",
+      "code": "000858.SZ",
+      "name": "五粮液",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": -0.87,
+      "correct": "✅"
+    },
+    {
+      "week": "W6→W7",
+      "code": "601318.SH",
+      "name": "中国平安",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -2.4,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W6→W7",
+      "code": "000001.SZ",
+      "name": "平安银行",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": -1.27,
+      "correct": "✅"
+    },
+    {
+      "week": "W6→W7",
+      "code": "600036.SH",
+      "name": "招商银行",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": -2.24,
+      "correct": "❌"
+    },
+    {
+      "week": "W6→W7",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": 0.5,
+      "correct": "❌"
+    },
+    {
+      "week": "W6→W7",
+      "code": "300750.SZ",
+      "name": "宁德时代",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -1.02,
+      "correct": "✅"
+    },
+    {
+      "week": "W6→W7",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UNCERTAIN",
+      "confidence": 0.52,
+      "actual": -1.26,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W6→W7",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": -0.61,
+      "correct": "✅"
+    },
+    {
+      "week": "W6→W7",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -1.18,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W6→W7",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": -0.42,
+      "correct": "✅"
+    },
+    {
+      "week": "W6→W7",
+      "code": "300059.SZ",
+      "name": "东方财富",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": -1.27,
+      "correct": "✅"
+    },
+    {
+      "week": "W6→W7",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": 1.58,
+      "correct": "❌"
+    },
+    {
+      "week": "W6→W7",
+      "code": "600276.SH",
+      "name": "恒瑞医药",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": 1.6,
+      "correct": "❌"
+    },
+    {
+      "week": "W6→W7",
+      "code": "002714.SZ",
+      "name": "牧原股份",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": -2.28,
+      "correct": "✅"
+    },
+    {
+      "week": "W6→W7",
+      "code": "601888.SH",
+      "name": "中国中免",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 2.48,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W6→W7",
+      "code": "300124.SZ",
+      "name": "汇川技术",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": 0.62,
+      "correct": "❌"
+    },
+    {
+      "week": "W6→W7",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": 3.77,
+      "correct": "❌"
+    },
+    {
+      "week": "W6→W7",
+      "code": "002049.SZ",
+      "name": "紫光国微",
+      "direction": "DOWN",
+      "confidence": 0.69,
+      "actual": 1.21,
+      "correct": "❌"
+    },
+    {
+      "week": "W6→W7",
+      "code": "600809.SH",
+      "name": "山西汾酒",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -5.28,
+      "correct": "✅"
+    },
+    {
+      "week": "W5→W6",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UP",
+      "confidence": 0.66,
+      "actual": 8.15,
+      "correct": "✅"
+    },
+    {
+      "week": "W5→W6",
+      "code": "000858.SZ",
+      "name": "五粮液",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 1.9,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W5→W6",
+      "code": "601318.SH",
+      "name": "中国平安",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": 0.23,
+      "correct": "✅"
+    },
+    {
+      "week": "W5→W6",
+      "code": "000001.SZ",
+      "name": "平安银行",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 2.04,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W5→W6",
+      "code": "600036.SH",
+      "name": "招商银行",
+      "direction": "UP",
+      "confidence": 0.66,
+      "actual": 2.39,
+      "correct": "✅"
+    },
+    {
+      "week": "W5→W6",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -1.16,
+      "correct": "✅"
+    },
+    {
+      "week": "W5→W6",
+      "code": "300750.SZ",
+      "name": "宁德时代",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 5.46,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W5→W6",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": 2.68,
+      "correct": "❌"
+    },
+    {
+      "week": "W5→W6",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 2.52,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W5→W6",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": 0.61,
+      "correct": "✅"
+    },
+    {
+      "week": "W5→W6",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -1.01,
+      "correct": "✅"
+    },
+    {
+      "week": "W5→W6",
+      "code": "300059.SZ",
+      "name": "东方财富",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -0.19,
+      "correct": "✅"
+    },
+    {
+      "week": "W5→W6",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -7.35,
+      "correct": "✅"
+    },
+    {
+      "week": "W5→W6",
+      "code": "600276.SH",
+      "name": "恒瑞医药",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -1.46,
+      "correct": "✅"
+    },
+    {
+      "week": "W5→W6",
+      "code": "002714.SZ",
+      "name": "牧原股份",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 0.89,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W5→W6",
+      "code": "601888.SH",
+      "name": "中国中免",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": 3.33,
+      "correct": "❌"
+    },
+    {
+      "week": "W5→W6",
+      "code": "300124.SZ",
+      "name": "汇川技术",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": 0.03,
+      "correct": "❌"
+    },
+    {
+      "week": "W5→W6",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -8.36,
+      "correct": "✅"
+    },
+    {
+      "week": "W5→W6",
+      "code": "002049.SZ",
+      "name": "紫光国微",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -8.98,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W5→W6",
+      "code": "600809.SH",
+      "name": "山西汾酒",
+      "direction": "UP",
+      "confidence": 0.66,
+      "actual": 2.39,
+      "correct": "✅"
+    },
+    {
+      "week": "W4→W5",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": 4.79,
+      "correct": "❌"
+    },
+    {
+      "week": "W4→W5",
+      "code": "000858.SZ",
+      "name": "五粮液",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": 1.95,
+      "correct": "❌"
+    },
+    {
+      "week": "W4→W5",
+      "code": "601318.SH",
+      "name": "中国平安",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": 4.46,
+      "correct": "❌"
+    },
+    {
+      "week": "W4→W5",
+      "code": "000001.SZ",
+      "name": "平安银行",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": -1.45,
+      "correct": "✅"
+    },
+    {
+      "week": "W4→W5",
+      "code": "600036.SH",
+      "name": "招商银行",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": 3.12,
+      "correct": "❌"
+    },
+    {
+      "week": "W4→W5",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": -2.95,
+      "correct": "✅"
+    },
+    {
+      "week": "W4→W5",
+      "code": "300750.SZ",
+      "name": "宁德时代",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": 0.86,
+      "correct": "❌"
+    },
+    {
+      "week": "W4→W5",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -7.59,
+      "correct": "✅"
+    },
+    {
+      "week": "W4→W5",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 1.05,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W4→W5",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": 1.39,
+      "correct": "❌"
+    },
+    {
+      "week": "W4→W5",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -6.9,
+      "correct": "✅"
+    },
+    {
+      "week": "W4→W5",
+      "code": "300059.SZ",
+      "name": "东方财富",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -2.57,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W4→W5",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 6.87,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W4→W5",
+      "code": "600276.SH",
+      "name": "恒瑞医药",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": -1.41,
+      "correct": "✅"
+    },
+    {
+      "week": "W4→W5",
+      "code": "002714.SZ",
+      "name": "牧原股份",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": -0.01,
+      "correct": "✅"
+    },
+    {
+      "week": "W4→W5",
+      "code": "601888.SH",
+      "name": "中国中免",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -4.23,
+      "correct": "✅"
+    },
+    {
+      "week": "W4→W5",
+      "code": "300124.SZ",
+      "name": "汇川技术",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -5.98,
+      "correct": "✅"
+    },
+    {
+      "week": "W4→W5",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -1.58,
+      "correct": "✅"
+    },
+    {
+      "week": "W4→W5",
+      "code": "002049.SZ",
+      "name": "紫光国微",
+      "direction": "UP",
+      "confidence": 0.68,
+      "actual": -4.34,
+      "correct": "❌"
+    },
+    {
+      "week": "W4→W5",
+      "code": "600809.SH",
+      "name": "山西汾酒",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": 3.8,
+      "correct": "❌"
+    },
+    {
+      "week": "W3→W4",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -3.25,
+      "correct": "✅"
+    },
+    {
+      "week": "W3→W4",
+      "code": "000858.SZ",
+      "name": "五粮液",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -2.07,
+      "correct": "✅"
+    },
+    {
+      "week": "W3→W4",
+      "code": "601318.SH",
+      "name": "中国平安",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -3.67,
+      "correct": "✅"
+    },
+    {
+      "week": "W3→W4",
+      "code": "000001.SZ",
+      "name": "平安银行",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -1.79,
+      "correct": "✅"
+    },
+    {
+      "week": "W3→W4",
+      "code": "600036.SH",
+      "name": "招商银行",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -3.15,
+      "correct": "✅"
+    },
+    {
+      "week": "W3→W4",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -2.32,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W3→W4",
+      "code": "300750.SZ",
+      "name": "宁德时代",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -1.51,
+      "correct": "✅"
+    },
+    {
+      "week": "W3→W4",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": 3.32,
+      "correct": "✅"
+    },
+    {
+      "week": "W3→W4",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -0.68,
+      "correct": "✅"
+    },
+    {
+      "week": "W3→W4",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "DOWN",
+      "confidence": 0.58,
+      "actual": -1.97,
+      "correct": "✅"
+    },
+    {
+      "week": "W3→W4",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UP",
+      "confidence": 0.68,
+      "actual": -4.45,
+      "correct": "❌"
+    },
+    {
+      "week": "W3→W4",
+      "code": "300059.SZ",
+      "name": "东方财富",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": -2.46,
+      "correct": "✅"
+    },
+    {
+      "week": "W3→W4",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": 0.24,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W3→W4",
+      "code": "600276.SH",
+      "name": "恒瑞医药",
+      "direction": "UNCERTAIN",
+      "confidence": 0.52,
+      "actual": -4.76,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W3→W4",
+      "code": "002714.SZ",
+      "name": "牧原股份",
+      "direction": "DOWN",
+      "confidence": 0.66,
+      "actual": -2.79,
+      "correct": "✅"
+    },
+    {
+      "week": "W3→W4",
+      "code": "601888.SH",
+      "name": "中国中免",
+      "direction": "DOWN",
+      "confidence": 0.62,
+      "actual": 5.53,
+      "correct": "❌"
+    },
+    {
+      "week": "W3→W4",
+      "code": "300124.SZ",
+      "name": "汇川技术",
+      "direction": "UP",
+      "confidence": 0.68,
+      "actual": -1.82,
+      "correct": "❌"
+    },
+    {
+      "week": "W3→W4",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UNCERTAIN",
+      "confidence": 0.48,
+      "actual": -1.6,
+      "correct": "⏸️"
+    },
+    {
+      "week": "W3→W4",
+      "code": "600809.SH",
+      "name": "山西汾酒",
+      "direction": "DOWN",
+      "confidence": 0.58,
+      "actual": -4.42,
+      "correct": "✅"
+    }
+  ]
+}

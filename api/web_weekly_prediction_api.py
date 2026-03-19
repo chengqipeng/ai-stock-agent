@@ -100,3 +100,37 @@ async def prediction_accuracy(
     except Exception as e:
         logger.error("查询准确率统计失败: %s", e, exc_info=True)
         return {"success": False, "error": str(e)}
+
+
+@router.get("/api/monthly_prediction/list")
+async def monthly_prediction_list(
+    confidence: str = Query(None, description="high/medium/low"),
+    keyword: str = Query(None, description="股票代码或名称"),
+    sort_by: str = Query("nm_composite_score"),
+    sort_dir: str = Query("desc"),
+    limit: int = Query(200),
+    offset: int = Query(0),
+):
+    """分页查询月度预测列表（仅返回有nm_pred_direction的股票）"""
+    try:
+        import re
+        keywords = None
+        if keyword:
+            terms = re.split(r'[,，、;；\s]+', keyword.strip())
+            keywords = [t.strip() for t in terms if t.strip()]
+            if not keywords:
+                keywords = None
+        rows, total = get_latest_predictions_page(
+            direction=None,  # 不按周预测方向过滤
+            confidence=None,  # 月度置信度在客户端过滤
+            keywords=keywords,
+            sort_by=sort_by, sort_dir=sort_dir, limit=limit, offset=offset,
+            monthly_only=True,  # 仅返回有月度预测的
+        )
+        # 按月度置信度过滤
+        if confidence:
+            rows = [r for r in rows if r.get('nm_confidence') == confidence]
+        return {"success": True, "data": rows, "total": len(rows)}
+    except Exception as e:
+        logger.error("查询月度预测列表失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}

@@ -49,6 +49,7 @@ us_market_done_event = asyncio.Event()
 fund_flow_done_event = asyncio.Event()
 concept_strength_done_event = asyncio.Event()
 weekly_prediction_done_event = asyncio.Event()
+monthly_prediction_done_event = asyncio.Event()
 
 # 所有数据任务完成事件列表（db_check 需要等待全部）
 _all_data_done_events = [
@@ -59,6 +60,7 @@ _all_data_done_events = [
     fund_flow_done_event,
     concept_strength_done_event,
     weekly_prediction_done_event,
+    monthly_prediction_done_event,
 ]
 
 

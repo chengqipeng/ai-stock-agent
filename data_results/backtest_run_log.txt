@@ -1,0 +1,387 @@
+2026-03-09 01:14:43,495 INFO 获取融资融券数据成功 [庄园牧场]，共0条
+2026-03-09 01:14:43,496 WARNING 未获取到股票 庄园牧场 的北向资金持股数据
+2026-03-09 01:14:43,501 INFO 获取融资融券数据成功 [武汉天源]，共5条
+2026-03-09 01:14:43,511 INFO 获取融资融券数据成功 [乐惠国际]，共5条
+2026-03-09 01:14:43,511 WARNING 未获取到股票 唯赛勃 的北向资金持股数据
+2026-03-09 01:14:43,513 WARNING 未获取到股票 乐惠国际 的北向资金持股数据
+2026-03-09 01:14:43,523 WARNING 未获取到股票 康斯特 的北向资金持股数据
+2026-03-09 01:14:43,538 INFO 获取融资融券数据成功 [康斯特]，共0条
+2026-03-09 01:14:43,540 INFO 获取融资融券数据成功 [唯赛勃]，共5条
+2026-03-09 01:14:45,142 ERROR extract_main_content 请求失败 [https://www.qcc.com/cfinance/dcee94d86b41fa976b38115f02db63ad.html] (proxy=False): HTTP Error 405: 
+2026-03-09 01:14:45,142 INFO extract_main_content 直连失败，尝试代理重试: https://www.qcc.com/cfinance/dcee94d86b41fa976b38115f02db63ad.html
+2026-03-09 01:14:45,994 ERROR extract_main_content 请求失败 [https://www.qcc.com/cfinance/dcee94d86b41fa976b38115f02db63ad.html] (proxy=True): HTTP Error 405: 
+2026-03-09 01:14:52,283 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260307082246218910580 (proxy=False)
+2026-03-09 01:14:52,286 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260307082246218910580
+2026-03-09 01:15:04,834 INFO [002910] 历史资金流向获取 30 条记录
+2026-03-09 01:15:04,835 INFO [1/50] 庄园牧场 评分完成: 65分
+2026-03-09 01:15:05,425 INFO 获取融资融券数据成功 [横河精密]，共0条
+2026-03-09 01:15:17,352 INFO [301127] 历史资金流向获取 30 条记录
+2026-03-09 01:15:17,354 INFO [2/50] 武汉天源 评分完成: 52分
+2026-03-09 01:15:18,086 INFO 获取融资融券数据成功 [海联金汇]，共5条
+2026-03-09 01:15:18,877 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260305070704289761130 (proxy=False)
+2026-03-09 01:15:18,878 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260305070704289761130
+2026-03-09 01:15:26,499 INFO [603076] 历史资金流向获取 30 条记录
+2026-03-09 01:15:26,500 INFO [3/50] 乐惠国际 评分完成: 63分
+2026-03-09 01:15:27,288 INFO 获取融资融券数据成功 [奥精医疗]，共5条
+2026-03-09 01:15:27,288 WARNING 未获取到股票 奥精医疗 的北向资金持股数据
+2026-03-09 01:15:28,631 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302023956924557700 (proxy=False)
+2026-03-09 01:15:28,677 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260302023956924557700
+2026-03-09 01:15:34,602 INFO [688718] 历史资金流向获取 30 条记录
+2026-03-09 01:15:34,603 INFO [4/50] 唯赛勃 评分完成: 64分
+2026-03-09 01:15:35,377 WARNING 未获取到股票 西点药业 的北向资金持股数据
+2026-03-09 01:15:35,684 INFO 获取融资融券数据成功 [西点药业]，共5条
+2026-03-09 01:15:40,238 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302175342471824030 (proxy=False)
+2026-03-09 01:15:40,239 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260302175342471824030
+2026-03-09 01:15:54,104 INFO [002537] 历史资金流向获取 30 条记录
+2026-03-09 01:15:54,108 INFO [5/50] 海联金汇 评分完成: 66分
+2026-03-09 01:15:54,832 INFO 获取融资融券数据成功 [海尔生物]，共5条
+2026-03-09 01:15:58,244 INFO [301130] 历史资金流向获取 30 条记录
+2026-03-09 01:15:58,246 INFO [6/50] 西点药业 评分完成: 63分
+2026-03-09 01:15:58,875 INFO 获取融资融券数据成功 [爱博医疗]，共5条
+2026-03-09 01:15:59,229 INFO [300445] 历史资金流向获取 30 条记录
+2026-03-09 01:15:59,231 INFO [7/50] 康斯特 评分完成: 42分
+2026-03-09 01:15:59,864 WARNING 未获取到股票 中富通 的北向资金持股数据
+2026-03-09 01:15:59,865 INFO 获取融资融券数据成功 [中富通]，共0条
+2026-03-09 01:16:00,000 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260215022202649416990 (proxy=False)
+2026-03-09 01:16:00,003 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260215022202649416990
+2026-03-09 01:16:00,855 WARNING extract_main_content 401: https://t.10jqka.com.cn/m/zhibo/pid_597950588.shtml (proxy=False)
+2026-03-09 01:16:00,855 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302024010765386420 (proxy=False)
+2026-03-09 01:16:00,888 INFO extract_main_content 直连失败，尝试代理重试: https://t.10jqka.com.cn/m/zhibo/pid_597950588.shtml
+2026-03-09 01:16:00,889 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260302024010765386420
+2026-03-09 01:16:01,035 WARNING extract_main_content 401: https://t.10jqka.com.cn/m/zhibo/pid_597950588.shtml (proxy=True)
+2026-03-09 01:16:01,510 WARNING 爬取全文失败 [https://t.10jqka.com.cn/m/zhibo/pid_597950588.shtml]: HTTP Error 401: Unauthorized
+2026-03-09 01:16:01,622 INFO [300539] 历史资金流向获取 30 条记录
+2026-03-09 01:16:01,623 INFO [8/50] 横河精密 评分完成: 44分
+2026-03-09 01:16:02,352 INFO 获取融资融券数据成功 [凯恩股份]，共0条
+2026-03-09 01:16:02,354 WARNING 未获取到股票 凯恩股份 的北向资金持股数据
+2026-03-09 01:16:10,548 INFO [688613] 历史资金流向获取 30 条记录
+2026-03-09 01:16:10,550 INFO [9/50] 奥精医疗 评分完成: 63分
+2026-03-09 01:16:11,264 WARNING extract_main_content 403: https://baike.baidu.com/item/凯恩股份%20[002012]/19151844 (proxy=False)
+2026-03-09 01:16:11,265 INFO 获取融资融券数据成功 [先导智能]，共5条
+2026-03-09 01:16:11,267 INFO extract_main_content 直连失败，尝试代理重试: https://baike.baidu.com/item/凯恩股份%20[002012]/19151844
+2026-03-09 01:16:11,355 WARNING extract_main_content 403: https://baike.baidu.com/item/凯恩股份%20[002012]/19151844 (proxy=True)
+2026-03-09 01:16:12,397 WARNING extract_main_content 403: https://gubatr.eastmoney.com/list,300450,1,f_15.html (proxy=False)
+2026-03-09 01:16:12,399 INFO extract_main_content 直连失败，尝试代理重试: https://gubatr.eastmoney.com/list,300450,1,f_15.html
+2026-03-09 01:16:16,382 INFO [002012] 历史资金流向获取 30 条记录
+2026-03-09 01:16:16,383 INFO [10/50] 凯恩股份 评分完成: 60分
+2026-03-09 01:16:17,126 INFO 获取融资融券数据成功 [高德红外]，共5条
+2026-03-09 01:16:17,938 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302000721128011730 (proxy=False)
+2026-03-09 01:16:17,939 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260302000721128011730
+2026-03-09 01:16:30,704 INFO [300450] 历史资金流向获取 30 条记录
+2026-03-09 01:16:30,706 INFO [11/50] 先导智能 评分完成: 38分
+2026-03-09 01:16:31,408 INFO 获取融资融券数据成功 [中天服务]，共0条
+2026-03-09 01:16:31,525 WARNING 未获取到股票 中天服务 的北向资金持股数据
+2026-03-09 01:16:32,311 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302104057063610950 (proxy=False)
+2026-03-09 01:16:32,312 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260302104057063610950
+2026-03-09 01:16:33,547 INFO [300560] 历史资金流向获取 30 条记录
+2026-03-09 01:16:33,548 INFO [12/50] 中富通 评分完成: 41分
+2026-03-09 01:16:34,333 INFO 获取融资融券数据成功 [福斯达]，共0条
+2026-03-09 01:16:34,367 INFO [688050] 历史资金流向获取 30 条记录
+2026-03-09 01:16:34,368 INFO [13/50] 爱博医疗 评分完成: 38分
+2026-03-09 01:16:34,990 INFO 获取融资融券数据成功 [华北制药]，共5条
+2026-03-09 01:16:37,234 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260306020324924423880 (proxy=False)
+2026-03-09 01:16:37,235 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260306020324924423880
+2026-03-09 01:16:37,866 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260303090409390455960 (proxy=False)
+2026-03-09 01:16:37,867 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260303090409390455960
+2026-03-09 01:16:42,417 INFO [688139] 历史资金流向获取 30 条记录
+2026-03-09 01:16:42,419 INFO [14/50] 海尔生物 评分完成: 41分
+2026-03-09 01:16:43,243 INFO 获取融资融券数据成功 [长源电力]，共5条
+2026-03-09 01:16:43,461 INFO [002188] 历史资金流向获取 30 条记录
+2026-03-09 01:16:43,463 INFO [15/50] 中天服务 评分完成: 52分
+2026-03-09 01:16:44,074 INFO 获取融资融券数据成功 [多利科技]，共0条
+2026-03-09 01:16:50,674 INFO [603173] 历史资金流向获取 30 条记录
+2026-03-09 01:16:50,675 INFO [16/50] 福斯达 评分完成: 44分
+2026-03-09 01:16:51,289 INFO 获取融资融券数据成功 [联明股份]，共0条
+2026-03-09 01:16:51,332 WARNING 未获取到股票 联明股份 的北向资金持股数据
+2026-03-09 01:16:51,682 INFO [600812] 历史资金流向获取 30 条记录
+2026-03-09 01:16:51,683 INFO [17/50] 华北制药 评分完成: 36分
+2026-03-09 01:16:52,585 INFO 获取融资融券数据成功 [海能实业]，共0条
+2026-03-09 01:16:52,686 WARNING 未获取到股票 海能实业 的北向资金持股数据
+2026-03-09 01:16:52,738 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304133027890026990 (proxy=False)
+2026-03-09 01:16:52,740 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260304133027890026990
+2026-03-09 01:16:52,797 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304133027890026990 (proxy=True)
+2026-03-09 01:16:55,790 INFO [002414] 历史资金流向获取 30 条记录
+2026-03-09 01:16:55,794 INFO [18/50] 高德红外 评分完成: 38分
+2026-03-09 01:16:56,695 INFO 获取融资融券数据成功 [川投能源]，共5条
+2026-03-09 01:17:08,168 INFO [001311] 历史资金流向获取 30 条记录
+2026-03-09 01:17:08,171 INFO [19/50] 多利科技 评分完成: 46分
+2026-03-09 01:17:08,991 INFO 获取融资融券数据成功 [思瑞浦]，共5条
+2026-03-09 01:17:09,795 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302170122763319880 (proxy=False)
+2026-03-09 01:17:09,816 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260302170122763319880
+2026-03-09 01:17:10,049 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302170122763319880 (proxy=True)
+2026-03-09 01:17:16,128 INFO [603006] 历史资金流向获取 30 条记录
+2026-03-09 01:17:16,129 INFO [20/50] 联明股份 评分完成: 52分
+2026-03-09 01:17:16,941 INFO 获取融资融券数据成功 [迈信林]，共5条
+2026-03-09 01:17:17,880 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260305172552328710180 (proxy=False)
+2026-03-09 01:17:17,916 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260305172552328710180
+2026-03-09 01:17:18,106 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260305172552328710180 (proxy=True)
+2026-03-09 01:17:20,837 INFO [600674] 历史资金流向获取 30 条记录
+2026-03-09 01:17:20,837 INFO [21/50] 川投能源 评分完成: 53分
+2026-03-09 01:17:21,604 INFO 获取融资融券数据成功 [立方制药]，共0条
+2026-03-09 01:17:24,859 INFO [000966] 历史资金流向获取 30 条记录
+2026-03-09 01:17:24,862 INFO [22/50] 长源电力 评分完成: 57分
+2026-03-09 01:17:24,863 INFO [300787] 历史资金流向获取 30 条记录
+2026-03-09 01:17:24,865 INFO [23/50] 海能实业 评分完成: 54分
+2026-03-09 01:17:26,020 WARNING 未获取到股票 黄山胶囊 的北向资金持股数据
+2026-03-09 01:17:26,029 INFO 获取融资融券数据成功 [黄山胶囊]，共0条
+2026-03-09 01:17:26,031 INFO 获取融资融券数据成功 [骆驼股份]，共5条
+2026-03-09 01:17:26,955 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260306222418306158050 (proxy=False)
+2026-03-09 01:17:26,957 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260306222418306158050
+2026-03-09 01:17:27,036 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260306222418306158050 (proxy=True)
+2026-03-09 01:17:29,001 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260306222418306158050 (proxy=False)
+2026-03-09 01:17:29,002 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260306222418306158050
+2026-03-09 01:17:29,074 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260306222418306158050 (proxy=True)
+2026-03-09 01:17:37,925 INFO [003020] 历史资金流向获取 30 条记录
+2026-03-09 01:17:37,928 INFO [24/50] 立方制药 评分完成: 40分
+2026-03-09 01:17:38,910 INFO 获取融资融券数据成功 [国金证券]，共5条
+2026-03-09 01:17:43,093 INFO [002817] 历史资金流向获取 30 条记录
+2026-03-09 01:17:43,094 INFO [25/50] 黄山胶囊 评分完成: 62分
+2026-03-09 01:17:43,816 INFO 获取融资融券数据成功 [海泰科]，共5条
+2026-03-09 01:17:43,843 WARNING 未获取到股票 海泰科 的北向资金持股数据
+2026-03-09 01:17:47,145 INFO [688685] 历史资金流向获取 30 条记录
+2026-03-09 01:17:47,148 INFO [26/50] 迈信林 评分完成: 45分
+2026-03-09 01:17:47,856 INFO 获取融资融券数据成功 [敏芯股份]，共5条
+2026-03-09 01:17:47,857 WARNING 未获取到股票 敏芯股份 的北向资金持股数据
+2026-03-09 01:17:48,868 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304083808617319190 (proxy=False)
+2026-03-09 01:17:48,868 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260303164013292614680 (proxy=False)
+2026-03-09 01:17:48,874 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302014358207121550 (proxy=False)
+2026-03-09 01:17:48,876 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260304083808617319190
+2026-03-09 01:17:48,877 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260303164013292614680
+2026-03-09 01:17:48,899 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260302014358207121550
+2026-03-09 01:17:49,072 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304083808617319190 (proxy=True)
+2026-03-09 01:17:49,113 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260303164013292614680 (proxy=True)
+2026-03-09 01:17:49,113 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302014358207121550 (proxy=True)
+2026-03-09 01:17:51,733 INFO [688536] 历史资金流向获取 30 条记录
+2026-03-09 01:17:51,734 INFO [27/50] 思瑞浦 评分完成: 58分
+2026-03-09 01:17:52,353 WARNING 未获取到股票 华塑科技 的北向资金持股数据
+2026-03-09 01:17:52,452 INFO 获取融资融券数据成功 [华塑科技]，共5条
+2026-03-09 01:17:53,203 WARNING extract_main_content 401: https://t.10jqka.com.cn/pid_598281195.shtml (proxy=False)
+2026-03-09 01:17:53,204 INFO extract_main_content 直连失败，尝试代理重试: https://t.10jqka.com.cn/pid_598281195.shtml
+2026-03-09 01:17:53,285 WARNING extract_main_content 401: https://t.10jqka.com.cn/pid_598281195.shtml (proxy=True)
+2026-03-09 01:17:53,348 ERROR extract_main_content 请求失败 [https://www.nbd.com.cn/articles/2026-03-02/4275377.html] (proxy=False): HTTP Error 503: Service Temporarily Unavailable
+2026-03-09 01:17:53,348 INFO extract_main_content 直连失败，尝试代理重试: https://www.nbd.com.cn/articles/2026-03-02/4275377.html
+2026-03-09 01:17:53,663 ERROR extract_main_content 请求失败 [https://www.nbd.com.cn/articles/2026-03-02/4275377.html] (proxy=True): HTTP Error 503: Service Temporarily Unavailable
+2026-03-09 01:17:54,016 WARNING 爬取全文失败 [https://t.10jqka.com.cn/pid_598281195.shtml]: HTTP Error 401: Unauthorized
+2026-03-09 01:17:54,181 WARNING 爬取全文失败 [https://www.nbd.com.cn/articles/2026-03-02/4275377.html]: HTTP Error 503: Service Temporarily Unavailable
+2026-03-09 01:18:01,982 INFO [600109] 历史资金流向获取 30 条记录
+2026-03-09 01:18:01,983 INFO [28/50] 国金证券 评分完成: 43分
+2026-03-09 01:18:02,605 INFO 获取融资融券数据成功 [华之杰]，共5条
+2026-03-09 01:18:02,612 WARNING 未获取到股票 华之杰 的北向资金持股数据
+2026-03-09 01:18:02,950 INFO [301022] 历史资金流向获取 30 条记录
+2026-03-09 01:18:02,951 INFO [29/50] 海泰科 评分完成: 47分
+2026-03-09 01:18:03,584 INFO 获取融资融券数据成功 [迪普科技]，共5条
+2026-03-09 01:18:03,600 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260224161903655955310 (proxy=False)
+2026-03-09 01:18:03,601 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260224161903655955310
+2026-03-09 01:18:03,655 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260224161903655955310 (proxy=True)
+2026-03-09 01:18:03,689 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260301031428796916240 (proxy=False)
+2026-03-09 01:18:03,690 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260301031428796916240
+2026-03-09 01:18:03,755 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260301031428796916240 (proxy=True)
+2026-03-09 01:18:04,094 INFO [601311] 历史资金流向获取 30 条记录
+2026-03-09 01:18:04,095 INFO [30/50] 骆驼股份 评分完成: 48分
+2026-03-09 01:18:04,954 INFO 获取融资融券数据成功 [鲁阳节能]，共5条
+2026-03-09 01:18:05,461 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302034959002519490 (proxy=False)
+2026-03-09 01:18:05,462 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260302034959002519490
+2026-03-09 01:18:05,553 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304162423107681540 (proxy=False)
+2026-03-09 01:18:05,558 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260304162423107681540
+2026-03-09 01:18:05,759 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302034959002519490 (proxy=True)
+2026-03-09 01:18:05,825 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304162423107681540 (proxy=True)
+2026-03-09 01:18:05,851 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260303025610519614060 (proxy=False)
+2026-03-09 01:18:05,857 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260303025610519614060
+2026-03-09 01:18:05,866 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304104049414628640 (proxy=False)
+2026-03-09 01:18:05,867 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260304104049414628640
+2026-03-09 01:18:05,916 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304104049414628640 (proxy=True)
+2026-03-09 01:18:05,923 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260303025610519614060 (proxy=True)
+2026-03-09 01:18:09,339 INFO [301157] 历史资金流向获取 30 条记录
+2026-03-09 01:18:09,340 INFO [31/50] 华塑科技 评分完成: 69分
+2026-03-09 01:18:10,017 INFO 获取融资融券数据成功 [华菱线缆]，共0条
+2026-03-09 01:18:10,856 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304004839912530940 (proxy=False)
+2026-03-09 01:18:10,857 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260304004839912530940
+2026-03-09 01:18:10,956 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304004839912530940 (proxy=True)
+2026-03-09 01:18:10,978 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302222022651251800 (proxy=False)
+2026-03-09 01:18:10,979 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260302222022651251800
+2026-03-09 01:18:11,024 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302222022651251800 (proxy=True)
+2026-03-09 01:18:14,851 INFO [002088] 历史资金流向获取 30 条记录
+2026-03-09 01:18:14,852 INFO [32/50] 鲁阳节能 评分完成: 51分
+2026-03-09 01:18:15,793 INFO 获取融资融券数据成功 [新强联]，共5条
+2026-03-09 01:18:23,121 INFO [300768] 历史资金流向获取 30 条记录
+2026-03-09 01:18:23,122 INFO [33/50] 迪普科技 评分完成: 49分
+2026-03-09 01:18:23,735 INFO 获取融资融券数据成功 [毕得医药]，共5条
+2026-03-09 01:18:24,746 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302022132026530530 (proxy=False)
+2026-03-09 01:18:24,747 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260302022132026530530
+2026-03-09 01:18:24,866 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302022132026530530 (proxy=True)
+2026-03-09 01:18:27,072 INFO [603400] 历史资金流向获取 30 条记录
+2026-03-09 01:18:27,073 INFO [34/50] 华之杰 评分完成: 69分
+2026-03-09 01:18:28,344 INFO 获取融资融券数据成功 [普源精电]，共5条
+2026-03-09 01:18:28,454 INFO [688286] 历史资金流向获取 30 条记录
+2026-03-09 01:18:28,455 INFO [35/50] 敏芯股份 评分完成: 41分
+2026-03-09 01:18:29,368 INFO 获取融资融券数据成功 [维海德]，共5条
+2026-03-09 01:18:29,381 WARNING 未获取到股票 维海德 的北向资金持股数据
+2026-03-09 01:18:31,415 INFO [300850] 历史资金流向获取 30 条记录
+2026-03-09 01:18:31,416 INFO [36/50] 新强联 评分完成: 56分
+2026-03-09 01:18:32,307 INFO 获取融资融券数据成功 [诺邦股份]，共0条
+2026-03-09 01:18:32,475 WARNING 未获取到股票 诺邦股份 的北向资金持股数据
+2026-03-09 01:18:35,201 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260305152941921228610 (proxy=False)
+2026-03-09 01:18:35,202 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260305152941921228610
+2026-03-09 01:18:35,252 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260305152941921228610 (proxy=True)
+2026-03-09 01:18:35,342 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304120354367833030 (proxy=False)
+2026-03-09 01:18:35,343 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260304120354367833030
+2026-03-09 01:18:35,483 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304120354367833030 (proxy=True)
+2026-03-09 01:18:40,188 INFO [001208] 历史资金流向获取 30 条记录
+2026-03-09 01:18:40,190 INFO [37/50] 华菱线缆 评分完成: 42分
+2026-03-09 01:18:40,847 INFO 获取融资融券数据成功 [上海钢联]，共5条
+2026-03-09 01:18:41,908 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260301140649741012900 (proxy=False)
+2026-03-09 01:18:41,932 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260301140649741012900
+2026-03-09 01:18:42,063 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260301140649741012900 (proxy=True)
+2026-03-09 01:18:46,006 INFO [603238] 历史资金流向获取 30 条记录
+2026-03-09 01:18:46,007 INFO [38/50] 诺邦股份 评分完成: 52分
+2026-03-09 01:18:46,785 INFO 获取融资融券数据成功 [悦安新材]，共5条
+2026-03-09 01:18:46,820 WARNING 未获取到股票 悦安新材 的北向资金持股数据
+2026-03-09 01:18:47,745 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302014421054422810 (proxy=False)
+2026-03-09 01:18:47,746 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260302014421054422810
+2026-03-09 01:18:47,914 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260302014421054422810 (proxy=True)
+2026-03-09 01:18:48,682 INFO [688337] 历史资金流向获取 30 条记录
+2026-03-09 01:18:48,683 INFO [39/50] 普源精电 评分完成: 62分
+2026-03-09 01:18:50,394 INFO 获取融资融券数据成功 [爱柯迪]，共5条
+2026-03-09 01:18:50,671 INFO [301318] 历史资金流向获取 30 条记录
+2026-03-09 01:18:50,672 INFO [40/50] 维海德 评分完成: 40分
+2026-03-09 01:18:51,352 INFO 获取融资融券数据成功 [顺博合金]，共0条
+2026-03-09 01:18:51,470 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260305201104813136450 (proxy=False)
+2026-03-09 01:18:51,471 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260305201104813136450
+2026-03-09 01:18:51,595 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260305201104813136450 (proxy=True)
+2026-03-09 01:18:53,381 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260208031908066477220 (proxy=False)
+2026-03-09 01:18:53,382 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260208031908066477220
+2026-03-09 01:18:53,445 INFO [300226] 历史资金流向获取 30 条记录
+2026-03-09 01:18:53,446 INFO [41/50] 上海钢联 评分完成: 46分
+2026-03-09 01:18:53,446 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260208031908066477220 (proxy=True)
+2026-03-09 01:18:54,070 INFO 获取融资融券数据成功 [领湃科技]，共0条
+2026-03-09 01:18:54,927 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304033535060588960 (proxy=False)
+2026-03-09 01:18:54,928 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260304033535060588960
+2026-03-09 01:18:54,983 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304033535060588960 (proxy=True)
+2026-03-09 01:19:16,138 INFO [300530] 历史资金流向获取 30 条记录
+2026-03-09 01:19:16,141 INFO [42/50] 领湃科技 评分完成: 41分
+2026-03-09 01:19:17,110 INFO 获取融资融券数据成功 [通策医疗]，共5条
+2026-03-09 01:19:17,576 INFO [002996] 历史资金流向获取 30 条记录
+2026-03-09 01:19:17,577 INFO [43/50] 顺博合金 评分完成: 58分
+2026-03-09 01:19:18,663 INFO 获取融资融券数据成功 [华虹公司]，共5条
+2026-03-09 01:19:18,865 WARNING extract_main_content 401: https://t.10jqka.com.cn/pid_597767235.shtml (proxy=False)
+2026-03-09 01:19:18,896 INFO extract_main_content 直连失败，尝试代理重试: https://t.10jqka.com.cn/pid_597767235.shtml
+2026-03-09 01:19:19,520 WARNING extract_main_content 401: https://t.10jqka.com.cn/pid_597767235.shtml (proxy=True)
+2026-03-09 01:19:19,781 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260305220626264529740 (proxy=False)
+2026-03-09 01:19:19,794 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260305220626264529740
+2026-03-09 01:19:19,936 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260305220626264529740 (proxy=True)
+2026-03-09 01:19:20,773 WARNING extract_main_content 403: https://m.cn.investing.com/equities/tc-medical-inv-historical-data (proxy=False)
+2026-03-09 01:19:20,775 INFO extract_main_content 直连失败，尝试代理重试: https://m.cn.investing.com/equities/tc-medical-inv-historical-data
+2026-03-09 01:19:20,897 INFO [688786] 历史资金流向获取 30 条记录
+2026-03-09 01:19:20,899 INFO [44/50] 悦安新材 评分完成: 65分
+2026-03-09 01:19:21,734 INFO 获取融资融券数据成功 [恒工精密]，共5条
+2026-03-09 01:19:21,887 WARNING extract_main_content 403: https://m.cn.investing.com/equities/tc-medical-inv-historical-data (proxy=True)
+2026-03-09 01:19:23,180 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304021142026418150 (proxy=False)
+2026-03-09 01:19:23,197 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260304021142026418150
+2026-03-09 01:19:23,318 INFO [688073] 历史资金流向获取 30 条记录
+2026-03-09 01:19:23,320 INFO [45/50] 毕得医药 评分完成: 52分
+2026-03-09 01:19:23,320 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260304021142026418150 (proxy=True)
+2026-03-09 01:19:24,371 INFO 获取融资融券数据成功 [中简科技]，共5条
+2026-03-09 01:19:25,071 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260306172014194418660 (proxy=False)
+2026-03-09 01:19:25,072 INFO extract_main_content 直连失败，尝试代理重试: https://caifuhao.eastmoney.com/news/20260306172014194418660
+2026-03-09 01:19:25,249 WARNING extract_main_content 403: https://caifuhao.eastmoney.com/news/20260306172014194418660 (proxy=True)
+2026-03-09 01:19:26,930 INFO [600933] 历史资金流向获取 30 条记录
+2026-03-09 01:19:26,931 INFO [46/50] 爱柯迪 评分完成: 45分
+2026-03-09 01:19:42,098 INFO [300777] 历史资金流向获取 30 条记录
+2026-03-09 01:19:42,101 INFO [47/50] 中简科技 评分完成: 44分
+2026-03-09 01:19:45,315 INFO [301261] 历史资金流向获取 30 条记录
+2026-03-09 01:19:45,316 INFO [48/50] 恒工精密 评分完成: 42分
+2026-03-09 01:19:53,598 INFO [600763] 历史资金流向获取 30 条记录
+2026-03-09 01:19:53,600 INFO [49/50] 通策医疗 评分完成: 49分
+2026-03-09 01:19:58,899 INFO [688347] 历史资金流向获取 30 条记录
+2026-03-09 01:19:58,900 INFO [50/50] 华虹公司 评分完成: 52分
+
+================================================================================
+回测结果汇总
+================================================================================
+{
+  "回测类型": "完整7维度评分模型回测（实时API数据）",
+  "评分成功数": 50,
+  "评分失败数": 0,
+  "次日预测回测": {
+    "总数": 47,
+    "方向准确率": "23/47（48.9%）",
+    "方向准确率_数值": 48.9,
+    "宽松准确率": "25/47（53.2%）",
+    "宽松准确率_数值": 53.2,
+    "平均实际涨跌幅(%)": 1.86
+  },
+  "按评分区间": {
+    "70-100": {
+      "次日方向准确率": "无数据",
+      "样本数": 0
+    },
+    "55-69": {
+      "次日方向准确率": "11/15（73.3%）",
+      "样本数": 15
+    },
+    "40-54": {
+      "次日方向准确率": "11/29（37.9%）",
+      "样本数": 29
+    },
+    "0-39": {
+      "次日方向准确率": "1/3（33.3%）",
+      "样本数": 3
+    }
+  },
+  "评分分布": {
+    "55-69": 15,
+    "40-54": 29,
+    "<40": 3
+  }
+}
+
+逐股详情：
+  301157.SZ 华塑科技     评分= 69 预测=上涨   实际=+2.07%   上涨   ✓
+  603400.SH 华之杰      评分= 69 预测=上涨   实际=+3.33%   上涨   ✓
+  002537.SZ 海联金汇     评分= 66 预测=上涨   实际=+2.69%   上涨   ✓
+  002910.SZ 庄园牧场     评分= 65 预测=上涨   实际=+5.71%   上涨   ✓
+  688786.SH 悦安新材     评分= 65 预测=上涨   实际=-1.67%   下跌   ✗
+  688718.SH 唯赛勃      评分= 64 预测=上涨   实际=+4.42%   上涨   ✓
+  603076.SH 乐惠国际     评分= 63 预测=上涨   实际=+1.46%   上涨   ✓
+  301130.SZ 西点药业     评分= 63 预测=上涨   实际=+3.35%   上涨   ✓
+  002817.SZ 黄山胶囊     评分= 62 预测=上涨   实际=+3.70%   上涨   ✓
+  688337.SH 普源精电     评分= 62 预测=上涨   实际=+4.76%   上涨   ✓
+  002012.SZ 凯恩股份     评分= 60 预测=上涨   实际=-0.28%   横盘震荡 ✗
+  688536.SH 思瑞浦      评分= 58 预测=上涨   实际=+5.98%   上涨   ✓
+  002996.SZ 顺博合金     评分= 58 预测=上涨   实际=-0.61%   下跌   ✗
+  000966.SZ 长源电力     评分= 57 预测=上涨   实际=+1.25%   上涨   ✓
+  300850.SZ 新强联      评分= 56 预测=上涨   实际=-1.36%   下跌   ✗
+  300787.SZ 海能实业     评分= 54 预测=上涨   实际=+1.85%   上涨   ✓
+  600674.SH 川投能源     评分= 53 预测=上涨   实际=+0.99%   上涨   ✓
+  301127.SZ 武汉天源     评分= 52 预测=上涨   实际=+5.18%   上涨   ✓
+  002188.SZ 中天服务     评分= 52 预测=上涨   实际=+4.27%   上涨   ✓
+  603006.SH 联明股份     评分= 52 预测=上涨   实际=+1.88%   上涨   ✓
+  603238.SH 诺邦股份     评分= 52 预测=上涨   实际=+3.08%   上涨   ✓
+  688073.SH 毕得医药     评分= 52 预测=上涨   实际=+8.33%   上涨   ✓
+  688347.SH 华虹公司     评分= 52 预测=上涨   实际=+1.39%   上涨   ✓
+  002088.SZ 鲁阳节能     评分= 51 预测=上涨   实际=+1.08%   上涨   ✓
+  300768.SZ 迪普科技     评分= 49 预测=上涨   实际=+1.38%   上涨   ✓
+  600763.SH 通策医疗     评分= 49 预测=下跌   实际=-0.04%   横盘震荡 ✗
+  301022.SZ 海泰科      评分= 47 预测=下跌   实际=+1.08%   上涨   ✗
+  001311.SZ 多利科技     评分= 46 预测=下跌   实际=-0.28%   横盘震荡 ✗
+  300226.SZ 上海钢联     评分= 46 预测=下跌   实际=+2.40%   上涨   ✗
+  688685.SH 迈信林      评分= 45 预测=下跌   实际=+0.83%   上涨   ✗
+  600933.SH 爱柯迪      评分= 45 预测=下跌   实际=+2.17%   上涨   ✗
+  300539.SZ 横河精密     评分= 44 预测=下跌   实际=+2.85%   上涨   ✗
+  603173.SH 福斯达      评分= 44 预测=下跌   实际=-1.06%   下跌   ✓
+  300777.SZ 中简科技     评分= 44 预测=下跌   实际=+1.22%   上涨   ✗
+  600109.SH 国金证券     评分= 43 预测=下跌   实际=+1.38%   上涨   ✗
+  300445.SZ 康斯特      评分= 42 预测=下跌   实际=+1.37%   上涨   ✗
+  001208.SZ 华菱线缆     评分= 42 预测=下跌   实际=+0.13%   横盘震荡 ✗
+  301261.SZ 恒工精密     评分= 42 预测=下跌   实际=+1.80%   上涨   ✗
+  300560.SZ 中富通      评分= 41 预测=下跌   实际=+0.44%   上涨   ✗
+  688139.SH 海尔生物     评分= 41 预测=下跌   实际=+1.77%   上涨   ✗
+  688286.SH 敏芯股份     评分= 41 预测=下跌   实际=+0.73%   上涨   ✗
+  300530.SZ 领湃科技     评分= 41 预测=下跌   实际=+1.61%   上涨   ✗
+  003020.SZ 立方制药     评分= 40 预测=下跌   实际=+1.86%   上涨   ✗
+  301318.SZ 维海德      评分= 40 预测=下跌   实际=+1.90%   上涨   ✗
+  300450.SZ 先导智能     评分= 38 预测=下跌   实际=-0.71%   下跌   ✓
+  688050.SH 爱博医疗     评分= 38 预测=下跌   实际=+0.67%   上涨   ✗
+  600812.SH 华北制药     评分= 36 预测=下跌   实际=+1.28%   上涨   ✗
+
+完整结果已保存到 data_results/backtest_full_model_result.json

@@ -1,0 +1,6944 @@
+{
+  "date": "2026-03-18",
+  "test_weeks": [
+    "W2026-W10",
+    "W2026-W9",
+    "W2026-W8",
+    "W2026-W7",
+    "W2026-W6",
+    "W2026-W5",
+    "W2026-W4",
+    "W2026-W3"
+  ],
+  "stocks": [
+    "600519.SH(贵州茅台)",
+    "002594.SZ(比亚迪)",
+    "601166.SH(兴业银行)",
+    "688981.SH(中芯国际)",
+    "300760.SZ(迈瑞医疗)",
+    "000333.SZ(美的集团)",
+    "600893.SH(航发动力)",
+    "601012.SH(隆基绿能)",
+    "002415.SZ(海康威视)",
+    "601688.SH(华泰证券)",
+    "601899.SH(紫金矿业)",
+    "001979.SZ(招商蛇口)",
+    "002475.SZ(立讯精密)",
+    "601601.SH(中国太保)",
+    "600900.SH(长江电力)",
+    "000998.SZ(隆平高科)",
+    "600309.SH(万华化学)",
+    "600031.SH(三一重工)",
+    "000568.SZ(泸州老窖)",
+    "600050.SH(中国联通)"
+  ],
+  "summary": {
+    "qwen": {
+      "model": "Qwen3-235B",
+      "total_predictions": 88,
+      "uncertain": 32,
+      "correct": 41,
+      "accuracy": 46.6,
+      "coverage": 73.3,
+      "high_conf_total": 56,
+      "high_conf_accuracy": 44.6
+    },
+    "deepseek": {
+      "model": "DeepSeek",
+      "total_predictions": 73,
+      "uncertain": 47,
+      "correct": 40,
+      "accuracy": 54.8,
+      "coverage": 60.8,
+      "high_conf_total": 32,
+      "high_conf_accuracy": 53.1
+    },
+    "rules": {
+      "model": "V5规则引擎",
+      "total_predictions": 6,
+      "uncertain": 114,
+      "correct": 3,
+      "accuracy": 50.0,
+      "coverage": 5.0,
+      "high_conf_total": 6,
+      "high_conf_accuracy": 50.0
+    }
+  },
+  "rule_llm_agreement": {
+    "rule_hit_count": 6,
+    "qwen_agree": 4,
+    "deepseek_agree": 1
+  },
+  "weekly_results": [
+    {
+      "week": "W10→W11",
+      "stocks": [
+        {
+          "code": "600519.SH",
+          "name": "贵州茅台",
+          "actual": 0.83,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "risk_level": "medium",
+            "key_factors": [
+              "本周超跌",
+              "低位企稳",
+              "尾日反弹"
+            ],
+            "justification": "本周大幅下跌3.64%，60日位置偏低，尾日微涨0.21%，显示短期企稳迹象"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "连续两周下跌但跌幅未加速，且处于低位最后一日微涨，信号矛盾。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002594.SZ",
+          "name": "比亚迪",
+          "actual": 6.47,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "逆势上涨",
+              "显著放量",
+              "资金流入"
+            ],
+            "justification": "本周逆势上涨6.50%，显著放量且资金流入，显示个股独立强势"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "大盘下跌中逆势放量大涨，显示强劲独立强势，符合看涨信号。"
+          },
+          "rules": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "rule_name": "深证+大盘跌+涨>5%→跌",
+            "tier": 2
+          }
+        },
+        {
+          "code": "601166.SH",
+          "name": "兴业银行",
+          "actual": 1.67,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "低位企稳",
+              "缩量企稳",
+              "60日低位"
+            ],
+            "justification": "个股处于60日低位，本周微涨1.14%，前周下跌后本周企稳，缩量环境下具备反弹动能"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "justification": "相对大盘强势上涨+60日低位企稳，缩量但方向明确"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "688981.SH",
+          "name": "中芯国际",
+          "actual": 0.52,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "60日低位企稳",
+              "资金流入"
+            ],
+            "justification": "大盘跌0.93%+个股跌7.39%，60日处于低位，资金正常流入，存在超跌反弹需求"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "连续两周下跌且跌幅加速，相对大盘显著弱势，低位未现企稳信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "300760.SZ",
+          "name": "迈瑞医疗",
+          "actual": -1.54,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "低位企稳",
+              "资金流入",
+              "尾日强势"
+            ],
+            "justification": "个股本周下跌2.45%，处于60日低位0.17，尾日强势反弹+2.93%，叠加资金流入信号，低位企稳迹象明显"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘方向不明，个股低位但仅一个企稳信号，证据不足。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000333.SZ",
+          "name": "美的集团",
+          "actual": 0.44,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金缩量"
+            ],
+            "justification": "大盘跌2.24%+个股跌2.69%，60日低位0.17，本周跌幅收窄且尾日微涨，符合超跌反弹逻辑"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘方向不明，个股缩量下跌但处于低位，无明显多空信号"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600893.SH",
+          "name": "航发动力",
+          "actual": -11.93,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.63,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量下跌",
+              "逆势过热",
+              "趋势矛盾"
+            ],
+            "justification": "个股高位逆势大涨，但大盘可能拐点，存在高位回调风险"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "逆势大涨超8%，相对强势显著，且最后一天强势收涨。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601012.SH",
+          "name": "隆基绿能",
+          "actual": 4.83,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "市场拐点不明",
+              "缩量调整",
+              "低位震荡"
+            ],
+            "justification": "大盘可能拐点，个股缩量低位震荡，缺乏明确方向信号"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘方向不明，个股缩量下跌但处于低位且最后一日反弹，信号矛盾。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002415.SZ",
+          "name": "海康威视",
+          "actual": 2.79,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "市场拐点不明",
+              "个股表现矛盾",
+              "缩量特征"
+            ],
+            "justification": "大盘可能拐点，个股表现与资金缩量矛盾，缺乏明确方向信号"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "连续两周下跌但跌幅收窄，缩量且处中位，缺乏明确方向信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601688.SH",
+          "name": "华泰证券",
+          "actual": -3.54,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "大盘跌0.93%+个股跌4.73%，60日低位企稳，主力资金流入确认反弹"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "连续两周下跌且跌幅加速，相对大盘显著弱势，低位未能企稳。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601899.SH",
+          "name": "紫金矿业",
+          "actual": -3.59,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.63,
+            "risk_level": "medium",
+            "key_factors": [
+              "超跌反弹",
+              "资金流入",
+              "尾日企稳"
+            ],
+            "justification": "本周大幅下跌6.19%，60日位置处于中位，资金流入明显，尾日跌幅收窄显示企稳迹象"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "相对大盘显著弱势，连续下跌且跌幅加速，处于中高位。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "001979.SZ",
+          "name": "招商蛇口",
+          "actual": -1.03,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "低位企稳",
+              "尾日反弹"
+            ],
+            "justification": "本周跌幅收窄，尾日微涨且前周超跌，显示短期企稳迹象"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "连续两周下跌但跌幅收窄，缩量企稳，但缺乏明确反转信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002475.SZ",
+          "name": "立讯精密",
+          "actual": 4.3,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "大盘跌2.24%+个股跌5.80%，60日低位0.07企稳，资金正常流入1.02，符合超跌反弹逻辑"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "连续两周下跌且跌幅扩大，但处于60日低位且最后一日收涨，信号矛盾。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601601.SH",
+          "name": "中国太保",
+          "actual": -0.18,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "连续两周下跌",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "连续两周下跌且本周跌幅收窄，60日位置偏低，资金流入提供反弹动能"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "连续两周下跌且跌幅加速，相对大盘弱势明显，低位未现企稳信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600900.SH",
+          "name": "长江电力",
+          "actual": 1.03,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量",
+              "市场拐点不明"
+            ],
+            "justification": "个股处于60日高位且放量，大盘可能拐点，缺乏明确方向信号"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "逆势放量上涨+连续两周上涨，相对大盘强势明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000998.SZ",
+          "name": "隆平高科",
+          "actual": 1.44,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量",
+              "市场拐点不明",
+              "连涨连跌交替"
+            ],
+            "justification": "个股高位放量上涨，但大盘出现拐点信号，市场方向不明，风险偏高"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "连续两周上涨且显著放量，逆大盘强势表现，看涨信号明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600309.SH",
+          "name": "万华化学",
+          "actual": -9.14,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位震荡",
+              "资金正常",
+              "大盘拐点"
+            ],
+            "justification": "个股处于60日高位且大盘出现拐点信号，个股和大盘方向不明确，风险较高"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "高位震荡，信号矛盾。最后一日大涨但全周平盘，成交量未放大。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600031.SH",
+          "name": "三一重工",
+          "actual": -3.37,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "本周超跌",
+              "前周企稳",
+              "资金流入"
+            ],
+            "justification": "本周个股跌幅达4.84%，前周企稳且资金流入，具备反弹条件"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "个股相对大盘弱势，但无连续下跌或高位放量等明确看跌信号，方向不明。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000568.SZ",
+          "name": "泸州老窖",
+          "actual": 1.77,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "连续两周下跌",
+              "低位企稳"
+            ],
+            "justification": "大盘跌2.24%+个股连续两周下跌共9%，60日低位0.08，尾日反弹1.97%显示短期企稳"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "连续两周下跌但跌幅收窄，且处于60日低位，但缺乏明确反转信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600050.SH",
+          "name": "中国联通",
+          "actual": 2.01,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "risk_level": "medium",
+            "key_factors": [
+              "低位企稳",
+              "资金流入",
+              "趋势延续"
+            ],
+            "justification": "本周微涨1.01%，60日低位企稳，主力资金流入且趋势延续，但大盘可能拐点增加不确定性"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "连续两周上涨，且在大盘下跌时逆势收涨，显示相对强势。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        }
+      ]
+    },
+    {
+      "week": "W9→W10",
+      "stocks": [
+        {
+          "code": "600519.SH",
+          "name": "贵州茅台",
+          "actual": -3.64,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "大盘涨个股跌",
+              "低位企稳",
+              "资金流出收窄"
+            ],
+            "justification": "本周大盘涨1.98%但个股跌2.05%，60日位置0.57，缩量调整后存在反弹动能"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "大盘涨近2%但个股逆市跌超2%，呈现独立弱势信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002594.SZ",
+          "name": "比亚迪",
+          "actual": 6.5,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "大盘上涨个股下跌",
+              "低位企稳",
+              "缩量调整"
+            ],
+            "justification": "大盘上涨2.8%但个股逆势下跌，60日处于低位，缩量调整后存在反弹动力"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股缩量微跌，低位有支撑但缺乏明确上涨信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601166.SH",
+          "name": "兴业银行",
+          "actual": 1.14,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "大盘上涨个股下跌",
+              "60日低位",
+              "缩量调整"
+            ],
+            "justification": "大盘上涨1.98%但个股逆势调整，60日低位叠加缩量，存在均值回归反弹需求"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股微跌缩量，低位企稳信号不足，方向不明。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "688981.SH",
+          "name": "中芯国际",
+          "actual": -7.39,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "缩量调整"
+            ],
+            "justification": "大盘跌1.98%+个股跌1.64%，60日位置偏低，缩量调整后存在反弹需求"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股缩量下跌，虽处低位但缺乏明确反弹信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "300760.SZ",
+          "name": "迈瑞医疗",
+          "actual": -2.45,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "risk_level": "medium",
+            "key_factors": [
+              "大盘上涨",
+              "个股低位",
+              "缩量调整"
+            ],
+            "justification": "大盘上涨2.8%，个股处于60日低位，缩量调整后有望反弹"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股表现平淡，缩量横盘于历史低位，缺乏明确方向信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000333.SZ",
+          "name": "美的集团",
+          "actual": -2.69,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "大盘上涨个股下跌",
+              "缩量调整",
+              "尾日走弱"
+            ],
+            "justification": "大盘涨2.8%但个股微跌，缩量+尾日走弱，信号矛盾且市场拐点不明"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股缩量微跌，无明确方向信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600893.SH",
+          "name": "航发动力",
+          "actual": 7.08,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位震荡",
+              "独立弱势",
+              "资金正常"
+            ],
+            "justification": "个股高位震荡，大盘上涨但个股独立弱势，缺乏明确方向性信号"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "高位放量下跌+相对大盘显著弱势，技术面转弱"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601012.SH",
+          "name": "隆基绿能",
+          "actual": -1.74,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "大盘上涨个股跟涨",
+              "缩量调整",
+              "60日偏低位置"
+            ],
+            "justification": "大盘上涨1.98%，个股微涨1.05%，缩量调整且60日位置偏低，市场方向不明"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股缩量跟涨，信号矛盾，方向不明。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002415.SZ",
+          "name": "海康威视",
+          "actual": -1.17,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "独立弱势",
+              "高位回调",
+              "缩量下跌"
+            ],
+            "justification": "大盘涨2.8%但个股逆势下跌，处于60日高位且连续4天下跌，资金缩量显示动能不足"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "高位缩量连跌，相对大盘显著弱势，独立下跌信号明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601688.SH",
+          "name": "华泰证券",
+          "actual": -4.73,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "大盘涨个股跌背离",
+              "60日低位",
+              "连跌4天"
+            ],
+            "justification": "大盘涨1.98%但个股跌3.60%，60日低位且连跌4天，存在均值回归反弹需求"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股缩量连跌，低位有支撑但缺乏明确反弹信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601899.SH",
+          "name": "紫金矿业",
+          "actual": -6.19,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位回调压力",
+              "缩量上涨",
+              "市场拐点不明"
+            ],
+            "justification": "个股处于60日高位且缩量上涨，大盘虽涨但个股独立性不足，缺乏明确方向信号"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "justification": "相对大盘强势上涨，但高位缩量，上涨动能可能受限。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "001979.SZ",
+          "name": "招商蛇口",
+          "actual": -2.12,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "逆势下跌超跌",
+              "资金流入",
+              "大盘上涨"
+            ],
+            "justification": "大盘上涨2.8%，个股逆势下跌4.07%，60日位置中位，资金流入提供反弹动能"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "相对大盘显著弱势，且处于中位无支撑，短期趋势偏弱。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002475.SZ",
+          "name": "立讯精密",
+          "actual": -5.8,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "risk_level": "medium",
+            "key_factors": [
+              "大盘上涨逆势下跌",
+              "60日低位",
+              "资金正常"
+            ],
+            "justification": "大盘上涨2.8%但个股逆势下跌，处于60日低位，资金面正常，存在均值回归反弹可能"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股弱势，成交量未放大，低位但未现明确企稳信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601601.SH",
+          "name": "中国太保",
+          "actual": -3.84,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.63,
+            "risk_level": "medium",
+            "key_factors": [
+              "个股超跌反弹",
+              "连跌4天企稳",
+              "资金面正常"
+            ],
+            "justification": "个股单周跌4.85%且连跌4天，当前60日位置0.48，资金面正常，存在均值回归反弹需求"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "相对大盘显著弱势，连续下跌且跌幅加速，独立于大盘走弱。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600900.SH",
+          "name": "长江电力",
+          "actual": 4.22,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "大盘上涨个股滞涨",
+              "60日低位",
+              "缩量震荡"
+            ],
+            "justification": "大盘涨1.98%但个股仅微涨0.15%，60日位置偏低但量能萎缩，方向选择信号不明"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股涨幅微弱且缩量，低位企稳信号不足，方向不明。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000998.SZ",
+          "name": "隆平高科",
+          "actual": 4.5,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "大盘上涨",
+              "个股微涨",
+              "缩量信号"
+            ],
+            "justification": "大盘上涨2.8%，个股微涨2.88%，缩量0.68，市场方向不明，风险偏高"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "涨幅与大盘同步，但缩量且无明确强势信号，方向不明。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600309.SH",
+          "name": "万华化学",
+          "actual": 0.01,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量下跌",
+              "逆势过热",
+              "趋势拐点"
+            ],
+            "justification": "万华化学本周逆势大涨9.47%，60日位置已达高位1.00，尾日放量上涨3.31%，存在回调压力，信号矛盾，风险较高。"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "逆势大幅跑赢大盘，连续上涨，动量强劲。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600031.SH",
+          "name": "三一重工",
+          "actual": -4.84,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位震荡",
+              "资金流入趋缓",
+              "尾日下跌"
+            ],
+            "justification": "个股处于60日高位，尾日下跌且资金流入趋缓，市场方向不明"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股涨幅微弱，高位且成交量正常，无明显方向信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000568.SZ",
+          "name": "泸州老窖",
+          "actual": -4.09,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "60日低位",
+              "资金流出收窄"
+            ],
+            "justification": "个股周跌4.95%且处于60日低位，大盘周涨2.80%提供修复环境，缩量下跌显示抛压减弱"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股深度缩量下跌，处于绝对低位，方向不明。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600050.SH",
+          "name": "中国联通",
+          "actual": 1.01,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "risk_level": "medium",
+            "key_factors": [
+              "低位企稳",
+              "资金流入",
+              "板块超跌"
+            ],
+            "justification": "个股处于60日低位，本周资金小幅流入，板块整体超跌背景下具备反弹动能"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "justification": "相对大盘强势上涨，且处于60日低位，具备反弹基础。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        }
+      ]
+    },
+    {
+      "week": "W6→W7",
+      "stocks": [
+        {
+          "code": "600519.SH",
+          "name": "贵州茅台",
+          "actual": -1.96,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量下跌",
+              "连续两周上涨",
+              "尾日下跌"
+            ],
+            "justification": "贵州茅台处于60日高位且本周放量下跌，连续两周上涨后动能衰竭，尾日大幅下跌预示短期调整"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "连续两周强势上涨且显著放量，逆大盘环境表现突出。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002594.SZ",
+          "name": "比亚迪",
+          "actual": 0.5,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "大盘连续下跌",
+              "个股超跌企稳",
+              "资金流入"
+            ],
+            "justification": "大盘连续两周下跌，比亚迪60日位置偏低且本周跌幅收窄，资金流入提供支撑"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "连续两周下跌但跌幅收窄，处于60日低位，但缺乏明确反转信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601166.SH",
+          "name": "兴业银行",
+          "actual": -1.91,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "逆势上涨存回调压力",
+              "低位企稳待观察",
+              "资金面平稳"
+            ],
+            "justification": "大盘微跌个股逆势连涨，60日低位企稳但涨势放缓，资金流入不足需观察方向选择"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "相对大盘强势上涨+连续两周上涨+低位企稳反弹"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "688981.SH",
+          "name": "中芯国际",
+          "actual": 3.77,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "60日低位企稳",
+              "尾日逆势收红"
+            ],
+            "justification": "本周个股跌幅达8.36%，处于60日低位0.09，且尾日逆势收红，符合超跌反弹逻辑"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "连续两周下跌且相对大盘弱势，但处于历史低位且最后一日微涨，信号矛盾。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "300760.SZ",
+          "name": "迈瑞医疗",
+          "actual": -1.96,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "低位企稳",
+              "连续两周下跌",
+              "缩量调整"
+            ],
+            "justification": "个股连续两周下跌且处于60日低位，缩量调整后存在反弹需求，但尾日下跌增加不确定性"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "justification": "大盘弱势下逆势收涨，且处于60日低位，企稳信号显现。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000333.SZ",
+          "name": "美的集团",
+          "actual": -0.61,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "大盘连续下跌",
+              "个股逆势上涨",
+              "缩量调整"
+            ],
+            "justification": "大盘连续两周下跌但个股逆势上涨，60日位置偏高且缩量调整，信号矛盾市场拐点不明"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "justification": "大盘连跌背景下连续两周逆势上涨，展现相对强势。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600893.SH",
+          "name": "航发动力",
+          "actual": 17.92,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位震荡",
+              "缩量调整",
+              "尾日下跌"
+            ],
+            "justification": "个股处于60日高位且尾日下跌，但大盘跌幅不大，缺乏明确方向信号"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "高位逆势上涨但缩量，最后一日转跌，信号矛盾。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601012.SH",
+          "name": "隆基绿能",
+          "actual": -1.26,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "连续两周上涨",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "本周上涨2.68%，60日位置偏低，前周大幅下跌后本周企稳反弹，资金流入支持反弹延续"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "justification": "大盘下跌时逆势上涨，且从60日低位企稳反弹，符合看涨信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002415.SZ",
+          "name": "海康威视",
+          "actual": -0.8,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "高位放量回调",
+              "逆势过热",
+              "资金流出"
+            ],
+            "justification": "个股连续两周上涨且处于60日高位，本周逆势大盘上涨4.18%，资金流出信号明显，存在回调压力"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "大盘连跌背景下逆势大涨+连续五日上涨，显示强劲独立强势。"
+          },
+          "rules": {
+            "direction": "DOWN",
+            "confidence": 0.75,
+            "rule_name": "深证+大盘跌+涨+连涨3天→跌",
+            "tier": 1
+          }
+        },
+        {
+          "code": "601688.SH",
+          "name": "华泰证券",
+          "actual": 0.22,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "本周个股跌幅达3.61%，60日位置偏低，大盘下跌背景下出现明显超跌，资金流入信号确认反弹动能"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "相对大盘显著弱势，连续两周下跌且跌幅扩大，低位未能企稳。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601899.SH",
+          "name": "紫金矿业",
+          "actual": 1.58,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "超跌反弹",
+              "资金流入",
+              "趋势延续"
+            ],
+            "justification": "本周个股跌幅达7.35%，大盘下跌1.27%，资金流入且前周有连续上涨，符合超跌反弹逻辑"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "相对大盘跌幅显著扩大，高位连续下跌且跌幅加速，弱势明显。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "001979.SZ",
+          "name": "招商蛇口",
+          "actual": -2.83,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位震荡",
+              "资金正常",
+              "逆势回调"
+            ],
+            "justification": "个股处于60日高位，本周逆势微涨但尾日回调明显，缺乏明确方向信号"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘连续下跌，个股高位逆势上涨后回调，信号矛盾。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002475.SZ",
+          "name": "立讯精密",
+          "actual": -0.42,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "连续两周下跌",
+              "60日低位",
+              "前周大跌企稳"
+            ],
+            "justification": "大盘连续两周下跌+个股前周大跌后本周企稳，60日处于低位，存在超跌反弹需求"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "连续两周下跌但本周跌幅显著收窄，处于绝对低位，但缩量且无明确反弹信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601601.SH",
+          "name": "中国太保",
+          "actual": -4.3,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "高位回调压力",
+              "连续两周下跌",
+              "缩量调整"
+            ],
+            "justification": "前周大涨8.48%后本周回调1.63%，60日位置偏高叠加缩量，存在高位回调压力"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "高位缩量回调，相对大盘弱势，前周大涨后本周转跌"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600900.SH",
+          "name": "长江电力",
+          "actual": -1.18,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "大盘跌幅不足",
+              "个股逆势微涨",
+              "缩量无方向"
+            ],
+            "justification": "大盘仅跌1.27%未触发超跌，个股连续两周微涨但量能萎缩，方向不明"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘弱势下个股相对抗跌，但缩量且信号矛盾，方向不明。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000998.SZ",
+          "name": "隆平高科",
+          "actual": -1.72,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "本周显著超跌",
+              "前周大涨企稳",
+              "显著放量"
+            ],
+            "justification": "个股本周大幅下跌5.89%，前周大涨9.14%形成企稳，叠加显著放量，存在超跌反弹需求"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "justification": "大盘弱势下个股放量大跌，相对跌幅远超大盘，且高位回落信号明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600309.SH",
+          "name": "万华化学",
+          "actual": -2.01,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位回调风险",
+              "资金流入不足",
+              "趋势不明"
+            ],
+            "justification": "个股处于60日高位，本周下跌且资金流入不足，趋势信号矛盾，市场拐点不明确"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "高位震荡，信号矛盾，最后一日反弹但整体偏弱。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600031.SH",
+          "name": "三一重工",
+          "actual": 0.61,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.68,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量下跌",
+              "独立弱势",
+              "趋势恶化"
+            ],
+            "justification": "个股处于60日高位，本周逆势下跌且前周跌幅较大，资金信号显示主力出货迹象，风险等级高"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "justification": "逆势大涨+相对强势明显，但高位放量不足，需观察持续性。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000568.SZ",
+          "name": "泸州老窖",
+          "actual": -5.36,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位回调压力",
+              "尾日下跌",
+              "板块波动"
+            ],
+            "justification": "个股连续两周涨跌互现，尾日下跌且处于高位回调压力，市场波动性增加，方向不明"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "大盘连跌中逆势上涨+连续两周上涨+放量+低位企稳，看涨信号明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600050.SH",
+          "name": "中国联通",
+          "actual": -0.83,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "60日低位企稳",
+              "前周跌幅收窄"
+            ],
+            "justification": "大盘本周下跌1.27%叠加个股超跌5.27%，60日位置处于0.04低位，前周跌幅明显收窄显示止跌迹象"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "低位缩量下跌，但相对大盘跌幅过大，信号矛盾，方向不明。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        }
+      ]
+    },
+    {
+      "week": "W5→W6",
+      "stocks": [
+        {
+          "code": "600519.SH",
+          "name": "贵州茅台",
+          "actual": 8.15,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量",
+              "尾日下跌",
+              "板块分化"
+            ],
+            "justification": "个股高位放量且尾日大幅下跌，市场情绪波动较大，方向不明"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "显著放量逆势大涨，相对大盘强势超5%，符合看涨信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002594.SZ",
+          "name": "比亚迪",
+          "actual": -1.16,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "大盘跌1.62%+个股跌2.95%，60日低位企稳，资金流入确认反弹"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "连续两周下跌且跌幅扩大，相对大盘弱势明显，低位未能企稳。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601166.SH",
+          "name": "兴业银行",
+          "actual": 3.91,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "本周大盘下跌0.44%，个股跌2.27%，60日位置0.05处于低位，前周跌幅4.91%后本周企稳，显著放量表明资金活跃，符合超跌反弹逻辑"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "连续两周下跌且放量，但跌幅收窄且处于绝对低位，企稳与弱势信号并存。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "688981.SH",
+          "name": "中芯国际",
+          "actual": -8.36,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "市场拐点不明",
+              "信号矛盾"
+            ],
+            "justification": "大盘小幅下跌，个股表现与大盘基本同步，未出现明显超跌或过热信号，方向性因素不足且信号矛盾"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "连续两周下跌且相对大盘弱势，中位放量下跌信号明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "300760.SZ",
+          "name": "迈瑞医疗",
+          "actual": 0.12,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "大盘跌1.62%+个股跌3.19%，60日低位0.04企稳，资金正常流入1.09确认反弹"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "连续两周下跌且跌幅扩大，相对大盘弱势明显，低位未能企稳。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000333.SZ",
+          "name": "美的集团",
+          "actual": 2.52,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "risk_level": "medium",
+            "key_factors": [
+              "低位企稳",
+              "放量上涨"
+            ],
+            "justification": "个股本周微涨，60日位置偏低，放量上涨显示资金活跃，低位企稳迹象明显"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "justification": "相对大盘强势上涨，且低位放量，企稳信号明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600893.SH",
+          "name": "航发动力",
+          "actual": 4.66,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.68,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量下跌",
+              "连续两周下跌",
+              "尾日大跌"
+            ],
+            "justification": "本周下跌2.87%，60日位置0.70偏高，尾日大跌3.68%，存在高位出货风险"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "高位放量下跌，相对大盘弱势明显，且连跌后无企稳迹象。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601012.SH",
+          "name": "隆基绿能",
+          "actual": 2.68,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "大盘跌0.44%+个股跌7.59%，60日低位0.12，显著放量1.69，超跌反弹信号明确"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "相对大盘显著弱势且放量下跌，低位未能企稳，看跌信号明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002415.SZ",
+          "name": "海康威视",
+          "actual": 4.18,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "市场拐点不明",
+              "个股表现矛盾",
+              "资金流入一般"
+            ],
+            "justification": "大盘可能拐点，个股表现震荡，60日位置中位，缺乏明确方向信号"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘方向不明，个股跌幅与大盘相当，无明确多空信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601688.SH",
+          "name": "华泰证券",
+          "actual": -3.61,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量",
+              "市场拐点不明"
+            ],
+            "justification": "个股在60日中位附近震荡，缺乏明确趋势信号，市场拐点不明导致判断不确定性高"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘震荡，个股涨跌信号均不明确，仅满足单周相对强势一个看涨信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601899.SH",
+          "name": "紫金矿业",
+          "actual": -7.35,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量",
+              "独立弱势",
+              "趋势矛盾"
+            ],
+            "justification": "个股高位放量且尾日大跌，大盘走势不明，信号矛盾"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "逆势放量大涨+相对强势显著，高位放量需观察但动能强劲。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "001979.SZ",
+          "name": "招商蛇口",
+          "actual": 0.57,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.68,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量下跌",
+              "连续两周上涨",
+              "大盘拐点预警"
+            ],
+            "justification": "个股连续两周上涨累计15.8%，60日位置0.87高位，本周放量下跌2.85%，大盘出现拐点预警"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "连续两周逆势大涨，相对大盘强势显著，动量延续概率高。"
+          },
+          "rules": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "rule_name": "深证+大盘跌+涨>5%→跌",
+            "tier": 2
+          }
+        },
+        {
+          "code": "002475.SZ",
+          "name": "立讯精密",
+          "actual": -1.01,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "大盘跌1.62%+个股跌6.90%，60日低位企稳，主力资金流入确认反弹"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "连续两周加速下跌，相对大盘显著弱势，且处于低位仍无企稳迹象。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601601.SH",
+          "name": "中国太保",
+          "actual": -1.63,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "高位放量下跌",
+              "逆势回调",
+              "资金流出"
+            ],
+            "justification": "个股处于60日高位且本周放量下跌，尾日跌幅明显，主力资金流出迹象明显"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "逆势放量大涨+前周大跌后强势反弹，动能充足。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600900.SH",
+          "name": "长江电力",
+          "actual": 0.61,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "连续两周上涨",
+              "低位企稳",
+              "显著放量"
+            ],
+            "justification": "长江电力连续两周上涨，60日位置偏低，本周显著放量且企稳，具备反弹动能"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "低位放量逆势上涨，企稳反弹信号明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000998.SZ",
+          "name": "隆平高科",
+          "actual": -5.89,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.68,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量下跌",
+              "逆势过热回调",
+              "趋势恶化"
+            ],
+            "justification": "个股连续两周上涨且本周逆势大涨9.14%，但处于60日高位且显著放量，存在回调压力"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "逆大盘放量暴涨，相对强势显著，且连续两周上涨，动能强劲。"
+          },
+          "rules": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "rule_name": "深证+大盘跌+涨>5%→跌",
+            "tier": 2
+          }
+        },
+        {
+          "code": "600309.SH",
+          "name": "万华化学",
+          "actual": -1.43,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "高位放量下跌",
+              "连续两周上涨",
+              "逆势过热"
+            ],
+            "justification": "个股连续两周大幅上涨，本周高位放量，存在回调压力，且逆势过热"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "连续两周强势上涨且显著放量，逆势表现突出，看涨信号明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600031.SH",
+          "name": "三一重工",
+          "actual": 4.83,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.68,
+            "risk_level": "medium",
+            "key_factors": [
+              "连续两周下跌",
+              "高位放量",
+              "弱势于大盘"
+            ],
+            "justification": "个股连续两周下跌且跌幅加速，60日位置偏高，尾日放量下跌，主力资金流出明显"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "相对大盘显著弱势，高位连续下跌，独立弱势信号明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000568.SZ",
+          "name": "泸州老窖",
+          "actual": 1.59,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量滞涨",
+              "大盘拐点未明",
+              "资金分歧"
+            ],
+            "justification": "个股连续上涨后高位放量滞涨，大盘拐点未明，资金分歧明显，方向不明"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "逆势放量大涨+低位企稳反弹+相对大盘强势显著"
+          },
+          "rules": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "rule_name": "深证+大盘跌+涨>5%→跌",
+            "tier": 2
+          }
+        },
+        {
+          "code": "600050.SH",
+          "name": "中国联通",
+          "actual": -5.27,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "大盘跌0.44%+个股跌0.20%，60日低位企稳，放量资金流入确认反弹"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "justification": "低位放量企稳，跌幅显著收窄，逆大盘相对强势。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        }
+      ]
+    },
+    {
+      "week": "W4→W5",
+      "stocks": [
+        {
+          "code": "600519.SH",
+          "name": "贵州茅台",
+          "actual": 4.79,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "大盘跌3%+个股跌3.25%，60日低位企稳，主力资金流入确认反弹"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "justification": "连续两周加速下跌且显著放量，相对大盘弱势明显，低位未能企稳。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002594.SZ",
+          "name": "比亚迪",
+          "actual": -2.95,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "低位企稳",
+              "资金流入",
+              "跌幅收窄"
+            ],
+            "justification": "比亚迪本周下跌2.32%，但处于60日低位0.08，主力资金正常流入，前周连续下跌后本周跌幅收窄，存在反弹动能。"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "连续两周下跌但跌幅未加速，且处于绝对低位，方向不明。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601166.SH",
+          "name": "兴业银行",
+          "actual": -2.27,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "本周个股跌幅达4.91%，60日位置处于低位，显著放量显示资金活跃，符合超跌反弹逻辑"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "justification": "连续两周加速下跌且显著放量，相对大盘极度弱势，低位破位形态。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "688981.SH",
+          "name": "中芯国际",
+          "actual": -1.58,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "市场拐点不明",
+              "高位放量",
+              "信号矛盾"
+            ],
+            "justification": "大盘上涨但个股下跌，60日位置处于中位，连涨连跌交替，信号矛盾无明显趋势"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "连续两周下跌且跌幅扩大，相对大盘弱势明显，处于中位无支撑。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "300760.SZ",
+          "name": "迈瑞医疗",
+          "actual": -3.19,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘连续上涨",
+              "个股低位企稳",
+              "资金面正常"
+            ],
+            "justification": "大盘连续两周上涨，个股60日位置处于低位，本周尾日企稳且资金面正常，存在反弹动力"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "连续两周下跌且跌幅扩大，相对大盘显著弱势，低位未能企稳。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000333.SZ",
+          "name": "美的集团",
+          "actual": 1.05,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.58,
+            "risk_level": "medium",
+            "key_factors": [
+              "低位企稳",
+              "资金流入",
+              "板块超跌"
+            ],
+            "justification": "个股连续两周下跌后本周跌幅收窄，60日位置偏低，资金流入配合，存在反弹需求"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘上涨但个股微跌，60日低位但未企稳，信号矛盾。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600893.SH",
+          "name": "航发动力",
+          "actual": -2.87,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.68,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量下跌",
+              "逆势回调",
+              "资金出货"
+            ],
+            "justification": "个股高位放量大幅上涨后尾日下跌，主力资金疑似出货，存在明显回调风险"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.7,
+            "justification": "逆势放量大幅上涨，相对强势显著，看涨信号明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601012.SH",
+          "name": "隆基绿能",
+          "actual": -7.59,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "连续两周上涨",
+              "放量上涨",
+              "低位企稳"
+            ],
+            "justification": "隆基绿能连续两周上涨，本周显著放量且尾日大涨10%，60日位置偏低，显示反弹动能较强"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.7,
+            "justification": "连续两周上涨且显著放量，相对大盘强势，处于低位反弹态势。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002415.SZ",
+          "name": "海康威视",
+          "actual": -1.93,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "连续两周上涨",
+              "显著放量",
+              "逆势强势"
+            ],
+            "justification": "个股连续两周上涨且显著放量，虽尾日微跌，但整体趋势偏强，具备延续动能"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "连续两周上涨且跑赢大盘，本周显著放量，上涨趋势明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601688.SH",
+          "name": "华泰证券",
+          "actual": 0.97,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "市场拐点不明",
+              "高位放量",
+              "信号矛盾"
+            ],
+            "justification": "大盘上涨但个股独立弱势，60日中位缩量下跌，缺乏明确趋势信号"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "连续两周下跌但跌幅收窄，缩量企稳于中位，缺乏明确方向信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601899.SH",
+          "name": "紫金矿业",
+          "actual": 6.87,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位震荡",
+              "资金流入一般",
+              "涨跌交替"
+            ],
+            "justification": "个股处于60日高位，本周涨跌交替，资金流入一般，缺乏明确方向性信号"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "高位震荡，无明显多空信号，跟随大盘概率高。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "001979.SZ",
+          "name": "招商蛇口",
+          "actual": 7.09,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.68,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量下跌",
+              "逆势回调",
+              "连续上涨结束"
+            ],
+            "justification": "个股连续两周上涨后高位放量，尾日下跌且大盘未继续强势，存在明显回调压力"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "逆势放量大涨+相对大盘强势+连续两周上涨趋势"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002475.SZ",
+          "name": "立讯精密",
+          "actual": -6.9,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "个股单周大跌4.45%且处于60日低位，尾日跌幅收窄，主力资金流入明显，具备反弹条件"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘上涨但个股连续大跌，虽处低位但未现明确企稳反弹信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601601.SH",
+          "name": "中国太保",
+          "actual": 8.48,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "连续两周下跌",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "连续两周下跌且跌幅收窄，60日中位企稳，资金流入迹象明显"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "连续两周大幅下跌且相对大盘弱势，跌幅加速，处于中位无支撑。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600900.SH",
+          "name": "长江电力",
+          "actual": 1.39,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "大盘跌3.8%+个股跌5.2%，60日低位企稳，主力资金流入确认反弹"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "连续两周下跌且跌幅扩大，相对大盘显著弱势，放量下跌强化看跌信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000998.SZ",
+          "name": "隆平高科",
+          "actual": 9.14,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "大盘连续上涨",
+              "个股微涨",
+              "成交量放大"
+            ],
+            "justification": "大盘连续两周上涨但个股表现弱于大盘，60日位置中位且个股涨跌反复，缺乏明确方向信号"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "个股放量但涨幅略逊于大盘，且最后一日收跌，缺乏明确方向信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600309.SH",
+          "name": "万华化学",
+          "actual": 4.4,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.68,
+            "risk_level": "high",
+            "key_factors": [
+              "高位放量下跌",
+              "逆势回调",
+              "板块分化"
+            ],
+            "justification": "个股处于60日高位且本周放量下跌，大盘上涨背景下个股逆势回调，存在高位出货风险"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "显著放量逆势大涨，相对大盘超额涨幅超6%，强势特征明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600031.SH",
+          "name": "三一重工",
+          "actual": -4.6,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "高位放量下跌",
+              "逆势上涨回调",
+              "趋势恶化"
+            ],
+            "justification": "个股连续上涨后高位放量，且出现逆势上涨后的回调信号，存在趋势反转风险"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "相对大盘强势上涨且放量，连续上涨动能充足"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000568.SZ",
+          "name": "泸州老窖",
+          "actual": 9.24,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "连续两周下跌",
+              "60日低位",
+              "资金正常"
+            ],
+            "justification": "连续两周下跌且处于60日低位，资金面正常，存在超跌反弹可能"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "连续两周下跌但跌幅未加速，且处于绝对低位，方向不明。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600050.SH",
+          "name": "中国联通",
+          "actual": -0.2,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "前周个股大跌4.99%且处于60日低位，本周跌幅收窄并企稳，资金流入支持反弹"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.55,
+            "justification": "60日低位+前周大跌后本周跌幅显著收窄，企稳反弹信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        }
+      ]
+    },
+    {
+      "week": "W3→W4",
+      "stocks": [
+        {
+          "code": "600519.SH",
+          "name": "贵州茅台",
+          "actual": -3.25,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "大盘跌3%+个股跌5.6%，60日低位企稳，主力资金流入确认反弹"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "相对大盘显著弱势，连续下跌且跌幅加速，放量下跌。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002594.SZ",
+          "name": "比亚迪",
+          "actual": -2.32,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.58,
+            "risk_level": "medium",
+            "key_factors": [
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "比亚迪60日位置偏低，尾日微涨且资金流入，显示短期企稳迹象"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股弱势，低位缩量震荡，方向信号矛盾。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601166.SH",
+          "name": "兴业银行",
+          "actual": -4.91,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "本周大盘跌0.46%，个股跌3.74%，处于60日低位0.04，显著放量显示资金活跃，符合超跌反弹逻辑"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "justification": "连续两周下跌且跌幅加速，相对大盘显著弱势，虽处低位但放量下跌。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "688981.SH",
+          "name": "中芯国际",
+          "actual": -1.6,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位震荡",
+              "单周回调",
+              "市场拐点不明"
+            ],
+            "justification": "个股处于60日高位，本周回调且市场拐点不明，缺乏明确方向性信号"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "高位放量但周线收跌，最后一日反弹信号不足，多空信号矛盾。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "300760.SZ",
+          "name": "迈瑞医疗",
+          "actual": -2.82,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.68,
+            "risk_level": "medium",
+            "key_factors": [
+              "独立弱势",
+              "高位放量",
+              "趋势恶化"
+            ],
+            "justification": "大盘连续两周上涨但个股逆势下跌，60日位置偏高且显著放量，主力资金流出迹象明显"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股逆势放量下跌，信号矛盾，方向不明。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000333.SZ",
+          "name": "美的集团",
+          "actual": -0.68,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "独立弱势",
+              "高位放量",
+              "趋势恶化"
+            ],
+            "justification": "大盘连续两周上涨但个股逆势下跌，高位放量且趋势恶化，存在明显回调压力"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "justification": "大盘涨但个股显著放量下跌，呈现独立弱势信号"
+          },
+          "rules": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "rule_name": "跌+前期连涨+非高位→跌",
+            "tier": 2
+          }
+        },
+        {
+          "code": "600893.SH",
+          "name": "航发动力",
+          "actual": 17.58,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "本周超跌反弹",
+              "前周大涨",
+              "放量企稳"
+            ],
+            "justification": "本周大幅下跌7.74%且前周大涨9.84%，放量1.28显示资金活跃，存在均值回归反弹可能"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "相对大盘显著弱势+高位放量下跌+连跌四天"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601012.SH",
+          "name": "隆基绿能",
+          "actual": 3.32,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "risk_level": "medium",
+            "key_factors": [
+              "低位企稳",
+              "放量上涨",
+              "资金流入"
+            ],
+            "justification": "本周放量上涨1.85%，60日位置偏低，资金流入明显，低位企稳信号明确"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "连续两周上涨且显著放量，同时处于60日低位，具备反弹延续动能。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002415.SZ",
+          "name": "海康威视",
+          "actual": 3.07,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "连续两周上涨",
+              "显著放量",
+              "低位企稳"
+            ],
+            "justification": "个股连续两周上涨，显著放量且尾日跌幅较小，处于60日中低位，存在反弹动能"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "连续两周上涨且跑赢大盘，本周显著放量，处于上涨趋势中。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601688.SH",
+          "name": "华泰证券",
+          "actual": -1.39,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "超跌反弹",
+              "尾日企稳",
+              "资金流入"
+            ],
+            "justification": "本周个股跌幅达3.72%，尾日跌幅收窄，资金流入明显，存在超跌反弹动能"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "相对大盘显著弱势，连续下跌且跌幅加速，处于中位缺乏支撑。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601899.SH",
+          "name": "紫金矿业",
+          "actual": 0.24,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "高位放量下跌",
+              "连涨后回调",
+              "尾日大幅下跌"
+            ],
+            "justification": "个股处于60日高位，本周放量下跌且尾日大幅下跌，存在回调压力"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "高位放量下跌，相对大盘弱势，且连跌后未现企稳信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "001979.SZ",
+          "name": "招商蛇口",
+          "actual": 8.7,
+          "qwen": {
+            "direction": "DOWN",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "独立弱势",
+              "高位回调",
+              "尾日大跌"
+            ],
+            "justification": "大盘连续两周上涨但个股逆势下跌，周尾日大跌2.68%，存在补跌风险"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股逆市放量下跌，信号矛盾，方向不明。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "002475.SZ",
+          "name": "立讯精密",
+          "actual": -4.45,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "连续两周上涨",
+              "显著放量",
+              "低位企稳"
+            ],
+            "justification": "个股连涨两周，叠加显著放量和60日低位企稳，趋势延续性较强"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "justification": "大盘强势下相对强势上涨，显著放量，且处于60日低位企稳反弹。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "601601.SH",
+          "name": "中国太保",
+          "actual": -4.99,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "medium",
+            "key_factors": [
+              "前周大涨修正",
+              "超跌反弹",
+              "资金流入"
+            ],
+            "justification": "前周大涨10.95%后本周回调4.97%，60日位置偏高但资金流入，存在修正和反弹需求"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "高位放量下跌+相对大盘显著弱势，调整压力较大。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600900.SH",
+          "name": "长江电力",
+          "actual": -1.97,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "本周大盘下跌0.46%，个股长江电力跌2.85%，处于60日低位，显著放量表明资金流入，存在超跌反弹机会。"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "相对大盘显著弱势且放量下跌，60日低位未能提供有效支撑。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000998.SZ",
+          "name": "隆平高科",
+          "actual": 0.95,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "risk_level": "medium",
+            "key_factors": [
+              "大盘连续上涨",
+              "低位企稳",
+              "显著放量"
+            ],
+            "justification": "大盘连续两周上涨，个股60日位置偏低且本周企稳，显著放量预示反弹动能增强"
+          },
+          "deepseek": {
+            "direction": "UP",
+            "confidence": 0.6,
+            "justification": "大盘强势下低位企稳，显著放量，看涨信号明确。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600309.SH",
+          "name": "万华化学",
+          "actual": 7.01,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位震荡",
+              "大盘弱势",
+              "资金流入不足"
+            ],
+            "justification": "个股处于60日高位，大盘走势疲软，资金流入力度不足，方向不明朗"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "高位震荡，相对大盘跌幅有限，无明显多空主导信号。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600031.SH",
+          "name": "三一重工",
+          "actual": 3.93,
+          "qwen": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.5,
+            "risk_level": "high",
+            "key_factors": [
+              "高位震荡",
+              "单周回调",
+              "市场拐点不明"
+            ],
+            "justification": "个股处于60日高位，本周小幅回调，大盘和个股方向不明确，缺乏明确趋势信号"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "高位放量滞涨，相对大盘偏弱，但未形成明确下跌趋势。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "000568.SZ",
+          "name": "泸州老窖",
+          "actual": -1.98,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.62,
+            "risk_level": "medium",
+            "key_factors": [
+              "大盘连续上涨",
+              "个股超跌",
+              "低位企稳"
+            ],
+            "justification": "大盘连续两周上涨，个股本周下跌2.24%且处于60日低位，尾日跌幅收窄，存在反弹可能"
+          },
+          "deepseek": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.55,
+            "justification": "大盘强势但个股独立弱势，虽处低位且放量，但下跌信号更强，方向不明。"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        },
+        {
+          "code": "600050.SH",
+          "name": "中国联通",
+          "actual": -0.58,
+          "qwen": {
+            "direction": "UP",
+            "confidence": 0.65,
+            "risk_level": "low",
+            "key_factors": [
+              "大盘深跌超跌反弹",
+              "低位企稳",
+              "资金流入"
+            ],
+            "justification": "本周大盘跌0.46%，个股跌4.99%，60日低位企稳，显著放量确认反弹"
+          },
+          "deepseek": {
+            "direction": "DOWN",
+            "confidence": 0.6,
+            "justification": "相对大盘显著弱势+连续下跌且跌幅加速+低位放量下跌"
+          },
+          "rules": {
+            "direction": "UNCERTAIN",
+            "confidence": 0.0,
+            "rule_name": "无匹配规则",
+            "tier": 0
+          }
+        }
+      ]
+    }
+  ],
+  "qwen_details": [
+    {
+      "week": "W10→W11",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": 0.83,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 6.47,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": 1.67,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 0.52,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -1.54,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": 0.44,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "DOWN",
+      "confidence": 0.63,
+      "actual": -11.93,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 4.83,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 2.79,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -3.54,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UP",
+      "confidence": 0.63,
+      "actual": -3.59,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": -1.03,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 4.3,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -0.18,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 1.03,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 1.44,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -9.14,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -3.37,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 1.77,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": 2.01,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": -3.64,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": 6.5,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": 1.14,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": -7.39,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": -2.45,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -2.69,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 7.08,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -1.74,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -1.17,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": -4.73,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -6.19,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": -2.12,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": -5.8,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "UP",
+      "confidence": 0.63,
+      "actual": -3.84,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 4.22,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 4.5,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": 0.01,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -4.84,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -4.09,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": 1.01,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -1.96,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 0.5,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -1.91,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 3.77,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": -1.96,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -0.61,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 17.92,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -1.26,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -0.8,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": 0.22,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 1.58,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -2.83,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": -0.42,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -4.3,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -1.18,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -1.72,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -2.01,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "DOWN",
+      "confidence": 0.68,
+      "actual": 0.61,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -5.36,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -0.83,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 8.15,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -1.16,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 3.91,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -8.36,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": 0.12,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": 2.52,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "DOWN",
+      "confidence": 0.68,
+      "actual": 4.66,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 2.68,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 4.18,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -3.61,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -7.35,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "DOWN",
+      "confidence": 0.68,
+      "actual": 0.57,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -1.01,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -1.63,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 0.61,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "DOWN",
+      "confidence": 0.68,
+      "actual": -5.89,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -1.43,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "DOWN",
+      "confidence": 0.68,
+      "actual": 4.83,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 1.59,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": -5.27,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 4.79,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": -2.95,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -2.27,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -1.58,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -3.19,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UP",
+      "confidence": 0.58,
+      "actual": 1.05,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "DOWN",
+      "confidence": 0.68,
+      "actual": -2.87,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -7.59,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -1.93,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 0.97,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 6.87,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "DOWN",
+      "confidence": 0.68,
+      "actual": 7.09,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -6.9,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": 8.48,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 1.39,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 9.14,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "DOWN",
+      "confidence": 0.68,
+      "actual": 4.4,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -4.6,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": 9.24,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -0.2,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -3.25,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UP",
+      "confidence": 0.58,
+      "actual": -2.32,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -4.91,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": -1.6,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "DOWN",
+      "confidence": 0.68,
+      "actual": -2.82,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -0.68,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 17.58,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": 3.32,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 3.07,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": -1.39,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": 0.24,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": 8.7,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -4.45,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -4.99,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -1.97,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": 0.95,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 7.01,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "UNCERTAIN",
+      "confidence": 0.5,
+      "actual": 3.93,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UP",
+      "confidence": 0.62,
+      "actual": -1.98,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -0.58,
+      "mark": "❌",
+      "extra": ""
+    }
+  ],
+  "deepseek_details": [
+    {
+      "week": "W10→W11",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 0.83,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 6.47,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": 1.67,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": 0.52,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -1.54,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 0.44,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -11.93,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 4.83,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 2.79,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -3.54,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -3.59,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -1.03,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 4.3,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -0.18,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 1.03,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 1.44,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -9.14,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -3.37,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 1.77,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W10→W11",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 2.01,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -3.64,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 6.5,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 1.14,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -7.39,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -2.45,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -2.69,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": 7.08,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -1.74,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -1.17,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -4.73,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": -6.19,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -2.12,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -5.8,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -3.84,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 4.22,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 4.5,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 0.01,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -4.84,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -4.09,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W9→W10",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": 1.01,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -1.96,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 0.5,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -1.91,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 3.77,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": -1.96,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": -0.61,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 17.92,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": -1.26,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -0.8,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": 0.22,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": 1.58,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -2.83,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -0.42,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -4.3,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -1.18,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -1.72,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -2.01,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": 0.61,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -5.36,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W6→W7",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -0.83,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 8.15,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -1.16,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 3.91,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -8.36,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": 0.12,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": 2.52,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": 4.66,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": 2.68,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 4.18,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -3.61,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -7.35,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 0.57,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -1.01,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -1.63,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 0.61,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -5.89,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -1.43,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": 4.83,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 1.59,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W5→W6",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": -5.27,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": 4.79,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -2.95,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -2.27,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -1.58,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -3.19,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 1.05,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "UP",
+      "confidence": 0.7,
+      "actual": -2.87,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UP",
+      "confidence": 0.7,
+      "actual": -7.59,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -1.93,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 0.97,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 6.87,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 7.09,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -6.9,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": 8.48,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": 1.39,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 9.14,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 4.4,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -4.6,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 9.24,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W4→W5",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UP",
+      "confidence": 0.55,
+      "actual": -0.2,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -3.25,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -2.32,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -4.91,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -1.6,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -2.82,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -0.68,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": 17.58,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 3.32,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": 3.07,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -1.39,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": 0.24,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 8.7,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UP",
+      "confidence": 0.65,
+      "actual": -4.45,
+      "mark": "❌",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -4.99,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -1.97,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UP",
+      "confidence": 0.6,
+      "actual": 0.95,
+      "mark": "✅",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 7.01,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": 3.93,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UNCERTAIN",
+      "confidence": 0.55,
+      "actual": -1.98,
+      "mark": "⏸️",
+      "extra": ""
+    },
+    {
+      "week": "W3→W4",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "DOWN",
+      "confidence": 0.6,
+      "actual": -0.58,
+      "mark": "✅",
+      "extra": ""
+    }
+  ],
+  "rules_details": [
+    {
+      "week": "W10→W11",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 0.83,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": 6.47,
+      "mark": "❌",
+      "extra": "深证+大盘跌+涨>5%→跌"
+    },
+    {
+      "week": "W10→W11",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 1.67,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 0.52,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.54,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 0.44,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -11.93,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 4.83,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 2.79,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -3.54,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -3.59,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.03,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 4.3,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -0.18,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 1.03,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 1.44,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -9.14,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -3.37,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 1.77,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W10→W11",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 2.01,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -3.64,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 6.5,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 1.14,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -7.39,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -2.45,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -2.69,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 7.08,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.74,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.17,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -4.73,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -6.19,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -2.12,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -5.8,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -3.84,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 4.22,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 4.5,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 0.01,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -4.84,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -4.09,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W9→W10",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 1.01,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.96,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 0.5,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.91,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 3.77,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.96,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -0.61,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 17.92,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.26,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "DOWN",
+      "confidence": 0.75,
+      "actual": -0.8,
+      "mark": "✅",
+      "extra": "深证+大盘跌+涨+连涨3天→跌"
+    },
+    {
+      "week": "W6→W7",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 0.22,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 1.58,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -2.83,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -0.42,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -4.3,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.18,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.72,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -2.01,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 0.61,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -5.36,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W6→W7",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -0.83,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 8.15,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.16,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 3.91,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -8.36,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 0.12,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 2.52,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 4.66,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 2.68,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 4.18,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -3.61,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -7.35,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": 0.57,
+      "mark": "❌",
+      "extra": "深证+大盘跌+涨>5%→跌"
+    },
+    {
+      "week": "W5→W6",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.01,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.63,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 0.61,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -5.89,
+      "mark": "✅",
+      "extra": "深证+大盘跌+涨>5%→跌"
+    },
+    {
+      "week": "W5→W6",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.43,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 4.83,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W5→W6",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": 1.59,
+      "mark": "❌",
+      "extra": "深证+大盘跌+涨>5%→跌"
+    },
+    {
+      "week": "W5→W6",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -5.27,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 4.79,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -2.95,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -2.27,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.58,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -3.19,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 1.05,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -2.87,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -7.59,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.93,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 0.97,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 6.87,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 7.09,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -6.9,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 8.48,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 1.39,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 9.14,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 4.4,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -4.6,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 9.24,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W4→W5",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -0.2,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -3.25,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "002594.SZ",
+      "name": "比亚迪",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -2.32,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "601166.SH",
+      "name": "兴业银行",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -4.91,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "688981.SH",
+      "name": "中芯国际",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.6,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "300760.SZ",
+      "name": "迈瑞医疗",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -2.82,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "000333.SZ",
+      "name": "美的集团",
+      "direction": "DOWN",
+      "confidence": 0.65,
+      "actual": -0.68,
+      "mark": "✅",
+      "extra": "跌+前期连涨+非高位→跌"
+    },
+    {
+      "week": "W3→W4",
+      "code": "600893.SH",
+      "name": "航发动力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 17.58,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "601012.SH",
+      "name": "隆基绿能",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 3.32,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "002415.SZ",
+      "name": "海康威视",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 3.07,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "601688.SH",
+      "name": "华泰证券",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.39,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "601899.SH",
+      "name": "紫金矿业",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 0.24,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "001979.SZ",
+      "name": "招商蛇口",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 8.7,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "002475.SZ",
+      "name": "立讯精密",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -4.45,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "601601.SH",
+      "name": "中国太保",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -4.99,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "600900.SH",
+      "name": "长江电力",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.97,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "000998.SZ",
+      "name": "隆平高科",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 0.95,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "600309.SH",
+      "name": "万华化学",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 7.01,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "600031.SH",
+      "name": "三一重工",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": 3.93,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "000568.SZ",
+      "name": "泸州老窖",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -1.98,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    },
+    {
+      "week": "W3→W4",
+      "code": "600050.SH",
+      "name": "中国联通",
+      "direction": "UNCERTAIN",
+      "confidence": 0.0,
+      "actual": -0.58,
+      "mark": "⏸️",
+      "extra": "无匹配规则"
+    }
+  ]
+}
