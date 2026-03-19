@@ -30,14 +30,14 @@ from service.weekly_prediction_service import (
 
 logger = logging.getLogger(__name__)
 
-MIN_SIGNAL_THRESHOLD = 0.8
+MIN_SIGNAL_THRESHOLD = 0.9
 
 WEIGHTS = {
-    'price_momentum': 0.8,
-    'volume_price': 0.7,
-    'market_env': 0.8,
-    'fund_flow': 0.7,
-    'concept_board': 0.9,
+    'price_momentum': 0.4,
+    'volume_price': 0.4,
+    'market_env': 1.2,
+    'fund_flow': 0.6,
+    'concept_board': 1.2,
 }
 
 
@@ -241,6 +241,12 @@ def _score_market_env(feat: dict) -> float:
 # ═══════════════════════════════════════════════════════════
 
 def _score_fund_flow(feat: dict) -> float:
+    """资金流向评分 v2 — 修正强流入反指标问题。
+
+    v1问题：大资金强流入(avg_big_pct>5)实际涨率只有46.5%，低于基准52.3%
+    原因：大资金流入往往是短期高点信号（主力出货前的拉升）
+    v2修正：关注趋势变化而非绝对值，强流入改为中性偏负
+    """
     score = 0.0
     ff_data = feat.get('fund_flow_data', [])
     if not ff_data:
@@ -263,32 +269,34 @@ def _score_fund_flow(feat: dict) -> float:
     main_5d = [_safe_float(f.get('main_net_5day', 0)) for f in recent[:5]]
     avg_main_5d = _mean(main_5d)
 
+    # 修正：强流入是反指标
     if avg_big_pct > 5:
-        score += 1.5
+        score -= 0.3
     elif avg_big_pct > 3:
-        score += 1.0
+        score += 0.0
     elif avg_big_pct > 1:
-        score += 0.5
+        score += 0.3
     elif avg_big_pct < -5:
-        score -= 1.5
+        score -= 0.8
     elif avg_big_pct < -3:
-        score -= 1.0
+        score -= 0.5
     elif avg_big_pct < -1:
+        score -= 0.2
+
+    # 趋势改善更重要
+    if trend > 3:
+        score += 1.0
+    elif trend > 1:
+        score += 0.5
+    elif trend < -3:
+        score -= 1.0
+    elif trend < -1:
         score -= 0.5
 
-    if trend > 3:
-        score += 0.8
-    elif trend > 1:
-        score += 0.3
-    elif trend < -3:
-        score -= 0.8
-    elif trend < -1:
-        score -= 0.3
-
     if avg_main_5d > 0:
-        score += 0.3
+        score += 0.2
     elif avg_main_5d < 0:
-        score -= 0.3
+        score -= 0.2
 
     return max(-3.0, min(3.0, score))
 
@@ -517,6 +525,29 @@ def predict_monthly_direction(feat: dict) -> dict:
         return {'pred_up': None, 'score': round(norm_score, 3),
                 'confidence': 'skip_highpos',
                 'reason': f'高位弱信号(pos60={pos60:.2f})',
+                'dim_scores': dim_scores}
+
+    # 尾周大跌过滤
+    last_week_chg = feat.get('last_week_chg', 0)
+    if last_week_chg < -5 and abs_score < 1.3:
+        return {'pred_up': None, 'score': round(norm_score, 3),
+                'confidence': 'skip_lastweek',
+                'reason': f'尾周大跌({last_week_chg:+.1f}%)',
+                'dim_scores': dim_scores}
+
+    # 多维度看跌过滤
+    neg_count = sum(1 for d in dims if d < -0.3)
+    if neg_count >= 2 and abs_score < 1.3:
+        return {'pred_up': None, 'score': round(norm_score, 3),
+                'confidence': 'skip_multineg',
+                'reason': f'多维度看跌({neg_count}个维度<-0.3)',
+                'dim_scores': dim_scores}
+
+    # 概念强看跌过滤
+    if s_concept < -0.8 and abs_score < 1.5:
+        return {'pred_up': None, 'score': round(norm_score, 3),
+                'confidence': 'skip_concept_neg',
+                'reason': f'概念强看跌(concept={s_concept:+.1f})',
                 'dim_scores': dim_scores}
 
     if abs_score >= 1.8:
