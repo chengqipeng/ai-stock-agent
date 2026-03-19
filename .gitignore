@@ -18,5 +18,6 @@ log/
 target
 *.iml
 *.log
+.*.json
 system.properties
 poetry.lock
