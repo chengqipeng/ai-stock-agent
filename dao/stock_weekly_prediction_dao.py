@@ -527,6 +527,7 @@ def get_prediction_accuracy_stats(iso_year: int = None, iso_week: int = None) ->
 def get_latest_predictions_page(direction: str = None, confidence: str = None,
                                 keyword: str = None, keywords: list[str] = None,
                                 nw_direction: str = None,
+                                v5_direction: str = None,
                                 sort_by: str = 'stock_code',
                                 sort_dir: str = 'asc',
                                 limit: int = 50, offset: int = 0,
@@ -536,6 +537,7 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
     keywords: 多关键词列表，任一匹配即命中（OR逻辑）。
     keyword: 兼容旧的单关键词参数。
     nw_direction: 下周预测方向筛选，支持 UP/DOWN/UNCERTAIN/HAS_SIGNAL。
+    v5_direction: OBV5日预测筛选，支持 UP/HAS_SIGNAL/NO_SIGNAL。
     monthly_only: 仅返回有月度预测(nm_pred_direction IS NOT NULL)的行。
     """
     conn = get_connection(use_dict_cursor=True)
@@ -569,6 +571,15 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
             else:
                 where_parts.append("p.nw_pred_direction = %s")
                 params.append(nw_direction)
+        # OBV5日预测筛选
+        if v5_direction:
+            if v5_direction == 'NO_SIGNAL':
+                where_parts.append("p.v5_pred_direction IS NULL")
+            elif v5_direction == 'HAS_SIGNAL':
+                where_parts.append("p.v5_pred_direction IS NOT NULL")
+            else:
+                where_parts.append("p.v5_pred_direction = %s")
+                params.append(v5_direction)
         # 多关键词搜索（OR逻辑）
         search_terms = keywords or ([keyword] if keyword else None)
         if search_terms:

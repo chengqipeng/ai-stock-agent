@@ -149,6 +149,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
             <option value="UNCERTAIN">下周不确定</option>
             <option value="HAS_SIGNAL">下周有信号</option>
         </select>
+        <select id="filterV5Direction" onchange="loadList()">
+            <option value="">OBV 5日: 全部</option>
+            <option value="UP">OBV有信号 ↑</option>
+            <option value="NO_SIGNAL">OBV无信号</option>
+        </select>
         <input id="searchInput" type="text" placeholder="搜索代码/名称（逗号/空格分隔可搜多只）..." style="width:260px" oninput="debounceSearch()" onkeydown="handleSearchEnter(event)" onpaste="handleSearchPaste(event)">
         <span id="searchClear" onclick="clearSearch()" style="cursor:pointer;color:#999;font-size:14px;display:none" title="清空搜索">&times;</span>
         <button class="btn" onclick="loadList()">刷新</button>
@@ -321,6 +326,18 @@ const INDICATOR_TIPS = {
             {h: '剩余涨跌幅', p: '预测本周涨跌幅 - 已实现涨跌幅。表示模型预测本周剩余交易日还需要涨跌多少才能达到预测的本周总涨跌幅。'},
             {h: '天数信息', p: '显示已有交易天数和剩余天数（按5天工作日计算）。例如"3天/剩2天"表示本周已有3天数据，还剩2个交易日。'},
             {h: '使用场景', p: '如果剩余涨跌幅为正且较大，说明模型认为后续交易日还有上涨空间；如果为负，说明模型认为已经涨过头或还会继续跌。'},
+        ],
+    },
+    'v5_pred_direction': {
+        title: 'OBV 5日预测',
+        sections: [
+            {h: '预测原理', p: '基于蜻蜓布林+OBV上升+收阳三层过滤策略，预测未来5个交易日方向。回测胜率约75.8%。'},
+            {h: '策略1: 蜻蜓布林+OBV+收阳', p: '布林带下轨附近出现蜻蜓十字线，同时OBV上升且当日收阳。三重信号共振，胜率最高(~75.8%)。'},
+            {h: '策略2: 空中加油+缩量', p: '上涨趋势中出现缩量回调（空中加油形态），胜率约65.7%。'},
+            {h: '策略3: 蜻蜓布林(单独)', p: '仅布林带下轨附近出现蜻蜓十字线，信号量大但胜率较低(~58.2%)。'},
+            {h: '信号数 (N/3)', p: '显示命中了几个策略（最多3个）。命中越多信号越强。'},
+            {h: '信号日期', p: '触发信号的K线日期。信号在该日收盘后产生，预测未来5个交易日方向。'},
+            {h: '注意', p: 'OBV 5日预测仅预测涨方向(UP)，无信号时不做预测。信号有效期约5个交易日。'},
         ],
     },
     'nw_pred_direction': {
@@ -529,6 +546,7 @@ async function loadList() {
     const direction = document.getElementById('filterDirection').value;
     const confidence = document.getElementById('filterConfidence').value;
     const nwDirection = document.getElementById('filterNwDirection').value;
+    const v5Direction = document.getElementById('filterV5Direction').value;
     const keyword = document.getElementById('searchInput').value.trim();
     const offset = (currentPage - 1) * PAGE_SIZE;
 
@@ -537,6 +555,7 @@ async function loadList() {
     if (direction) url += '&direction=' + direction;
     if (confidence) url += '&confidence=' + confidence;
     if (nwDirection) url += '&nw_direction=' + encodeURIComponent(nwDirection);
+    if (v5Direction) url += '&v5_direction=' + encodeURIComponent(v5Direction);
     if (keyword) url += '&keyword=' + encodeURIComponent(keyword);
 
     try {
@@ -573,6 +592,7 @@ function renderTable(rows) {
         {key:'week_realized_chg', label:'已实现/剩余'},
         {key:'backtest_accuracy', label:'回测准确率'},
         {key:'suggested_buy_date', label:'买入建议'},
+        {key:'v5_pred_direction', label:'OBV 5日'},
     ];
     for (const c of compareCols) {
         let cls = '';
@@ -588,7 +608,7 @@ function renderTable(rows) {
     html += '</tr></thead><tbody>';
 
     if (rows.length === 0) {
-        html += '<tr><td colspan="14" style="text-align:center;color:#999;padding:20px;">暂无数据</td></tr>';
+        html += '<tr><td colspan="15" style="text-align:center;color:#999;padding:20px;">暂无数据</td></tr>';
     }
     for (const r of rows) {
         // ── 本周行 ──
@@ -669,6 +689,20 @@ function renderTable(rows) {
             if (buyReason) buyHtml = '<span title="' + buyReason + '">' + buyHtml + '</span>';
         }
         html += '<td>' + buyHtml + '</td>';
+        // OBV 5日预测
+        let v5Html = '-';
+        if (r.v5_pred_direction) {
+            const sc = r.v5_signal_count || 0;
+            const v5Tip = (r.v5_all_strategies || '') + (r.v5_reason ? '\n' + r.v5_reason : '');
+            v5Html = '<span title="' + v5Tip.replace(/"/g, '&quot;') + '">';
+            v5Html += dirBadge(r.v5_pred_direction);
+            v5Html += ' <span style="font-size:10px;color:#888">' + sc + '/3</span>';
+            if (r.v5_strategy) v5Html += '<br><span style="font-size:10px;color:#9b59b6">' + r.v5_strategy + '</span>';
+            if (r.v5_win_rate != null) v5Html += '<br><span style="font-size:9px;color:#bbb">胜率:' + parseFloat(r.v5_win_rate).toFixed(0) + '%</span>';
+            if (r.v5_signal_date) v5Html += '<br><span style="font-size:9px;color:#aaa">' + r.v5_signal_date.slice(5) + '</span>';
+            v5Html += '</span>';
+        }
+        html += '<td>' + v5Html + '</td>';
         // 概念板块 (rowspan)
         const boards = r.concept_boards ? r.concept_boards.split(',').slice(0, 3).join(', ') : '-';
         const boardsFull = r.concept_boards || '';
@@ -721,6 +755,8 @@ function renderTable(rows) {
         }
         html += '<td>' + nwBtHtml + '</td>';
         // 买入建议 留空
+        html += '<td style="color:#ddd;font-size:10px">-</td>';
+        // OBV 5日 留空
         html += '<td style="color:#ddd;font-size:10px">-</td>';
         html += '</tr>';
     }
