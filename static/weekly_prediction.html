@@ -50,6 +50,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
 .pred-table tbody tr:hover{background:rgba(102,126,234,0.06)}
 .pred-table tbody tr.row-nw{background:rgba(255,152,0,0.03)}
 .pred-table tbody tr.row-nw:hover{background:rgba(255,152,0,0.08)}
+.pred-table tbody tr.row-v5{background:rgba(156,39,176,0.03)}
+.pred-table tbody tr.row-v5:hover{background:rgba(156,39,176,0.08)}
 .pred-table tbody tr.row-tw{border-top:2px solid rgba(102,126,234,0.12)}
 
 /* 方向/置信度标签 */
@@ -575,12 +577,12 @@ async function loadList() {
 }
 
 function renderTable(rows) {
-    // 两行布局：本周 + 下周
+    // 三行布局：本周 + 下周 + OBV 5日
     let html = '<table class="pred-table"><thead><tr>';
     // 共享列
-    html += '<th rowspan="2" onclick="toggleSort(\'stock_code\')"><span class="th-wrap">代码 <span class="tip-icon" onclick="showTip(\'stock_code\',event)" title="点击查看说明">?</span></span></th>';
-    html += '<th rowspan="2" onclick="toggleSort(\'stock_name\')"><span class="th-wrap">名称 <span class="tip-icon" onclick="showTip(\'stock_name\',event)" title="点击查看说明">?</span></span></th>';
-    html += '<th rowspan="2" style="width:28px;font-size:10px;color:#8e8e93;text-align:center;cursor:default">周期</th>';
+    html += '<th rowspan="3" onclick="toggleSort(\'stock_code\')"><span class="th-wrap">代码 <span class="tip-icon" onclick="showTip(\'stock_code\',event)" title="点击查看说明">?</span></span></th>';
+    html += '<th rowspan="3" onclick="toggleSort(\'stock_name\')"><span class="th-wrap">名称 <span class="tip-icon" onclick="showTip(\'stock_name\',event)" title="点击查看说明">?</span></span></th>';
+    html += '<th rowspan="3" style="width:28px;font-size:10px;color:#8e8e93;text-align:center;cursor:default">周期</th>';
     // 对比列
     const compareCols = [
         {key:'pred_direction', label:'方向'},
@@ -592,7 +594,6 @@ function renderTable(rows) {
         {key:'week_realized_chg', label:'已实现/剩余'},
         {key:'backtest_accuracy', label:'回测准确率'},
         {key:'suggested_buy_date', label:'买入建议'},
-        {key:'v5_pred_direction', label:'OBV 5日'},
     ];
     for (const c of compareCols) {
         let cls = '';
@@ -604,17 +605,17 @@ function renderTable(rows) {
         html += '</span></th>';
     }
     // 共享列
-    html += '<th rowspan="2"><span class="th-wrap">概念板块 <span class="tip-icon" onclick="showTip(\'concept_boards\',event)" title="点击查看说明">?</span></span></th>';
+    html += '<th rowspan="3"><span class="th-wrap">概念板块 <span class="tip-icon" onclick="showTip(\'concept_boards\',event)" title="点击查看说明">?</span></span></th>';
     html += '</tr></thead><tbody>';
 
     if (rows.length === 0) {
-        html += '<tr><td colspan="15" style="text-align:center;color:#999;padding:20px;">暂无数据</td></tr>';
+        html += '<tr><td colspan="13" style="text-align:center;color:#999;padding:20px;">暂无数据</td></tr>';
     }
     for (const r of rows) {
         // ── 本周行 ──
         html += '<tr class="row-tw" onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
-        html += '<td rowspan="2" style="font-family:\'SF Mono\',Menlo,monospace;color:#667eea;font-weight:600;vertical-align:middle">' + r.stock_code + '</td>';
-        html += '<td rowspan="2" style="vertical-align:middle">' + (r.stock_name || '-') + '</td>';
+        html += '<td rowspan="3" style="font-family:\'SF Mono\',Menlo,monospace;color:#667eea;font-weight:600;vertical-align:middle">' + r.stock_code + '</td>';
+        html += '<td rowspan="3" style="vertical-align:middle">' + (r.stock_name || '-') + '</td>';
         html += '<td style="font-size:9px;color:#667eea;font-weight:600;text-align:center">本周</td>';
         html += '<td>' + dirBadge(r.pred_direction) + '<br><span style="font-size:10px;color:#aaa">' + getWeekRange(r.predict_date) + '</span></td>';
         html += '<td>' + confBadge(r.confidence) + '</td>';
@@ -689,29 +690,15 @@ function renderTable(rows) {
             if (buyReason) buyHtml = '<span title="' + buyReason + '">' + buyHtml + '</span>';
         }
         html += '<td>' + buyHtml + '</td>';
-        // OBV 5日预测
-        let v5Html = '-';
-        if (r.v5_pred_direction) {
-            const sc = r.v5_signal_count || 0;
-            const v5Tip = (r.v5_all_strategies || '') + (r.v5_reason ? '\n' + r.v5_reason : '');
-            v5Html = '<span title="' + v5Tip.replace(/"/g, '&quot;') + '">';
-            v5Html += dirBadge(r.v5_pred_direction);
-            v5Html += ' <span style="font-size:10px;color:#888">' + sc + '/3</span>';
-            if (r.v5_strategy) v5Html += '<br><span style="font-size:10px;color:#9b59b6">' + r.v5_strategy + '</span>';
-            if (r.v5_win_rate != null) v5Html += '<br><span style="font-size:9px;color:#bbb">胜率:' + parseFloat(r.v5_win_rate).toFixed(0) + '%</span>';
-            if (r.v5_signal_date) v5Html += '<br><span style="font-size:9px;color:#aaa">' + r.v5_signal_date.slice(5) + '</span>';
-            v5Html += '</span>';
-        }
-        html += '<td>' + v5Html + '</td>';
         // 概念板块 (rowspan)
         const boards = r.concept_boards ? r.concept_boards.split(',').slice(0, 3).join(', ') : '-';
         const boardsFull = r.concept_boards || '';
-        html += '<td rowspan="2" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#888;vertical-align:middle" title="' + boardsFull + '">' + boards + '</td>';
+        html += '<td rowspan="3" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#888;vertical-align:middle" title="' + boardsFull + '">' + boards + '</td>';
         html += '</tr>';
 
         // ── 下周行 ──
         html += '<tr class="row-nw" onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
-        html += '<td style="font-size:9px;color:#e67e22;font-weight:600;text-align:center">下周</td>';
+        html += '<td style="font-size:9px;color:#e67e22;font-weight:600;text-align:center">V11<br>下周</td>';
         // 下周方向
         let nwDirHtml = '-';
         if (r.nw_pred_direction) {
@@ -752,11 +739,50 @@ function renderTable(rows) {
         let nwBtHtml = '-';
         if (r.nw_backtest_accuracy != null) {
             nwBtHtml = parseFloat(r.nw_backtest_accuracy).toFixed(0) + '%';
+            if (r.nw_backtest_samples != null) {
+                nwBtHtml += ' <span style="font-size:9px;color:#bbb">(' + r.nw_backtest_samples + '条)</span>';
+            }
         }
         html += '<td>' + nwBtHtml + '</td>';
         // 买入建议 留空
         html += '<td style="color:#ddd;font-size:10px">-</td>';
-        // OBV 5日 留空
+        html += '</tr>';
+
+        // ── OBV 5日行 ──
+        html += '<tr class="row-v5" onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
+        html += '<td style="font-size:9px;color:#9b59b6;font-weight:600;text-align:center">OBV</td>';
+        // OBV方向
+        if (r.v5_pred_direction) {
+            const v5Tip = (r.v5_all_strategies || '') + (r.v5_reason ? '\n' + r.v5_reason : '');
+            html += '<td><span title="' + v5Tip.replace(/"/g, '&quot;') + '">' + dirBadge(r.v5_pred_direction) + '</span>';
+            if (r.v5_signal_date) html += '<br><span style="font-size:10px;color:#aaa">' + r.v5_signal_date.slice(5) + '</span>';
+            html += '</td>';
+        } else {
+            html += '<td style="color:#ddd;font-size:10px">-</td>';
+        }
+        // OBV置信度
+        html += '<td>' + (r.v5_confidence ? confBadge(r.v5_confidence) : '<span style="color:#ddd;font-size:10px">-</span>') + '</td>';
+        // OBV策略 + 信号数
+        if (r.v5_strategy) {
+            const sc = r.v5_signal_count || 0;
+            html += '<td><span style="font-size:11px;color:#9b59b6">' + r.v5_strategy + '</span><br><span style="font-size:10px;color:#888">' + sc + '/3信号</span></td>';
+        } else {
+            html += '<td style="color:#ddd;font-size:10px">-</td>';
+        }
+        // d4/d3 留空
+        html += '<td style="color:#ddd;font-size:10px">-</td>';
+        html += '<td style="color:#ddd;font-size:10px">-</td>';
+        // 预测涨跌幅 留空
+        html += '<td style="color:#ddd;font-size:10px">-</td>';
+        // 已实现/剩余 留空
+        html += '<td style="color:#ddd;font-size:10px">-</td>';
+        // OBV回测胜率
+        if (r.v5_win_rate != null) {
+            html += '<td><span style="font-size:11px;color:#9b59b6;font-weight:600">' + parseFloat(r.v5_win_rate).toFixed(0) + '%</span> <span style="font-size:9px;color:#bbb">回测胜率</span></td>';
+        } else {
+            html += '<td style="color:#ddd;font-size:10px">-</td>';
+        }
+        // 买入建议 留空
         html += '<td style="color:#ddd;font-size:10px">-</td>';
         html += '</tr>';
     }
