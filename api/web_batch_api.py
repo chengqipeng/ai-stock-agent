@@ -354,12 +354,94 @@ async def weekly_prediction_job_status():
 
 @app.post("/api/trigger_weekly_prediction_job")
 async def trigger_weekly_prediction_job():
-    """手动触发周预测"""
+    """手动触发周预测（全部流程）"""
     status = get_weekly_prediction_job_status()
     if status.get("running"):
         return {"success": False, "message": "周预测任务正在执行中"}
     asyncio.create_task(_weekly_prediction_execute_job(manual=True))
-    return {"success": True, "message": "周预测任务已触发"}
+    return {"success": True, "message": "全部周预测任务已触发"}
+
+
+# ── 本周d3/d4预测（独立） ──
+_tw_job_status = {"running": False, "total": 0, "done": 0, "error": None}
+
+
+@app.get("/api/this_week_predict_job_status")
+async def this_week_predict_job_status():
+    return {"success": True, "data": _tw_job_status}
+
+
+@app.post("/api/trigger_this_week_predict")
+async def trigger_this_week_predict():
+    """手动触发本周d3/d4预测（不含下周预测和V5）"""
+    if _tw_job_status["running"]:
+        return {"success": False, "message": "本周预测任务正在执行中"}
+    asyncio.create_task(_run_this_week_predict())
+    return {"success": True, "message": "本周d3/d4预测任务已触发"}
+
+
+async def _run_this_week_predict():
+    _tw_job_status.update(running=True, total=0, done=0, error=None)
+    try:
+        from service.weekly_prediction_service import run_batch_weekly_prediction
+
+        def _progress(total, done, up, down):
+            _tw_job_status["total"] = total
+            _tw_job_status["done"] = done
+
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: run_batch_weekly_prediction(progress_callback=_progress, mode='this_week')
+        )
+        if result:
+            _tw_job_status["total"] = result.get("total_stocks", 0)
+            _tw_job_status["done"] = result.get("total_stocks", 0)
+        logger.info("本周d3/d4预测完成: %s", result)
+    except Exception as e:
+        _tw_job_status["error"] = str(e)
+        logger.error("本周d3/d4预测异常: %s", e, exc_info=True)
+    finally:
+        _tw_job_status["running"] = False
+
+
+# ── 下周预测+回测（独立） ──
+_nw_job_status = {"running": False, "total": 0, "done": 0, "error": None}
+
+
+@app.get("/api/next_week_predict_job_status")
+async def next_week_predict_job_status():
+    return {"success": True, "data": _nw_job_status}
+
+
+@app.post("/api/trigger_next_week_predict")
+async def trigger_next_week_predict():
+    """手动触发下周预测+回测（不含本周预测和V5）"""
+    if _nw_job_status["running"]:
+        return {"success": False, "message": "下周预测任务正在执行中"}
+    asyncio.create_task(_run_next_week_predict())
+    return {"success": True, "message": "下周预测+回测任务已触发"}
+
+
+async def _run_next_week_predict():
+    _nw_job_status.update(running=True, total=0, done=0, error=None)
+    try:
+        from service.weekly_prediction_service import run_batch_weekly_prediction
+
+        def _progress(total, done, up, down):
+            _nw_job_status["total"] = total
+            _nw_job_status["done"] = done
+
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: run_batch_weekly_prediction(progress_callback=_progress, mode='next_week')
+        )
+        if result:
+            _nw_job_status["total"] = result.get("total_stocks", 0)
+            _nw_job_status["done"] = result.get("total_stocks", 0)
+        logger.info("下周预测+回测完成: %s", result)
+    except Exception as e:
+        _nw_job_status["error"] = str(e)
+        logger.error("下周预测+回测异常: %s", e, exc_info=True)
+    finally:
+        _nw_job_status["running"] = False
 
 
 @app.get("/api/monthly_prediction_job_status")
@@ -376,6 +458,110 @@ async def trigger_monthly_prediction_job():
         return {"success": False, "message": "月预测任务正在执行中"}
     asyncio.create_task(_monthly_prediction_execute_job(manual=True))
     return {"success": True, "message": "月预测任务已触发"}
+
+
+# ── V5技术形态批量预测 ──
+_v5_job_status = {"running": False, "total": 0, "done": 0, "signal_count": 0, "error": None}
+
+
+@app.get("/api/v5_tech_job_status")
+async def v5_tech_job_status():
+    """获取V5技术预测任务状态"""
+    return {"success": True, "data": _v5_job_status}
+
+
+@app.post("/api/trigger_v5_tech_predict")
+async def trigger_v5_tech_predict():
+    """手动触发V5技术形态批量预测"""
+    if _v5_job_status["running"]:
+        return {"success": False, "message": "V5技术预测任务正在执行中"}
+    asyncio.create_task(_run_v5_tech_predict())
+    return {"success": True, "message": "V5技术预测任务已触发"}
+
+
+async def _run_v5_tech_predict():
+    """后台执行V5技术形态批量预测并写入DB"""
+    _v5_job_status.update(running=True, total=0, done=0, signal_count=0, error=None)
+    try:
+        from dao.stock_kline_dao import get_all_stock_codes
+        from service.analysis.v5_tech_predictor import batch_predict_v5_tech
+        from dao.stock_weekly_prediction_dao import ensure_tables
+        from dao import get_connection
+
+        ensure_tables()
+        all_codes = await asyncio.get_event_loop().run_in_executor(None, get_all_stock_codes)
+        if not all_codes:
+            _v5_job_status["error"] = "无股票数据"
+            return
+
+        # 获取最新交易日
+        def _get_latest():
+            conn = get_connection(use_dict_cursor=True)
+            cur = conn.cursor()
+            try:
+                cur.execute("SELECT MAX(`date`) as d FROM stock_kline WHERE stock_code = '000001.SZ'")
+                row = cur.fetchone()
+                return str(row['d']) if row and row['d'] else None
+            finally:
+                cur.close()
+                conn.close()
+
+        latest_date = await asyncio.get_event_loop().run_in_executor(None, _get_latest)
+        if not latest_date:
+            _v5_job_status["error"] = "无法获取最新交易日"
+            return
+
+        _v5_job_status["total"] = len(all_codes)
+
+        def _progress(total, done):
+            _v5_job_status["total"] = total
+            _v5_job_status["done"] = done
+
+        results = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: batch_predict_v5_tech(all_codes, latest_date, progress_callback=_progress)
+        )
+        _v5_job_status["signal_count"] = len(results)
+
+        # 写入DB: 更新已有预测记录的v5_*字段
+        def _write_db():
+            conn = get_connection()
+            cur = conn.cursor()
+            try:
+                v5_cols = [
+                    'v5_pred_direction', 'v5_confidence', 'v5_strategy', 'v5_reason',
+                    'v5_win_rate', 'v5_signal_date', 'v5_signal_count', 'v5_all_strategies',
+                ]
+                set_clause = ', '.join(f'{c} = %({c})s' for c in v5_cols)
+                sql = f"UPDATE stock_weekly_prediction SET {set_clause} WHERE stock_code = %(stock_code)s"
+                sql_h = f"UPDATE stock_weekly_prediction_history SET {set_clause} WHERE stock_code = %(stock_code)s AND iso_year = %(iso_year)s AND iso_week = %(iso_week)s"
+
+                from datetime import datetime
+                dt = datetime.strptime(latest_date, '%Y-%m-%d')
+                iso_cal = dt.isocalendar()
+
+                # 先清空所有v5字段
+                cur.execute(f"UPDATE stock_weekly_prediction SET {', '.join(c + ' = NULL' for c in v5_cols)}")
+
+                updated = 0
+                for code, v5 in results.items():
+                    params = {**v5, 'stock_code': code, 'iso_year': iso_cal[0], 'iso_week': iso_cal[1]}
+                    cur.execute(sql, params)
+                    cur.execute(sql_h, params)
+                    updated += cur.rowcount
+                conn.commit()
+                return updated
+            finally:
+                cur.close()
+                conn.close()
+
+        updated = await asyncio.get_event_loop().run_in_executor(None, _write_db)
+        logger.info("V5技术预测写入DB: %d只有信号, 更新%d条", len(results), updated)
+
+    except Exception as e:
+        _v5_job_status["error"] = str(e)
+        logger.error("V5技术预测异常: %s", e, exc_info=True)
+    finally:
+        _v5_job_status["running"] = False
 
 
 @app.get("/api/stock_list")

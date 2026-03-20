@@ -83,7 +83,7 @@ V5_RULES = [
 # ═══════════════════════════════════════════════════════════
 
 def load_data(n_weeks):
-    """加载K线数据，包含成交量/成交额/振幅/换手率等扩展字段。"""
+    """加载K线数据，包含成交量/振幅/换手率等扩展字段。"""
     latest_date = _get_latest_trade_date()
     dt_end = datetime.strptime(latest_date, '%Y-%m-%d')
     dt_start = dt_end - timedelta(days=(n_weeks + 2) * 7 + 180)
@@ -95,7 +95,7 @@ def load_data(n_weeks):
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
 
-    # 个股K线 — 增加 amplitude, change_hand, trading_amount
+    # 个股K线 — 只查必要字段，振幅/换手从已有数据计算
     stock_klines = defaultdict(list)
     bs = 500
     for i in range(0, len(all_codes), bs):
@@ -103,20 +103,16 @@ def load_data(n_weeks):
         ph = ','.join(['%s'] * len(batch))
         cur.execute(
             f"SELECT stock_code,`date`,open_price,close_price,high_price,low_price,"
-            f"change_percent,trading_volume,trading_amount,amplitude,change_hand "
+            f"change_percent,trading_volume,amplitude,change_hand "
             f"FROM stock_kline WHERE stock_code IN ({ph}) "
             f"AND `date`>=%s AND `date`<=%s ORDER BY `date`",
             batch + [start_date, latest_date])
         for r in cur.fetchall():
             stock_klines[r['stock_code']].append({
                 'date': r['date'],
-                'open': _to_float(r['open_price']),
                 'close': _to_float(r['close_price']),
-                'high': _to_float(r['high_price']),
-                'low': _to_float(r['low_price']),
                 'change_percent': _to_float(r['change_percent']),
                 'volume': _to_float(r['trading_volume']),
-                'amount': _to_float(r['trading_amount']),
                 'amplitude': _to_float(r['amplitude']),
                 'turnover': _to_float(r['change_hand']),
             })
@@ -129,7 +125,7 @@ def load_data(n_weeks):
             idx_codes.append(idx)
     ph = ','.join(['%s'] * len(idx_codes))
     cur.execute(
-        f"SELECT stock_code,`date`,change_percent,trading_volume "
+        f"SELECT stock_code,`date`,change_percent "
         f"FROM stock_kline WHERE stock_code IN ({ph}) "
         f"AND `date`>=%s AND `date`<=%s ORDER BY `date`",
         idx_codes + [start_date, latest_date])
@@ -138,25 +134,23 @@ def load_data(n_weeks):
         mkt_kl[r['stock_code']].append({
             'date': r['date'],
             'change_percent': _to_float(r['change_percent']),
-            'volume': _to_float(r['trading_volume']),
         })
 
-    # 资金流向数据
+    # 资金流向 — 分批加载
+    logger.info("  加载资金流向...")
     stock_fund_flows = defaultdict(list)
-    ff_start = dt_start.strftime('%Y-%m-%d')
     for i in range(0, len(all_codes), bs):
         batch = all_codes[i:i + bs]
         ph = ','.join(['%s'] * len(batch))
         cur.execute(
-            f"SELECT stock_code,`date`,big_net_pct,main_net_5day "
+            f"SELECT stock_code,`date`,big_net_pct "
             f"FROM stock_fund_flow WHERE stock_code IN ({ph}) "
             f"AND `date`>=%s AND `date`<=%s ORDER BY `date`",
-            batch + [ff_start, latest_date])
+            batch + [start_date, latest_date])
         for r in cur.fetchall():
             stock_fund_flows[r['stock_code']].append({
                 'date': r['date'],
                 'big_net_pct': _to_float(r['big_net_pct']),
-                'main_net_5day': _to_float(r['main_net_5day']),
             })
     logger.info("  资金流向: %d 只有数据", len(stock_fund_flows))
 

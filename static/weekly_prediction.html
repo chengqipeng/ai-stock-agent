@@ -152,9 +152,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
         <input id="searchInput" type="text" placeholder="搜索代码/名称（逗号/空格分隔可搜多只）..." style="width:260px" oninput="debounceSearch()" onkeydown="handleSearchEnter(event)" onpaste="handleSearchPaste(event)">
         <span id="searchClear" onclick="clearSearch()" style="cursor:pointer;color:#999;font-size:14px;display:none" title="清空搜索">&times;</span>
         <button class="btn" onclick="loadList()">刷新</button>
-        <button class="btn" style="background:rgba(231,76,60,0.85)" onclick="triggerRecompute()">重新计算</button>
-        <button class="btn" id="btnDeepSeek" style="background:rgba(46,125,50,0.85);display:none" onclick="triggerDeepSeekPredict()">DeepSeek周预测 (<span id="dsSelectedCount">0</span>)</button>
-        <label style="font-size:11px;color:#666;cursor:pointer;display:flex;align-items:center;gap:3px"><input type="checkbox" id="chkSelectMode" onchange="toggleSelectMode(this.checked)"> 选股模式</label>
+        <button class="btn" style="background:rgba(231,76,60,0.85)" id="btnRecompute" onclick="triggerRecompute()">全部重新计算</button>
+        <button class="btn" style="background:rgba(52,152,219,0.85)" id="btnThisWeek" onclick="triggerThisWeekPredict()">本周d3/d4预测</button>
+        <button class="btn" style="background:rgba(255,152,0,0.85)" id="btnNextWeek" onclick="triggerNextWeekPredict()">下周预测V11+回测</button>
+        <button class="btn" style="background:rgba(156,39,176,0.85)" id="btnV5Tech" onclick="triggerV5TechPredict()">OBV 5日预测</button>
         <span class="info" id="listInfo"></span>
     </div>
     <div id="tableWrap"></div>
@@ -172,7 +173,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
         </select>
         <input id="nmSearchInput" type="text" placeholder="搜索代码/名称..." style="width:260px" oninput="debounceMonthlySearch()">
         <button class="btn" onclick="loadMonthlyList()">刷新</button>
-        <button class="btn" style="background:rgba(231,76,60,0.85)" onclick="triggerMonthlyRecompute()">重新计算</button>
+        <button class="btn" style="background:rgba(231,76,60,0.85)" id="btnMonthlyRecompute" onclick="triggerMonthlyRecompute()">重新计算</button>
         <span class="info" id="nmListInfo"></span>
     </div>
     <div id="nmTableWrap"></div>
@@ -191,16 +192,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
     </div>
 </div>
 
-<!-- DeepSeek周预测结果弹窗 -->
-<div class="modal-overlay" id="dsModal">
-    <div class="modal" style="width:1050px">
-        <div class="modal-head">
-            <h3 id="dsModalTitle">DeepSeek 周预测结果</h3>
-            <button class="close-btn" onclick="closeDsModal()">×</button>
-        </div>
-        <div class="modal-body" id="dsModalBody"></div>
-    </div>
-</div>
 
 <!-- 历史弹窗 -->
 <div class="modal-overlay" id="historyModal">
@@ -1063,8 +1054,10 @@ async function triggerMonthlyRecompute() {
         const resp = await fetch('/api/trigger_monthly_prediction_job', {method: 'POST'});
         const json = await resp.json();
         if (json.success) {
-            alert('月预测任务已触发，请稍等3-5分钟后刷新页面查看结果。');
-            pollMonthlyJobStatus();
+            pollBtnProgress('btnMonthlyRecompute', '重新计算', '/api/monthly_prediction_job_status',
+                s => s.running, s => `${s.predict_done||0}/${s.predict_total||'?'}`,
+                s => s.last_success,
+                () => { loadMonthlySummary(); loadMonthlyList(); });
         } else {
             alert('触发失败: ' + (json.message || json.error || '未知错误'));
         }
@@ -1073,47 +1066,14 @@ async function triggerMonthlyRecompute() {
     }
 }
 
-function pollMonthlyJobStatus() {
-    const infoEl = document.getElementById('nmListInfo');
-    let pollCount = 0;
-    const timer = setInterval(async () => {
-        pollCount++;
-        try {
-            const resp = await fetch('/api/monthly_prediction_job_status');
-            const json = await resp.json();
-            if (json.success && json.data) {
-                const s = json.data;
-                if (s.running) {
-                    infoEl.textContent = '⏳ 计算中... ' + (s.predict_done || 0) + '/' + (s.predict_total || '?');
-                    infoEl.style.color = '#e74c3c';
-                } else {
-                    clearInterval(timer);
-                    infoEl.style.color = '#666';
-                    if (s.last_success) {
-                        infoEl.textContent = '✅ 计算完成，正在刷新...';
-                        setTimeout(() => { loadMonthlySummary(); loadMonthlyList(); }, 500);
-                    } else {
-                        infoEl.textContent = '❌ 计算失败: ' + (s.error || '未知');
-                    }
-                }
-            }
-        } catch (e) { /* ignore */ }
-        if (pollCount > 300) {
-            clearInterval(timer);
-            infoEl.style.color = '#666';
-        }
-    }, 1000);
-}
-
 async function triggerRecompute() {
-    if (!confirm('确认重新计算全部周预测？\n这将重新执行批量预测并更新所有数据（包括d3/d4日期、买入建议等）。')) return;
+    if (!confirm('确认全部重新计算？\n将执行: 本周d3/d4预测 + 下周预测V11+回测 + OBV 5日预测，耗时较长。')) return;
     try {
         const resp = await fetch('/api/trigger_weekly_prediction_job', {method: 'POST'});
         const json = await resp.json();
         if (json.success) {
-            alert('周预测任务已触发，请稍等1-2分钟后刷新页面查看结果。');
-            // 开始轮询状态
-            pollJobStatus();
+            pollBtnProgress('btnRecompute', '全部重新计算', '/api/weekly_prediction_job_status',
+                s => s.running, s => `${s.predict_done||0}/${s.predict_total||'?'}`, s => s.last_success);
         } else {
             alert('触发失败: ' + (json.message || json.error || '未知错误'));
         }
@@ -1122,305 +1082,112 @@ async function triggerRecompute() {
     }
 }
 
-function pollJobStatus() {
-    const infoEl = document.getElementById('listInfo');
-    const origText = infoEl.textContent;
+async function triggerThisWeekPredict() {
+    if (!confirm('确认执行本周d3/d4预测？\n仅更新本周方向预测、回测准确率、买入建议等，不含下周预测和OBV预测。')) return;
+    try {
+        const resp = await fetch('/api/trigger_this_week_predict', {method: 'POST'});
+        const json = await resp.json();
+        if (json.success) {
+            pollBtnProgress('btnThisWeek', '本周d3/d4预测', '/api/this_week_predict_job_status',
+                s => s.running, s => `${s.done||0}/${s.total||'?'}`, s => !s.error);
+        } else {
+            alert('触发失败: ' + (json.message || json.error || '未知错误'));
+        }
+    } catch (e) { alert('触发失败: ' + e.message); }
+}
+
+async function triggerNextWeekPredict() {
+    if (!confirm('确认执行下周预测V11+回测？\n仅更新下周预测方向、涨跌幅、回测准确率，不影响本周预测和OBV预测。')) return;
+    try {
+        const resp = await fetch('/api/trigger_next_week_predict', {method: 'POST'});
+        const json = await resp.json();
+        if (json.success) {
+            pollBtnProgress('btnNextWeek', '下周预测V11+回测', '/api/next_week_predict_job_status',
+                s => s.running, s => `${s.done||0}/${s.total||'?'}`, s => !s.error);
+        } else {
+            alert('触发失败: ' + (json.message || json.error || '未知错误'));
+        }
+    } catch (e) { alert('触发失败: ' + e.message); }
+}
+
+/**
+ * 通用按钮进度轮询。
+ * @param {string} btnId - 按钮DOM id
+ * @param {string} label - 按钮原始文字
+ * @param {string} statusUrl - 状态API地址
+ * @param {function} isRunning - (data) => bool
+ * @param {function} progressText - (data) => '150/5233'
+ * @param {function} isSuccess - (data) => bool
+ * @param {function} [onComplete] - 完成后自定义刷新回调
+ */
+function pollBtnProgress(btnId, label, statusUrl, isRunning, progressText, isSuccess, onComplete) {
+    const btn = document.getElementById(btnId);
+    const origText = btn.textContent;
+    btn.disabled = true;
+    btn.style.opacity = '0.85';
     let pollCount = 0;
     const timer = setInterval(async () => {
         pollCount++;
         try {
-            const resp = await fetch('/api/weekly_prediction_job_status');
+            const resp = await fetch(statusUrl);
             const json = await resp.json();
             if (json.success && json.data) {
                 const s = json.data;
-                if (s.running) {
-                    infoEl.textContent = '⏳ 计算中... ' + (s.predict_done || 0) + '/' + (s.predict_total || '?');
-                    infoEl.style.color = '#e74c3c';
+                if (isRunning(s)) {
+                    const prog = progressText(s);
+                    btn.textContent = `⏳ ${label} (${prog})`;
                 } else {
                     clearInterval(timer);
-                    infoEl.style.color = '#666';
-                    if (s.last_success) {
-                        infoEl.textContent = '✅ 计算完成，正在刷新...';
-                        setTimeout(() => { loadSummary(); loadList(); }, 500);
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    if (isSuccess(s)) {
+                        btn.textContent = `✅ ${label} 完成`;
+                        if (onComplete) { onComplete(); }
+                        else { loadSummary(); loadList(); }
+                        setTimeout(() => { btn.textContent = origText; }, 3000);
                     } else {
-                        infoEl.textContent = '❌ 计算失败: ' + (s.error || '未知');
+                        btn.textContent = `❌ ${label} 失败`;
+                        setTimeout(() => { btn.textContent = origText; }, 5000);
                     }
                 }
             }
         } catch (e) { /* ignore */ }
-        if (pollCount > 180) { // 最多轮询3分钟
+        if (pollCount > 600) {
             clearInterval(timer);
-            infoEl.textContent = origText;
-            infoEl.style.color = '#666';
+            btn.textContent = origText;
+            btn.disabled = false;
+            btn.style.opacity = '1';
         }
     }, 1000);
 }
 
+function pollJobStatus() {
+    // 保留兼容（调度器自动触发时使用）
+    pollBtnProgress('btnRecompute', '全部重新计算', '/api/weekly_prediction_job_status',
+        s => s.running, s => `${s.predict_done||0}/${s.predict_total||'?'}`, s => s.last_success);
+}
+
 // ═══════════════════════════════════════════════════════════
-// DeepSeek 选股预测
+// V5技术形态批量预测
 // ═══════════════════════════════════════════════════════════
 
-let selectModeOn = false;
-let selectedStocks = new Map(); // code -> name
-
-function toggleSelectMode(checked) {
-    selectModeOn = checked;
-    document.getElementById('btnDeepSeek').style.display = checked ? '' : 'none';
-    if (!checked) {
-        selectedStocks.clear();
-        updateDsCount();
-    }
-    // 重新渲染表格以添加/移除checkbox列
-    loadList();
-}
-
-function updateDsCount() {
-    document.getElementById('dsSelectedCount').textContent = selectedStocks.size;
-}
-
-function toggleStockSelect(code, name, cb) {
-    if (cb.checked) {
-        selectedStocks.set(code, name);
-    } else {
-        selectedStocks.delete(code);
-    }
-    updateDsCount();
-}
-
-function toggleSelectAll(masterCb) {
-    const cbs = document.querySelectorAll('.ds-stock-cb');
-    cbs.forEach(cb => {
-        cb.checked = masterCb.checked;
-        if (masterCb.checked) {
-            selectedStocks.set(cb.dataset.code, cb.dataset.name);
-        } else {
-            selectedStocks.delete(cb.dataset.code);
-        }
-    });
-    updateDsCount();
-}
-
-// 保存原始renderTable引用，用包装函数替换
-const _origRenderTable = renderTable;
-renderTable = function(rows) {
-    if (!selectModeOn) {
-        _origRenderTable(rows);
-        return;
-    }
-    // 带checkbox的渲染
-    let html = '<table class="pred-table"><thead><tr>';
-    html += '<th rowspan="2" style="width:32px;text-align:center;cursor:default"><input type="checkbox" onchange="toggleSelectAll(this)" title="全选/取消"></th>';
-    html += '<th rowspan="2" onclick="toggleSort(\'stock_code\')"><span class="th-wrap">代码 <span class="tip-icon" onclick="showTip(\'stock_code\',event)" title="点击查看说明">?</span></span></th>';
-    html += '<th rowspan="2" onclick="toggleSort(\'stock_name\')"><span class="th-wrap">名称 <span class="tip-icon" onclick="showTip(\'stock_name\',event)" title="点击查看说明">?</span></span></th>';
-    html += '<th rowspan="2" style="width:28px;font-size:10px;color:#8e8e93;text-align:center;cursor:default">周期</th>';
-    const compareCols = [
-        {key:'pred_direction', label:'方向'}, {key:'confidence', label:'置信度'},
-        {key:'strategy', label:'策略'}, {key:'d4_chg', label:'d4涨跌%'},
-        {key:'d3_chg', label:'d3涨跌%'}, {key:'pred_weekly_chg', label:'预测涨跌幅'},
-        {key:'week_realized_chg', label:'已实现/剩余'}, {key:'backtest_accuracy', label:'回测准确率'},
-        {key:'suggested_buy_date', label:'买入建议'},
-    ];
-    for (const c of compareCols) {
-        let cls = '';
-        if (c.key === currentSort) cls = currentSortDir === 'asc' ? 'sa' : 'sd';
-        const hasTip = INDICATOR_TIPS[c.key];
-        html += '<th class="' + cls + '" onclick="toggleSort(\'' + c.key + '\')">';
-        html += '<span class="th-wrap">' + c.label;
-        if (hasTip) html += ' <span class="tip-icon" onclick="showTip(\'' + c.key + '\',event)" title="点击查看说明">?</span>';
-        html += '</span></th>';
-    }
-    html += '<th rowspan="2"><span class="th-wrap">概念板块 <span class="tip-icon" onclick="showTip(\'concept_boards\',event)" title="点击查看说明">?</span></span></th>';
-    html += '</tr></thead><tbody>';
-
-    if (rows.length === 0) {
-        html += '<tr><td colspan="15" style="text-align:center;color:#999;padding:20px;">暂无数据</td></tr>';
-    }
-    for (const r of rows) {
-        const isChecked = selectedStocks.has(r.stock_code) ? 'checked' : '';
-        // 本周行
-        html += '<tr class="row-tw">';
-        html += '<td rowspan="2" style="text-align:center;vertical-align:middle" onclick="event.stopPropagation()">';
-        html += '<input type="checkbox" class="ds-stock-cb" data-code="' + r.stock_code + '" data-name="' + (r.stock_name||'') + '" ' + isChecked + ' onchange="toggleStockSelect(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\',this)">';
-        html += '</td>';
-        html += '<td rowspan="2" style="font-family:\'SF Mono\',Menlo,monospace;color:#667eea;font-weight:600;vertical-align:middle;cursor:pointer" onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">' + r.stock_code + '</td>';
-        html += '<td rowspan="2" style="vertical-align:middle;cursor:pointer" onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">' + (r.stock_name || '-') + '</td>';
-        html += '<td style="font-size:9px;color:#667eea;font-weight:600;text-align:center">本周</td>';
-        html += '<td>' + dirBadge(r.pred_direction) + '<br><span style="font-size:10px;color:#aaa">' + getWeekRange(r.predict_date) + '</span></td>';
-        html += '<td>' + confBadge(r.confidence) + '</td>';
-        html += '<td><span style="font-size:11px;color:#666">' + (r.strategy || '-') + '</span></td>';
-        const d4DateRange = r.d4_date_range || '';
-        html += '<td>' + fmtChg(r.d4_chg) + (d4DateRange ? '<br><span style="font-size:10px;color:#aaa">' + fmtDateRange(d4DateRange) + '</span>' : '') + '</td>';
-        const d3DateRange = r.d3_date_range || '';
-        html += '<td>' + fmtChg(r.d3_chg) + (d3DateRange ? '<br><span style="font-size:10px;color:#aaa">' + fmtDateRange(d3DateRange) + '</span>' : '') + '</td>';
-        // 预测涨跌幅
-        let predChgHtml = '-';
-        if (r.pred_weekly_chg != null) {
-            const n = parseFloat(r.pred_weekly_chg);
-            const cls = n > 0 ? 'chg-pos' : n < 0 ? 'chg-neg' : '';
-            predChgHtml = '<span class="chg-val ' + cls + '" style="font-weight:600">' + (n > 0 ? '+' : '') + n.toFixed(2) + '%</span>';
-            const predWeekRange = getWeekRange(r.predict_date);
-            if (predWeekRange) predChgHtml += ' <span style="font-size:10px;color:#aaa">(' + predWeekRange + ')</span>';
-            if (r.pred_chg_low != null && r.pred_chg_high != null) {
-                predChgHtml += '<br><span style="font-size:10px;color:#aaa">' + parseFloat(r.pred_chg_low).toFixed(1) + '~' + parseFloat(r.pred_chg_high).toFixed(1) + '%</span>';
-            }
-        }
-        html += '<td>' + predChgHtml + '</td>';
-        // 已实现/剩余
-        let realizedHtml = '-';
-        if (r.week_realized_chg != null) {
-            const rn = parseFloat(r.week_realized_chg);
-            const rcls = rn > 0 ? 'chg-pos' : rn < 0 ? 'chg-neg' : '';
-            realizedHtml = '<span style="font-size:10px;color:#888">已:</span><span class="chg-val ' + rcls + '">' + (rn > 0 ? '+' : '') + rn.toFixed(2) + '%</span>';
-        }
-        html += '<td>' + realizedHtml + '</td>';
-        // 回测准确率
-        const btAcc = r.backtest_accuracy != null ? r.backtest_accuracy.toFixed(1) + '%' : '-';
-        html += '<td>' + btAcc + '</td>';
-        // 买入建议
-        let buyHtml = '-';
-        if (r.suggested_buy_date && r.pred_direction === 'UP') {
-            buyHtml = '<span style="color:#e74c3c;font-weight:600;font-size:11px">' + r.suggested_buy_date.slice(5) + '</span>';
-            if (r.suggested_buy_price != null) buyHtml += '<br><span style="font-size:11px;color:#667eea;font-weight:600">¥' + r.suggested_buy_price.toFixed(2) + '</span>';
-        }
-        html += '<td>' + buyHtml + '</td>';
-        // 概念板块
-        const boards = r.concept_boards ? r.concept_boards.split(',').slice(0, 3).join(', ') : '-';
-        html += '<td rowspan="2" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#888;vertical-align:middle" title="' + (r.concept_boards || '') + '">' + boards + '</td>';
-        html += '</tr>';
-        // 下周行
-        html += '<tr class="row-nw">';
-        html += '<td style="font-size:9px;color:#e67e22;font-weight:600;text-align:center">下周</td>';
-        let nwDirHtml = '-';
-        if (r.nw_pred_direction) {
-            nwDirHtml = dirBadge(r.nw_pred_direction);
-            if (r.nw_date_range) nwDirHtml += '<br><span style="font-size:10px;color:#aaa">' + fmtDateRange(r.nw_date_range) + '</span>';
-        }
-        html += '<td>' + nwDirHtml + '</td>';
-        html += '<td>' + (r.nw_confidence ? confBadge(r.nw_confidence) : '-') + '</td>';
-        html += '<td style="color:#ddd;font-size:10px">-</td><td style="color:#ddd;font-size:10px">-</td><td style="color:#ddd;font-size:10px">-</td>';
-        let nwChgHtml = '-';
-        if (r.nw_pred_chg != null) {
-            const nwn = parseFloat(r.nw_pred_chg);
-            const nwcls = nwn > 0 ? 'chg-pos' : nwn < 0 ? 'chg-neg' : '';
-            nwChgHtml = '<span class="chg-val ' + nwcls + '" style="font-weight:600">' + (nwn > 0 ? '+' : '') + nwn.toFixed(2) + '%</span>';
-        }
-        html += '<td>' + nwChgHtml + '</td>';
-        html += '<td style="color:#ddd;font-size:10px">-</td>';
-        html += '<td>' + (r.nw_backtest_accuracy != null ? parseFloat(r.nw_backtest_accuracy).toFixed(0) + '%' : '-') + '</td>';
-        html += '<td style="color:#ddd;font-size:10px">-</td>';
-        html += '</tr>';
-    }
-    html += '</tbody></table>';
-    document.getElementById('tableWrap').innerHTML = html;
-};
-
-async function triggerDeepSeekPredict() {
-    if (selectedStocks.size === 0) {
-        alert('请先勾选要预测的股票');
-        return;
-    }
-    const codes = Array.from(selectedStocks.keys());
-    const names = Array.from(selectedStocks.entries()).map(([c, n]) => c + ' ' + n).join('\n');
-    if (!confirm('确认对以下 ' + codes.length + ' 只股票执行DeepSeek周预测？\n\n' + names + '\n\n将调用DeepSeek API，每只约需2-3秒。')) return;
-
-    const btn = document.getElementById('btnDeepSeek');
-    btn.disabled = true;
-    btn.textContent = '⏳ 预测中...';
-    btn.style.opacity = '0.6';
-
+async function triggerV5TechPredict() {
+    if (!confirm('确认执行V5技术形态批量预测？\n将对全部股票计算蜻蜓布林+OBV+收阳等高胜率策略信号并写入数据库。')) return;
     try {
-        const resp = await fetch('/api/deepseek_prediction/predict', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({stock_codes: codes}),
-        });
+        const resp = await fetch('/api/trigger_v5_tech_predict', {method: 'POST'});
         const json = await resp.json();
-        if (!json.success) {
-            alert('预测失败: ' + (json.error || '未知错误'));
-            return;
+        if (json.success) {
+            pollBtnProgress('btnV5Tech', 'OBV 5日预测', '/api/v5_tech_job_status',
+                s => s.running, s => `${s.done||0}/${s.total||'?'}`, s => !s.error);
+        } else {
+            alert('触发失败: ' + (json.message || json.error || '未知错误'));
         }
-        showDsResults(json.data);
     } catch (e) {
-        alert('预测失败: ' + e.message);
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = 'DeepSeek周预测 (<span id="dsSelectedCount">' + selectedStocks.size + '</span>)';
-        btn.style.opacity = '1';
+        alert('触发失败: ' + e.message);
     }
 }
 
-function showDsResults(data) {
-    const results = data.results || [];
-    const downResults = results.filter(r => r.pred_direction === 'DOWN');
-    const uncertainResults = results.filter(r => r.pred_direction !== 'DOWN');
 
-    let html = '<div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">';
-    html += '<div class="summary-card"><div class="label">总股票数</div><div class="value">' + data.total + '</div></div>';
-    html += '<div class="summary-card"><div class="label">预测DOWN</div><div class="value down">' + data.predicted + '</div><div class="sub">高置信预测</div></div>';
-    html += '<div class="summary-card"><div class="label">不确定</div><div class="value">' + data.uncertain + '</div><div class="sub">未通过预过滤</div></div>';
-    html += '<div class="summary-card"><div class="label">失败</div><div class="value">' + data.failed + '</div></div>';
-    html += '<div class="summary-card"><div class="label">预测日期</div><div class="value" style="font-size:13px">' + (data.predict_date || '-') + '</div></div>';
-    html += '<div class="summary-card"><div class="label">目标周</div><div class="value" style="font-size:13px">' + (data.target_week || '-') + '</div></div>';
-    html += '</div>';
-
-    if (downResults.length > 0) {
-        html += '<div style="font-size:12px;font-weight:600;color:#2ecc71;margin-bottom:6px">📉 预测下跌 (' + downResults.length + '只) — 建议规避</div>';
-        html += '<table class="hist-table"><thead><tr>';
-        html += '<th>代码</th><th>名称</th><th>方向</th><th>置信度</th><th>理由</th>';
-        html += '<th>本周涨跌%</th><th>大盘涨跌%</th><th>60日位置</th><th>量比</th><th>目标周</th>';
-        html += '</tr></thead><tbody>';
-        for (const r of downResults) {
-            html += '<tr>';
-            html += '<td style="font-family:\'SF Mono\',Menlo,monospace;color:#667eea;font-weight:600">' + r.stock_code + '</td>';
-            html += '<td>' + (r.stock_name || '-') + '</td>';
-            html += '<td><span class="dir-down">↓ 跌</span></td>';
-            html += '<td>' + (r.confidence != null ? (parseFloat(r.confidence) * 100).toFixed(0) + '%' : '-') + '</td>';
-            html += '<td style="max-width:250px;white-space:normal;font-size:11px;color:#555;line-height:1.5">' + (r.justification || '-') + '</td>';
-            html += '<td>' + fmtChg(r.this_week_chg) + '</td>';
-            html += '<td>' + fmtChg(r.market_chg) + '</td>';
-            html += '<td>' + (r.price_pos_60 != null ? (parseFloat(r.price_pos_60) * 100).toFixed(0) + '%' : '-') + '</td>';
-            html += '<td>' + (r.vol_ratio != null ? parseFloat(r.vol_ratio).toFixed(2) : '-') + '</td>';
-            html += '<td style="font-size:11px;color:#888">' + (r.target_date_range ? fmtDateRange(r.target_date_range) : '-') + '</td>';
-            html += '</tr>';
-        }
-        html += '</tbody></table>';
-    }
-
-    if (uncertainResults.length > 0) {
-        html += '<div style="font-size:12px;font-weight:600;color:#999;margin:12px 0 6px">⏸ 不确定 / 未通过预过滤 (' + uncertainResults.length + '只)</div>';
-        html += '<table class="hist-table"><thead><tr>';
-        html += '<th>代码</th><th>名称</th><th>原因</th><th>本周涨跌%</th><th>大盘涨跌%</th>';
-        html += '</tr></thead><tbody>';
-        for (const r of uncertainResults) {
-            html += '<tr style="opacity:0.6">';
-            html += '<td style="font-family:\'SF Mono\',Menlo,monospace">' + r.stock_code + '</td>';
-            html += '<td>' + (r.stock_name || '-') + '</td>';
-            html += '<td style="font-size:11px;color:#888;max-width:300px;white-space:normal">' + (r.prefilter_reason || r.justification || '未满足预过滤条件') + '</td>';
-            html += '<td>' + fmtChg(r.this_week_chg) + '</td>';
-            html += '<td>' + fmtChg(r.market_chg) + '</td>';
-            html += '</tr>';
-        }
-        html += '</tbody></table>';
-    }
-
-    if (results.length === 0) {
-        html += '<p style="text-align:center;color:#999;padding:20px;">无预测结果</p>';
-    }
-
-    html += '<div style="margin-top:12px;text-align:right"><button class="btn" onclick="closeDsModal()" style="background:rgba(0,0,0,0.1);color:#333">关闭</button></div>';
-
-    document.getElementById('dsModalBody').innerHTML = html;
-    document.getElementById('dsModalTitle').textContent = 'DeepSeek 周预测结果 — ' + (data.target_week || '');
-    document.getElementById('dsModal').classList.add('visible');
-}
-
-function closeDsModal() {
-    document.getElementById('dsModal').classList.remove('visible');
-}
-
-document.getElementById('dsModal').addEventListener('click', function(e) {
-    if (e.target === this) closeDsModal();
-});
 </script>
 </body>
 </html>

@@ -93,6 +93,14 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction (
     nm_backtest_accuracy DOUBLE COMMENT '下月预测回测准确率(%)',
     nm_backtest_samples INT COMMENT '下月预测回测样本数',
     nm_dim_scores VARCHAR(500) COMMENT '下月预测各维度评分(JSON)',
+    v5_pred_direction VARCHAR(4) COMMENT 'V5技术预测方向: UP',
+    v5_confidence VARCHAR(10) COMMENT 'V5预测置信度: high/medium/low',
+    v5_strategy VARCHAR(30) COMMENT 'V5命中策略名',
+    v5_reason VARCHAR(200) COMMENT 'V5预测理由',
+    v5_win_rate DOUBLE COMMENT 'V5策略回测胜率(%)',
+    v5_signal_date VARCHAR(20) COMMENT 'V5信号触发日期',
+    v5_signal_count INT COMMENT 'V5命中策略数量',
+    v5_all_strategies VARCHAR(100) COMMENT 'V5所有命中策略(逗号分隔)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_code (stock_code),
@@ -187,6 +195,14 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction_history (
     nm_backtest_accuracy DOUBLE COMMENT '下月预测回测准确率(%)',
     nm_backtest_samples INT COMMENT '下月预测回测样本数',
     nm_dim_scores VARCHAR(500) COMMENT '下月预测各维度评分(JSON)',
+    v5_pred_direction VARCHAR(4) COMMENT 'V5技术预测方向: UP',
+    v5_confidence VARCHAR(10) COMMENT 'V5预测置信度: high/medium/low',
+    v5_strategy VARCHAR(30) COMMENT 'V5命中策略名',
+    v5_reason VARCHAR(200) COMMENT 'V5预测理由',
+    v5_win_rate DOUBLE COMMENT 'V5策略回测胜率(%)',
+    v5_signal_date VARCHAR(20) COMMENT 'V5信号触发日期',
+    v5_signal_count INT COMMENT 'V5命中策略数量',
+    v5_all_strategies VARCHAR(100) COMMENT 'V5所有命中策略(逗号分隔)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_week (stock_code, iso_year, iso_week),
     INDEX idx_predict_date (predict_date),
@@ -225,6 +241,9 @@ _PREDICTION_COLUMNS = [
     'nm_target_year', 'nm_target_month', 'nm_date_range',
     'nm_backtest_accuracy', 'nm_backtest_samples',
     'nm_dim_scores',
+    # V5技术形态预测 v5_* 列
+    'v5_pred_direction', 'v5_confidence', 'v5_strategy', 'v5_reason',
+    'v5_win_rate', 'v5_signal_date', 'v5_signal_count', 'v5_all_strategies',
 ]
 
 # 不参与 ON DUPLICATE KEY UPDATE 的列（主键/唯一键）
@@ -302,6 +321,15 @@ def ensure_tables():
             ("nm_backtest_accuracy", "DOUBLE COMMENT '下月预测回测准确率(%)'", "nm_date_range"),
             ("nm_backtest_samples", "INT COMMENT '下月预测回测样本数'", "nm_backtest_accuracy"),
             ("nm_dim_scores", "VARCHAR(500) COMMENT '下月预测各维度评分(JSON)'", "nm_backtest_samples"),
+            # V5技术形态预测 v5_* 列
+            ("v5_pred_direction", "VARCHAR(4) COMMENT 'V5技术预测方向: UP'", "nm_dim_scores"),
+            ("v5_confidence", "VARCHAR(10) COMMENT 'V5预测置信度: high/medium/low'", "v5_pred_direction"),
+            ("v5_strategy", "VARCHAR(30) COMMENT 'V5命中策略名'", "v5_confidence"),
+            ("v5_reason", "VARCHAR(200) COMMENT 'V5预测理由'", "v5_strategy"),
+            ("v5_win_rate", "DOUBLE COMMENT 'V5策略回测胜率(%)'", "v5_reason"),
+            ("v5_signal_date", "VARCHAR(20) COMMENT 'V5信号触发日期'", "v5_win_rate"),
+            ("v5_signal_count", "INT COMMENT 'V5命中策略数量'", "v5_signal_date"),
+            ("v5_all_strategies", "VARCHAR(100) COMMENT 'V5所有命中策略(逗号分隔)'", "v5_signal_count"),
             ("market_index", "VARCHAR(20) COMMENT '对应大盘指数代码'", "market_d4_chg"),
             ("vol_ratio", "DOUBLE COMMENT '本周均量/20日均量'", "pred_remaining_chg"),
             ("vol_price_corr", "DOUBLE COMMENT '量价相关性[-1,1]'", "vol_ratio"),
@@ -560,6 +588,7 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
             'week_realized_chg', 'pred_remaining_chg',
             'nw_pred_direction', 'nw_pred_chg', 'nw_backtest_accuracy',
             'nm_pred_direction', 'nm_composite_score', 'nm_backtest_accuracy',
+            'v5_pred_direction', 'v5_confidence', 'v5_win_rate',
         }
         if sort_by not in allowed_sorts:
             sort_by = 'stock_code'
@@ -589,6 +618,8 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
                    p.nm_composite_score, p.nm_this_month_chg,
                    p.nm_target_year, p.nm_target_month, p.nm_date_range,
                    p.nm_backtest_accuracy, p.nm_backtest_samples, p.nm_dim_scores,
+                   p.v5_pred_direction, p.v5_confidence, p.v5_strategy, p.v5_reason,
+                   p.v5_win_rate, p.v5_signal_date, p.v5_signal_count, p.v5_all_strategies,
                    p.concept_boards
             FROM stock_weekly_prediction p
             {where_sql}

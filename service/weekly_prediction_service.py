@@ -448,7 +448,7 @@ def _load_prediction_data(stock_codes: list[str], latest_date: str) -> dict:
         ph = ','.join(['%s'] * len(batch))
         cur.execute(
             f"SELECT stock_code, `date`, open_price, close_price, high_price, "
-            f"low_price, change_percent, trading_volume, trading_amount "
+            f"low_price, change_percent, trading_volume, trading_amount, change_hand "
             f"FROM stock_kline WHERE stock_code IN ({ph}) "
             f"AND `date` >= %s AND `date` <= %s ORDER BY `date`",
             batch + [lookback_start, latest_date])
@@ -458,6 +458,10 @@ def _load_prediction_data(stock_codes: list[str], latest_date: str) -> dict:
                 'close': _to_float(row['close_price']),
                 'change_percent': _to_float(row['change_percent']),
                 'volume': _to_float(row['trading_volume']),
+                'open': _to_float(row['open_price']),
+                'high': _to_float(row['high_price']),
+                'low': _to_float(row['low_price']),
+                'turnover': _to_float(row.get('change_hand')),
             })
 
     # 2. 个股→板块映射
@@ -1373,60 +1377,208 @@ _INDEX_MKT_THRESHOLD = {
     '899050.SZ': 2.0,   # 北证: 收紧到跌>2%
 }
 
-_NW_RULES = [
-    # ══════════════════════════════════════════════════
-    # V7精简规则集 (RULES_ELITE): 只保留CV>75%的涨信号
-    # CV验证: "精简+cd>=2+pos<0.6" → CV=91.7%(567样本), gap=+0.2% ★★
-    # 移除: R3(CV71.1%), R6a(CV63.6%), R6c(CV60.4%), R7(CV73.3%但跌信号)
-    # 移除: 资金流向/财报Tier3规则(无CV验证数据)
-    # 后置过滤: cd>=2 + pos60<0.6 在 _predict_next_week 中实现
-    # ══════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
+# V11 多层混合规则引擎
+# 层1(骨干): V5已验证的高准确率规则(涨+跌)
+# 层2(扩展): V11新发现的多因子规则，覆盖V5未覆盖的场景
+# 层2.5(大盘涨): 大盘涨场景专用规则(尾日效应+冲高回落)
+# 层2.5b(大盘涨边际): 大盘涨场景边际规则
+# 层4(兜底): 严格条件的通用超跌/过热规则
+# 匹配顺序: backbone → bull → extension → bull_marginal → fallback
+# bull/bull_marginal层只匹配涨信号(跳过跌信号)
+# ══════════════════════════════════════════════════════════════
 
-    # R1: 大盘深跌>3% + 个股跌>2% → 涨 (89.6%, CV89.5%, 6297样本)
-    {
-        'name': '大盘深跌>3%+个股跌→涨',
-        'pred_up': True,
-        'tier': 1,
-        'check': lambda chg, mkt, cd, cu, ld, **kw: (
-            chg < -2 and mkt < -3
-        ),
-    },
-    # R5a: 深证+大盘微跌(0~1%)+个股跌>2%+连跌≥3天 → 涨 (89.1%, CV90.6%, 514样本)
-    {
-        'name': '深证+大盘微跌+跌+连跌3天→涨',
-        'pred_up': True,
-        'tier': 1,
-        'check': lambda chg, mkt, cd, cu, ld, **kw: (
-            kw.get('_market_suffix', '') == 'SZ'
-            and -1 <= mkt < 0
-            and chg < -2
-            and cd >= 3
-        ),
-    },
-    # R5b: 深证+大盘微跌(0~1%)+个股跌>2%+低位<0.2 → 涨 (78.5%, CV86.4%, 627样本)
-    {
-        'name': '深证+大盘微跌+跌+低位→涨',
-        'pred_up': True,
-        'tier': 1,
-        'check': lambda chg, mkt, cd, cu, ld, **kw: (
-            kw.get('_market_suffix', '') == 'SZ'
-            and -1 <= mkt < 0
-            and chg < -2
-            and kw.get('_price_pos_60') is not None and kw['_price_pos_60'] < 0.2
-        ),
-    },
-    # R5c: 深证+大盘微跌(0~1%)+个股跌>2% → 涨 (75.3%, CV79.6%, 1802样本)
-    {
-        'name': '深证+大盘微跌+跌>2%→涨',
-        'pred_up': True,
-        'tier': 1,
-        'check': lambda chg, mkt, cd, cu, ld, **kw: (
-            kw.get('_market_suffix', '') == 'SZ'
-            and -1 <= mkt < 0
-            and chg < -2
-        ),
-    },
-]
+def _build_v11_engine():
+    """构建V11混合规则引擎(生产版)。"""
+    # ── 层1: V5骨干规则(涨信号+跌信号) ──
+    backbone = [
+        {'name': 'V5_R1:大盘深跌+个股跌→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'backbone', 'cv_acc': 89.5,
+         'check': lambda s: s['this_chg'] < -2 and s['mkt_chg'] < -3},
+        {'name': 'V5_R5a:深证+微跌+连跌3天→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'backbone', 'cv_acc': 90.6,
+         'check': lambda s: (s['suffix'] == 'SZ' and -1 <= s['mkt_chg'] < 0
+                             and s['this_chg'] < -2 and s['cd'] >= 3)},
+        {'name': 'V5_R5b:深证+微跌+低位→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'backbone', 'cv_acc': 88.7,
+         'check': lambda s: (s['suffix'] == 'SZ' and -1 <= s['mkt_chg'] < 0
+                             and s['this_chg'] < -2
+                             and s['pos60'] is not None and s['pos60'] < 0.2)},
+        {'name': 'V5_R3:上证+大盘跌+前周跌→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'backbone', 'cv_acc': 71.1,
+         'check': lambda s: (s['this_chg'] < -3 and s['suffix'] == 'SH'
+                             and -3 <= s['mkt_chg'] < -1
+                             and s['prev_chg'] is not None and s['prev_chg'] < -2
+                             and not (s['pos60'] is not None and s['pos60'] >= 0.8))},
+        {'name': 'V5_R5c:深证+微跌+跌>2%→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'backbone', 'cv_acc': 84.8,
+         'check': lambda s: (s['suffix'] == 'SZ' and -1 <= s['mkt_chg'] < 0
+                             and s['this_chg'] < -2)},
+        {'name': 'V5_R6c:深证+大盘跌+涨+连涨3天→跌', 'pred_up': False, 'tier': 1,
+         'layer': 'backbone', 'cv_acc': 73.5,
+         'check': lambda s: (s['suffix'] == 'SZ' and -3 <= s['mkt_chg'] < -1
+                             and s['this_chg'] > 2 and s['cu'] >= 3)},
+        {'name': 'V5_R6a:深证+大盘跌+涨>5%→跌', 'pred_up': False, 'tier': 2,
+         'layer': 'backbone', 'cv_acc': 71.8,
+         'check': lambda s: (s['suffix'] == 'SZ' and -3 <= s['mkt_chg'] < -1
+                             and s['this_chg'] > 5)},
+        {'name': 'V5_R7:跌+前期连涨+非高位→跌', 'pred_up': False, 'tier': 2,
+         'layer': 'backbone', 'cv_acc': 71.1,
+         'check': lambda s: (s['this_chg'] < -3 and s['cu'] >= 3
+                             and s['pos60'] is not None and s['pos60'] < 0.6)},
+    ]
+
+    # ── 层2.5: 大盘涨场景专用规则(尾日效应, bull_up_only=True) ──
+    bull = [
+        {'name': 'BULL_UP1:大盘尾日跌>1%+个股跌>2%+低位<0.3→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'bull', 'cv_acc': 78.9,
+         'check': lambda s: (s['mkt_chg'] >= 0
+                             and s['mkt_last_day'] is not None and s['mkt_last_day'] < -1
+                             and s['this_chg'] < -2
+                             and s['pos60'] is not None and s['pos60'] < 0.3)},
+        {'name': 'BULL_UP2:大盘尾日跌>1%+个股跌>3%→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'bull', 'cv_acc': 76.4,
+         'check': lambda s: (s['mkt_chg'] >= 0
+                             and s['mkt_last_day'] is not None and s['mkt_last_day'] < -1
+                             and s['this_chg'] < -3)},
+        {'name': 'BULL_UP3:大盘尾日跌>1%+个股跌>2%→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'bull', 'cv_acc': 77.9,
+         'check': lambda s: (s['mkt_chg'] >= 0
+                             and s['mkt_last_day'] is not None and s['mkt_last_day'] < -1
+                             and s['this_chg'] < -2)},
+        {'name': 'BULL_DN1:大涨>2%+涨>3%+冲高回落→跌', 'pred_up': False, 'tier': 1,
+         'layer': 'bull', 'cv_acc': 72.7,
+         'check': lambda s: (s['mkt_chg'] > 2 and s['this_chg'] > 3
+                             and s['rush_up_pullback'])},
+        {'name': 'BULL_DN2:板块一致性<0.3+个股涨>5%→跌', 'pred_up': False, 'tier': 1,
+         'layer': 'bull', 'cv_acc': 69.3,
+         'check': lambda s: (s['mkt_chg'] >= 0
+                             and s['concept_consensus'] is not None
+                             and s['concept_consensus'] < 0.3
+                             and s['this_chg'] > 5)},
+        {'name': 'BULL_DN3:深证+涨>8%+冲高回落→跌', 'pred_up': False, 'tier': 1,
+         'layer': 'bull', 'cv_acc': 68.7,
+         'check': lambda s: (s['mkt_chg'] >= 0 and s['suffix'] == 'SZ'
+                             and s['this_chg'] > 8 and s['rush_up_pullback'])},
+    ]
+
+    # ── 层2: V11扩展规则(覆盖V5空白场景) ──
+    extension = [
+        {'name': 'EXT_MU1:微涨+跌>3%+低位→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'extension', 'cv_acc': 70.0,
+         'check': lambda s: (0 <= s['mkt_chg'] <= 1 and s['this_chg'] < -3
+                             and s['pos60'] is not None and s['pos60'] < 0.3)},
+        {'name': 'EXT_MBU1:大盘涨+跌>3%+低位→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'extension', 'cv_acc': 70.0,
+         'check': lambda s: (s['mkt_chg'] > 1 and s['this_chg'] < -3
+                             and s['pos60'] is not None and s['pos60'] < 0.3)},
+        {'name': 'EXT_MD1:大盘跌+跌>3%+连跌3天+低位→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'extension', 'cv_acc': 70.0,
+         'check': lambda s: (-3 <= s['mkt_chg'] < -1 and s['this_chg'] < -3
+                             and s['cd'] >= 3
+                             and s['pos60'] is not None and s['pos60'] < 0.3)},
+        {'name': 'EXT_MF_SH1:上证+微跌+跌>3%+连跌2天→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'extension', 'cv_acc': 70.0,
+         'check': lambda s: (s['suffix'] == 'SH' and -1 <= s['mkt_chg'] < 0
+                             and s['this_chg'] < -3 and s['cd'] >= 2)},
+    ]
+
+    # ── 层2.5b: 大盘涨边际规则(CV 60~67%, bull_up_only=True) ──
+    bull_marginal = [
+        {'name': 'BULL_M_UP1:跌>2%+连跌≥4天+低位<0.3+缩量<0.8→涨', 'pred_up': True, 'tier': 2,
+         'layer': 'bull_marginal', 'cv_acc': 66.8,
+         'check': lambda s: (s['mkt_chg'] >= 0
+                             and s['this_chg'] < -2 and s['cd'] >= 4
+                             and s['pos60'] is not None and s['pos60'] < 0.3
+                             and s['vol_ratio'] is not None and s['vol_ratio'] < 0.8)},
+        {'name': 'BULL_M_DN1:换手率比>2.5+涨>3%+高位>0.7→跌', 'pred_up': False, 'tier': 2,
+         'layer': 'bull_marginal', 'cv_acc': 67.0,
+         'check': lambda s: (s['mkt_chg'] >= 0
+                             and s['turnover_ratio'] is not None and s['turnover_ratio'] > 2.5
+                             and s['this_chg'] > 3
+                             and s['pos60'] is not None and s['pos60'] >= 0.7)},
+        {'name': 'BULL_M_DN2:大涨>2%+涨>3%+高位>0.7→跌', 'pred_up': False, 'tier': 2,
+         'layer': 'bull_marginal', 'cv_acc': 66.3,
+         'check': lambda s: (s['mkt_chg'] > 2 and s['this_chg'] > 3
+                             and s['pos60'] is not None and s['pos60'] >= 0.7)},
+        {'name': 'BULL_M_DN3:板块一致性<0.3+个股涨>3%→跌', 'pred_up': False, 'tier': 2,
+         'layer': 'bull_marginal', 'cv_acc': 65.4,
+         'check': lambda s: (s['mkt_chg'] >= 0
+                             and s['concept_consensus'] is not None
+                             and s['concept_consensus'] < 0.3
+                             and s['this_chg'] > 3)},
+        {'name': 'BULL_M_DN4:放量>2.0+涨>3%+高位>0.7→跌', 'pred_up': False, 'tier': 2,
+         'layer': 'bull_marginal', 'cv_acc': 64.7,
+         'check': lambda s: (s['mkt_chg'] >= 0
+                             and s['vol_ratio'] is not None and s['vol_ratio'] > 2.0
+                             and s['this_chg'] > 3
+                             and s['pos60'] is not None and s['pos60'] >= 0.7)},
+        {'name': 'BULL_M_DN5:涨>5%+连涨≥3天+资金流出<-1%+高位>0.7→跌', 'pred_up': False, 'tier': 2,
+         'layer': 'bull_marginal', 'cv_acc': 63.5,
+         'check': lambda s: (s['mkt_chg'] >= 0
+                             and s['this_chg'] > 5 and s['cu'] >= 3
+                             and s['big_net_pct_avg'] is not None and s['big_net_pct_avg'] < -1
+                             and s['pos60'] is not None and s['pos60'] >= 0.7)},
+        {'name': 'BULL_M_DN6:深证+涨>5%+冲高回落→跌', 'pred_up': False, 'tier': 2,
+         'layer': 'bull_marginal', 'cv_acc': 62.2,
+         'check': lambda s: (s['mkt_chg'] >= 0 and s['suffix'] == 'SZ'
+                             and s['this_chg'] > 5 and s['rush_up_pullback'])},
+        {'name': 'BULL_M_UP2:上证+跌>2%+前周跌>2%+低位<0.3→涨', 'pred_up': True, 'tier': 2,
+         'layer': 'bull_marginal', 'cv_acc': 61.9,
+         'check': lambda s: (s['mkt_chg'] >= 0 and s['suffix'] == 'SH'
+                             and s['this_chg'] < -2
+                             and s['prev_chg'] is not None and s['prev_chg'] < -2
+                             and s['pos60'] is not None and s['pos60'] < 0.3)},
+        {'name': 'BULL_M_DN7:前两周均涨>2%+本周涨>3%+高位>0.7→跌', 'pred_up': False, 'tier': 2,
+         'layer': 'bull_marginal', 'cv_acc': 61.8,
+         'check': lambda s: (s['mkt_chg'] >= 0
+                             and s['prev_chg'] is not None and s['prev_chg'] > 2
+                             and s['prev2_chg'] is not None and s['prev2_chg'] > 2
+                             and s['this_chg'] > 3
+                             and s['pos60'] is not None and s['pos60'] >= 0.7)},
+        {'name': 'BULL_M_UP3:深证+跌>2%+连跌≥4天→涨', 'pred_up': True, 'tier': 2,
+         'layer': 'bull_marginal', 'cv_acc': 60.7,
+         'check': lambda s: (s['mkt_chg'] >= 0 and s['suffix'] == 'SZ'
+                             and s['this_chg'] < -2 and s['cd'] >= 4)},
+    ]
+
+    # ── 层4: 严格条件的通用兜底规则 ──
+    fallback = [
+        {'name': 'FB_UP1:跌>5%+低位<0.2→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'fallback', 'cv_acc': 72.0,
+         'check': lambda s: (s['this_chg'] < -5
+                             and s['pos60'] is not None and s['pos60'] < 0.2)},
+        {'name': 'FB_UP2:跌>3%+连跌3天+低位→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'fallback', 'cv_acc': 70.0,
+         'check': lambda s: (s['this_chg'] < -3 and s['cd'] >= 3
+                             and s['pos60'] is not None and s['pos60'] < 0.3)},
+        {'name': 'FB_UP3:跌>5%+尾日恐慌+非高位→涨', 'pred_up': True, 'tier': 1,
+         'layer': 'fallback', 'cv_acc': 70.0,
+         'check': lambda s: (s['this_chg'] < -5 and s['last_day'] < -3
+                             and not (s['pos60'] is not None and s['pos60'] >= 0.6))},
+        {'name': 'FB_DN1:涨>5%+高位+量价背离→跌', 'pred_up': False, 'tier': 1,
+         'layer': 'fallback', 'cv_acc': 68.0,
+         'check': lambda s: (s['this_chg'] > 5 and s['vol_price_diverge'] == -1
+                             and s['pos60'] is not None and s['pos60'] >= 0.6)},
+        {'name': 'FB_DN2:涨>5%+连涨3天+高位→跌', 'pred_up': False, 'tier': 1,
+         'layer': 'fallback', 'cv_acc': 68.0,
+         'check': lambda s: (s['this_chg'] > 5 and s['cu'] >= 3
+                             and s['pos60'] is not None and s['pos60'] >= 0.6)},
+    ]
+
+    return {
+        'backbone': backbone,
+        'bull': bull,
+        'extension': extension,
+        'bull_marginal': bull_marginal,
+        'fallback': fallback,
+    }
+
+
+_NW_V11_ENGINE = _build_v11_engine()
+
+# V11匹配层顺序
+_NW_V11_LAYERS = ['backbone', 'bull', 'extension', 'bull_marginal', 'fallback']
 
 
 def _nw_extract_features(daily_pcts: list[float], market_chg: float,
@@ -1435,18 +1587,34 @@ def _nw_extract_features(daily_pcts: list[float], market_chg: float,
                          finance_score: float = None,
                          market_index: str = '000001.SH',
                          price_pos_60: float = None,
-                         prev_week_chg: float = None) -> dict:
-    """从日K线数据和多维信号中提取下周预测所需的特征。
+                         prev_week_chg: float = None,
+                         prev2_week_chg: float = None,
+                         mkt_last_day: float = None,
+                         board_momentum: float = None,
+                         concept_consensus: float = None,
+                         big_net_pct_avg: float = None,
+                         turnover_ratio: float = None,
+                         week_klines: list = None,
+                         hist_klines: list = None) -> dict:
+    """从日K线数据和多维信号中提取下周预测所需的V11全维度特征。
 
     Args:
-        market_index: 个股对应的大盘指数代码，用于自适应阈值
+        market_index: 个股对应的大盘指数代码
         price_pos_60: 价格在60日高低点中的位置(0~1)
         prev_week_chg: 前一周涨跌幅
+        prev2_week_chg: 前两周涨跌幅
+        mkt_last_day: 大盘本周最后一天涨跌幅
+        board_momentum: 板块动量
+        concept_consensus: 板块一致性(0~1)
+        big_net_pct_avg: 大单净流入占比均值
+        turnover_ratio: 换手率比(本周/20日均)
+        week_klines: 本周K线列表(用于技术形态计算)
+        hist_klines: 历史K线列表(用于成交量比计算)
     """
     this_week_chg = _compound_return(daily_pcts)
     last_day_chg = daily_pcts[-1] if daily_pcts else 0.0
 
-    # 连涨/连跌天数（从尾部开始计算）
+    # 连涨/连跌天数
     consec_down = 0
     consec_up = 0
     for p in reversed(daily_pcts):
@@ -1461,67 +1629,154 @@ def _nw_extract_features(daily_pcts: list[float], market_chg: float,
         else:
             break
 
-    # 根据指数代码确定自适应阈值和市场后缀
-    mkt_threshold = _INDEX_MKT_THRESHOLD.get(market_index, 1.0)
+    # 市场后缀
     market_suffix = market_index.split('.')[-1] if '.' in market_index else ''
 
+    # 量价背离
+    vol_price_diverge = 0
+    if vol_ratio is not None:
+        if this_week_chg > 1 and vol_ratio < 0.75:
+            vol_price_diverge = -1  # 价涨量缩 → 看跌
+        elif this_week_chg < -1 and vol_ratio > 1.3:
+            vol_price_diverge = 1   # 价跌量增 → 看涨
+
+    # 3周动量
+    momentum_3w = None
+    if prev_week_chg is not None and prev2_week_chg is not None:
+        momentum_3w = prev2_week_chg + prev_week_chg + this_week_chg
+
+    # 相对强弱
+    relative_strength = this_week_chg - market_chg
+
+    # 最大单日跌幅/涨幅
+    max_day_down = min(daily_pcts) if daily_pcts else 0
+    max_day_up = max(daily_pcts) if daily_pcts else 0
+
+    # 冲高回落 & 探底回升
+    rush_up_pullback = False
+    dip_recovery = False
+    if len(daily_pcts) >= 4:
+        mid = len(daily_pcts) // 2
+        first_half = _compound_return(daily_pcts[:mid])
+        second_half = _compound_return(daily_pcts[mid:])
+        if first_half > 2 and second_half < -1:
+            rush_up_pullback = True
+        if first_half < -2 and second_half > 1:
+            dip_recovery = True
+
+    # 上影线比例
+    upper_shadow_ratio = None
+    if week_klines:
+        highs = [d.get('high', 0) for d in week_klines if d.get('high', 0) > 0]
+        lows = [d.get('low', 0) for d in week_klines if d.get('low', 0) > 0]
+        week_close = week_klines[-1].get('close', 0)
+        if highs and lows and week_close > 0:
+            week_high = max(highs)
+            week_low = min(lows)
+            if week_high > week_low:
+                upper_shadow_ratio = (week_high - week_close) / (week_high - week_low)
+
     return {
-        'this_week_chg': this_week_chg,
-        'market_chg': market_chg,
-        'consec_down': consec_down,
-        'consec_up': consec_up,
-        'last_day_chg': last_day_chg,
-        'ff_signal': ff_signal,
+        'this_chg': this_week_chg,
+        'mkt_chg': market_chg,
+        'cd': consec_down,
+        'cu': consec_up,
+        'last_day': last_day_chg,
+        'suffix': market_suffix,
+        'pos60': price_pos_60,
+        'prev_chg': prev_week_chg,
+        'prev2_chg': prev2_week_chg,
+        'momentum_3w': momentum_3w,
+        'relative_strength': relative_strength,
         'vol_ratio': vol_ratio,
+        'turnover_ratio': turnover_ratio,
+        'vol_price_diverge': vol_price_diverge,
+        'max_day_down': max_day_down,
+        'max_day_up': max_day_up,
+        'mkt_last_day': mkt_last_day,
+        'big_net_pct_avg': big_net_pct_avg,
+        'board_momentum': board_momentum,
+        'concept_consensus': concept_consensus,
+        'rush_up_pullback': rush_up_pullback,
+        'dip_recovery': dip_recovery,
+        'upper_shadow_ratio': upper_shadow_ratio,
+        'ff_signal': ff_signal,
         'vol_price_corr': vol_price_corr,
         'finance_score': finance_score,
-        '_mkt_threshold': mkt_threshold,
-        '_market_suffix': market_suffix,
-        '_price_pos_60': price_pos_60,
-        '_prev_week_chg': prev_week_chg,
     }
 
 
 def _nw_match_rule(feat: dict) -> dict | None:
-    """用规则引擎匹配下周预测。返回匹配的规则或 None（不确定）。"""
-    chg = feat['this_week_chg']
-    mkt = feat['market_chg']
-    cd = feat['consec_down']
-    cu = feat['consec_up']
-    ld = feat['last_day_chg']
-    # 多维信号 + 指数自适应参数传递给规则的 **kw
-    extra = {
-        'ff_signal': feat.get('ff_signal'),
-        'vol_ratio': feat.get('vol_ratio'),
-        'vol_price_corr': feat.get('vol_price_corr'),
-        'finance_score': feat.get('finance_score'),
-        '_mkt_threshold': feat.get('_mkt_threshold', 1.0),
-        '_market_suffix': feat.get('_market_suffix', ''),
-        '_price_pos_60': feat.get('_price_pos_60'),
-        '_prev_week_chg': feat.get('_prev_week_chg'),
-    }
+    """用V11多层混合引擎匹配下周预测。
 
-    for rule in _NW_RULES:
-        if rule['check'](chg, mkt, cd, cu, ld, **extra):
-            return rule
+    匹配顺序: backbone → bull → extension → bull_marginal → fallback
+    bull/bull_marginal层只匹配涨信号(跳过跌信号, bull_up_only模式)。
+
+    Returns:
+        匹配的规则dict或None(不确定)
+    """
+    for layer_name in _NW_V11_LAYERS:
+        for rule in _NW_V11_ENGINE.get(layer_name, []):
+            # bull/bull_marginal层只保留涨信号
+            if layer_name in ('bull', 'bull_marginal') and not rule['pred_up']:
+                continue
+            try:
+                if rule['check'](feat):
+                    return rule
+            except (TypeError, KeyError):
+                continue
     return None
+
+
+def _v11_apply_confidence_modifier(pred_up: bool, base_confidence: str,
+                                    feat: dict) -> str:
+    """V11资金流向+板块动量置信度修正。"""
+    conf_score = {'high': 3, 'reference': 2, 'low': 1}.get(base_confidence, 1)
+    bm = feat.get('board_momentum')
+    ff = feat.get('big_net_pct_avg')
+    cc = feat.get('concept_consensus')
+
+    if pred_up:
+        if bm is not None and bm < -3:
+            conf_score += 1
+        if ff is not None and ff > 2:
+            conf_score += 1
+        if cc is not None and cc < 0.2:
+            conf_score += 0.5
+        if bm is not None and bm > 2:
+            conf_score -= 1
+        if ff is not None and ff < -3:
+            conf_score -= 1
+    else:
+        if bm is not None and bm > 1:
+            conf_score += 1
+        if ff is not None and ff < -2:
+            conf_score += 1
+        if bm is not None and bm < -2:
+            conf_score -= 1
+        if ff is not None and ff > 3:
+            conf_score -= 1
+
+    if conf_score >= 3:
+        return 'high'
+    elif conf_score >= 2:
+        return 'reference'
+    else:
+        return 'low'
 
 
 
 def _predict_next_week(code: str, data: dict, latest_date: str,
                        this_week_pred: dict) -> dict | None:
-    """预测下周方向（纯规则引擎V7精简 + 板块置信度增强）。
+    """预测下周方向（V11多层混合规则引擎）。
 
-    V7精简（基于5233只A股×29周CV验证，目标>80%准确率）：
-    - 只保留CV>75%的涨信号规则(RULES_ELITE): R1, R5a, R5b, R5c
-    - 移除所有跌信号规则: R6a(CV63.6%), R6c(CV60.4%), R7(CV73.3%但跌信号不稳)
-    - 移除R3(CV71.1%，最弱涨规则)
-    - 移除资金流向/财报Tier3规则(无CV验证数据)
-    - 后置过滤: cd>=2(连跌≥2天) + pos60<0.6(非高位) → CV=91.7%(567样本), gap=+0.2%
-    - 过滤不通过的预测直接舍弃(返回direction=None)
-
-    板块置信度增强（v3保留）：
-    - 负动量-1~-3%确认涨信号，正动量>0.8降级
+    V11混合引擎（基于5233只A股×29周CV验证）：
+    - 层1(骨干): V5已验证规则(R1/R3/R5a/R5b/R5c + R6c/R6a/R7)
+    - 层2.5(大盘涨): 尾日效应+冲高回落(bull_up_only模式)
+    - 层2(扩展): V11新发现的多因子规则(覆盖V5空白场景)
+    - 层2.5b(大盘涨边际): 大盘涨场景边际规则
+    - 层4(兜底): 严格条件的通用超跌/过热规则
+    - 置信度: V11资金流向+板块动量修正
 
     Returns:
         dict with next_week fields, or None if insufficient data
@@ -1556,17 +1811,22 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
         ical = dt.isocalendar()
         if ical[0] == iso_year and ical[1] == iso_week:
             market_week.append(k)
+    market_week_sorted = sorted(market_week, key=lambda x: x['date'])
     market_chg = _compound_return(
-        [k['change_percent'] for k in sorted(market_week, key=lambda x: x['date'])]
-    ) if len(market_week) >= 3 else 0.0
+        [k['change_percent'] for k in market_week_sorted]
+    ) if len(market_week_sorted) >= 3 else 0.0
+
+    # 大盘本周最后一天涨跌幅
+    mkt_last_day = market_week_sorted[-1]['change_percent'] if market_week_sorted else None
 
     # 多维信号（从 this_week_pred 中获取已计算的信号）
     ff_signal = this_week_pred.get('fund_flow_signal') if this_week_pred else None
     vol_ratio = this_week_pred.get('vol_ratio') if this_week_pred else None
     vol_price_corr = this_week_pred.get('vol_price_corr') if this_week_pred else None
     finance_score = this_week_pred.get('finance_score') if this_week_pred else None
+    board_momentum = this_week_pred.get('board_momentum') if this_week_pred else None
+    concept_consensus = this_week_pred.get('concept_consensus') if this_week_pred else None
 
-    # 提取特征 & 匹配规则（含多维信号 + 指数自适应阈值 + 成交量/位置特征）
     stock_idx = _get_stock_index(code)
 
     # 计算价格位置（60日高低点中的位置）
@@ -1583,29 +1843,68 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
             if max_c > min_c and latest_c > 0:
                 price_pos_60 = round((latest_c - min_c) / (max_c - min_c), 4)
 
-    # 计算前一周涨跌幅
+    # 计算前一周/前两周涨跌幅
     prev_week_chg = None
-    prev_week_klines = hist_klines[-5:] if len(hist_klines) >= 5 else hist_klines
-    if prev_week_klines:
-        prev_week_chg = _compound_return([k['change_percent'] for k in prev_week_klines])
+    prev_week_klines_list = hist_klines[-5:] if len(hist_klines) >= 5 else hist_klines
+    if prev_week_klines_list:
+        prev_week_chg = _compound_return([k['change_percent'] for k in prev_week_klines_list])
 
-    feat = _nw_extract_features(daily_pcts, market_chg,
-                                ff_signal=ff_signal, vol_ratio=vol_ratio,
-                                vol_price_corr=vol_price_corr,
-                                finance_score=finance_score,
-                                market_index=stock_idx,
-                                price_pos_60=price_pos_60,
-                                prev_week_chg=prev_week_chg)
+    prev2_week_chg = None
+    if len(hist_klines) >= 10:
+        prev2_klines = hist_klines[-10:-5]
+        if prev2_klines:
+            prev2_week_chg = _compound_return([k['change_percent'] for k in prev2_klines])
+
+    # 成交量比(本周/20日均)
+    calc_vol_ratio = vol_ratio
+    if calc_vol_ratio is None and hist_klines:
+        tv = [k.get('volume', 0) for k in week_klines if k.get('volume', 0) > 0]
+        hv = [k.get('volume', 0) for k in hist_klines[-20:] if k.get('volume', 0) > 0]
+        if tv and hv:
+            avg_tv = _mean(tv)
+            avg_hv = _mean(hv)
+            if avg_hv > 0:
+                calc_vol_ratio = avg_tv / avg_hv
+
+    # 换手率比
+    turnover_ratio = None
+    tw = [k.get('turnover', 0) for k in week_klines if k.get('turnover') and k['turnover'] > 0]
+    ht = [k.get('turnover', 0) for k in hist_klines[-20:] if k.get('turnover') and k['turnover'] > 0]
+    if tw and ht:
+        avg_tw = _mean(tw)
+        avg_ht = _mean(ht)
+        if avg_ht > 0:
+            turnover_ratio = avg_tw / avg_ht
+
+    # 大单净流入占比均值
+    big_net_pct_avg = None
+    ff_data = data.get('stock_fund_flows', {}).get(code, [])
+    if ff_data:
+        ff_week = []
+        for ff in ff_data:
+            try:
+                dt = datetime.strptime(ff['date'], '%Y-%m-%d')
+                ical = dt.isocalendar()
+                if ical[0] == iso_year and ical[1] == iso_week:
+                    ff_week.append(ff)
+            except (ValueError, TypeError):
+                continue
+        if ff_week:
+            pcts = [f.get('big_net_pct', 0) for f in ff_week if f.get('big_net_pct', 0) != 0]
+            if pcts:
+                big_net_pct_avg = _mean(pcts)
+
+    feat = _nw_extract_features(
+        daily_pcts, market_chg,
+        ff_signal=ff_signal, vol_ratio=calc_vol_ratio,
+        vol_price_corr=vol_price_corr, finance_score=finance_score,
+        market_index=stock_idx, price_pos_60=price_pos_60,
+        prev_week_chg=prev_week_chg, prev2_week_chg=prev2_week_chg,
+        mkt_last_day=mkt_last_day, board_momentum=board_momentum,
+        concept_consensus=concept_consensus, big_net_pct_avg=big_net_pct_avg,
+        turnover_ratio=turnover_ratio, week_klines=week_klines,
+        hist_klines=hist_klines)
     rule = _nw_match_rule(feat)
-
-    # ── V7后置过滤: cd>=2 + pos60<0.6 (CV=91.7%, gap=+0.2%) ──
-    # 规则命中但不满足过滤条件 → 视为未命中(舍弃低准确率预测)
-    if rule is not None and rule['pred_up']:
-        cd = feat['consec_down']
-        pos60 = feat.get('_price_pos_60')
-        # 连跌天数<2 或 价格高位>=0.6 → 舍弃
-        if cd < 2 or (pos60 is not None and pos60 >= 0.6):
-            rule = None  # 过滤不通过，降级为未命中
 
     # 下周日期范围
     nw_monday = _next_week_monday(dt_latest)
@@ -1613,20 +1912,19 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
     nw_iso = nw_monday.isocalendar()
 
     if rule is None:
-        # 不确定 - 规则未命中
         idx_code = _get_stock_index(code)
         idx_names = {'000001.SH': '上证', '399001.SZ': '深证', '899050.SZ': '北证50'}
         idx_label = idx_names.get(idx_code, idx_code)
-        reason = f'本周{feat["this_week_chg"]:+.1f}%，未触发预测条件'
-        if feat['market_chg'] != 0:
-            reason += f'({idx_label}{feat["market_chg"]:+.1f}%)'
+        reason = f'本周{feat["this_chg"]:+.1f}%，未触发预测条件'
+        if feat['mkt_chg'] != 0:
+            reason += f'({idx_label}{feat["mkt_chg"]:+.1f}%)'
         return {
             'nw_pred_direction': None,
             'nw_confidence': None,
             'nw_strategy': None,
             'nw_reason': reason[:200],
             'nw_composite_score': None,
-            'nw_this_week_chg': round(feat['this_week_chg'], 4),
+            'nw_this_week_chg': round(feat['this_chg'], 4),
             'nw_iso_year': nw_iso[0],
             'nw_iso_week': nw_iso[1],
             'nw_date_range': f'{nw_monday.strftime("%Y-%m-%d")}~{nw_friday.strftime("%Y-%m-%d")}',
@@ -1640,58 +1938,60 @@ def _predict_next_week(code: str, data: dict, latest_date: str,
             'nw_backtest_samples': None,
         }
 
-    # 命中规则 (V7: 所有存活预测都通过了严格过滤，均为高置信)
+    # 命中规则 — V11: 按tier+层级分配置信度，再用资金/板块修正
     nw_pred_up = rule['pred_up']
     tier = rule['tier']
-    confidence = 'high'  # V7: 精简规则+后置过滤 → 全部高置信(CV=91.7%)
+    layer = rule.get('layer', 'backbone')
+    base_confidence = 'high' if tier == 1 else 'reference'
 
-    # 成交量形态置信度修正（回测验证：确认70.5% vs 矛盾52.7%）
+    # V11置信度修正
+    confidence = _v11_apply_confidence_modifier(nw_pred_up, base_confidence, feat)
+
+    # 过滤低置信度(reference层以下不输出)
+    if confidence == 'low':
+        confidence = 'low'  # 保留low，让用户看到
+
+    # 成交量形态标注（仅标签，不修正置信度）
     vol_patterns = _detect_volume_patterns(week_klines, klines)
     vol_note = ''
     if vol_patterns.get('vol_direction'):
         confidence, vol_note = _adjust_nw_confidence_by_volume(
             nw_pred_up, confidence, vol_patterns)
 
-    # 概念板块强弱势置信度修正（回测验证：确认91.2% vs 矛盾65.7%）
-    board_momentum = this_week_pred.get('board_momentum') if this_week_pred else None
-    concept_consensus = this_week_pred.get('concept_consensus') if this_week_pred else None
-    board_note = ''
-    if board_momentum is not None or concept_consensus is not None:
-        confidence, board_note = _adjust_nw_confidence_by_board(
-            nw_pred_up, confidence, board_momentum, concept_consensus)
-
-    # ── V7: 板块置信度增强保留（在高置信基础上微调） ──
-
-    # 构建理由（包含指数名称和多维信号）
+    # 构建理由
     idx_code = _get_stock_index(code)
     idx_names = {'000001.SH': '上证', '399001.SZ': '深证', '899050.SZ': '北证50'}
     idx_label = idx_names.get(idx_code, idx_code)
 
     parts = [rule['name']]
-    parts.append(f'本周{feat["this_week_chg"]:+.1f}%')
-    if feat['market_chg'] != 0:
-        parts.append(f'{idx_label}{feat["market_chg"]:+.1f}%')
+    parts.append(f'本周{feat["this_chg"]:+.1f}%')
+    if feat['mkt_chg'] != 0:
+        parts.append(f'{idx_label}{feat["mkt_chg"]:+.1f}%')
     if ff_signal is not None and ff_signal != 0:
         ff_label = '流入' if ff_signal > 0 else '流出'
         parts.append(f'资金{ff_label}')
-    if vol_ratio is not None and vol_ratio != 0:
-        if vol_ratio > 1.3:
+    if calc_vol_ratio is not None and calc_vol_ratio != 0:
+        if calc_vol_ratio > 1.3:
             parts.append('放量')
-        elif vol_ratio < 0.7:
+        elif calc_vol_ratio < 0.7:
             parts.append('缩量')
     if vol_note:
         parts.append(vol_note)
-    if board_note:
-        parts.append(board_note)
+    # V11: 显示层级信息
+    layer_labels = {'backbone': '骨干', 'bull': '尾日', 'extension': '扩展',
+                    'bull_marginal': '边际', 'fallback': '兜底'}
+    parts.append(f'[{layer_labels.get(layer, layer)}]')
     nw_reason = '; '.join(parts)
+
+    strategy_name = f'nw_v11_{layer}'
 
     return {
         'nw_pred_direction': 'UP' if nw_pred_up else 'DOWN',
         'nw_confidence': confidence,
-        'nw_strategy': f'nw_rule_t{tier}',
+        'nw_strategy': strategy_name,
         'nw_reason': nw_reason[:200],
         'nw_composite_score': round(tier * (-1 if not nw_pred_up else 1), 4),
-        'nw_this_week_chg': round(feat['this_week_chg'], 4),
+        'nw_this_week_chg': round(feat['this_chg'], 4),
         'nw_iso_year': nw_iso[0],
         'nw_iso_week': nw_iso[1],
         'nw_date_range': f'{nw_monday.strftime("%Y-%m-%d")}~{nw_friday.strftime("%Y-%m-%d")}',
@@ -1727,7 +2027,7 @@ def _compute_next_week_backtest(stock_codes: list[str], data: dict,
     dt_start = dt_end - timedelta(days=(n_weeks + 2) * 7 + 180)
     start_date = dt_start.strftime('%Y-%m-%d')
 
-    # 加载更长时间范围的K线数据（含 close_price 用于价格位置计算）
+    # 加载更长时间范围的K线数据（含 close/volume/turnover/high/low 用于V11特征计算）
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
 
@@ -1737,7 +2037,8 @@ def _compute_next_week_backtest(stock_codes: list[str], data: dict,
         batch = stock_codes[i:i + batch_size]
         ph = ','.join(['%s'] * len(batch))
         cur.execute(
-            f"SELECT stock_code, `date`, close_price, change_percent "
+            f"SELECT stock_code, `date`, close_price, change_percent, "
+            f"trading_volume, change_hand, high_price, low_price, open_price "
             f"FROM stock_kline WHERE stock_code IN ({ph}) "
             f"AND `date` >= %s AND `date` <= %s ORDER BY `date`",
             batch + [start_date, end_date])
@@ -1746,6 +2047,11 @@ def _compute_next_week_backtest(stock_codes: list[str], data: dict,
                 'date': row['date'],
                 'close': _to_float(row['close_price']),
                 'change_percent': _to_float(row['change_percent']),
+                'volume': _to_float(row.get('trading_volume')),
+                'turnover': _to_float(row.get('change_hand')),
+                'high': _to_float(row.get('high_price')),
+                'low': _to_float(row.get('low_price')),
+                'open': _to_float(row.get('open_price')),
             })
 
     # 大盘K线（加载所有需要的指数）
@@ -1847,18 +2153,49 @@ def _compute_next_week_backtest(stock_codes: list[str], data: dict,
             if prev_klines:
                 prev_week_chg = _compound_return([k['change_percent'] for k in prev_klines])
 
-            feat = _nw_extract_features(this_pcts, market_chg,
-                                        market_index=stock_idx,
-                                        price_pos_60=price_pos_60,
-                                        prev_week_chg=prev_week_chg)
-            rule = _nw_match_rule(feat)
+            # 计算 prev2_week_chg
+            prev2_week_chg = None
+            if len(hist) >= 10:
+                prev2_klines = hist[-10:-5]
+                if prev2_klines:
+                    prev2_week_chg = _compound_return([k['change_percent'] for k in prev2_klines])
 
-            # V7后置过滤: cd>=2 + pos60<0.6 (与生产逻辑一致)
-            if rule is not None and rule['pred_up']:
-                cd = feat['consec_down']
-                pos60 = feat.get('_price_pos_60')
-                if cd < 2 or (pos60 is not None and pos60 >= 0.6):
-                    rule = None
+            # 大盘最后一天涨跌幅
+            mkt_sorted = sorted(mw, key=lambda x: x['date'])
+            mkt_last_day = mkt_sorted[-1]['change_percent'] if mkt_sorted else None
+
+            # 成交量比
+            bt_vol_ratio = None
+            tv = [d.get('volume', 0) for d in this_days if d.get('volume', 0) > 0]
+            hv = [k.get('volume', 0) for k in hist[-20:] if k.get('volume', 0) > 0]
+            if tv and hv:
+                avg_tv = _mean(tv)
+                avg_hv = _mean(hv)
+                if avg_hv > 0:
+                    bt_vol_ratio = avg_tv / avg_hv
+
+            # 换手率比
+            bt_turnover_ratio = None
+            tw = [d.get('turnover', 0) for d in this_days if d.get('turnover') and d['turnover'] > 0]
+            ht = [k.get('turnover', 0) for k in hist[-20:] if k.get('turnover') and k['turnover'] > 0]
+            if tw and ht:
+                avg_tw = _mean(tw)
+                avg_ht = _mean(ht)
+                if avg_ht > 0:
+                    bt_turnover_ratio = avg_tw / avg_ht
+
+            feat = _nw_extract_features(
+                this_pcts, market_chg,
+                market_index=stock_idx,
+                price_pos_60=price_pos_60,
+                prev_week_chg=prev_week_chg,
+                prev2_week_chg=prev2_week_chg,
+                mkt_last_day=mkt_last_day,
+                vol_ratio=bt_vol_ratio,
+                turnover_ratio=bt_turnover_ratio,
+                week_klines=this_days,
+                hist_klines=hist)
+            rule = _nw_match_rule(feat)
 
             if rule is None:
                 # 不确定 - 不计入准确率
@@ -1866,8 +2203,8 @@ def _compute_next_week_backtest(stock_codes: list[str], data: dict,
 
             pred_next_up = rule['pred_up']
             correct = pred_next_up == actual_next_up
-            tier = rule['tier']
-            strat = f'nw_rule_t{tier}'
+            layer = rule.get('layer', 'backbone')
+            strat = f'nw_v11_{layer}'
             pred_dir = 'UP' if pred_next_up else 'DOWN'
 
             if correct:
@@ -2202,10 +2539,160 @@ def _compute_backtest_accuracy(stock_codes: list[str], data: dict,
 
 
 # ═══════════════════════════════════════════════════════════
+# this_week 模式辅助: 从DB加载已有字段值，避免覆盖
+# ═══════════════════════════════════════════════════════════
+
+def _preserve_existing_fields(predictions: list[dict], prefix: str, columns: list[str]):
+    """从DB加载已有预测记录中的指定字段，合并到predictions中（避免UPSERT时覆盖为None）。"""
+    from dao.stock_weekly_prediction_dao import get_latest_predictions
+    existing = get_latest_predictions(limit=99999)
+    existing_map = {r['stock_code']: r for r in existing}
+    for p in predictions:
+        code = p['stock_code']
+        db_row = existing_map.get(code, {})
+        for col in columns:
+            if col not in p or p[col] is None:
+                p[col] = db_row.get(col)
+
+
+# ═══════════════════════════════════════════════════════════
+# 下周预测独立执行（next_week 模式）
+# ═══════════════════════════════════════════════════════════
+
+def _run_next_week_only(all_codes, data, latest_date, dt_latest, iso_cal, t_start, progress_callback=None):
+    """仅执行下周预测+回测，更新DB中nw_*字段（不影响本周预测和V5字段）。"""
+    logger.info("[下周预测] 开始独立执行下周预测+回测...")
+
+    # 1. 从DB加载已有的本周预测（需要this_week_pred作为输入）
+    from dao.stock_weekly_prediction_dao import get_latest_predictions
+    existing = get_latest_predictions(limit=99999)
+    existing_map = {r['stock_code']: r for r in existing}
+    logger.info("[下周预测] 已加载 %d 条现有预测记录", len(existing_map))
+
+    # 2. 下周回测
+    logger.info("[下周预测] 计算下周回测准确率...")
+    nw_bt_result = _compute_next_week_backtest(all_codes, data, latest_date)
+    nw_per_stock_bt = nw_bt_result['per_stock']
+    nw_global_bt = nw_bt_result['global']
+
+    # 3. 逐只执行下周预测
+    nw_count = 0
+    nw_up = 0
+    nw_uncertain = 0
+    nw_reference = 0
+    nw_updates = []  # (stock_code, nw_fields_dict)
+
+    for i, code in enumerate(all_codes):
+        # 构造 this_week_pred（从DB已有记录或最小化构造）
+        this_week_pred = existing_map.get(code, {})
+        if not this_week_pred:
+            this_week_pred = {'stock_code': code, 'pred_direction': 'UP', 'confidence': 'low'}
+
+        nw = _predict_next_week(code, data, latest_date, this_week_pred)
+        nw_fields = {}
+        if nw:
+            nw_fields.update(nw)
+            if nw['nw_pred_direction'] is not None:
+                nw_count += 1
+                if nw['nw_pred_direction'] == 'UP':
+                    nw_up += 1
+                if nw.get('nw_confidence') == 'reference':
+                    nw_reference += 1
+            else:
+                nw_uncertain += 1
+        else:
+            nw_uncertain += 1
+            for col in ('nw_pred_direction', 'nw_confidence', 'nw_strategy', 'nw_reason',
+                        'nw_composite_score', 'nw_this_week_chg', 'nw_iso_year', 'nw_iso_week',
+                        'nw_date_range', 'nw_pred_chg', 'nw_pred_chg_low', 'nw_pred_chg_high',
+                        'nw_pred_chg_mae', 'nw_pred_chg_hit_rate', 'nw_pred_chg_samples',
+                        'nw_backtest_accuracy', 'nw_backtest_samples'):
+                nw_fields[col] = None
+
+        # 填充回测准确率
+        if nw_fields.get('nw_pred_direction') is not None:
+            nw_stock_bt = nw_per_stock_bt.get(code)
+            if nw_stock_bt:
+                nw_fields['nw_backtest_accuracy'] = nw_stock_bt['accuracy']
+                nw_fields['nw_backtest_samples'] = nw_stock_bt['total']
+                strat = nw_fields.get('nw_strategy', '')
+                pred_dir = nw_fields['nw_pred_direction']
+                sdc = nw_stock_bt.get('strategy_dir_chg', {})
+                chg_stats = sdc.get((strat, pred_dir))
+                if not chg_stats:
+                    chg_stats = sdc.get(('_all', pred_dir))
+                if chg_stats:
+                    median = chg_stats['median']
+                    if pred_dir == 'UP' and median < 0:
+                        median = abs(median)
+                    elif pred_dir == 'DOWN' and median > 0:
+                        median = -abs(median)
+                    nw_fields['nw_pred_chg'] = median
+                    nw_fields['nw_pred_chg_low'] = chg_stats['p10']
+                    nw_fields['nw_pred_chg_high'] = chg_stats['p90']
+                    nw_fields['nw_pred_chg_mae'] = chg_stats['mae']
+                    nw_fields['nw_pred_chg_hit_rate'] = chg_stats['hit_rate']
+                    nw_fields['nw_pred_chg_samples'] = chg_stats['samples']
+            else:
+                nw_fields['nw_backtest_accuracy'] = nw_global_bt['accuracy']
+                nw_fields['nw_backtest_samples'] = 0
+
+        nw_updates.append((code, nw_fields))
+
+        if progress_callback and (i % 50 == 0 or i == len(all_codes) - 1):
+            progress_callback(len(all_codes), i + 1, nw_up, nw_count - nw_up)
+
+    # 4. 批量UPDATE DB中nw_*字段
+    logger.info("[下周预测] 写入DB: %d只有预测, %d只不确定", nw_count, nw_uncertain)
+    nw_cols = [
+        'nw_pred_direction', 'nw_confidence', 'nw_strategy', 'nw_reason',
+        'nw_composite_score', 'nw_this_week_chg', 'nw_iso_year', 'nw_iso_week',
+        'nw_date_range', 'nw_pred_chg', 'nw_pred_chg_low', 'nw_pred_chg_high',
+        'nw_pred_chg_mae', 'nw_pred_chg_hit_rate', 'nw_pred_chg_samples',
+        'nw_backtest_accuracy', 'nw_backtest_samples',
+    ]
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        set_clause = ', '.join(f'{c} = %({c})s' for c in nw_cols)
+        sql = f"UPDATE stock_weekly_prediction SET {set_clause} WHERE stock_code = %(stock_code)s"
+        sql_h = (f"UPDATE stock_weekly_prediction_history SET {set_clause} "
+                 f"WHERE stock_code = %(stock_code)s AND iso_year = %(h_iso_year)s AND iso_week = %(h_iso_week)s")
+        for code, nw_fields in nw_updates:
+            params = {**nw_fields, 'stock_code': code,
+                      'h_iso_year': iso_cal[0], 'h_iso_week': iso_cal[1]}
+            cur.execute(sql, params)
+            cur.execute(sql_h, params)
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+    elapsed = (datetime.now() - t_start).total_seconds()
+    nw_coverage = round(nw_count / len(all_codes) * 100, 1) if all_codes else 0
+    logger.info("[下周预测] 完成: %d只有预测(涨%d 跌%d 参考%d), 不确定%d只, 覆盖%.1f%%, 耗时%.1fs",
+                nw_count, nw_up, nw_count - nw_up, nw_reference, nw_uncertain, nw_coverage, elapsed)
+
+    return {
+        'predict_date': latest_date,
+        'iso_year': iso_cal[0],
+        'iso_week': iso_cal[1],
+        'total_stocks': len(all_codes),
+        'next_week_count': nw_count,
+        'next_week_up': nw_up,
+        'next_week_uncertain': nw_uncertain,
+        'next_week_reference': nw_reference,
+        'next_week_coverage': nw_coverage,
+        'next_week_backtest': nw_global_bt,
+        'elapsed': round(elapsed, 1),
+    }
+
+
+# ═══════════════════════════════════════════════════════════
 # 主入口
 # ═══════════════════════════════════════════════════════════
 
-def run_batch_weekly_prediction(progress_callback=None):
+def run_batch_weekly_prediction(progress_callback=None, mode='all'):
     """批量周预测主函数。
 
     流程：
@@ -2218,6 +2705,10 @@ def run_batch_weekly_prediction(progress_callback=None):
 
     Args:
         progress_callback: 进度回调函数 (total, done, up_count, down_count)
+        mode: 执行模式
+            - 'all': 全部流程（默认，等同于原逻辑）
+            - 'this_week': 仅本周d3/d4预测 + 回测准确率 + 写DB
+            - 'next_week': 仅下周预测 + 下周回测 + 更新DB中nw_*字段
     """
     t_start = datetime.now()
     logger.info("=" * 70)
@@ -2248,6 +2739,10 @@ def run_batch_weekly_prediction(progress_callback=None):
     # 4. 加载数据
     logger.info("[1/4] 加载数据...")
     data = _load_prediction_data(all_codes, latest_date)
+
+    # ── next_week 模式: 仅更新下周预测字段 ──
+    if mode == 'next_week':
+        return _run_next_week_only(all_codes, data, latest_date, dt_latest, iso_cal, t_start, progress_callback)
 
     # 5. 批量预测
     logger.info("[2/4] 批量预测 %d 只股票...", len(all_codes))
@@ -2288,93 +2783,150 @@ def run_batch_weekly_prediction(progress_callback=None):
     per_stock_bt = bt_result['per_stock']
     global_bt = bt_result['global']
 
-    # 6b. 下周预测 + 下周回测
-    logger.info("[3b/4] 下周预测 + 回测...")
-    nw_bt_result = _compute_next_week_backtest(all_codes, data, latest_date)
-    nw_per_stock_bt = nw_bt_result['per_stock']
-    nw_global_bt = nw_bt_result['global']
-
+    # 6b. 下周预测 + 下周回测（仅 all 模式执行）
     nw_count = 0
     nw_up = 0
     nw_uncertain = 0
-    nw_reference = 0  # Tier 2 参考级预测数量
+    nw_reference = 0
+    nw_global_bt = {'accuracy': 0, 'total': 0, 'coverage': 0}
 
-    for p in predictions:
-        code = p['stock_code']
-        nw = _predict_next_week(code, data, latest_date, p)
-        if nw:
-            p.update(nw)
-            if nw['nw_pred_direction'] is not None:
-                nw_count += 1
-                if nw['nw_pred_direction'] == 'UP':
-                    nw_up += 1
-                if nw.get('nw_confidence') == 'reference':
-                    nw_reference += 1
+    if mode == 'all':
+        logger.info("[3b/4] 下周预测 + 回测...")
+        nw_bt_result = _compute_next_week_backtest(all_codes, data, latest_date)
+        nw_per_stock_bt = nw_bt_result['per_stock']
+        nw_global_bt = nw_bt_result['global']
+
+        for p in predictions:
+            code = p['stock_code']
+            nw = _predict_next_week(code, data, latest_date, p)
+            if nw:
+                p.update(nw)
+                if nw['nw_pred_direction'] is not None:
+                    nw_count += 1
+                    if nw['nw_pred_direction'] == 'UP':
+                        nw_up += 1
+                    if nw.get('nw_confidence') == 'reference':
+                        nw_reference += 1
+                else:
+                    nw_uncertain += 1
             else:
                 nw_uncertain += 1
-        else:
-            nw_uncertain += 1
-            p['nw_pred_direction'] = None
-            p['nw_confidence'] = None
-            p['nw_strategy'] = None
-            p['nw_reason'] = None
-            p['nw_composite_score'] = None
-            p['nw_this_week_chg'] = None
-            p['nw_iso_year'] = None
-            p['nw_iso_week'] = None
-            p['nw_date_range'] = None
-            p['nw_pred_chg'] = None
-            p['nw_pred_chg_low'] = None
-            p['nw_pred_chg_high'] = None
-            p['nw_pred_chg_mae'] = None
-            p['nw_pred_chg_hit_rate'] = None
-            p['nw_pred_chg_samples'] = None
-            p['nw_backtest_accuracy'] = None
-            p['nw_backtest_samples'] = None
+                p['nw_pred_direction'] = None
+                p['nw_confidence'] = None
+                p['nw_strategy'] = None
+                p['nw_reason'] = None
+                p['nw_composite_score'] = None
+                p['nw_this_week_chg'] = None
+                p['nw_iso_year'] = None
+                p['nw_iso_week'] = None
+                p['nw_date_range'] = None
+                p['nw_pred_chg'] = None
+                p['nw_pred_chg_low'] = None
+                p['nw_pred_chg_high'] = None
+                p['nw_pred_chg_mae'] = None
+                p['nw_pred_chg_hit_rate'] = None
+                p['nw_pred_chg_samples'] = None
+                p['nw_backtest_accuracy'] = None
+                p['nw_backtest_samples'] = None
 
-    logger.info("  规则引擎: %d只有预测, %d只不确定", nw_count, nw_uncertain)
+        logger.info("  规则引擎: %d只有预测, %d只不确定", nw_count, nw_uncertain)
 
-    # ── 填充回测准确率 ──
-    for p in predictions:
-        code = p['stock_code']
-        if p.get('nw_pred_direction') is not None:
-            nw_stock_bt = nw_per_stock_bt.get(code)
-            if nw_stock_bt:
-                p['nw_backtest_accuracy'] = nw_stock_bt['accuracy']
-                p['nw_backtest_samples'] = nw_stock_bt['total']
+        # ── 填充回测准确率 ──
+        for p in predictions:
+            code = p['stock_code']
+            if p.get('nw_pred_direction') is not None:
+                nw_stock_bt = nw_per_stock_bt.get(code)
+                if nw_stock_bt:
+                    p['nw_backtest_accuracy'] = nw_stock_bt['accuracy']
+                    p['nw_backtest_samples'] = nw_stock_bt['total']
 
-                # 填充下周预测涨跌幅
-                strat = p.get('nw_strategy', '')
-                pred_dir = p['nw_pred_direction']
-                sdc = nw_stock_bt.get('strategy_dir_chg', {})
+                    # 填充下周预测涨跌幅
+                    strat = p.get('nw_strategy', '')
+                    pred_dir = p['nw_pred_direction']
+                    sdc = nw_stock_bt.get('strategy_dir_chg', {})
 
-                # 优先: 同策略+同方向
-                chg_stats = sdc.get((strat, pred_dir))
-                # 兜底: 所有策略+同方向
-                if not chg_stats:
-                    chg_stats = sdc.get(('_all', pred_dir))
-                if chg_stats:
-                    median = chg_stats['median']
-                    # 强制符号一致
-                    if pred_dir == 'UP' and median < 0:
-                        median = abs(median)
-                    elif pred_dir == 'DOWN' and median > 0:
-                        median = -abs(median)
-                    p['nw_pred_chg'] = median
-                    p['nw_pred_chg_low'] = chg_stats['p10']
-                    p['nw_pred_chg_high'] = chg_stats['p90']
-                    p['nw_pred_chg_mae'] = chg_stats['mae']
-                    p['nw_pred_chg_hit_rate'] = chg_stats['hit_rate']
-                    p['nw_pred_chg_samples'] = chg_stats['samples']
-            else:
-                if p.get('nw_backtest_accuracy') is None:
-                    p['nw_backtest_accuracy'] = nw_global_bt['accuracy']
-                    p['nw_backtest_samples'] = 0
+                    # 优先: 同策略+同方向
+                    chg_stats = sdc.get((strat, pred_dir))
+                    # 兜底: 所有策略+同方向
+                    if not chg_stats:
+                        chg_stats = sdc.get(('_all', pred_dir))
+                    if chg_stats:
+                        median = chg_stats['median']
+                        # 强制符号一致
+                        if pred_dir == 'UP' and median < 0:
+                            median = abs(median)
+                        elif pred_dir == 'DOWN' and median > 0:
+                            median = -abs(median)
+                        p['nw_pred_chg'] = median
+                        p['nw_pred_chg_low'] = chg_stats['p10']
+                        p['nw_pred_chg_high'] = chg_stats['p90']
+                        p['nw_pred_chg_mae'] = chg_stats['mae']
+                        p['nw_pred_chg_hit_rate'] = chg_stats['hit_rate']
+                        p['nw_pred_chg_samples'] = chg_stats['samples']
+                else:
+                    if p.get('nw_backtest_accuracy') is None:
+                        p['nw_backtest_accuracy'] = nw_global_bt['accuracy']
+                        p['nw_backtest_samples'] = 0
 
-    nw_coverage = round(nw_count / len(predictions) * 100, 1) if predictions else 0
-    logger.info("  下周预测: %d只 (涨%d 跌%d 参考%d), 不确定%d只, 覆盖率=%.1f%%, 回测准确率=%.1f%%",
-                nw_count, nw_up, nw_count - nw_up, nw_reference, nw_uncertain, nw_coverage,
-                nw_global_bt['accuracy'])
+        nw_coverage = round(nw_count / len(predictions) * 100, 1) if predictions else 0
+        logger.info("  下周预测: %d只 (涨%d 跌%d 参考%d), 不确定%d只, 覆盖率=%.1f%%, 回测准确率=%.1f%%",
+                    nw_count, nw_up, nw_count - nw_up, nw_reference, nw_uncertain, nw_coverage,
+                    nw_global_bt['accuracy'])
+    else:
+        # this_week 模式: 跳过下周预测，保留DB中已有的nw_*字段
+        _preserve_existing_fields(predictions, 'nw_', [
+            'nw_pred_direction', 'nw_confidence', 'nw_strategy', 'nw_reason',
+            'nw_composite_score', 'nw_this_week_chg', 'nw_iso_year', 'nw_iso_week',
+            'nw_date_range', 'nw_pred_chg', 'nw_pred_chg_low', 'nw_pred_chg_high',
+            'nw_pred_chg_mae', 'nw_pred_chg_hit_rate', 'nw_pred_chg_samples',
+            'nw_backtest_accuracy', 'nw_backtest_samples',
+        ])
+
+    # 6c. V5技术形态5日预测（仅 all 模式执行）
+    if mode == 'all':
+        logger.info("[3c/4] V5技术形态预测...")
+        try:
+            from service.analysis.v5_tech_predictor import batch_predict_v5_tech
+            v5_results = batch_predict_v5_tech(all_codes, latest_date)
+            v5_count = 0
+            for p in predictions:
+                code = p['stock_code']
+                v5 = v5_results.get(code)
+                if v5:
+                    p.update(v5)
+                    v5_count += 1
+                else:
+                    p['v5_pred_direction'] = None
+                    p['v5_confidence'] = None
+                    p['v5_strategy'] = None
+                    p['v5_reason'] = None
+                    p['v5_win_rate'] = None
+                    p['v5_signal_date'] = None
+                    p['v5_signal_count'] = None
+                    p['v5_all_strategies'] = None
+            v5_high = sum(1 for p in predictions if p.get('v5_confidence') == 'high')
+            v5_med = sum(1 for p in predictions if p.get('v5_confidence') == 'medium')
+            v5_low = sum(1 for p in predictions if p.get('v5_confidence') == 'low')
+            logger.info("  V5技术预测: %d只有信号 (高%d 中%d 低%d), 覆盖率=%.1f%%",
+                        v5_count, v5_high, v5_med, v5_low,
+                        round(v5_count / len(predictions) * 100, 1) if predictions else 0)
+        except Exception as e:
+            logger.error("V5技术预测异常: %s", e, exc_info=True)
+            for p in predictions:
+                p['v5_pred_direction'] = None
+                p['v5_confidence'] = None
+                p['v5_strategy'] = None
+                p['v5_reason'] = None
+                p['v5_win_rate'] = None
+                p['v5_signal_date'] = None
+                p['v5_signal_count'] = None
+                p['v5_all_strategies'] = None
+    else:
+        # this_week 模式: 跳过V5预测，保留DB中已有的v5_*字段
+        _preserve_existing_fields(predictions, 'v5_', [
+            'v5_pred_direction', 'v5_confidence', 'v5_strategy', 'v5_reason',
+            'v5_win_rate', 'v5_signal_date', 'v5_signal_count', 'v5_all_strategies',
+        ])
 
     # 填充回测准确率：优先使用个股+策略准确率，其次个股整体准确率，最后全局
     #
@@ -2535,6 +3087,8 @@ def run_batch_weekly_prediction(progress_callback=None):
                 nw_count, nw_count - nw_reference, nw_reference, nw_coverage,
                 nw_global_bt['accuracy'],
                 nw_global_bt['total'], nw_global_bt.get('coverage', 0))
+    v5_total = sum(1 for p in predictions if p.get('v5_pred_direction'))
+    logger.info("  V5技术形态: %d只有信号", v5_total)
     logger.info("  耗时: %.1fs", elapsed)
     logger.info("=" * 70)
 
@@ -2552,6 +3106,7 @@ def run_batch_weekly_prediction(progress_callback=None):
         'next_week_uncertain': nw_uncertain,
         'next_week_reference': nw_reference,
         'next_week_coverage': nw_coverage,
+        'v5_tech_count': sum(1 for p in predictions if p.get('v5_pred_direction')),
         'elapsed': round(elapsed, 1),
     }
 

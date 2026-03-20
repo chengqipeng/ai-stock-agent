@@ -310,9 +310,19 @@ async def _execute_job_inner():
                 _job_status["board_market_success"] = success
                 _job_status["board_market_failed"] = failed
 
-            summary = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: compute_board_market(days=60, progress_callback=_board_market_progress)
-            )
+            summary = None
+            for _attempt in range(2):
+                try:
+                    summary = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: compute_board_market(days=60, progress_callback=_board_market_progress)
+                    )
+                    break
+                except Exception as retry_e:
+                    if _attempt == 0:
+                        logger.warning("[概念强弱势调度] 板块大盘强弱势第1次失败，30秒后重试: %s", retry_e)
+                        await asyncio.sleep(30)
+                    else:
+                        raise retry_e
             _job_status["board_market_total"] = summary.get("total", 0)
             _job_status["board_market_success"] = summary.get("success", 0)
             _job_status["board_market_failed"] = summary.get("failed", 0)
@@ -341,9 +351,19 @@ async def _execute_job_inner():
                 _job_status["stock_board_success"] = success
                 _job_status["stock_board_failed"] = failed
 
-            summary = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: compute_stock_board(days=60, progress_callback=_stock_board_progress)
-            )
+            summary = None
+            for _attempt in range(2):
+                try:
+                    summary = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: compute_stock_board(days=60, progress_callback=_stock_board_progress)
+                    )
+                    break
+                except Exception as retry_e:
+                    if _attempt == 0:
+                        logger.warning("[概念强弱势调度] 个股板块强弱势第1次失败，30秒后重试: %s", retry_e)
+                        await asyncio.sleep(30)
+                    else:
+                        raise retry_e
             _job_status["stock_board_total"] = summary.get("total_boards", summary.get("total", 0))
             _job_status["stock_board_success"] = summary.get("success_boards", summary.get("success", 0))
             _job_status["stock_board_failed"] = summary.get("failed_boards", summary.get("failed", 0))
