@@ -424,6 +424,33 @@ def ensure_prediction_tables():
             except Exception as e:
                 logger.warning("  补列失败 %s: %s", col_name, e)
 
+        # 迁移：确保 history 表有唯一键 uk_stock_target
+        try:
+            cur.execute(
+                "SELECT COUNT(*) FROM information_schema.STATISTICS "
+                "WHERE table_schema = DATABASE() AND table_name = 'canslim_monthly_prediction_history' "
+                "AND index_name = 'uk_stock_target'")
+            if cur.fetchone()[0] == 0:
+                # 先清理可能存在的重复数据
+                cur.execute("""
+                    DELETE FROM canslim_monthly_prediction_history
+                    WHERE id NOT IN (
+                        SELECT max_id FROM (
+                            SELECT MAX(id) as max_id
+                            FROM canslim_monthly_prediction_history
+                            GROUP BY stock_code, target_year, target_month
+                        ) t
+                    )
+                """)
+                if cur.rowcount > 0:
+                    logger.info("  清理重复历史记录: %d 条", cur.rowcount)
+                cur.execute(
+                    "ALTER TABLE canslim_monthly_prediction_history "
+                    "ADD UNIQUE KEY uk_stock_target (stock_code, target_year, target_month)")
+                logger.info("  已添加唯一键: uk_stock_target")
+        except Exception as e:
+            logger.warning("  添加唯一键失败: %s", e)
+
         conn.commit()
         logger.info("CAN SLIM月度预测表已就绪")
     finally:
