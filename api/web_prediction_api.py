@@ -10,6 +10,9 @@ from dao.stock_weekly_prediction_dao import (
     get_prediction_summary,
     get_prediction_history,
     get_prediction_accuracy_stats,
+    get_prediction_verification,
+    get_nw_prediction_verification,
+    get_available_prediction_weeks,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,6 +91,153 @@ async def prediction_accuracy(
         return {"success": True, "data": data}
     except Exception as e:
         logger.error("查询准确率统计失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+# ═══════════════════════════════════════════════════════════
+# 预测验证 API
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/api/weekly_prediction/verification")
+async def prediction_verification(
+    iso_year: int = Query(None, description="ISO年"),
+    iso_week: int = Query(None, description="ISO周"),
+    direction: str = Query(None, description="预测方向: UP/DOWN"),
+    result: str = Query(None, description="验证结果: correct/wrong/pending"),
+    keyword: str = Query(None, description="股票代码或名称"),
+    sort_by: str = Query("stock_code"),
+    sort_dir: str = Query("asc"),
+    limit: int = Query(50),
+    offset: int = Query(0),
+):
+    """获取预测验证数据：上一周预测 vs 实际结果"""
+    try:
+        keywords = None
+        if keyword:
+            terms = re.split(r'[,，、;；\s]+', keyword.strip())
+            keywords = [t.strip() for t in terms if t.strip()]
+            if not keywords:
+                keywords = None
+        rows, total, summary = get_prediction_verification(
+            iso_year=iso_year, iso_week=iso_week,
+            keywords=keywords, direction_filter=direction,
+            result_filter=result,
+            sort_by=sort_by, sort_dir=sort_dir,
+            limit=limit, offset=offset,
+        )
+        # 序列化非基本类型
+        for r in rows:
+            for k, v in list(r.items()):
+                if v is not None and not isinstance(v, (str, int, float, bool)):
+                    r[k] = str(v)
+        for k, v in list(summary.items()):
+            if v is not None and not isinstance(v, (str, int, float, bool)):
+                summary[k] = str(v)
+        return {"success": True, "data": rows, "total": total, "summary": summary}
+    except Exception as e:
+        logger.error("查询预测验证失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/api/weekly_prediction/nw_verification")
+async def nw_prediction_verification(
+    iso_year: int = Query(None, description="预测发生的ISO年"),
+    iso_week: int = Query(None, description="预测发生的ISO周"),
+    direction: str = Query(None, description="下周预测方向: UP/DOWN"),
+    result: str = Query(None, description="验证结果: correct/wrong/pending"),
+    keyword: str = Query(None, description="股票代码或名称"),
+    sort_by: str = Query("stock_code"),
+    sort_dir: str = Query("asc"),
+    limit: int = Query(50),
+    offset: int = Query(0),
+):
+    """获取下周预测验证数据：W周的nw_pred_direction vs W+1周实际结果"""
+    try:
+        keywords = None
+        if keyword:
+            terms = re.split(r'[,，、;；\s]+', keyword.strip())
+            keywords = [t.strip() for t in terms if t.strip()]
+            if not keywords:
+                keywords = None
+        rows, total, summary = get_nw_prediction_verification(
+            iso_year=iso_year, iso_week=iso_week,
+            keywords=keywords, direction_filter=direction,
+            result_filter=result,
+            sort_by=sort_by, sort_dir=sort_dir,
+            limit=limit, offset=offset,
+        )
+        for r in rows:
+            for k, v in list(r.items()):
+                if v is not None and not isinstance(v, (str, int, float, bool)):
+                    r[k] = str(v)
+        for k, v in list(summary.items()):
+            if v is not None and not isinstance(v, (str, int, float, bool)):
+                summary[k] = str(v)
+        return {"success": True, "data": rows, "total": total, "summary": summary}
+    except Exception as e:
+        logger.error("查询下周预测验证失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/api/weekly_prediction/weeks")
+async def prediction_weeks(limit: int = Query(20)):
+    """获取有预测记录的周列表"""
+    try:
+        weeks = get_available_prediction_weeks(limit)
+        for w in weeks:
+            for k, v in list(w.items()):
+                if v is not None and not isinstance(v, (str, int, float, bool)):
+                    w[k] = str(v)
+        return {"success": True, "data": weeks}
+    except Exception as e:
+        logger.error("查询预测周列表失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+# ═══════════════════════════════════════════════════════════
+# 预测结果验证（回填实际数据）
+# ═══════════════════════════════════════════════════════════
+
+@router.post("/api/weekly_prediction/verify_all")
+async def verify_all_predictions():
+    """验证所有待验证的历史预测（用实际K线数据回填），包括下周预测目标周"""
+    try:
+        from service.prediction_verify_service import verify_all_pending_weeks
+        results = verify_all_pending_weeks()
+        tw_results = [r for r in results if r.get('type') != 'nw']
+        nw_results = [r for r in results if r.get('type') == 'nw']
+        total_verified = sum(r.get('verified', 0) for r in results)
+        total_correct = sum(r.get('correct', 0) for r in results)
+        nw_verified = sum(r.get('verified', 0) for r in nw_results)
+        return {
+            "success": True,
+            "data": results,
+            "summary": {
+                "weeks_processed": len(results),
+                "total_verified": total_verified,
+                "total_correct": total_correct,
+                "accuracy": round(total_correct / total_verified * 100, 1) if total_verified > 0 else None,
+                "nw_weeks_processed": len(nw_results),
+                "nw_verified": nw_verified,
+            }
+        }
+    except Exception as e:
+        logger.error("批量验证预测失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/api/weekly_prediction/verify_week")
+async def verify_week_prediction(
+    iso_year: int = Query(..., description="ISO年"),
+    iso_week: int = Query(..., description="ISO周"),
+):
+    """验证指定周的预测结果"""
+    try:
+        from service.prediction_verify_service import verify_week_predictions
+        result = verify_week_predictions(iso_year, iso_week)
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error("验证 Y%d-W%02d 预测失败: %s", iso_year, iso_week, e, exc_info=True)
         return {"success": False, "error": str(e)}
 
 

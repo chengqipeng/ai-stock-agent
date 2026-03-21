@@ -101,6 +101,9 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction (
     v5_signal_date VARCHAR(20) COMMENT 'V5信号触发日期',
     v5_signal_count INT COMMENT 'V5命中策略数量',
     v5_all_strategies VARCHAR(100) COMMENT 'V5所有命中策略(逗号分隔)',
+    v5_actual_direction VARCHAR(4) COMMENT 'V5实际5日方向(回填): UP/DOWN',
+    v5_actual_5d_chg DOUBLE COMMENT 'V5实际5日涨跌幅(%)(回填)',
+    v5_is_correct TINYINT COMMENT 'V5预测是否正确(回填)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_code (stock_code),
@@ -203,6 +206,9 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction_history (
     v5_signal_date VARCHAR(20) COMMENT 'V5信号触发日期',
     v5_signal_count INT COMMENT 'V5命中策略数量',
     v5_all_strategies VARCHAR(100) COMMENT 'V5所有命中策略(逗号分隔)',
+    v5_actual_direction VARCHAR(4) COMMENT 'V5实际5日方向(回填): UP/DOWN',
+    v5_actual_5d_chg DOUBLE COMMENT 'V5实际5日涨跌幅(%)(回填)',
+    v5_is_correct TINYINT COMMENT 'V5预测是否正确(回填)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_week (stock_code, iso_year, iso_week),
     INDEX idx_predict_date (predict_date),
@@ -308,6 +314,9 @@ def ensure_tables():
             ("nw_pred_chg_samples", "INT COMMENT '下周涨跌幅样本数'", "nw_pred_chg_hit_rate"),
             ("nw_backtest_accuracy", "DOUBLE COMMENT '下周预测回测准确率(%)'", "nw_pred_chg_samples"),
             ("nw_backtest_samples", "INT COMMENT '下周预测回测样本数'", "nw_backtest_accuracy"),
+            ("nw_actual_direction", "VARCHAR(4) COMMENT '下周实际方向: UP/DOWN'", "nw_backtest_samples"),
+            ("nw_actual_weekly_chg", "DOUBLE COMMENT '下周实际涨跌幅(%)'", "nw_actual_direction"),
+            ("nw_is_correct", "TINYINT COMMENT '下周预测是否正确'", "nw_actual_weekly_chg"),
             # 月度预测 nm_* 列
             ("nm_pred_direction", "VARCHAR(4) COMMENT '下月预测方向: UP'", "nw_backtest_samples"),
             ("nm_confidence", "VARCHAR(10) COMMENT '下月预测置信度'", "nm_pred_direction"),
@@ -330,6 +339,10 @@ def ensure_tables():
             ("v5_signal_date", "VARCHAR(20) COMMENT 'V5信号触发日期'", "v5_win_rate"),
             ("v5_signal_count", "INT COMMENT 'V5命中策略数量'", "v5_signal_date"),
             ("v5_all_strategies", "VARCHAR(100) COMMENT 'V5所有命中策略(逗号分隔)'", "v5_signal_count"),
+            # V5验证回填字段
+            ("v5_actual_direction", "VARCHAR(4) COMMENT 'V5实际5日方向(回填): UP/DOWN'", "v5_all_strategies"),
+            ("v5_actual_5d_chg", "DOUBLE COMMENT 'V5实际5日涨跌幅(%)(回填)'", "v5_actual_direction"),
+            ("v5_is_correct", "TINYINT COMMENT 'V5预测是否正确(回填)'", "v5_actual_5d_chg"),
             ("market_index", "VARCHAR(20) COMMENT '对应大盘指数代码'", "market_d4_chg"),
             ("vol_ratio", "DOUBLE COMMENT '本周均量/20日均量'", "pred_remaining_chg"),
             ("vol_price_corr", "DOUBLE COMMENT '量价相关性[-1,1]'", "vol_ratio"),
@@ -439,6 +452,35 @@ def backfill_actual_results(iso_year: int, iso_week: int,
         results)
         conn.commit()
         logger.info("回填实际结果: %d 条 (Y%d-W%02d)", len(results), iso_year, iso_week)
+    finally:
+        cur.close()
+        conn.close()
+
+
+def backfill_nw_actual_results(iso_year: int, iso_week: int,
+                               results: list[dict]):
+    """回填下周预测的实际结果到预测周(W)的记录上。
+
+    iso_year/iso_week: 做出预测的那一周(W)
+    results: [{'stock_code': ..., 'nw_actual_direction': 'UP'/'DOWN',
+               'nw_actual_weekly_chg': float, 'nw_is_correct': 0/1}, ...]
+    """
+    if not results:
+        return
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.executemany("""
+            UPDATE stock_weekly_prediction_history
+            SET nw_actual_direction = %(nw_actual_direction)s,
+                nw_actual_weekly_chg = %(nw_actual_weekly_chg)s,
+                nw_is_correct = %(nw_is_correct)s
+            WHERE stock_code = %(stock_code)s
+              AND iso_year = %s AND iso_week = %s
+        """.replace('%s', str(iso_year), 1).replace('%s', str(iso_week), 1),
+        results)
+        conn.commit()
+        logger.info("回填下周预测实际结果: %d 条 (Y%d-W%02d)", len(results), iso_year, iso_week)
     finally:
         cur.close()
         conn.close()
@@ -639,6 +681,492 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
         """, params + [limit, offset])
         rows = cur.fetchall()
         return rows, total
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_prediction_verification(iso_year: int = None, iso_week: int = None,
+                                keyword: str = None, keywords: list[str] = None,
+                                direction_filter: str = None,
+                                result_filter: str = None,
+                                sort_by: str = 'stock_code',
+                                sort_dir: str = 'asc',
+                                limit: int = 50, offset: int = 0) -> tuple[list[dict], int, dict]:
+    """获取上一周预测 vs 本周实际结果的验证数据。
+
+    如果不指定 iso_year/iso_week，自动取 history 表中最新周的前一周。
+    返回 (rows, total_count, summary)。
+
+    每行包含:
+      - 上周预测信息 (pred_direction, confidence, strategy, pred_weekly_chg 等)
+      - 本周实际涨跌幅 (actual_weekly_chg)
+      - 实际方向 (actual_direction)
+      - 是否正确 (is_correct)
+      - 下周预测信息 (nw_pred_direction 等) 及其验证
+    """
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+    try:
+        # 确定要验证的预测周（上一周）
+        if not iso_year or not iso_week:
+            # 取 history 表中最新的 iso_year, iso_week
+            cur.execute("""
+                SELECT DISTINCT iso_year, iso_week
+                FROM stock_weekly_prediction_history
+                WHERE (stock_code LIKE '6%%.SH' OR stock_code LIKE '0%%.SZ' OR stock_code LIKE '3%%.SZ')
+                  AND stock_code NOT LIKE '399%%'
+                  AND stock_code != '000001.SH'
+                ORDER BY iso_year DESC, iso_week DESC
+                LIMIT 2
+            """)
+            weeks = cur.fetchall()
+            if len(weeks) < 2:
+                return [], 0, {}
+            # weeks[0] = 本周(最新), weeks[1] = 上一周
+            iso_year = weeks[1]['iso_year']
+            iso_week = weeks[1]['iso_week']
+
+        # 计算"本周"（预测目标周）的 iso_year/iso_week
+        # 上周预测的 nw_* 指向的就是本周
+        # 上周的 pred_direction 预测的是上周自身
+        # 我们需要：上周的预测记录 + 上周的实际结果（已回填或从K线计算）
+
+        # 构建查询条件
+        where_parts = [
+            "h.iso_year = %s",
+            "h.iso_week = %s",
+            "(h.stock_code LIKE '6%%.SH' OR h.stock_code LIKE '0%%.SZ' OR h.stock_code LIKE '3%%.SZ')",
+            "h.stock_code NOT LIKE '399%%'",
+            "h.stock_code != '000001.SH'",
+        ]
+        params = [iso_year, iso_week]
+
+        if direction_filter:
+            where_parts.append("h.pred_direction = %s")
+            params.append(direction_filter)
+
+        if result_filter == 'correct':
+            where_parts.append("h.is_correct = 1")
+        elif result_filter == 'wrong':
+            where_parts.append("h.is_correct = 0")
+        elif result_filter == 'pending':
+            where_parts.append("h.is_correct IS NULL")
+
+        search_terms = keywords or ([keyword] if keyword else None)
+        if search_terms:
+            or_clauses = []
+            for term in search_terms:
+                or_clauses.append("(h.stock_code LIKE %s OR h.stock_name LIKE %s)")
+                params.extend([f"%{term}%", f"%{term}%"])
+            where_parts.append("(" + " OR ".join(or_clauses) + ")")
+
+        where_sql = "WHERE " + " AND ".join(where_parts)
+
+        # 排序白名单
+        allowed_sorts = {
+            'stock_code', 'stock_name', 'pred_direction', 'confidence',
+            'strategy', 'actual_weekly_chg', 'is_correct', 'pred_weekly_chg',
+            'backtest_accuracy', 'nw_pred_direction', 'predict_date',
+        }
+        if sort_by not in allowed_sorts:
+            sort_by = 'stock_code'
+        order_dir = 'DESC' if sort_dir.lower() == 'desc' else 'ASC'
+
+        # 总数
+        cur.execute(f"SELECT COUNT(*) as cnt FROM stock_weekly_prediction_history h {where_sql}", params)
+        total = cur.fetchone()['cnt']
+
+        # 数据
+        cur.execute(f"""
+            SELECT h.stock_code, h.stock_name, h.predict_date, h.iso_year, h.iso_week,
+                   h.pred_direction, h.confidence, h.strategy, h.reason,
+                   h.d3_chg, h.d4_chg, h.pred_weekly_chg, h.pred_chg_low, h.pred_chg_high,
+                   h.backtest_accuracy, h.backtest_samples,
+                   h.actual_direction, h.actual_weekly_chg, h.is_correct,
+                   h.nw_pred_direction, h.nw_confidence, h.nw_strategy,
+                   h.nw_pred_chg, h.nw_date_range, h.nw_backtest_accuracy,
+                   h.concept_boards
+            FROM stock_weekly_prediction_history h
+            {where_sql}
+            ORDER BY {sort_by} {order_dir}
+            LIMIT %s OFFSET %s
+        """, params + [limit, offset])
+        rows = cur.fetchall()
+
+        # 汇总统计
+        cur.execute(f"""
+            SELECT
+                COUNT(*) as total,
+                SUM(h.is_correct = 1) as correct,
+                SUM(h.is_correct = 0) as wrong,
+                SUM(h.is_correct IS NULL) as pending,
+                ROUND(SUM(h.is_correct = 1) / NULLIF(SUM(h.is_correct IS NOT NULL), 0) * 100, 1) as accuracy,
+                SUM(h.pred_direction = 'UP') as pred_up,
+                SUM(h.pred_direction = 'DOWN') as pred_down,
+                SUM(h.confidence = 'high' AND h.is_correct = 1) as high_correct,
+                SUM(h.confidence = 'high' AND h.is_correct IS NOT NULL) as high_total,
+                SUM(h.confidence = 'medium' AND h.is_correct = 1) as med_correct,
+                SUM(h.confidence = 'medium' AND h.is_correct IS NOT NULL) as med_total,
+                SUM(h.confidence = 'low' AND h.is_correct = 1) as low_correct,
+                SUM(h.confidence = 'low' AND h.is_correct IS NOT NULL) as low_total,
+                ROUND(AVG(h.actual_weekly_chg), 2) as avg_actual_chg,
+                ROUND(AVG(h.pred_weekly_chg), 2) as avg_pred_chg,
+                ROUND(AVG(h.backtest_accuracy), 1) as avg_backtest_accuracy,
+                MAX(h.predict_date) as predict_date,
+                SUM(h.nw_pred_direction IS NOT NULL AND h.nw_pred_direction != '') as nw_total,
+                h.iso_year, h.iso_week
+            FROM stock_weekly_prediction_history h
+            {where_sql}
+        """, params)
+        summary = cur.fetchone() or {}
+        summary['iso_year'] = iso_year
+        summary['iso_week'] = iso_week
+
+        return rows, total, summary
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
+                                   keyword: str = None, keywords: list[str] = None,
+                                   direction_filter: str = None,
+                                   result_filter: str = None,
+                                   sort_by: str = 'stock_code',
+                                   sort_dir: str = 'asc',
+                                   limit: int = 50, offset: int = 0) -> tuple[list[dict], int, dict]:
+    """获取"下周预测"验证数据。
+
+    逻辑：取第 W 周记录的 nw_pred_direction（预测 W+1 周方向），
+    与第 W+1 周记录的 actual_direction / actual_weekly_chg 做对比。
+
+    iso_year/iso_week 指的是做出预测的那一周（W），验证的是 W+1 的实际结果。
+    如果不指定，自动取倒数第二周（确保 W+1 已有数据）。
+
+    返回 (rows, total_count, summary)。
+    """
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+    try:
+        _stock_filter = (
+            "(h.stock_code LIKE '6%%.SH' OR h.stock_code LIKE '0%%.SZ' OR h.stock_code LIKE '3%%.SZ')"
+            " AND h.stock_code NOT LIKE '399%%'"
+            " AND h.stock_code != '000001.SH'"
+        )
+
+        if not iso_year or not iso_week:
+            cur.execute(f"""
+                SELECT DISTINCT iso_year, iso_week
+                FROM stock_weekly_prediction_history
+                WHERE {_stock_filter}
+                ORDER BY iso_year DESC, iso_week DESC
+                LIMIT 3
+            """)
+            weeks = cur.fetchall()
+            if len(weeks) < 3:
+                return [], 0, {}
+            # weeks[0]=本周, weeks[1]=上周, weeks[2]=上上周
+            # 选 weeks[2] 作为预测周 W，这样 W+1=weeks[1] 已有完整数据
+            iso_year = weeks[2]['iso_year']
+            iso_week = weeks[2]['iso_week']
+
+        # 构建查询：h = 预测周 W 的记录, n = W+1 周的记录（提供实际结果）
+        where_parts = [
+            "h.iso_year = %s",
+            "h.iso_week = %s",
+            "(h.stock_code LIKE '6%%.SH' OR h.stock_code LIKE '0%%.SZ' OR h.stock_code LIKE '3%%.SZ')",
+            "h.stock_code NOT LIKE '399%%'",
+            "h.stock_code != '000001.SH'",
+            "h.nw_pred_direction IS NOT NULL",
+            "h.nw_pred_direction != ''",
+        ]
+        params = [iso_year, iso_week]
+
+        if direction_filter:
+            where_parts.append("h.nw_pred_direction = %s")
+            params.append(direction_filter)
+
+        if result_filter == 'correct':
+            where_parts.append("h.nw_pred_direction = n.actual_direction")
+        elif result_filter == 'wrong':
+            where_parts.append("h.nw_pred_direction != n.actual_direction")
+            where_parts.append("n.actual_direction IS NOT NULL")
+        elif result_filter == 'pending':
+            where_parts.append("n.actual_direction IS NULL")
+
+        search_terms = keywords or ([keyword] if keyword else None)
+        if search_terms:
+            or_clauses = []
+            for term in search_terms:
+                or_clauses.append("(h.stock_code LIKE %s OR h.stock_name LIKE %s)")
+                params.extend([f"%{term}%", f"%{term}%"])
+            where_parts.append("(" + " OR ".join(or_clauses) + ")")
+
+        where_sql = "WHERE " + " AND ".join(where_parts)
+
+        # 排序白名单
+        allowed_sorts = {
+            'stock_code', 'stock_name', 'nw_pred_direction', 'nw_confidence',
+            'nw_pred_chg', 'nw_backtest_accuracy', 'actual_weekly_chg',
+            'predict_date',
+        }
+        safe_sort = sort_by if sort_by in allowed_sorts else 'stock_code'
+        # 对来自 n 表的字段加前缀
+        sort_col = f"n.{safe_sort}" if safe_sort == 'actual_weekly_chg' else f"h.{safe_sort}"
+        order_dir = 'DESC' if sort_dir.lower() == 'desc' else 'ASC'
+
+        # JOIN: h(预测周W) LEFT JOIN n(W+1周) on stock_code & nw_iso_year/nw_iso_week
+        join_sql = """
+            FROM stock_weekly_prediction_history h
+            LEFT JOIN stock_weekly_prediction_history n
+              ON n.stock_code = h.stock_code
+             AND n.iso_year = h.nw_iso_year
+             AND n.iso_week = h.nw_iso_week
+        """
+
+        # 总数
+        cur.execute(f"SELECT COUNT(*) as cnt {join_sql} {where_sql}", params)
+        total = cur.fetchone()['cnt']
+
+        # 数据
+        cur.execute(f"""
+            SELECT h.stock_code, h.stock_name, h.predict_date,
+                   h.iso_year, h.iso_week,
+                   h.nw_pred_direction, h.nw_confidence, h.nw_strategy, h.nw_reason,
+                   h.nw_pred_chg, h.nw_pred_chg_low, h.nw_pred_chg_high,
+                   h.nw_date_range, h.nw_backtest_accuracy, h.nw_backtest_samples,
+                   h.nw_iso_year, h.nw_iso_week,
+                   h.pred_direction as tw_pred_direction,
+                   h.actual_weekly_chg as tw_actual_chg,
+                   n.actual_direction as nw_actual_direction,
+                   n.actual_weekly_chg as nw_actual_chg,
+                   n.is_correct as nw_is_correct_self,
+                   CASE
+                     WHEN n.actual_direction IS NULL THEN NULL
+                     WHEN h.nw_pred_direction = n.actual_direction THEN 1
+                     ELSE 0
+                   END as nw_is_correct,
+                   h.concept_boards
+            {join_sql}
+            {where_sql}
+            ORDER BY {sort_col} {order_dir}
+            LIMIT %s OFFSET %s
+        """, params + [limit, offset])
+        rows = cur.fetchall()
+
+        # 汇总统计
+        cur.execute(f"""
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN n.actual_direction IS NOT NULL AND h.nw_pred_direction = n.actual_direction THEN 1 ELSE 0 END) as correct,
+                SUM(CASE WHEN n.actual_direction IS NOT NULL AND h.nw_pred_direction != n.actual_direction THEN 1 ELSE 0 END) as wrong,
+                SUM(n.actual_direction IS NULL) as pending,
+                ROUND(
+                    SUM(CASE WHEN n.actual_direction IS NOT NULL AND h.nw_pred_direction = n.actual_direction THEN 1 ELSE 0 END)
+                    / NULLIF(SUM(n.actual_direction IS NOT NULL), 0) * 100, 1
+                ) as accuracy,
+                SUM(h.nw_pred_direction = 'UP') as pred_up,
+                SUM(h.nw_pred_direction = 'DOWN') as pred_down,
+                SUM(h.nw_confidence = 'high' AND n.actual_direction IS NOT NULL AND h.nw_pred_direction = n.actual_direction) as high_correct,
+                SUM(h.nw_confidence = 'high' AND n.actual_direction IS NOT NULL) as high_total,
+                SUM(h.nw_confidence = 'reference' AND n.actual_direction IS NOT NULL AND h.nw_pred_direction = n.actual_direction) as ref_correct,
+                SUM(h.nw_confidence = 'reference' AND n.actual_direction IS NOT NULL) as ref_total,
+                ROUND(AVG(n.actual_weekly_chg), 2) as avg_actual_chg,
+                ROUND(AVG(h.nw_pred_chg), 2) as avg_pred_chg,
+                ROUND(AVG(h.nw_backtest_accuracy), 1) as avg_backtest_accuracy,
+                MAX(h.predict_date) as predict_date,
+                MAX(h.nw_date_range) as nw_date_range
+            {join_sql}
+            {where_sql}
+        """, params)
+        summary = cur.fetchone() or {}
+        summary['iso_year'] = iso_year
+        summary['iso_week'] = iso_week
+
+        return rows, total, summary
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_v5_prediction_verification(iso_year: int = None, iso_week: int = None,
+                                   keyword: str = None, keywords: list[str] = None,
+                                   direction_filter: str = None,
+                                   result_filter: str = None,
+                                   sort_by: str = 'stock_code',
+                                   sort_dir: str = 'asc',
+                                   limit: int = 50, offset: int = 0) -> tuple[list[dict], int, dict]:
+    """获取OBV 5日预测验证数据。
+
+    逻辑：取有 v5_pred_direction 的历史记录，
+    对比 v5_actual_direction / v5_actual_5d_chg（从 v5_signal_date 起5个交易日的实际涨跌幅）。
+
+    返回 (rows, total_count, summary)。
+    """
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+    try:
+        _stock_filter = (
+            "(h.stock_code LIKE '6%%.SH' OR h.stock_code LIKE '0%%.SZ' OR h.stock_code LIKE '3%%.SZ')"
+            " AND h.stock_code NOT LIKE '399%%'"
+            " AND h.stock_code != '000001.SH'"
+        )
+
+        if not iso_year or not iso_week:
+            cur.execute(f"""
+                SELECT DISTINCT iso_year, iso_week
+                FROM stock_weekly_prediction_history
+                WHERE {_stock_filter}
+                  AND v5_pred_direction IS NOT NULL
+                ORDER BY iso_year DESC, iso_week DESC
+                LIMIT 3
+            """)
+            weeks = cur.fetchall()
+            if len(weeks) < 2:
+                return [], 0, {}
+            iso_year = weeks[1]['iso_year']
+            iso_week = weeks[1]['iso_week']
+
+        where_parts = [
+            "h.iso_year = %s",
+            "h.iso_week = %s",
+            "(h.stock_code LIKE '6%%.SH' OR h.stock_code LIKE '0%%.SZ' OR h.stock_code LIKE '3%%.SZ')",
+            "h.stock_code NOT LIKE '399%%'",
+            "h.stock_code != '000001.SH'",
+            "h.v5_pred_direction IS NOT NULL",
+            "h.v5_pred_direction != ''",
+        ]
+        params = [iso_year, iso_week]
+
+        if direction_filter:
+            where_parts.append("h.v5_pred_direction = %s")
+            params.append(direction_filter)
+
+        if result_filter == 'correct':
+            where_parts.append("h.v5_is_correct = 1")
+        elif result_filter == 'wrong':
+            where_parts.append("h.v5_is_correct = 0")
+        elif result_filter == 'pending':
+            where_parts.append("h.v5_is_correct IS NULL")
+
+        search_terms = keywords or ([keyword] if keyword else None)
+        if search_terms:
+            or_clauses = []
+            for term in search_terms:
+                or_clauses.append("(h.stock_code LIKE %s OR h.stock_name LIKE %s)")
+                params.extend([f"%{term}%", f"%{term}%"])
+            where_parts.append("(" + " OR ".join(or_clauses) + ")")
+
+        where_sql = "WHERE " + " AND ".join(where_parts)
+
+        allowed_sorts = {
+            'stock_code', 'stock_name', 'v5_pred_direction', 'v5_confidence',
+            'v5_strategy', 'v5_win_rate', 'v5_actual_5d_chg', 'v5_is_correct',
+            'v5_signal_date', 'predict_date',
+        }
+        safe_sort = sort_by if sort_by in allowed_sorts else 'stock_code'
+        order_dir = 'DESC' if sort_dir.lower() == 'desc' else 'ASC'
+
+        from_sql = "FROM stock_weekly_prediction_history h"
+
+        cur.execute(f"SELECT COUNT(*) as cnt {from_sql} {where_sql}", params)
+        total = cur.fetchone()['cnt']
+
+        cur.execute(f"""
+            SELECT h.stock_code, h.stock_name, h.predict_date,
+                   h.iso_year, h.iso_week,
+                   h.v5_pred_direction, h.v5_confidence, h.v5_strategy, h.v5_reason,
+                   h.v5_win_rate, h.v5_signal_date, h.v5_signal_count, h.v5_all_strategies,
+                   h.v5_actual_direction, h.v5_actual_5d_chg, h.v5_is_correct,
+                   h.pred_direction as tw_pred_direction,
+                   h.actual_weekly_chg as tw_actual_chg,
+                   h.concept_boards
+            {from_sql}
+            {where_sql}
+            ORDER BY h.{safe_sort} {order_dir}
+            LIMIT %s OFFSET %s
+        """, params + [limit, offset])
+        rows = cur.fetchall()
+
+        cur.execute(f"""
+            SELECT
+                COUNT(*) as total,
+                SUM(h.v5_is_correct = 1) as correct,
+                SUM(h.v5_is_correct = 0) as wrong,
+                SUM(h.v5_is_correct IS NULL) as pending,
+                ROUND(SUM(h.v5_is_correct = 1) / NULLIF(SUM(h.v5_is_correct IS NOT NULL), 0) * 100, 1) as accuracy,
+                SUM(h.v5_pred_direction = 'UP') as pred_up,
+                SUM(h.v5_confidence = 'high' AND h.v5_is_correct = 1) as high_correct,
+                SUM(h.v5_confidence = 'high' AND h.v5_is_correct IS NOT NULL) as high_total,
+                SUM(h.v5_confidence = 'medium' AND h.v5_is_correct = 1) as med_correct,
+                SUM(h.v5_confidence = 'medium' AND h.v5_is_correct IS NOT NULL) as med_total,
+                SUM(h.v5_confidence = 'low' AND h.v5_is_correct = 1) as low_correct,
+                SUM(h.v5_confidence = 'low' AND h.v5_is_correct IS NOT NULL) as low_total,
+                ROUND(AVG(h.v5_actual_5d_chg), 2) as avg_actual_chg,
+                ROUND(AVG(h.v5_win_rate), 1) as avg_win_rate,
+                MAX(h.predict_date) as predict_date,
+                MAX(h.v5_signal_date) as latest_signal_date
+            {from_sql}
+            {where_sql}
+        """, params)
+        summary = cur.fetchone() or {}
+        summary['iso_year'] = iso_year
+        summary['iso_week'] = iso_week
+
+        return rows, total, summary
+    finally:
+        cur.close()
+        conn.close()
+
+
+def backfill_v5_actual_results(results: list[dict]):
+    """回填V5 OBV预测的实际5日结果。
+
+    results: [{'stock_code': ..., 'iso_year': ..., 'iso_week': ...,
+               'v5_actual_direction': 'UP'/'DOWN',
+               'v5_actual_5d_chg': float, 'v5_is_correct': 0/1}, ...]
+    """
+    if not results:
+        return
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.executemany("""
+            UPDATE stock_weekly_prediction_history
+            SET v5_actual_direction = %(v5_actual_direction)s,
+                v5_actual_5d_chg = %(v5_actual_5d_chg)s,
+                v5_is_correct = %(v5_is_correct)s
+            WHERE stock_code = %(stock_code)s
+              AND iso_year = %(iso_year)s AND iso_week = %(iso_week)s
+        """, results)
+        conn.commit()
+        logger.info("V5回填实际结果: %d 条", len(results))
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_available_prediction_weeks(limit: int = 20) -> list[dict]:
+    """获取有预测记录的周列表（用于周选择器）。"""
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT iso_year, iso_week, COUNT(*) as stock_count,
+                   MAX(predict_date) as predict_date,
+                   SUM(is_correct IS NOT NULL) as verified_count,
+                   SUM(is_correct = 1) as correct_count,
+                   ROUND(SUM(is_correct = 1) / NULLIF(SUM(is_correct IS NOT NULL), 0) * 100, 1) as accuracy
+            FROM stock_weekly_prediction_history
+            WHERE (stock_code LIKE '6%%.SH' OR stock_code LIKE '0%%.SZ' OR stock_code LIKE '3%%.SZ')
+              AND stock_code NOT LIKE '399%%'
+              AND stock_code != '000001.SH'
+            GROUP BY iso_year, iso_week
+            ORDER BY iso_year DESC, iso_week DESC
+            LIMIT %s
+        """, (limit,))
+        return cur.fetchall()
     finally:
         cur.close()
         conn.close()

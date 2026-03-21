@@ -1505,3 +1505,119 @@ def extract_summary_from_result(result: str) -> str:
     except Exception as e:
         logger.error("Error extracting summary: %s, result: %s", e, result[:100])
         return result[:200] + '...' if len(result) > 200 else result
+
+
+# ═══════════════════════════════════════════════════════════
+# CAN SLIM 量化算法 API
+# ═══════════════════════════════════════════════════════════
+
+_canslim_backtest_status = {'running': False, 'result': None, 'error': None}
+_canslim_score_status = {'running': False, 'result': None, 'error': None}
+
+
+@app.post("/api/canslim/backtest")
+async def trigger_canslim_backtest(
+    months: int = Query(12, description="回测月数"),
+    threshold: float = Query(60, description="买入阈值(0-100)"),
+    hold_months: int = Query(1, description="持有月数"),
+    top_n: int = Query(50, description="每月最多选股数"),
+):
+    """触发 CAN SLIM 量化回测"""
+    if _canslim_backtest_status['running']:
+        return SafeJSONResponse(content={"success": False, "message": "回测正在运行中"})
+
+    async def _run():
+        _canslim_backtest_status['running'] = True
+        _canslim_backtest_status['result'] = None
+        _canslim_backtest_status['error'] = None
+        try:
+            from service.can_slim_algo.can_slim_backtest import run_backtest
+            result = await asyncio.to_thread(
+                run_backtest,
+                n_months=months,
+                buy_threshold=threshold,
+                hold_months=hold_months,
+                top_n=top_n,
+            )
+            _canslim_backtest_status['result'] = result
+        except Exception as e:
+            logger.error("CAN SLIM 回测失败: %s", e, exc_info=True)
+            _canslim_backtest_status['error'] = str(e)
+        finally:
+            _canslim_backtest_status['running'] = False
+
+    asyncio.create_task(_run())
+    return SafeJSONResponse(content={"success": True, "message": "CAN SLIM 回测已启动"})
+
+
+@app.get("/api/canslim/backtest/status")
+async def canslim_backtest_status():
+    """查询 CAN SLIM 回测状态"""
+    return SafeJSONResponse(content={
+        "running": _canslim_backtest_status['running'],
+        "has_result": _canslim_backtest_status['result'] is not None,
+        "error": _canslim_backtest_status['error'],
+    })
+
+
+@app.get("/api/canslim/backtest/result")
+async def canslim_backtest_result():
+    """获取 CAN SLIM 回测结果"""
+    if _canslim_backtest_status['result'] is None:
+        return SafeJSONResponse(content={"success": False, "message": "无回测结果"})
+    return SafeJSONResponse(content={
+        "success": True,
+        "data": _canslim_backtest_status['result'],
+    })
+
+
+@app.post("/api/canslim/score")
+async def trigger_canslim_scoring(
+    threshold: float = Query(60, description="买入阈值(0-100)"),
+    top_n: int = Query(100, description="返回TOP N只股票"),
+):
+    """触发 CAN SLIM 当前评分（实盘选股）"""
+    if _canslim_score_status['running']:
+        return SafeJSONResponse(content={"success": False, "message": "评分正在运行中"})
+
+    async def _run():
+        _canslim_score_status['running'] = True
+        _canslim_score_status['result'] = None
+        _canslim_score_status['error'] = None
+        try:
+            from service.can_slim_algo.can_slim_backtest import run_current_scoring
+            result = await asyncio.to_thread(
+                run_current_scoring,
+                top_n=top_n,
+                buy_threshold=threshold,
+            )
+            _canslim_score_status['result'] = result
+        except Exception as e:
+            logger.error("CAN SLIM 评分失败: %s", e, exc_info=True)
+            _canslim_score_status['error'] = str(e)
+        finally:
+            _canslim_score_status['running'] = False
+
+    asyncio.create_task(_run())
+    return SafeJSONResponse(content={"success": True, "message": "CAN SLIM 评分已启动"})
+
+
+@app.get("/api/canslim/score/status")
+async def canslim_score_status():
+    """查询 CAN SLIM 评分状态"""
+    return SafeJSONResponse(content={
+        "running": _canslim_score_status['running'],
+        "has_result": _canslim_score_status['result'] is not None,
+        "error": _canslim_score_status['error'],
+    })
+
+
+@app.get("/api/canslim/score/result")
+async def canslim_score_result():
+    """获取 CAN SLIM 评分结果"""
+    if _canslim_score_status['result'] is None:
+        return SafeJSONResponse(content={"success": False, "message": "无评分结果"})
+    return SafeJSONResponse(content={
+        "success": True,
+        "data": _canslim_score_status['result'],
+    })
