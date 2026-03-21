@@ -917,6 +917,9 @@
             <div class="sort-bar" id="sortBar" style="display:none;">
                 <span class="sort-bar-label">排序：</span>
                 <button class="sort-btn" onclick="toggleSort('change_pct')">涨跌幅<span class="sort-arrow"></span></button>
+                <span class="sort-bar-label" style="margin-left:6px;">预测：</span>
+                <button class="sort-btn" onclick="toggleSort('tw_pred_direction')">本周<span class="sort-arrow"></span></button>
+                <button class="sort-btn" onclick="toggleSort('nw_pred_direction')">V11下周<span class="sort-arrow"></span></button>
                 <span class="sort-bar-label" style="margin-left:6px;">CAN SLIM：</span>
                 <button class="sort-btn" onclick="toggleSort('c_score')">C<span class="sort-arrow"></span></button>
                 <button class="sort-btn" onclick="toggleSort('a_score')">A<span class="sort-arrow"></span></button>
@@ -1417,8 +1420,8 @@
                 const changePctVal = stock.change_pct != null ? stock.change_pct + '%' : '-';
 
                 const row1 = `<tr class="stock-group-row row-change">
-                    ${checkCell(3)}
-                    ${nameCell(3)}
+                    ${checkCell(4)}
+                    ${nameCell(4)}
                     <td class="data-row"><div class="data-section">
                         <span class="data-section-label">📈 涨跌幅</span>
                         <div class="data-section-items">
@@ -1435,6 +1438,55 @@
                         <span class="data-section-label">🔬 CAN SLIM</span>
                         <div class="data-section-items">
                             ${['c','a','n','s','l','i','m'].map(k => dimCell(k, k.toUpperCase())).join('')}
+                        </div>
+                    </div></td>
+                </tr>`;
+
+                // 周预测行
+                const twDirBadge = (dir) => {
+                    if (!dir) return '<span style="color:#c7c7cc;">-</span>';
+                    const isUp = dir === 'UP';
+                    return `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;color:white;background:${isUp ? '#e53935' : '#2e7d32'}">${isUp ? '▲涨' : '▼跌'}</span>`;
+                };
+                const twConfBadge = (conf) => {
+                    if (!conf) return '';
+                    const colors = {high:'#e53935',medium:'#fb8c00',low:'#8e8e93',reference:'#e67e22'};
+                    const labels = {high:'高',medium:'中',low:'低',reference:'参考'};
+                    return `<span style="font-size:9px;color:${colors[conf]||'#8e8e93'};font-weight:500;">${labels[conf]||conf}</span>`;
+                };
+                const twDir = stock.tw_pred_direction;
+                const twConf = stock.tw_confidence;
+                const twStrat = stock.tw_strategy;
+                const nwDir = stock.nw_pred_direction;
+                const nwConf = stock.nw_confidence;
+                const nwStrat = stock.nw_strategy;
+                const nwChg = stock.nw_pred_chg;
+                const nwBtAcc = stock.nw_backtest_accuracy;
+
+                const row_prediction = `<tr class="row-change" style="background:rgba(232,245,253,0.5);">
+                    <td class="data-row"><div class="data-section">
+                        <span class="data-section-label">🔮 周预测</span>
+                        <div class="data-section-items">
+                            <div class="data-metric" style="min-width:90px;">
+                                <span class="dm-label">本周预测</span>
+                                <span class="dm-value">${twDirBadge(twDir)}</span>
+                                ${twConf ? `<span style="margin-top:1px;">${twConfBadge(twConf)}</span>` : ''}
+                                ${twStrat ? `<span style="font-size:9px;color:#aaa;margin-top:1px;">${twStrat}</span>` : ''}
+                            </div>
+                            <div class="data-metric" style="min-width:90px;">
+                                <span class="dm-label">V11下周预测</span>
+                                <span class="dm-value">${twDirBadge(nwDir)}</span>
+                                ${nwConf ? `<span style="margin-top:1px;">${twConfBadge(nwConf)}</span>` : ''}
+                                ${nwStrat ? `<span style="font-size:9px;color:#aaa;margin-top:1px;">${nwStrat}</span>` : ''}
+                            </div>
+                            ${nwChg != null ? `<div class="data-metric" style="min-width:72px;">
+                                <span class="dm-label">预测涨跌幅</span>
+                                <span class="dm-value ${nwChg >= 0 ? 'positive' : 'negative'}">${nwChg >= 0 ? '+' : ''}${nwChg.toFixed(2)}%</span>
+                            </div>` : ''}
+                            ${nwBtAcc != null ? `<div class="data-metric" style="min-width:72px;">
+                                <span class="dm-label">回测准确率</span>
+                                <span class="dm-value" style="color:${nwBtAcc >= 60 ? '#e53935' : nwBtAcc >= 50 ? '#fb8c00' : '#8e8e93'}">${nwBtAcc.toFixed(1)}%</span>
+                            </div>` : ''}
                         </div>
                     </div></td>
                 </tr>`;
@@ -1477,7 +1529,7 @@
                     </div></td>
                 </tr>`;
 
-                return row1 + row_finance + row3;
+                return row1 + row_prediction + row_finance + row3;
             }).join('');
         }
 
@@ -2435,6 +2487,13 @@
 
         function getSortValue(stock, field) {
             if (field === 'canslim_total') return getCanslimTotal(stock);
+            // 方向字段排序：UP > DOWN > null
+            if (field === 'tw_pred_direction' || field === 'nw_pred_direction') {
+                const v = stock[field];
+                if (v === 'UP') return 2;
+                if (v === 'DOWN') return 1;
+                return 0;
+            }
             const val = stock[field];
             if (val == null || val === '' || val === '-') return -Infinity;
             const num = parseFloat(val);

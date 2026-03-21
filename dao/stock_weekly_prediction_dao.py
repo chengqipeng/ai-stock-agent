@@ -1221,3 +1221,25 @@ def get_prediction_summary() -> dict:
     finally:
         cur.close()
         conn.close()
+
+
+def get_weekly_predictions_by_codes(stock_codes: list[str]) -> dict[str, dict]:
+    """根据股票代码列表批量获取最新周预测数据，返回 {stock_code: {pred_direction, confidence, nw_pred_direction, nw_confidence, ...}}"""
+    if not stock_codes:
+        return {}
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+    try:
+        placeholders = ','.join(['%s'] * len(stock_codes))
+        cur.execute(f"""
+            SELECT stock_code, pred_direction, confidence, strategy,
+                   nw_pred_direction, nw_confidence, nw_strategy, nw_reason,
+                   nw_pred_chg, nw_backtest_accuracy
+            FROM stock_weekly_prediction
+            WHERE stock_code IN ({placeholders})
+        """, stock_codes)
+        rows = cur.fetchall()
+        return {r['stock_code']: r for r in rows}
+    finally:
+        cur.close()
+        conn.close()

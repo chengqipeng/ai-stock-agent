@@ -675,6 +675,10 @@ async def get_batch_stocks(batch_id: int):
         stocks = db_manager.get_batch_stocks(batch_id)
         # 获取该批次下每只股票的最新预测数据
         latest_predictions = db_manager.get_latest_kline_predictions_for_batch(batch_id)
+        # 获取周预测数据（本周涨跌预测 + V11下周涨跌预测）
+        from dao.stock_weekly_prediction_dao import get_weekly_predictions_by_codes
+        stock_codes = [s.get('stock_code') for s in stocks if s.get('stock_code')]
+        weekly_preds = get_weekly_predictions_by_codes(stock_codes) if stock_codes else {}
         for stock in stocks:
             scores = [stock.get(f'{dim}_score') for dim in ['c', 'a', 'n', 's', 'l', 'i', 'm'] if stock.get(f'{dim}_score')]
             stock['score'] = round(sum(scores) / len(scores)) if scores else None
@@ -690,6 +694,23 @@ async def get_batch_stocks(batch_id: int):
             else:
                 stock['next_day_prediction'] = None
                 stock['next_week_prediction'] = None
+            # 注入周预测数据
+            wp = weekly_preds.get(stock.get('stock_code'))
+            if wp:
+                stock['tw_pred_direction'] = wp.get('pred_direction')
+                stock['tw_confidence'] = wp.get('confidence')
+                stock['tw_strategy'] = wp.get('strategy')
+                stock['nw_pred_direction'] = wp.get('nw_pred_direction')
+                stock['nw_confidence'] = wp.get('nw_confidence')
+                stock['nw_strategy'] = wp.get('nw_strategy')
+                stock['nw_reason'] = wp.get('nw_reason')
+                stock['nw_pred_chg'] = wp.get('nw_pred_chg')
+                stock['nw_backtest_accuracy'] = wp.get('nw_backtest_accuracy')
+            else:
+                stock['tw_pred_direction'] = None
+                stock['tw_confidence'] = None
+                stock['nw_pred_direction'] = None
+                stock['nw_confidence'] = None
         return {"success": True, "data": stocks}
     except Exception as e:
         logger.error("获取批次股票列表失败 batch_id=%s: %s", batch_id, e, exc_info=True)
