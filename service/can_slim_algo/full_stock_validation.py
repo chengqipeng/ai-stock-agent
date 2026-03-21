@@ -112,60 +112,65 @@ def _load_market_klines(start_date: str, end_date: str) -> dict:
 
 
 def _load_batch(codes: list[str], start_date: str, end_date: str) -> dict:
-    """加载一批股票的K线+财报+资金流。"""
-    conn = get_connection(use_dict_cursor=True)
-    cur = conn.cursor()
-    ph = ','.join(['%s'] * len(codes))
-
+    """加载一批股票的K线+财报+资金流。分子批查询避免单次过大。"""
     stock_klines = defaultdict(list)
-    cur.execute(
-        f"SELECT stock_code, `date`, open_price, close_price, high_price, "
-        f"low_price, trading_volume, change_percent, change_hand "
-        f"FROM stock_kline WHERE stock_code IN ({ph}) "
-        f"AND `date` >= %s AND `date` <= %s ORDER BY `date`",
-        codes + [start_date, end_date])
-    for r in cur.fetchall():
-        d = r['date'] if isinstance(r['date'], str) else str(r['date'])
-        stock_klines[r['stock_code']].append({
-            'date': d, 'close_price': _sf(r['close_price']),
-            'open_price': _sf(r['open_price']),
-            'high_price': _sf(r['high_price']),
-            'low_price': _sf(r['low_price']),
-            'trading_volume': _sf(r['trading_volume']),
-            'change_percent': _sf(r['change_percent']),
-            'change_hand': _sf(r.get('change_hand', 0)),
-        })
-
     finance_data = defaultdict(list)
-    cur.execute(
-        f"SELECT stock_code, report_date, data_json "
-        f"FROM stock_finance WHERE stock_code IN ({ph}) ORDER BY report_date DESC", codes)
-    for r in cur.fetchall():
-        try:
-            data = json.loads(r['data_json']) if isinstance(r['data_json'], str) else r['data_json']
-            if isinstance(data, dict):
-                data['报告日期'] = r['report_date']
-                finance_data[r['stock_code']].append(data)
-        except (json.JSONDecodeError, TypeError):
-            pass
-
     fund_flow = defaultdict(list)
-    cur.execute(
-        f"SELECT stock_code, `date`, big_net, big_net_pct, main_net_5day, net_flow "
-        f"FROM stock_fund_flow WHERE stock_code IN ({ph}) "
-        f"AND `date` >= %s AND `date` <= %s ORDER BY `date` DESC",
-        codes + [start_date, end_date])
-    for r in cur.fetchall():
-        d = r['date'] if isinstance(r['date'], str) else str(r['date'])
-        fund_flow[r['stock_code']].append({
-            'date': d, 'big_net': _sf(r['big_net']),
-            'big_net_pct': _sf(r['big_net_pct']),
-            'main_net_5day': _sf(r['main_net_5day']),
-            'net_flow': _sf(r['net_flow']),
-        })
 
-    cur.close()
-    conn.close()
+    sub_bs = 200  # 子批大小
+    for si in range(0, len(codes), sub_bs):
+        sub_codes = codes[si:si + sub_bs]
+        conn = get_connection(use_dict_cursor=True)
+        cur = conn.cursor()
+        ph = ','.join(['%s'] * len(sub_codes))
+
+        cur.execute(
+            f"SELECT stock_code, `date`, open_price, close_price, high_price, "
+            f"low_price, trading_volume, change_percent, change_hand "
+            f"FROM stock_kline WHERE stock_code IN ({ph}) "
+            f"AND `date` >= %s AND `date` <= %s ORDER BY `date`",
+            sub_codes + [start_date, end_date])
+        for r in cur.fetchall():
+            d = r['date'] if isinstance(r['date'], str) else str(r['date'])
+            stock_klines[r['stock_code']].append({
+                'date': d, 'close_price': _sf(r['close_price']),
+                'open_price': _sf(r['open_price']),
+                'high_price': _sf(r['high_price']),
+                'low_price': _sf(r['low_price']),
+                'trading_volume': _sf(r['trading_volume']),
+                'change_percent': _sf(r['change_percent']),
+                'change_hand': _sf(r.get('change_hand', 0)),
+            })
+
+        cur.execute(
+            f"SELECT stock_code, report_date, data_json "
+            f"FROM stock_finance WHERE stock_code IN ({ph}) ORDER BY report_date DESC", sub_codes)
+        for r in cur.fetchall():
+            try:
+                data = json.loads(r['data_json']) if isinstance(r['data_json'], str) else r['data_json']
+                if isinstance(data, dict):
+                    data['报告日期'] = r['report_date']
+                    finance_data[r['stock_code']].append(data)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        cur.execute(
+            f"SELECT stock_code, `date`, big_net, big_net_pct, main_net_5day, net_flow "
+            f"FROM stock_fund_flow WHERE stock_code IN ({ph}) "
+            f"AND `date` >= %s AND `date` <= %s ORDER BY `date` DESC",
+            sub_codes + [start_date, end_date])
+        for r in cur.fetchall():
+            d = r['date'] if isinstance(r['date'], str) else str(r['date'])
+            fund_flow[r['stock_code']].append({
+                'date': d, 'big_net': _sf(r['big_net']),
+                'big_net_pct': _sf(r['big_net_pct']),
+                'main_net_5day': _sf(r['main_net_5day']),
+                'net_flow': _sf(r['net_flow']),
+            })
+
+        cur.close()
+        conn.close()
+
     return {'stock_klines': stock_klines, 'finance_data': finance_data, 'fund_flow': fund_flow}
 
 
