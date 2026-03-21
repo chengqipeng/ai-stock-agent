@@ -260,6 +260,20 @@ ON DUPLICATE KEY UPDATE
 """
 
 
+def _safe_decimal(val):
+    """将非数值占位符（如 '-'）转为 None，避免 MySQL decimal 写入报错"""
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        return val
+    if isinstance(val, str):
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
 def batch_upsert_stock_ranking(cursor, category: str, trade_date: str, items: list[dict]):
     """批量写入涨幅榜数据（按 trade_date + category + stock_code 覆盖）"""
     now = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
@@ -270,15 +284,15 @@ def batch_upsert_stock_ranking(cursor, category: str, trade_date: str, items: li
             category,
             item.get("代码", ""),
             item.get("名称", ""),
-            item.get("最新价"),
-            item.get("涨跌幅(%)"),
-            item.get("涨跌额"),
-            item.get("成交量"),
-            item.get("成交额"),
-            item.get("今开"),
-            item.get("昨收"),
-            item.get("最高"),
-            item.get("最低"),
+            _safe_decimal(item.get("最新价")),
+            _safe_decimal(item.get("涨跌幅(%)")),
+            _safe_decimal(item.get("涨跌额")),
+            _safe_decimal(item.get("成交量")),
+            _safe_decimal(item.get("成交额")),
+            _safe_decimal(item.get("今开")),
+            _safe_decimal(item.get("昨收")),
+            _safe_decimal(item.get("最高")),
+            _safe_decimal(item.get("最低")),
             idx,
             now,
         ))
