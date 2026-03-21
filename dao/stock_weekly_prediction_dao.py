@@ -829,6 +829,7 @@ def get_prediction_verification(iso_year: int = None, iso_week: int = None,
         conn.close()
 
 
+
 def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
                                    keyword: str = None, keywords: list[str] = None,
                                    direction_filter: str = None,
@@ -838,11 +839,11 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
                                    limit: int = 50, offset: int = 0) -> tuple[list[dict], int, dict]:
     """获取"下周预测"验证数据。
 
-    逻辑：取第 W 周记录的 nw_pred_direction（预测 W+1 周方向），
-    与第 W+1 周记录的 actual_direction / actual_weekly_chg 做对比。
+    直接使用 W 周记录上的 nw_actual_direction / nw_actual_weekly_chg / nw_is_correct，
+    不再依赖 W+1 周的 history 记录（解决很多股票在 W+1 无记录导致无法验证的问题）。
 
-    iso_year/iso_week 指的是做出预测的那一周（W），验证的是 W+1 的实际结果。
-    如果不指定，自动取倒数第二周（确保 W+1 已有数据）。
+    iso_year/iso_week 指的是做出预测的那一周（W）。
+    如果不指定，自动取倒数第二周。
 
     返回 (rows, total_count, summary)。
     """
@@ -860,18 +861,18 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
                 SELECT DISTINCT iso_year, iso_week
                 FROM stock_weekly_prediction_history
                 WHERE {_stock_filter}
+                  AND nw_pred_direction IS NOT NULL AND nw_pred_direction != ''
                 ORDER BY iso_year DESC, iso_week DESC
                 LIMIT 3
             """)
             weeks = cur.fetchall()
-            if len(weeks) < 3:
+            if len(weeks) < 2:
                 return [], 0, {}
-            # weeks[0]=本周, weeks[1]=上周, weeks[2]=上上周
-            # 选 weeks[2] 作为预测周 W，这样 W+1=weeks[1] 已有完整数据
-            iso_year = weeks[2]['iso_year']
-            iso_week = weeks[2]['iso_week']
+            # weeks[0]=最新预测周(目标周可能未结束), weeks[1]=上一个预测周
+            iso_year = weeks[1]['iso_year']
+            iso_week = weeks[1]['iso_week']
 
-        # 构建查询：h = 预测周 W 的记录, n = W+1 周的记录（提供实际结果）
+        # 构建查询：直接查 W 周记录
         where_parts = [
             "h.iso_year = %s",
             "h.iso_week = %s",
@@ -888,12 +889,11 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
             params.append(direction_filter)
 
         if result_filter == 'correct':
-            where_parts.append("h.nw_pred_direction = n.actual_direction")
+            where_parts.append("h.nw_is_correct = 1")
         elif result_filter == 'wrong':
-            where_parts.append("h.nw_pred_direction != n.actual_direction")
-            where_parts.append("n.actual_direction IS NOT NULL")
+            where_parts.append("h.nw_is_correct = 0")
         elif result_filter == 'pending':
-            where_parts.append("n.actual_direction IS NULL")
+            where_parts.append("h.nw_is_correct IS NULL")
 
         search_terms = keywords or ([keyword] if keyword else None)
         if search_terms:
@@ -908,25 +908,20 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
         # 排序白名单
         allowed_sorts = {
             'stock_code', 'stock_name', 'nw_pred_direction', 'nw_confidence',
-            'nw_pred_chg', 'nw_backtest_accuracy', 'actual_weekly_chg',
+            'nw_pred_chg', 'nw_backtest_accuracy', 'nw_actual_weekly_chg',
             'predict_date',
         }
         safe_sort = sort_by if sort_by in allowed_sorts else 'stock_code'
-        # 对来自 n 表的字段加前缀
-        sort_col = f"n.{safe_sort}" if safe_sort == 'actual_weekly_chg' else f"h.{safe_sort}"
+        # 兼容前端传 actual_weekly_chg
+        if sort_by == 'actual_weekly_chg':
+            safe_sort = 'nw_actual_weekly_chg'
+        sort_col = f"h.{safe_sort}"
         order_dir = 'DESC' if sort_dir.lower() == 'desc' else 'ASC'
 
-        # JOIN: h(预测周W) LEFT JOIN n(W+1周) on stock_code & nw_iso_year/nw_iso_week
-        join_sql = """
-            FROM stock_weekly_prediction_history h
-            LEFT JOIN stock_weekly_prediction_history n
-              ON n.stock_code = h.stock_code
-             AND n.iso_year = h.nw_iso_year
-             AND n.iso_week = h.nw_iso_week
-        """
+        from_sql = "FROM stock_weekly_prediction_history h"
 
         # 总数
-        cur.execute(f"SELECT COUNT(*) as cnt {join_sql} {where_sql}", params)
+        cur.execute(f"SELECT COUNT(*) as cnt {from_sql} {where_sql}", params)
         total = cur.fetchone()['cnt']
 
         # 数据
@@ -939,16 +934,11 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
                    h.nw_iso_year, h.nw_iso_week,
                    h.pred_direction as tw_pred_direction,
                    h.actual_weekly_chg as tw_actual_chg,
-                   n.actual_direction as nw_actual_direction,
-                   n.actual_weekly_chg as nw_actual_chg,
-                   n.is_correct as nw_is_correct_self,
-                   CASE
-                     WHEN n.actual_direction IS NULL THEN NULL
-                     WHEN h.nw_pred_direction = n.actual_direction THEN 1
-                     ELSE 0
-                   END as nw_is_correct,
+                   h.nw_actual_direction as nw_actual_direction,
+                   h.nw_actual_weekly_chg as nw_actual_chg,
+                   h.nw_is_correct as nw_is_correct,
                    h.concept_boards
-            {join_sql}
+            {from_sql}
             {where_sql}
             ORDER BY {sort_col} {order_dir}
             LIMIT %s OFFSET %s
@@ -959,25 +949,25 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
         cur.execute(f"""
             SELECT
                 COUNT(*) as total,
-                SUM(CASE WHEN n.actual_direction IS NOT NULL AND h.nw_pred_direction = n.actual_direction THEN 1 ELSE 0 END) as correct,
-                SUM(CASE WHEN n.actual_direction IS NOT NULL AND h.nw_pred_direction != n.actual_direction THEN 1 ELSE 0 END) as wrong,
-                SUM(n.actual_direction IS NULL) as pending,
+                SUM(h.nw_is_correct = 1) as correct,
+                SUM(h.nw_is_correct = 0) as wrong,
+                SUM(h.nw_is_correct IS NULL) as pending,
                 ROUND(
-                    SUM(CASE WHEN n.actual_direction IS NOT NULL AND h.nw_pred_direction = n.actual_direction THEN 1 ELSE 0 END)
-                    / NULLIF(SUM(n.actual_direction IS NOT NULL), 0) * 100, 1
+                    SUM(h.nw_is_correct = 1)
+                    / NULLIF(SUM(h.nw_is_correct IS NOT NULL), 0) * 100, 1
                 ) as accuracy,
                 SUM(h.nw_pred_direction = 'UP') as pred_up,
                 SUM(h.nw_pred_direction = 'DOWN') as pred_down,
-                SUM(h.nw_confidence = 'high' AND n.actual_direction IS NOT NULL AND h.nw_pred_direction = n.actual_direction) as high_correct,
-                SUM(h.nw_confidence = 'high' AND n.actual_direction IS NOT NULL) as high_total,
-                SUM(h.nw_confidence = 'reference' AND n.actual_direction IS NOT NULL AND h.nw_pred_direction = n.actual_direction) as ref_correct,
-                SUM(h.nw_confidence = 'reference' AND n.actual_direction IS NOT NULL) as ref_total,
-                ROUND(AVG(n.actual_weekly_chg), 2) as avg_actual_chg,
+                SUM(h.nw_confidence = 'high' AND h.nw_is_correct = 1) as high_correct,
+                SUM(h.nw_confidence = 'high' AND h.nw_is_correct IS NOT NULL) as high_total,
+                SUM(h.nw_confidence = 'reference' AND h.nw_is_correct = 1) as ref_correct,
+                SUM(h.nw_confidence = 'reference' AND h.nw_is_correct IS NOT NULL) as ref_total,
+                ROUND(AVG(h.nw_actual_weekly_chg), 2) as avg_actual_chg,
                 ROUND(AVG(h.nw_pred_chg), 2) as avg_pred_chg,
                 ROUND(AVG(h.nw_backtest_accuracy), 1) as avg_backtest_accuracy,
                 MAX(h.predict_date) as predict_date,
                 MAX(h.nw_date_range) as nw_date_range
-            {join_sql}
+            {from_sql}
             {where_sql}
         """, params)
         summary = cur.fetchone() or {}
@@ -988,6 +978,7 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
     finally:
         cur.close()
         conn.close()
+
 
 
 def get_v5_prediction_verification(iso_year: int = None, iso_week: int = None,
