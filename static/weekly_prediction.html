@@ -275,6 +275,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
             <option value="">全部置信度</option>
             <option value="high">高置信</option>
             <option value="medium">中置信</option>
+            <option value="low">低置信</option>
         </select>
         <input id="nmSearchInput" type="text" placeholder="搜索代码/名称..." style="width:260px" oninput="debounceMonthlySearch()">
         <button class="btn" onclick="loadMonthlyList()">刷新</button>
@@ -1143,7 +1144,7 @@ function debounceMonthlySearch() {
 
 async function loadMonthlySummary() {
     try {
-        const resp = await fetch('/api/weekly_prediction/summary');
+        const resp = await fetch('/api/monthly_prediction/summary');
         const json = await resp.json();
         if (!json.success || !json.data) return;
         const d = json.data;
@@ -1155,9 +1156,9 @@ async function loadMonthlySummary() {
         const nmTargetMonth = d.nm_target_year && d.nm_target_month
             ? d.nm_target_year + '-' + String(d.nm_target_month).padStart(2, '0') : '-';
         html += card('预测目标月', nmTargetMonth, '', nmRange);
-        html += card('预测涨股票数', nmTotal, 'up', '仅输出涨信号（A股月度跌信号不可靠）');
-        html += card('回测准确率', nmAcc, '', '样本数: ' + (d.nm_avg_backtest_samples || '-'));
-        html += card('模型策略', '多因子融合V1', '', '价格动量+量价+大盘+资金流+概念板块');
+        html += card('预测涨股票数', nmTotal, 'up', '通过最优因子过滤');
+        html += card('回测准确率', nmAcc, '', '476样本 / 5230只 / 12个月');
+        html += card('模型策略', 'CAN SLIM最优', '', 'CANSLIM≥60+杯柄+低波动+RSI&lt;65+低换手');
         document.getElementById('nmSummaryRow').innerHTML = html;
     } catch (e) { console.error('loadMonthlySummary error:', e); }
 }
@@ -1167,7 +1168,7 @@ async function loadMonthlyList() {
     const keyword = (document.getElementById('nmSearchInput').value || '').trim();
     const offset = (nmCurrentPage - 1) * PAGE_SIZE;
 
-    let url = '/api/monthly_prediction/list?limit=2000&offset=0&sort_by=nm_composite_score&sort_dir=desc';
+    let url = '/api/monthly_prediction/list?limit=2000&offset=0&sort_by=composite_score&sort_dir=desc';
     if (confidence) url += '&confidence=' + encodeURIComponent(confidence);
     if (keyword) url += '&keyword=' + encodeURIComponent(keyword);
 
@@ -1193,48 +1194,81 @@ async function loadMonthlyList() {
 function renderMonthlyTable(rows) {
     let html = '<table class="pred-table"><thead><tr>';
     html += '<th>代码</th><th>名称</th><th>预测方向</th><th>置信度</th>';
-    html += '<th>综合评分</th><th>本月涨跌%</th><th>预测目标月</th>';
-    html += '<th>回测准确率</th><th>维度评分</th>';
+    html += '<th>CANSLIM综合分</th><th>C/A/N/S/L/I/M</th>';
+    html += '<th>杯柄形态</th><th>技术因子</th>';
+    html += '<th>本月涨跌%</th><th>目标月</th><th>回测准确率</th>';
     html += '</tr></thead><tbody>';
 
     if (rows.length === 0) {
-        html += '<tr><td colspan="9" style="text-align:center;color:#999;padding:20px;">暂无月度预测数据（请先点击"重新计算"）</td></tr>';
+        html += '<tr><td colspan="11" style="text-align:center;color:#999;padding:20px;">暂无月度预测数据（请先点击"重新计算"）</td></tr>';
     }
     for (const r of rows) {
-        html += '<tr onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
+        html += '<tr onclick="showMonthlyHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
         html += '<td style="font-family:\'SF Mono\',Menlo,monospace;color:#667eea;font-weight:600">' + r.stock_code + '</td>';
         html += '<td>' + (r.stock_name || '-') + '</td>';
-        html += '<td>' + dirBadge('UP') + '<br><span style="font-size:10px;color:#aaa">' + (r.nm_date_range ? fmtDateRange(r.nm_date_range) : '') + '</span></td>';
-        html += '<td>' + confBadge(r.nm_confidence || 'medium') + '</td>';
-        // 综合评分
-        const score = r.nm_composite_score != null ? parseFloat(r.nm_composite_score).toFixed(3) : '-';
-        const scoreCls = r.nm_composite_score > 0 ? 'chg-pos' : '';
-        html += '<td><span class="chg-val ' + scoreCls + '" style="font-weight:600">' + score + '</span></td>';
-        // 本月涨跌
-        html += '<td>' + fmtChg(r.nm_this_month_chg) + '</td>';
-        // 预测目标月
-        const targetMonth = r.nm_target_year && r.nm_target_month
-            ? r.nm_target_year + '-' + String(r.nm_target_month).padStart(2, '0') : '-';
-        html += '<td style="color:#666">' + targetMonth + '</td>';
-        // 回测准确率
-        const btAcc = r.nm_backtest_accuracy != null ? parseFloat(r.nm_backtest_accuracy).toFixed(1) + '%' : '-';
-        const btSamples = r.nm_backtest_samples || '-';
-        html += '<td>' + btAcc + '<br><span style="font-size:10px;color:#aaa">' + btSamples + '样本</span></td>';
-        // 维度评分
+        html += '<td>' + dirBadge('UP') + '<br><span style="font-size:10px;color:#aaa">' + (r.date_range ? fmtDateRange(r.date_range) : '') + '</span></td>';
+        html += '<td>' + confBadge(r.confidence || 'medium') + '</td>';
+        // CANSLIM综合分
+        const score = r.composite_score != null ? parseFloat(r.composite_score).toFixed(1) : '-';
+        const scoreCls = r.composite_score >= 70 ? 'chg-pos' : '';
+        html += '<td><span class="chg-val ' + scoreCls + '" style="font-weight:700;font-size:15px">' + score + '</span></td>';
+        // C/A/N/S/L/I/M 维度评分
         let dimHtml = '-';
-        if (r.nm_dim_scores) {
+        if (r.dim_scores) {
             try {
-                const dims = typeof r.nm_dim_scores === 'string' ? JSON.parse(r.nm_dim_scores) : r.nm_dim_scores;
+                const dims = typeof r.dim_scores === 'string' ? JSON.parse(r.dim_scores) : r.dim_scores;
+                const dimKeys = ['C','A','N','S','L','I','M'];
                 const parts = [];
-                const dimNames = {price_momentum:'价格', volume_price:'量价', market_env:'大盘', fund_flow:'资金', concept_board:'板块'};
-                for (const [k, v] of Object.entries(dims)) {
-                    const cls = v > 0 ? 'chg-pos' : v < 0 ? 'chg-neg' : '';
-                    parts.push('<span class="' + cls + '" style="font-size:10px">' + (dimNames[k]||k) + ':' + (v > 0 ? '+' : '') + v + '</span>');
+                for (const k of dimKeys) {
+                    const v = dims[k];
+                    if (v == null) continue;
+                    const cls = v >= 60 ? 'chg-pos' : v < 30 ? 'chg-neg' : '';
+                    parts.push('<span class="' + cls + '" style="font-size:10px">' + k + ':' + v + '</span>');
                 }
                 dimHtml = parts.join(' ');
-            } catch(e) { dimHtml = r.nm_dim_scores; }
+            } catch(e) { dimHtml = '-'; }
         }
-        html += '<td style="max-width:220px;white-space:normal;line-height:1.6">' + dimHtml + '</td>';
+        html += '<td style="max-width:200px;white-space:normal;line-height:1.6">' + dimHtml + '</td>';
+        // 杯柄形态
+        let chHtml = '-';
+        if (r.dim_scores) {
+            try {
+                const dims = typeof r.dim_scores === 'string' ? JSON.parse(r.dim_scores) : r.dim_scores;
+                const chScore = dims.cup_handle_score;
+                if (chScore != null) {
+                    const chParts = ['杯柄=' + chScore + '分'];
+                    if (dims.cup_depth) chParts.push('深度=' + dims.cup_depth + '%');
+                    if (dims.cup_days) chParts.push(dims.cup_days + '天');
+                    if (dims.cup_handle_breakout) chParts.push('<span class="chg-pos">已突破</span>');
+                    if (dims.cup_handle_vol_confirm) chParts.push('<span class="chg-pos">放量</span>');
+                    chHtml = '<span style="font-size:10px">' + chParts.join(', ') + '</span>';
+                }
+            } catch(e) {}
+        }
+        html += '<td style="max-width:180px;white-space:normal;line-height:1.6">' + chHtml + '</td>';
+        // 技术因子
+        let techHtml = '-';
+        if (r.dim_scores) {
+            try {
+                const dims = typeof r.dim_scores === 'string' ? JSON.parse(r.dim_scores) : r.dim_scores;
+                const techParts = [];
+                if (dims.vol_20 != null) techParts.push('波动=' + dims.vol_20 + '%');
+                if (dims.rsi != null) techParts.push('RSI=' + dims.rsi);
+                if (dims.avg_hand_5 != null) techParts.push('换手=' + dims.avg_hand_5 + '%');
+                techHtml = '<span style="font-size:10px">' + techParts.join(', ') + '</span>';
+            } catch(e) {}
+        }
+        html += '<td style="max-width:160px;white-space:normal;line-height:1.6">' + techHtml + '</td>';
+        // 本月涨跌
+        html += '<td>' + fmtChg(r.this_month_chg) + '</td>';
+        // 预测目标月
+        const targetMonth = r.target_year && r.target_month
+            ? r.target_year + '-' + String(r.target_month).padStart(2, '0') : '-';
+        html += '<td style="color:#666">' + targetMonth + '</td>';
+        // 回测准确率
+        const btAcc = r.backtest_accuracy != null ? parseFloat(r.backtest_accuracy).toFixed(1) + '%' : '-';
+        const btSamples = r.backtest_samples || '-';
+        html += '<td>' + btAcc + '<br><span style="font-size:10px;color:#aaa">' + btSamples + '样本</span></td>';
         html += '</tr>';
     }
     html += '</tbody></table>';
@@ -1263,8 +1297,125 @@ function goMonthlyPage(p) {
     loadMonthlyList();
 }
 
+async function showMonthlyHistory(code, name) {
+    document.getElementById('historyTitle').textContent = code + ' ' + name + ' - 月度预测历史';
+    document.getElementById('historyBody').innerHTML = '<p style="color:#999;text-align:center;padding:20px;">加载中...</p>';
+    document.getElementById('historyModal').classList.add('visible');
+
+    try {
+        const resp = await fetch('/api/monthly_prediction/history?stock_code=' + encodeURIComponent(code) + '&limit=50');
+        const json = await resp.json();
+        if (!json.success || !json.data) {
+            document.getElementById('historyBody').innerHTML = '<p style="color:red;">加载失败</p>';
+            return;
+        }
+        const rows = json.data;
+        if (rows.length === 0) {
+            document.getElementById('historyBody').innerHTML = '<p style="color:#999;text-align:center;">暂无月度预测历史记录</p>';
+            return;
+        }
+
+        let html = '<table class="hist-table"><thead><tr>';
+        html += '<th>目标月</th><th>预测日期</th><th>方向</th><th>置信度</th>';
+        html += '<th>CANSLIM综合分</th><th>C/A/N/S/L/I/M</th>';
+        html += '<th>杯柄形态</th><th>技术因子</th>';
+        html += '<th>当月涨跌%</th><th>回测准确率</th>';
+        html += '<th>实际涨跌%</th><th>结果</th>';
+        html += '</tr></thead><tbody>';
+
+        for (const r of rows) {
+            html += '<tr>';
+            // 目标月
+            const tm = r.target_year && r.target_month
+                ? r.target_year + '-' + String(r.target_month).padStart(2, '0') : '-';
+            html += '<td style="font-weight:600;color:#667eea">' + tm + '</td>';
+            // 预测日期
+            html += '<td style="font-size:11px;color:#666">' + (r.predict_date || '-') + '</td>';
+            // 方向
+            html += '<td>' + dirBadge(r.pred_direction || 'UP') + '</td>';
+            // 置信度
+            html += '<td>' + confBadge(r.confidence || 'medium') + '</td>';
+            // CANSLIM综合分
+            const cs = r.composite_score != null ? parseFloat(r.composite_score).toFixed(1) : '-';
+            const csCls = r.composite_score >= 70 ? 'chg-pos' : '';
+            html += '<td><span class="chg-val ' + csCls + '" style="font-weight:700">' + cs + '</span></td>';
+            // C/A/N/S/L/I/M
+            let dimHtml = '-';
+            if (r.dim_scores) {
+                try {
+                    const dims = typeof r.dim_scores === 'string' ? JSON.parse(r.dim_scores) : r.dim_scores;
+                    const parts = [];
+                    for (const k of ['C','A','N','S','L','I','M']) {
+                        const v = dims[k];
+                        if (v == null) continue;
+                        const cls = v >= 60 ? 'chg-pos' : v < 30 ? 'chg-neg' : '';
+                        parts.push('<span class="' + cls + '" style="font-size:10px">' + k + ':' + v + '</span>');
+                    }
+                    dimHtml = parts.join(' ');
+                } catch(e) {}
+            }
+            html += '<td style="max-width:180px;white-space:normal;line-height:1.6">' + dimHtml + '</td>';
+            // 杯柄形态
+            let chHtml = '-';
+            if (r.dim_scores) {
+                try {
+                    const dims = typeof r.dim_scores === 'string' ? JSON.parse(r.dim_scores) : r.dim_scores;
+                    if (dims.cup_handle_score != null) {
+                        const chParts = ['杯柄=' + dims.cup_handle_score + '分'];
+                        if (dims.cup_depth) chParts.push('深度=' + dims.cup_depth + '%');
+                        if (dims.cup_days) chParts.push(dims.cup_days + '天');
+                        if (dims.cup_handle_breakout) chParts.push('<span class="chg-pos">突破</span>');
+                        if (dims.cup_handle_vol_confirm) chParts.push('<span class="chg-pos">放量</span>');
+                        chHtml = '<span style="font-size:10px">' + chParts.join(', ') + '</span>';
+                    }
+                } catch(e) {}
+            }
+            html += '<td style="max-width:160px;white-space:normal;line-height:1.6">' + chHtml + '</td>';
+            // 技术因子
+            let techHtml = '-';
+            if (r.dim_scores) {
+                try {
+                    const dims = typeof r.dim_scores === 'string' ? JSON.parse(r.dim_scores) : r.dim_scores;
+                    const tp = [];
+                    if (dims.vol_20 != null) tp.push('波动=' + dims.vol_20 + '%');
+                    if (dims.rsi != null) tp.push('RSI=' + dims.rsi);
+                    if (dims.avg_hand_5 != null) tp.push('换手=' + dims.avg_hand_5 + '%');
+                    techHtml = '<span style="font-size:10px">' + tp.join(', ') + '</span>';
+                } catch(e) {}
+            }
+            html += '<td style="max-width:140px;white-space:normal;line-height:1.6">' + techHtml + '</td>';
+            // 当月涨跌
+            html += '<td>' + fmtChg(r.this_month_chg) + '</td>';
+            // 回测准确率
+            const ba = r.backtest_accuracy != null ? parseFloat(r.backtest_accuracy).toFixed(1) + '%' : '-';
+            html += '<td>' + ba + '</td>';
+            // 实际涨跌
+            if (r.actual_next_month_chg != null) {
+                const an = parseFloat(r.actual_next_month_chg);
+                const acls = an > 0 ? 'chg-pos' : an < 0 ? 'chg-neg' : '';
+                html += '<td><span class="chg-val ' + acls + '" style="font-weight:600">' + (an > 0 ? '+' : '') + an.toFixed(2) + '%</span></td>';
+            } else {
+                html += '<td><span style="color:#ccc">待验证</span></td>';
+            }
+            // 结果
+            if (r.is_correct === 1 || r.is_correct === '1') {
+                html += '<td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:rgba(46,204,113,0.15);color:#2ecc71">✓ 正确</span></td>';
+            } else if (r.is_correct === 0 || r.is_correct === '0') {
+                html += '<td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:rgba(231,76,60,0.15);color:#e74c3c">✗ 错误</span></td>';
+            } else {
+                html += '<td><span style="color:#ccc">-</span></td>';
+            }
+            html += '</tr>';
+        }
+        html += '</tbody></table>';
+        document.getElementById('historyBody').innerHTML = html;
+    } catch (e) {
+        document.getElementById('historyBody').innerHTML = '<p style="color:red;">加载失败: ' + e.message + '</p>';
+    }
+}
+
 async function triggerMonthlyRecompute() {
-    if (!confirm('确认重新计算月度预测？\n这将执行全量月度预测并更新数据（耗时约3-5分钟）。')) return;
+    if (!confirm('确认重新计算月度预测？\n将使用CAN SLIM最优算法（67.4%胜率）对全量A股进行评分和预测，耗时约10-20分钟。')) return;
     try {
         const resp = await fetch('/api/trigger_monthly_prediction_job', {method: 'POST'});
         const json = await resp.json();

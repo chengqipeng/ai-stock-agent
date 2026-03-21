@@ -157,20 +157,20 @@ async def _execute_job_inner():
     logger.info("[月预测调度] ===== 开始执行 trade_date=%s (log_id=%d) =====", trade_date, log_id)
 
     try:
-        from service.monthly_prediction_service import run_batch_monthly_prediction
+        from service.can_slim_algo.canslim_monthly_prediction_service import run_batch_canslim_monthly_prediction
 
-        def _progress(total, done, up_count):
+        def _progress(total, done, signal_count):
             _job_status["stage"] = "predicting"
             _job_status["predict_total"] = total
             _job_status["predict_done"] = done
-            _job_status["predict_up"] = up_count
+            _job_status["predict_up"] = signal_count
 
         try:
             result = await asyncio.wait_for(
                 asyncio.get_event_loop().run_in_executor(
-                    None, lambda: run_batch_monthly_prediction(progress_callback=_progress)
+                    None, lambda: run_batch_canslim_monthly_prediction(progress_callback=_progress)
                 ),
-                timeout=2400,  # 40分钟（月度预测数据量更大）
+                timeout=2400,  # 40分钟
             )
         except asyncio.TimeoutError:
             raise TimeoutError("月预测执行超时（超过40分钟）")
@@ -183,10 +183,11 @@ async def _execute_job_inner():
             _job_status["last_success"] = True
 
             detail = (
+                f"策略: {result.get('strategy', 'canslim_optimal')}\n"
                 f"预测目标: {result.get('target_year', '')}-{result.get('target_month', 0):02d}\n"
-                f"预测涨: {result.get('total_predicted', 0)}只\n"
+                f"预测涨: {result.get('total_predicted', 0)}只 / {result.get('total_stocks', 0)}只\n"
                 f"回测准确率: {result.get('backtest_accuracy', 0):.1f}% "
-                f"({result.get('backtest_samples', 0)}样本, {result.get('backtest_months', 0)}个月)\n"
+                f"({result.get('backtest_samples', 0)}样本)\n"
                 f"耗时: {result.get('elapsed', 0)}s"
             )
             update_log(log_id, "success",

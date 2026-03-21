@@ -310,12 +310,12 @@ async def verify_nw_week_prediction(
 async def monthly_prediction_list(
     confidence: str = Query(None, description="high/medium/low"),
     keyword: str = Query(None, description="股票代码或名称"),
-    sort_by: str = Query("nm_composite_score"),
+    sort_by: str = Query("composite_score"),
     sort_dir: str = Query("desc"),
-    limit: int = Query(200),
+    limit: int = Query(2000),
     offset: int = Query(0),
 ):
-    """分页查询月度预测列表（仅返回有nm_pred_direction的股票）"""
+    """分页查询月度预测列表（从 canslim_monthly_prediction 表读取）"""
     try:
         keywords = None
         if keyword:
@@ -323,18 +323,67 @@ async def monthly_prediction_list(
             keywords = [t.strip() for t in terms if t.strip()]
             if not keywords:
                 keywords = None
-        rows, total = get_latest_predictions_page(
-            direction=None,
-            confidence=None,
-            keywords=keywords,
+        from service.can_slim_algo.canslim_monthly_prediction_service import get_canslim_predictions_page
+        rows, total = get_canslim_predictions_page(
+            confidence=confidence, keywords=keywords,
             sort_by=sort_by, sort_dir=sort_dir, limit=limit, offset=offset,
-            monthly_only=True,
         )
-        if confidence:
-            rows = [r for r in rows if r.get('nm_confidence') == confidence]
-        return {"success": True, "data": rows, "total": len(rows)}
+        # 序列化
+        for r in rows:
+            for k, v in list(r.items()):
+                if v is not None and not isinstance(v, (str, int, float, bool)):
+                    r[k] = str(v)
+        return {"success": True, "data": rows, "total": total}
     except Exception as e:
         logger.error("查询月度预测列表失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/api/monthly_prediction/predict_stock")
+async def monthly_predict_single_stock(
+    stock_code: str = Query(..., description="股票代码(如600519.SH)"),
+):
+    """对单只股票进行CAN SLIM月度预测"""
+    try:
+        from service.can_slim_algo.canslim_monthly_prediction_service import predict_single_stock
+        result = predict_single_stock(stock_code)
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error("单股月度预测失败 %s: %s", stock_code, e, exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/api/monthly_prediction/summary")
+async def monthly_prediction_summary():
+    """获取月度预测汇总统计（从 canslim_monthly_prediction 表读取）"""
+    try:
+        from service.can_slim_algo.canslim_monthly_prediction_service import get_canslim_prediction_summary
+        data = get_canslim_prediction_summary()
+        return {"success": True, "data": data}
+    except Exception as e:
+        logger.error("获取月度预测汇总失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/api/monthly_prediction/history")
+async def monthly_prediction_history(
+    stock_code: str = Query(None, description="股票代码"),
+    target_year: int = Query(None, description="目标年"),
+    target_month: int = Query(None, description="目标月"),
+    limit: int = Query(50),
+):
+    """查询CAN SLIM月度预测历史"""
+    try:
+        from service.can_slim_algo.canslim_monthly_prediction_service import get_monthly_prediction_history
+        rows = get_monthly_prediction_history(stock_code, target_year, target_month, limit)
+        # 序列化
+        for r in rows:
+            for k, v in list(r.items()):
+                if v is not None and not isinstance(v, (str, int, float, bool)):
+                    r[k] = str(v)
+        return {"success": True, "data": rows}
+    except Exception as e:
+        logger.error("查询月度预测历史失败: %s", e, exc_info=True)
         return {"success": False, "error": str(e)}
 
 
