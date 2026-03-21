@@ -395,12 +395,35 @@ def _score_and_filter_stock(code: str, klines: list[dict], market_klines: list[d
 # ═══════════════════════════════════════════════════════════
 
 def ensure_prediction_tables():
-    """确保预测表存在。"""
+    """确保预测表存在，并迁移缺失列。"""
     conn = get_connection()
     cur = conn.cursor()
     try:
         cur.execute(_CREATE_LATEST_TABLE)
         cur.execute(_CREATE_HISTORY_TABLE)
+
+        # 迁移：为已有的 history 表补齐可能缺失的列
+        _history_migrate_cols = [
+            ("pred_direction", "VARCHAR(4) NOT NULL DEFAULT 'UP' COMMENT '预测方向'", "predict_date"),
+            ("strategy", "VARCHAR(30) DEFAULT 'canslim_optimal' COMMENT '策略名'", "confidence"),
+            ("date_range", "VARCHAR(50) COMMENT '目标月日期范围'", "target_month"),
+            ("backtest_accuracy", "DOUBLE COMMENT '回测准确率(%)'", "dim_scores"),
+            ("backtest_samples", "INT COMMENT '回测样本数'", "backtest_accuracy"),
+        ]
+        for col_name, col_def, after_col in _history_migrate_cols:
+            try:
+                cur.execute(
+                    "SELECT COUNT(*) FROM information_schema.columns "
+                    "WHERE table_schema = DATABASE() AND table_name = 'canslim_monthly_prediction_history' "
+                    "AND column_name = %s", (col_name,))
+                if cur.fetchone()[0] == 0:
+                    cur.execute(
+                        f"ALTER TABLE canslim_monthly_prediction_history "
+                        f"ADD COLUMN {col_name} {col_def} AFTER {after_col}")
+                    logger.info("  已补列: canslim_monthly_prediction_history.%s", col_name)
+            except Exception as e:
+                logger.warning("  补列失败 %s: %s", col_name, e)
+
         conn.commit()
         logger.info("CAN SLIM月度预测表已就绪")
     finally:
