@@ -181,6 +181,10 @@ app.include_router(concept_board_router)
 from api.web_weekly_prediction_api import router as weekly_prediction_router
 app.include_router(weekly_prediction_router)
 
+# 挂载个股详情路由
+from api.web_stock_detail_api import router as stock_detail_router
+app.include_router(stock_detail_router)
+
 @app.get("/.well-known/appspecific/com.chrome.devtools.json")
 async def chrome_devtools():
     return {}
