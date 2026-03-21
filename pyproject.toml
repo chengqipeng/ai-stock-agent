@@ -25,6 +25,7 @@ chinesecalendar = "^1.10.0"
 brotli = "^1.2.0"
 pymysql = "^1.1.0"
 dbutils = "^3.1.0"
+cryptography = "^46.0.5"
 
 
 [tool.poetry.dev-dependencies]
