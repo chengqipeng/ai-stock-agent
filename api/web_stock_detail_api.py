@@ -9,6 +9,17 @@ from fastapi.responses import HTMLResponse
 
 from dao import get_connection
 
+# A股板块 → 美股可比细分领域映射
+_SECTOR_TO_US_SECTORS = {
+    '科技': ['芯片设计', '半导体设备', '半导体材料', '晶圆代工', '消费电子', '连接器', '光通信', '存储'],
+    '新能源': [],
+    '汽车': [],
+    '制造': [],
+    '医药': [],
+    '化工': [],
+    '有色金属': [],
+}
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -47,12 +58,13 @@ async def stock_detail_overview(stock_code: str = Query(..., description="股票
     try:
         result = {}
 
-        # 1. 120天K线数据（涨跌幅、量价分析）
+        # 1. 500天K线数据（涨跌幅、量价分析、技术指标）
         cur.execute(
             "SELECT `date`, open_price, close_price, high_price, low_price, "
-            "volume, amount, change_percent, turnover_rate "
+            "trading_volume AS volume, trading_amount AS amount, "
+            "change_percent, change_hand AS turnover_rate "
             "FROM stock_kline WHERE stock_code = %s "
-            "ORDER BY `date` DESC LIMIT 120",
+            "ORDER BY `date` DESC LIMIT 500",
             (stock_code,),
         )
         klines = _serialize(cur.fetchall())
@@ -82,7 +94,7 @@ async def stock_detail_overview(stock_code: str = Query(..., description="股票
             "SELECT predict_date, iso_year, iso_week, "
             "nw_pred_direction, nw_confidence, nw_strategy, nw_reason, "
             "nw_composite_score, nw_this_week_chg, nw_pred_chg, "
-            "nw_backtest_accuracy, nw_actual_direction, nw_actual_chg, nw_is_correct "
+            "nw_backtest_accuracy, nw_actual_direction, nw_actual_weekly_chg, nw_is_correct "
             "FROM stock_weekly_prediction_history "
             "WHERE stock_code = %s AND nw_pred_direction IS NOT NULL "
             "ORDER BY predict_date DESC LIMIT 20",
@@ -163,8 +175,8 @@ async def stock_detail_overview(stock_code: str = Query(..., description="股票
         # 10. CAN SLIM 最新分析（从 stock_analysis_detail 取最新一条）
         cur.execute(
             "SELECT d.*, b.batch_name FROM stock_analysis_detail d "
-            "LEFT JOIN stock_analysis_batch b ON d.batch_id = b.id "
-            "WHERE d.stock_code = %s ORDER BY d.updated_at DESC LIMIT 1",
+            "LEFT JOIN stock_batch_list_info b ON d.batch_id = b.id "
+            "WHERE d.stock_code = %s ORDER BY d.completed_at DESC LIMIT 1",
             (stock_code,),
         )
         canslim = _serialize(cur.fetchone())
@@ -198,6 +210,50 @@ async def stock_detail_overview(stock_code: str = Query(..., description="股票
             result["deepseek_history"] = _serialize(cur.fetchall())
         except Exception:
             result["deepseek_history"] = []
+
+        # 13. 海外同类型公司涨跌（美股半导体龙头）
+        try:
+            from common.utils.sector_mapping_utils import parse_industry_list_md
+            mapping = parse_industry_list_md()
+            sector = mapping.get(stock_code, '')
+            us_sectors = _SECTOR_TO_US_SECTORS.get(sector, [])
+            overseas = []
+            if us_sectors:
+                placeholders = ','.join(['%s'] * len(us_sectors))
+                cur.execute(
+                    f"SELECT stock_code, stock_name, sector, trade_date, "
+                    f"close_price, change_pct "
+                    f"FROM us_stock_kline "
+                    f"WHERE sector IN ({placeholders}) "
+                    f"AND trade_date = (SELECT MAX(trade_date) FROM us_stock_kline) "
+                    f"ORDER BY change_pct DESC",
+                    us_sectors,
+                )
+                overseas = cur.fetchall()
+            # 同时获取最近20日涨跌幅
+            for item in overseas:
+                cur.execute(
+                    "SELECT trade_date, close_price, change_pct "
+                    "FROM us_stock_kline WHERE stock_code = %s "
+                    "ORDER BY trade_date DESC LIMIT 20",
+                    (item['stock_code'],),
+                )
+                history = cur.fetchall()
+                if len(history) >= 2:
+                    first = history[0]['close_price']
+                    last = history[-1]['close_price']
+                    if last and first:
+                        item['chg_20d'] = round(float((first - last) / last * 100), 2)
+                if len(history) >= 5:
+                    p5 = history[4]['close_price']
+                    if p5 and history[0]['close_price']:
+                        item['chg_5d'] = round(float((history[0]['close_price'] - p5) / p5 * 100), 2)
+            result["overseas"] = _serialize(overseas)
+            result["overseas_sector"] = sector
+        except Exception as e:
+            logger.debug("海外数据查询: %s", e)
+            result["overseas"] = []
+            result["overseas_sector"] = ''
 
         return {"success": True, "data": result}
     except Exception as e:

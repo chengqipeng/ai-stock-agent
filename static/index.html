@@ -1411,6 +1411,7 @@
                     <div class="stime">${formatBeijingTime(stock.completed_at || stock.created_at)}</div>
                     <button class="sbtn" onclick="showHistory('${stock.stock_name}')">CAN SLIM历史</button>
                     <button class="sbtn" style="background:linear-gradient(135deg,rgba(255,152,0,0.7),rgba(255,152,0,0.9));" onclick="showFinanceData('${stockDisplayCode}','${stockDisplayName}')">财报数据</button>
+                    <button class="sbtn" style="background:linear-gradient(135deg,rgba(102,126,234,0.7),rgba(118,75,162,0.9));" onclick="window.open('/stock_detail?code='+encodeURIComponent('${stockDisplayCode}'),'_blank')">个股详情</button>
                 </td>`;
                 const checkCell = (rowspan) => `<td class="stock-check-cell" rowspan="${rowspan}">
                     <input type="checkbox" class="stock-checkbox" data-stock-id="${stock.id}" onchange="updateBatchSelection()" style="cursor:pointer;">
