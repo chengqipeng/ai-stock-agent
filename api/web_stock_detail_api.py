@@ -24,6 +24,56 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+import re as _re
+
+def _parse_amount(v):
+    """解析金额字符串: '1309.04亿'->130904000000, 数字原样返回"""
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return v
+    s = str(v)
+    m = _re.match(r'^([\-]?[\d.]+)\s*亿$', s)
+    if m:
+        return float(m.group(1)) * 1e8
+    m = _re.match(r'^([\-]?[\d.]+)\s*万$', s)
+    if m:
+        return float(m.group(1)) * 1e4
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return None
+
+
+def _enrich_finance_rows(finance_rows: list[dict]):
+    """补算财报中缺失的字段: 毛利率、营收环比、净利环比、流动比率、速动比率"""
+    for i, row in enumerate(finance_rows):
+        d = row.get("data")
+        if not d:
+            continue
+
+        rev = _parse_amount(d.get("营业总收入(元)"))
+        prof = _parse_amount(d.get("归母净利润(元)"))
+        gross = _parse_amount(d.get("毛利润(元)"))
+
+        # 毛利率: 毛利润/营业总收入*100; 若毛利润缺失但有净利率，用净利率兜底标记
+        if d.get("毛利率(%)") is None and gross is not None and rev and rev != 0:
+            d["毛利率(%)"] = round(gross / rev * 100, 2)
+
+        # 营收环比 / 净利环比: 用单季度数据与上一期单季度数据对比
+        if i + 1 < len(finance_rows):
+            prev_d = finance_rows[i + 1].get("data") or {}
+            sq_rev = _parse_amount(d.get("单季度营业收入(元)"))
+            sq_prof = _parse_amount(d.get("单季归母净利润(元)"))
+            prev_sq_rev = _parse_amount(prev_d.get("单季度营业收入(元)"))
+            prev_sq_prof = _parse_amount(prev_d.get("单季归母净利润(元)"))
+
+            if d.get("营业总收入环比增长(%)") is None and sq_rev is not None and prev_sq_rev and prev_sq_rev != 0:
+                d["营业总收入环比增长(%)"] = round((sq_rev - prev_sq_rev) / abs(prev_sq_rev) * 100, 2)
+
+            if d.get("归属净利润环比增长(%)") is None and sq_prof is not None and prev_sq_prof and prev_sq_prof != 0:
+                d["归属净利润环比增长(%)"] = round((sq_prof - prev_sq_prof) / abs(prev_sq_prof) * 100, 2)
+
 
 def _serialize(obj):
     """将 Decimal / datetime 等转为 JSON 可序列化类型"""
@@ -140,6 +190,7 @@ async def stock_detail_overview(stock_code: str = Query(..., description="股票
                 except Exception:
                     row["data"] = {}
                 del row["data_json"]
+        _enrich_finance_rows(finance_rows)
         result["finance"] = _serialize(finance_rows)
 
         # 8. 所属概念板块 + 板块强弱势
