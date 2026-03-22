@@ -471,6 +471,11 @@
         .row-canslim .dm-label { font-size: 13px; font-weight: 600; }
         .row-canslim .dm-value { font-size: 20px; }
         .row-canslim .dim-btn { padding: 4px 10px; font-size: 11px; }
+        .csig-badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;white-space:nowrap}
+        .csig-buy{background:rgba(231,76,60,0.13);color:#e74c3c}
+        .csig-sell{background:rgba(46,204,113,0.13);color:#2ecc71}
+        .csig-neutral{background:rgba(0,0,0,0.06);color:#8e8e93}
+        .csig-detail{font-size:9px;color:#999;margin-top:2px;white-space:nowrap}
         .sort-bar {
             display: flex;
             flex-wrap: wrap;
@@ -1365,6 +1370,26 @@
             }
         }
 
+        function computeSignal(stock) {
+            var b=0,s=0;
+            var dir=stock.tw_pred_direction,conf=stock.tw_confidence;
+            if(dir==='UP')b+=(conf==='high'?2:1);else if(dir==='DOWN')s+=(conf==='high'?2:1);
+            if(stock.nw_pred_direction==='UP')b+=2;else if(stock.nw_pred_direction==='DOWN')s+=2;
+            if(stock.v5_pred_direction==='UP')b+=1.5;
+            var ff=stock.fund_flow_signal;
+            if(ff!=null){if(ff>0.3)b+=1;else if(ff<-0.3)s+=1;}
+            var fs=stock.finance_score;
+            if(fs!=null){if(fs>0.3)b+=0.5;else if(fs<-0.3)s+=0.5;}
+            var bm=stock.board_momentum;
+            if(bm!=null){if(bm>0.3)b+=0.5;else if(bm<-0.3)s+=0.5;}
+            if(stock.vol_trend==='expanding'&&dir==='UP')b+=0.5;
+            var n=b-s,act,cls;
+            if(n>=2){act='建议买入';cls='buy'}else if(n<=-2){act='建议卖出';cls='sell'}
+            else if(n>0){act='偏多观望';cls='neutral'}else if(n<0){act='偏空观望';cls='neutral'}
+            else{act='中性观望';cls='neutral'}
+            return{act:act,cls:cls,b:b.toFixed(1),s:s.toFixed(1),n:n.toFixed(1)};
+        }
+
         function renderBatchStocksInner(stocks) {
             const tbody = document.getElementById('stockResultList');
             
@@ -1464,10 +1489,17 @@
                 const nwChg = stock.nw_pred_chg;
                 const nwBtAcc = stock.nw_backtest_accuracy;
 
+                const sig = computeSignal(stock);
+
                 const row_prediction = `<tr class="row-change" style="background:rgba(232,245,253,0.5);">
                     <td class="data-row"><div class="data-section">
                         <span class="data-section-label">🔮 周/月预测</span>
                         <div class="data-section-items">
+                            <div class="data-metric" style="min-width:100px;">
+                                <span class="dm-label">综合信号</span>
+                                <span class="dm-value"><span class="csig-badge csig-${sig.cls}">${sig.act}</span></span>
+                                <div class="csig-detail">多${sig.b} | 空${sig.s} | 净${sig.n}</div>
+                            </div>
                             <div class="data-metric" style="min-width:90px;">
                                 <span class="dm-label">本周预测</span>
                                 <span class="dm-value">${twDirBadge(twDir)}</span>

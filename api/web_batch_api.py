@@ -710,11 +710,21 @@ async def get_batch_stocks(batch_id: int):
                 stock['nw_reason'] = wp.get('nw_reason')
                 stock['nw_pred_chg'] = wp.get('nw_pred_chg')
                 stock['nw_backtest_accuracy'] = wp.get('nw_backtest_accuracy')
+                stock['v5_pred_direction'] = wp.get('v5_pred_direction')
+                stock['fund_flow_signal'] = wp.get('fund_flow_signal')
+                stock['finance_score'] = wp.get('finance_score')
+                stock['board_momentum'] = wp.get('board_momentum')
+                stock['vol_trend'] = wp.get('vol_trend')
             else:
                 stock['tw_pred_direction'] = None
                 stock['tw_confidence'] = None
                 stock['nw_pred_direction'] = None
                 stock['nw_confidence'] = None
+                stock['v5_pred_direction'] = None
+                stock['fund_flow_signal'] = None
+                stock['finance_score'] = None
+                stock['board_momentum'] = None
+                stock['vol_trend'] = None
         return {"success": True, "data": stocks}
     except Exception as e:
         logger.error("获取批次股票列表失败 batch_id=%s: %s", batch_id, e, exc_info=True)

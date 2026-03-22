@@ -673,7 +673,8 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
                    p.nm_backtest_accuracy, p.nm_backtest_samples, p.nm_dim_scores,
                    p.v5_pred_direction, p.v5_confidence, p.v5_strategy, p.v5_reason,
                    p.v5_win_rate, p.v5_signal_date, p.v5_signal_count, p.v5_all_strategies,
-                   p.concept_boards
+                   p.concept_boards,
+                   p.fund_flow_signal, p.finance_score, p.board_momentum, p.vol_trend
             FROM stock_weekly_prediction p
             {where_sql}
             ORDER BY {sort_by} {order_dir}
@@ -786,7 +787,9 @@ def get_prediction_verification(iso_year: int = None, iso_week: int = None,
                    h.actual_direction, h.actual_weekly_chg, h.is_correct,
                    h.nw_pred_direction, h.nw_confidence, h.nw_strategy,
                    h.nw_pred_chg, h.nw_date_range, h.nw_backtest_accuracy,
-                   h.concept_boards
+                   h.concept_boards,
+                   h.fund_flow_signal, h.finance_score, h.board_momentum, h.vol_trend,
+                   h.v5_pred_direction
             FROM stock_weekly_prediction_history h
             {where_sql}
             ORDER BY {sort_by} {order_dir}
@@ -1234,7 +1237,9 @@ def get_weekly_predictions_by_codes(stock_codes: list[str]) -> dict[str, dict]:
         cur.execute(f"""
             SELECT stock_code, pred_direction, confidence, strategy,
                    nw_pred_direction, nw_confidence, nw_strategy, nw_reason,
-                   nw_pred_chg, nw_backtest_accuracy
+                   nw_pred_chg, nw_backtest_accuracy,
+                   v5_pred_direction, fund_flow_signal, finance_score,
+                   board_momentum, vol_trend
             FROM stock_weekly_prediction
             WHERE stock_code IN ({placeholders})
         """, stock_codes)

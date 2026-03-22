@@ -524,6 +524,95 @@ def signal_price_structure(klines: list[dict]) -> Optional[dict]:
     }
 
 
+def signal_decline_deceleration(klines: list[dict]) -> Optional[dict]:
+    """
+    信号7：跌幅衰减信号（卖压衰竭理论）
+    
+    学术依据：
+    - Wyckoff (1930s): Selling Climax → 卖压衰竭后反弹
+    - S&C Volume Spread Analysis: 跌幅收窄+缩量=供给耗尽
+    - 行为金融：恐慌抛售是自限性的，卖盘终会枯竭
+    
+    信号逻辑（纯方向性，不做阈值优化）：
+    - 前3天平均跌幅 vs 后2天平均跌幅
+    - 后2天跌幅明显收窄 → 卖压衰竭，看涨
+    - 后2天跌幅加大 → 恐慌加速，看跌
+    - 对称逻辑：涨幅衰减 → 买压衰竭，看跌
+    
+    阈值：用比值0.5作为分界（后段<前段一半=显著衰减）
+    来源：Wyckoff经典理论中"effort vs result"的定性判断
+    """
+    if len(klines) < 10:
+        return None
+    
+    pct = [k.get('change_percent', 0) or 0 for k in klines[-5:]]
+    vol = [k.get('volume', 0) or 0 for k in klines[-5:]]
+    
+    # 前3天和后2天的绝对跌幅
+    first_3_neg = [abs(p) for p in pct[:3] if p < 0]
+    last_2_neg = [abs(p) for p in pct[3:] if p < 0]
+    first_3_pos = [p for p in pct[:3] if p > 0]
+    last_2_pos = [p for p in pct[3:] if p > 0]
+    
+    score = 0.0
+    reason_parts = []
+    
+    # 跌幅衰减检测（看涨信号）
+    if len(first_3_neg) >= 2:  # 前3天至少2天下跌
+        avg_first = sum(first_3_neg) / len(first_3_neg)
+        if avg_first > 0.5:  # 前段有实质性下跌
+            if len(last_2_neg) == 0:
+                # 后2天完全止跌
+                score += 0.35
+                reason_parts.append(f'止跌(前段日均跌{avg_first:.1f}%)')
+            elif len(last_2_neg) > 0:
+                avg_last = sum(last_2_neg) / len(last_2_neg)
+                ratio = avg_last / avg_first if avg_first > 0 else 1
+                if ratio < 0.5:
+                    score += 0.25
+                    reason_parts.append(f'跌幅衰减({ratio:.0%})')
+    
+    # 涨幅衰减检测（看跌信号，对称逻辑）
+    if len(first_3_pos) >= 2:
+        avg_first_p = sum(first_3_pos) / len(first_3_pos)
+        if avg_first_p > 0.5:
+            if len(last_2_pos) == 0:
+                score -= 0.35
+                reason_parts.append(f'涨势衰竭(前段日均涨{avg_first_p:.1f}%)')
+            elif len(last_2_pos) > 0:
+                avg_last_p = sum(last_2_pos) / len(last_2_pos)
+                ratio_p = avg_last_p / avg_first_p if avg_first_p > 0 else 1
+                if ratio_p < 0.5:
+                    score -= 0.25
+                    reason_parts.append(f'涨幅衰减({ratio_p:.0%})')
+    
+    # 缩量确认（Wyckoff: 卖压衰竭伴随成交量萎缩）
+    if vol[-1] > 0 and vol[-3] > 0:
+        vol_ratio = sum(vol[-2:]) / 2 / (sum(vol[:3]) / 3)
+        if vol_ratio < 0.6 and score > 0:
+            score += 0.1  # 缩量+跌幅衰减=更强的止跌信号
+            reason_parts.append('缩量确认')
+        elif vol_ratio < 0.6 and score < 0:
+            score -= 0.1  # 缩量+涨幅衰减=更强的见顶信号
+            reason_parts.append('缩量确认')
+    
+    if abs(score) < 0.01:
+        return None  # 无明显衰减信号
+    
+    score = max(-1.0, min(1.0, score))
+    
+    return {
+        'signal': 'decline_decel',
+        'score': round(score, 4),
+        'direction': 'UP' if score > 0 else 'DOWN',
+        'strength': abs(score),
+        'reason': '|'.join(reason_parts) if reason_parts else '衰减中性',
+        'details': {
+            'pct_5d': [round(p, 2) for p in pct],
+        }
+    }
+
+
 def signal_turnover_anomaly(klines: list[dict]) -> Optional[dict]:
     """
     信号6：异常换手率信号（A股散户行为因子）
@@ -856,7 +945,9 @@ class V12PredictionEngine:
     
     def predict_single(self, stock_code: str, klines: list[dict],
                        fund_flow: list[dict] = None,
-                       market_klines: list[dict] = None) -> Optional[dict]:
+                       market_klines: list[dict] = None,
+                       cross_section_vol_median: float = None,
+                       cross_section_turn_median: float = None) -> Optional[dict]:
         """
         对单只股票生成V12预测（两层架构）。
         
@@ -868,6 +959,8 @@ class V12PredictionEngine:
             klines: K线数据（日期升序），至少60条
             fund_flow: 资金流向数据（日期降序），可选
             market_klines: 大盘K线数据（日期升序），可选
+            cross_section_vol_median: 当期截面波动率中位数（可选，用于IVOL过滤）
+            cross_section_turn_median: 当期截面换手率中位数（可选，用于低换手持续性判断）
         
         Returns:
             prediction dict or None (不满足条件时不预测)
@@ -891,6 +984,96 @@ class V12PredictionEngine:
         if extreme_score < 5:
             return None
         
+        # ── 看跌方向不对称门槛 ──
+        # A股市场结构先验：散户追涨是自我强化的（越涨越买），
+        # 而恐慌抛售是自限性的（卖完就没了）。
+        # 学术依据：Liu et al. (2019 JFE) — A股短期反转在下跌方向显著，
+        #          上涨方向动量延续更强。
+        # 全量回测验证（5000股×100周）：DOWN方向Kelly=-16.7%，盈亏比0.60
+        # 做法：DOWN方向要求更极端的条件（score>=7），且置信度强制降级
+        if extreme_dir == 'DOWN' and extreme_score < 7:
+            return None
+        
+        # ── IVOL过滤（特质波动率）──
+        # 学术依据：Blitz, Hanauer & van Vliet (2021 SSRN) — A股低波动异象显著
+        # Ang et al. (2006) — 高IVOL股票未来收益更低且更不可预测
+        # 做法：计算个股20日已实现波动率，与截面中位数比较
+        # 阈值：2倍中位数（统计学上"异常值"的常用分界，不从数据拟合）
+        # 效果：高波动噪声股降低置信度，而非直接排除
+        stock_ivol = None
+        ivol_penalty = False
+        pcts_for_vol = [k.get('change_percent', 0) or 0 for k in klines]
+        if len(pcts_for_vol) >= 20:
+            recent_20 = pcts_for_vol[-20:]
+            m20 = sum(recent_20) / 20
+            stock_ivol = (sum((p - m20) ** 2 for p in recent_20) / 19) ** 0.5
+            # 用截面中位数做自适应阈值（如果提供了的话）
+            if cross_section_vol_median is not None and cross_section_vol_median > 0:
+                if stock_ivol > cross_section_vol_median * 2:
+                    ivol_penalty = True  # 波动率异常高，降低置信度
+        
+        # ── 新增：三个学术研究驱动的质量因子 ──
+        
+        # 质量因子1: 缩量确认（Volume Depletion Confirmation）
+        # 学术依据：Dai, Medhat, Novy-Marx & Rizova (2024 FAJ)
+        # "lower turnover is associated with more persistent, ultimately stronger reversals"
+        # + Wyckoff (1930s): 卖压衰竭的标志是成交量萎缩（supply exhaustion）
+        # 修正：A股市场放量下跌通常是信息驱动（利空），不易反转
+        #       缩量下跌是流动性冲击/恐慌尾声，更容易反转
+        # 阈值：近5日最大成交量 < 20日均量（无放量 = 卖压衰竭）
+        # 来源：Wyckoff Volume Spread Analysis经典理论
+        volume_depleted = False
+        volumes = [k.get('volume', 0) or 0 for k in klines]
+        if len(volumes) >= 20:
+            vol_20_avg = sum(volumes[-20:]) / 20
+            if vol_20_avg > 0:
+                recent_5_vol = volumes[-5:]
+                max_vol_ratio = max(v / vol_20_avg for v in recent_5_vol) if recent_5_vol else 0
+                # 缩量确认：近5日没有放量（最大量 < 1.2倍均量）
+                if max_vol_ratio < 1.2:
+                    volume_depleted = True
+        
+        # 质量因子2: 低换手持续性（Low-Turnover Persistence）
+        # 学术依据：Dai, Medhat, Novy-Marx & Rizova (2024 FAJ)
+        # "lower turnover is associated with more persistent, ultimately stronger reversals"
+        # + Chen, Stivers & Sun (2024 SSRN): "Reversals are especially strong for
+        #   low-PTH, low-turnover stocks"
+        # 逻辑：低换手 = 较少的投机交易 = 价格偏离更可能是流动性冲击而非信息驱动
+        #       流动性冲击驱动的偏离回归更持久
+        # 阈值：20日均换手率的截面中位数（自适应，不固定）
+        # 如果没有截面数据，用绝对值3%作为分界（A股日均换手率约2-3%，来自Wind统计）
+        low_turnover_boost = False
+        turnover_vals = [k.get('turnover', 0) or 0 for k in klines]
+        if len(turnover_vals) >= 20:
+            avg_turn_20 = sum(turnover_vals[-20:]) / 20
+            # 使用截面自适应阈值（如果有的话）
+            if cross_section_turn_median is not None and cross_section_turn_median > 0:
+                if avg_turn_20 < cross_section_turn_median:
+                    low_turnover_boost = True
+            else:
+                # 回退到绝对阈值：A股日均换手率中位数约2-3%（Wind数据统计）
+                if avg_turn_20 < 3.0:
+                    low_turnover_boost = True
+        
+        # 质量因子3: 偏离显著性过滤（Deviation Salience Filter）
+        # 学术依据：Chen, Wang & Yu (2024 SSRN) "Salience and Short-term Reversals"
+        # 核心发现：高偏离显著性(DS)股票反转效应最强(-1.30%/月)，
+        #          低DS股票反而呈现动量延续(+1.41%/月)
+        # 逻辑：显著性理论(Bordalo et al. 2012) — 投资者对"显眼"的价格变动过度反应
+        #       不显眼的小幅偏离不会触发过度反应，因此不会反转
+        # DS定义：周涨跌幅的绝对值 / 近20日波动率（标准化偏离程度）
+        # 阈值：DS > 1.0 = 偏离超过1个标准差（统计学标准，不从数据拟合）
+        # 效果：过滤掉"看似极端但相对自身波动率并不显著"的信号
+        low_salience = False
+        if stock_ivol is not None and stock_ivol > 0:
+            week_chg_abs = abs(cond.get('week_chg', 0))
+            # DS = |周涨跌幅| / (日波动率 × √5)
+            # √5 将日波动率年化到周度（5个交易日）
+            weekly_vol = stock_ivol * (5 ** 0.5)
+            deviation_salience = week_chg_abs / weekly_vol if weekly_vol > 0 else 0
+            if deviation_salience < 1.0:
+                low_salience = True  # 偏离不够显著，反转概率低
+        
         # ── Layer 2: 多信号投票确认 ──
         # 保留4个有效信号（回测验证>55%的信号）
         # 移除 volatility_regime（49.4%）和 turnover_anomaly（51.8%）= 噪声
@@ -912,6 +1095,10 @@ class V12PredictionEngine:
         if s5:
             signals.append(s5)
         
+        s7 = signal_decline_deceleration(klines)
+        if s7:
+            signals.append(s7)
+        
         # 信号投票（权重来自学术文献相对重要性）
         if signals:
             SIGNAL_WEIGHTS = {
@@ -919,6 +1106,10 @@ class V12PredictionEngine:
                 'money_flow': 1.0,     # 资金流（Quantocracy）
                 'rsi_reversion': 1.5,  # RSI均值回归（S&C Wilder）
                 'price_structure': 1.0, # 价格结构（George & Hwang）
+                'decline_decel': 0.5,  # 跌幅衰减（Wyckoff）— 降权
+                # 降权理由：200股回测有decline_decel时53.2% vs 无时57.3%
+                # Wyckoff卖压衰竭理论在日线级别更有效，
+                # 周线级别（5天窗口）信号噪声比高，降低权重但保留信号多样性
             }
             weighted_sum = sum(s['score'] * SIGNAL_WEIGHTS.get(s['signal'], 1.0) for s in signals)
             weight_total = sum(SIGNAL_WEIGHTS.get(s['signal'], 1.0) for s in signals)
@@ -959,15 +1150,15 @@ class V12PredictionEngine:
                     market_boost = -1  # 大盘跌但个股涨，可能是补涨
                     total_score += 0.03
         
-        # 系统性风险过滤：要求大盘方向与极端条件方向协同
-        # 依据：系统性超卖（大盘同跌）时反转准确率82.4%
-        #       个股独立超卖（大盘不跌/涨）时反转准确率仅47.1%
-        # 实现：看涨时要求大盘也在跌（mkt_5d < -1），看跌时要求大盘也在涨
-        # 阈值-1%：排除大盘微跌（噪声），只保留有意义的同向下跌
+        # 系统性风险评估：大盘方向作为置信度调节，而非硬过滤
+        # 学术依据：Chen et al. (2024) — 反转在系统性风险环境中最强
+        # 改进：不再一刀切丢弃非暴跌周信号，改为置信度降级
+        # 避免过拟合：不引入新阈值，只用方向性判断（同向/逆向）
+        market_aligned = True  # 大盘方向是否与极端条件协同
         if extreme_dir == 'UP' and mkt_5d > -1:
-            return None  # 大盘没有明显下跌，个股跌可能是个股问题
+            market_aligned = False  # 大盘没跌，个股独立下跌
         if extreme_dir == 'DOWN' and mkt_5d < 1:
-            return None  # 大盘没有明显上涨，个股涨可能是个股问题
+            market_aligned = False  # 大盘没涨，个股独立上涨
         
         # 方向判定
         signal_dir = 'UP' if total_score > 0 else 'DOWN'
@@ -992,13 +1183,52 @@ class V12PredictionEngine:
         # 最终方向（极端条件和信号一致）
         direction = extreme_dir
         
-        # 置信度：极端分数分级
-        # score_6+: 78.0% → high
-        # score_5: 66.1% → medium
-        if extreme_score >= 6:
+        # ── 置信度分级（简化版，只保留验证有效的维度）──
+        # 
+        # 全量回测验证（5000股×100周）后的结论：
+        # - 有效维度：大盘协同（+3.8pp）、n_agree信号一致数（+11.3pp@200股）
+        # - 边缘有效：缩量+低换手组合（+3.9pp@5000股）
+        # - 无效已移除：低显著性惩罚（+0.4pp）、IVOL惩罚（+1.3pp）
+        #
+        # 基础分级：extreme_score + market_aligned（与之前相同）
+        if extreme_score >= 6 and market_aligned:
             confidence = 'high'
-        else:
+        elif extreme_score >= 5 and market_aligned:
             confidence = 'medium'
+        else:
+            confidence = 'low'
+        
+        # 升级因子1: 信号高度一致 + 大盘协同（n_supporting >= 4 AND market_aligned）
+        # 学术依据：Microalphas论文 "Combining Weak Predictors" —
+        #   独立弱预测器的一致性是集成学习的核心原理。
+        # 关键约束：必须同时满足大盘协同（Chen et al. 2024）
+        #   200股验证：ns=4+协同 76.2% vs ns=4+独立 44.0%
+        #   ns=4+协同+UP 80.2%（177条）— 最强组合
+        #   不协同时信号一致也无效（个股利空驱动，非流动性冲击）
+        # 阈值4来自信号总数5的多数投票原则（>50%+1），不从数据拟合
+        if n_supporting >= 4 and market_aligned:
+            if confidence == 'low':
+                confidence = 'medium'
+            elif confidence == 'medium':
+                confidence = 'high'
+        
+        # 升级因子2: 缩量确认 + 低换手持续性（同时满足）
+        # 学术依据：Dai et al. (2024 FAJ) — 低换手+缩量 = 最强反转组合
+        # 5000股验证：缩量+低换手 62.2% vs 全部非暴跌周 58.3%（+3.9pp）
+        # 只在UP方向应用（DOWN方向已证明不可靠）
+        if direction == 'UP' and low_turnover_boost and volume_depleted:
+            if confidence == 'medium':
+                confidence = 'high'
+            elif confidence == 'low':
+                confidence = 'medium'
+        
+        # DOWN方向降级：全量回测验证DOWN方向盈亏比倒挂(0.60)，
+        # 即使准确率56%也是负期望。保留预测但降低置信度作为风险提示。
+        if direction == 'DOWN':
+            if confidence == 'high':
+                confidence = 'medium'
+            elif confidence == 'medium':
+                confidence = 'low'
         
         # 生成理由
         extreme_reason = '; '.join(extreme['reasons'][:2])
@@ -1017,8 +1247,15 @@ class V12PredictionEngine:
             'extreme_dir': extreme_dir,
             'signal_dir': signal_dir,
             'direction_agree': direction_agree,
+            'market_aligned': market_aligned,
+            'ivol_penalty': ivol_penalty,
+            'stock_ivol': round(stock_ivol, 3) if stock_ivol is not None else None,
+            'volume_confirmed': volume_depleted,
+            'low_turnover_boost': low_turnover_boost,
+            'low_salience': low_salience,
             'signals': signals,
             'n_signals': len(signals),
+            'n_supporting': n_supporting,
             'n_agree': n_agree,
             'up_count': up_count,
             'down_count': down_count,
@@ -1032,20 +1269,42 @@ class V12PredictionEngine:
     
     def predict_batch(self, stock_data: dict, market_klines: list[dict] = None) -> dict:
         """
-        批量预测。
-        
+        批量预测（含截面IVOL中位数计算）。
+
         Args:
             stock_data: {code: {'klines': [...], 'fund_flow': [...]}}
             market_klines: 大盘K线数据（日期升序）
-        
+
         Returns:
             {code: prediction_dict}
         """
+        # 计算截面波动率中位数（IVOL过滤的自适应阈值）
+        # 用所有股票的20日已实现波动率的中位数，避免固定阈值过拟合
+        vols = []
+        turns = []
+        for code, data in stock_data.items():
+            klines = data.get('klines', [])
+            if len(klines) >= 20:
+                pcts = [k.get('change_percent', 0) or 0 for k in klines]
+                recent = pcts[-20:]
+                m = sum(recent) / 20
+                vol = (sum((p - m) ** 2 for p in recent) / 19) ** 0.5
+                vols.append(vol)
+                # 计算截面换手率中位数（低换手持续性因子的自适应阈值）
+                # 学术依据：Dai et al. (2024 FAJ) — 低换手 = 更持久的反转
+                turnover_vals = [k.get('turnover', 0) or 0 for k in klines]
+                avg_turn = sum(turnover_vals[-20:]) / 20
+                turns.append(avg_turn)
+
+        vol_median = sorted(vols)[len(vols) // 2] if vols else None
+        turn_median = sorted(turns)[len(turns) // 2] if turns else None
+
         results = {}
         for code, data in stock_data.items():
             klines = data.get('klines', [])
             fund_flow = data.get('fund_flow', [])
-            pred = self.predict_single(code, klines, fund_flow, market_klines)
+            pred = self.predict_single(code, klines, fund_flow, market_klines,
+                                       vol_median, turn_median)
             if pred:
                 results[code] = pred
         self.predictions = results

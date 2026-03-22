@@ -177,13 +177,30 @@ def run_full_prediction():
     predictions = []
     skipped = 0
 
+    # 计算截面波动率中位数（IVOL过滤的自适应阈值）
+    vols = []
+    turns = []
+    for code in stock_codes:
+        klines = kline_data.get(code, [])
+        if len(klines) >= 20:
+            pcts = [k.get('change_percent', 0) or 0 for k in klines]
+            recent = pcts[-20:]
+            m = sum(recent) / 20
+            vol = (sum((p - m) ** 2 for p in recent) / 19) ** 0.5
+            vols.append(vol)
+            turnover_vals = [k.get('turnover', 0) or 0 for k in klines]
+            avg_turn = sum(turnover_vals[-20:]) / 20
+            turns.append(avg_turn)
+    vol_median = sorted(vols)[len(vols) // 2] if vols else None
+    turn_median = sorted(turns)[len(turns) // 2] if turns else None
+
     for code in stock_codes:
         klines = kline_data.get(code, [])
         if len(klines) < 60:
             skipped += 1
             continue
         fund_flow = fund_flow_data.get(code, [])
-        pred = engine.predict_single(code, klines, fund_flow, market_klines)
+        pred = engine.predict_single(code, klines, fund_flow, market_klines, vol_median, turn_median)
         if pred is not None:
             predictions.append(pred)
 

@@ -250,6 +250,9 @@ def run_v12_backtest(n_weeks: int = 30, n_stocks: int = 200):
     by_week = defaultdict(lambda: {'total': 0, 'correct': 0, 'opportunities': 0})
     by_direction_agree = {'agree': {'total': 0, 'correct': 0},
                           'disagree': {'total': 0, 'correct': 0}}
+    by_market_aligned = {'aligned': {'total': 0, 'correct': 0},
+                         'independent': {'total': 0, 'correct': 0}}
+    by_quality_factors = defaultdict(lambda: {'total': 0, 'correct': 0})
     weekly_details = []
 
     # 按周做截面预测
@@ -264,6 +267,25 @@ def run_v12_backtest(n_weeks: int = 30, n_stocks: int = 200):
         week_actuals = {}
         week_opps = 0
 
+        # 计算本周截面波动率中位数（IVOL过滤的自适应阈值）
+        week_vols = []
+        week_turns = []
+        for code, week_info in stock_weekly.items():
+            if week_key not in week_info:
+                continue
+            kls = week_info[week_key]['hist_klines']
+            if len(kls) >= 20:
+                pcts = [k.get('change_percent', 0) or 0 for k in kls]
+                recent = pcts[-20:]
+                m = sum(recent) / 20
+                vol = (sum((p - m) ** 2 for p in recent) / 19) ** 0.5
+                week_vols.append(vol)
+                turnover_vals = [k.get('turnover', 0) or 0 for k in kls]
+                avg_turn = sum(turnover_vals[-20:]) / 20
+                week_turns.append(avg_turn)
+        vol_median = sorted(week_vols)[len(week_vols) // 2] if week_vols else None
+        turn_median = sorted(week_turns)[len(week_turns) // 2] if week_turns else None
+
         for code, week_info in stock_weekly.items():
             if week_key not in week_info:
                 continue
@@ -274,7 +296,7 @@ def run_v12_backtest(n_weeks: int = 30, n_stocks: int = 200):
             last_date = data.get('last_date', '')
             mkt_hist = [m for m in market_klines if m['date'] <= last_date] if market_klines else None
 
-            pred = engine.predict_single(code, data['hist_klines'], data['hist_ff'], mkt_hist)
+            pred = engine.predict_single(code, data['hist_klines'], data['hist_ff'], mkt_hist, vol_median, turn_median)
             if pred is not None:
                 week_predictions[code] = pred
                 week_actuals[code] = data['actual_return']
@@ -318,6 +340,12 @@ def run_v12_backtest(n_weeks: int = 30, n_stocks: int = 200):
             if is_correct:
                 by_direction_agree[agree_key]['correct'] += 1
 
+            # 按大盘协同性
+            mkt_key = 'aligned' if pred.get('market_aligned') else 'independent'
+            by_market_aligned[mkt_key]['total'] += 1
+            if is_correct:
+                by_market_aligned[mkt_key]['correct'] += 1
+
             # 各信号独立准确率
             for sig in pred.get('signals', []):
                 sig_name = sig['signal']
@@ -325,6 +353,29 @@ def run_v12_backtest(n_weeks: int = 30, n_stocks: int = 200):
                 by_signal[sig_name]['total'] += 1
                 if sig_up == actual_up:
                     by_signal[sig_name]['correct'] += 1
+
+            # 学术质量因子统计
+            vc = pred.get('volume_confirmed', False)
+            lt = pred.get('low_turnover_boost', False)
+            ls = pred.get('low_salience', False)
+            vc_key = 'vol_confirmed' if vc else 'vol_not_confirmed'
+            by_quality_factors[vc_key]['total'] += 1
+            if is_correct:
+                by_quality_factors[vc_key]['correct'] += 1
+            lt_key = 'low_turnover' if lt else 'normal_turnover'
+            by_quality_factors[lt_key]['total'] += 1
+            if is_correct:
+                by_quality_factors[lt_key]['correct'] += 1
+            ls_key = 'low_salience' if ls else 'high_salience'
+            by_quality_factors[ls_key]['total'] += 1
+            if is_correct:
+                by_quality_factors[ls_key]['correct'] += 1
+            # n_supporting统计
+            ns = pred.get('n_supporting', 0)
+            ns_key = f'n_supporting_{ns}' if ns <= 4 else 'n_supporting_5+'
+            by_quality_factors[ns_key]['total'] += 1
+            if is_correct:
+                by_quality_factors[ns_key]['correct'] += 1
 
     # 3. 输出结果
     logger.info("[3/3] 生成报告...")
@@ -371,6 +422,12 @@ def run_v12_backtest(n_weeks: int = 30, n_stocks: int = 200):
     disagree_d = by_direction_agree['disagree']
     disagree_acc = disagree_d['correct'] / disagree_d['total'] if disagree_d['total'] > 0 else 0
 
+    # 大盘协同性分析
+    aligned_d = by_market_aligned['aligned']
+    aligned_acc = aligned_d['correct'] / aligned_d['total'] if aligned_d['total'] > 0 else 0
+    indep_d = by_market_aligned['independent']
+    indep_acc = indep_d['correct'] / indep_d['total'] if indep_d['total'] > 0 else 0
+
     report = {
         'meta': {
             'algorithm': 'V12-TwoLayer',
@@ -405,6 +462,18 @@ def run_v12_backtest(n_weeks: int = 30, n_stocks: int = 200):
                 'total': disagree_d['total'],
             },
         },
+        'market_alignment': {
+            'aligned': {
+                'description': '大盘方向与极端条件协同（系统性超卖/过热）',
+                'accuracy': round(aligned_acc, 4),
+                'total': aligned_d['total'],
+            },
+            'independent': {
+                'description': '个股独立极端（大盘未同向）',
+                'accuracy': round(indep_acc, 4),
+                'total': indep_d['total'],
+            },
+        },
         'by_confidence': {
             k: {
                 'accuracy': round(v['correct'] / v['total'], 4) if v['total'] > 0 else 0,
@@ -428,6 +497,14 @@ def run_v12_backtest(n_weeks: int = 30, n_stocks: int = 200):
                 'correct': v['correct'],
             }
             for k, v in sorted(by_signal.items())
+        },
+        'by_quality_factors': {
+            k: {
+                'accuracy': round(v['correct'] / v['total'], 4) if v['total'] > 0 else 0,
+                'total': v['total'],
+                'correct': v['correct'],
+            }
+            for k, v in sorted(by_quality_factors.items())
         },
         'weekly_accuracy': week_accs,
     }
@@ -465,12 +542,23 @@ def run_v12_backtest(n_weeks: int = 30, n_stocks: int = 200):
     print(f"   极端+信号一致: {agree_acc:.1%} ({agree_d['total']}条)")
     print(f"   极端+信号矛盾: {disagree_acc:.1%} ({disagree_d['total']}条)")
 
+    print(f"\n🌍 大盘协同性:")
+    print(f"   大盘协同(系统性): {aligned_acc:.1%} ({aligned_d['total']}条)")
+    print(f"   个股独立:         {indep_acc:.1%} ({indep_d['total']}条)")
+
     print(f"\n📡 各信号独立准确率:")
     for sig_name in sorted(by_signal.keys()):
         d = by_signal[sig_name]
         if d['total'] > 0:
             acc = d['correct'] / d['total']
             print(f"   {sig_name:25s}: {acc:.1%} ({d['total']}条)")
+
+    print(f"\n🔬 学术质量因子:")
+    for qf_name in sorted(by_quality_factors.keys()):
+        d = by_quality_factors[qf_name]
+        if d['total'] > 0:
+            acc = d['correct'] / d['total']
+            print(f"   {qf_name:25s}: {acc:.1%} ({d['total']}条)")
 
     if week_accs:
         print(f"\n📅 周度准确率 (最近5周):")

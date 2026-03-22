@@ -71,6 +71,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
 .page-btn:hover{background:rgba(102,126,234,0.08)}
 .page-btn.active{background:rgba(102,126,234,0.15);color:#667eea;font-weight:600}
 .page-btn:disabled{opacity:0.4;cursor:not-allowed}
+.csig-badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;white-space:nowrap}
+.csig-buy{background:rgba(231,76,60,0.13);color:#e74c3c}
+.csig-sell{background:rgba(46,204,113,0.13);color:#2ecc71}
+.csig-neutral{background:rgba(0,0,0,0.06);color:#8e8e93}
+.csig-detail{font-size:9px;color:#999;white-space:nowrap}
 
 /* 指标提示 */
 .th-wrap{display:flex;align-items:center;gap:4px}
@@ -532,6 +537,28 @@ function handleSearchPaste(event) {
     }
 }
 
+
+function computeSignal(r) {
+    var b=0,s=0;
+    if(r.pred_direction==='UP')b+=(r.confidence==='high'?2:1);else if(r.pred_direction==='DOWN')s+=(r.confidence==='high'?2:1);
+    if(r.nw_pred_direction==='UP')b+=2;else if(r.nw_pred_direction==='DOWN')s+=2;
+    if(r.v5_pred_direction==='UP')b+=1.5;
+    if(r.fund_flow_signal!=null){if(r.fund_flow_signal>0.3)b+=1;else if(r.fund_flow_signal<-0.3)s+=1;}
+    if(r.finance_score!=null){if(r.finance_score>0.3)b+=0.5;else if(r.finance_score<-0.3)s+=0.5;}
+    if(r.board_momentum!=null){if(r.board_momentum>0.3)b+=0.5;else if(r.board_momentum<-0.3)s+=0.5;}
+    if(r.vol_trend==='expanding'&&r.pred_direction==='UP')b+=0.5;
+    var n=b-s,act,cls;
+    if(n>=2){act='建议买入';cls='buy'}else if(n<=-2){act='建议卖出';cls='sell'}
+    else if(n>0){act='偏多观望';cls='neutral'}else if(n<0){act='偏空观望';cls='neutral'}
+    else{act='中性观望';cls='neutral'}
+    return{act:act,cls:cls,b:b.toFixed(1),s:s.toFixed(1),n:n.toFixed(1)};
+}
+
+function fmtSignalHtml(sig) {
+    return '<span class="csig-badge csig-' + sig.cls + '">' + sig.act + '</span>' +
+           '<br><span class="csig-detail">多' + sig.b + ' | 空' + sig.s + ' | 净' + sig.n + '</span>';
+}
+
 function fmtChg(v) {
     if (v == null) return '-';
     const n = parseFloat(v);
@@ -682,6 +709,7 @@ function renderTable(rows) {
     // 共享列
     html += '<th rowspan="3" onclick="toggleSort(\'stock_code\')"><span class="th-wrap">代码 <span class="tip-icon" onclick="showTip(\'stock_code\',event)" title="点击查看说明">?</span></span></th>';
     html += '<th rowspan="3" onclick="toggleSort(\'stock_name\')"><span class="th-wrap">名称 <span class="tip-icon" onclick="showTip(\'stock_name\',event)" title="点击查看说明">?</span></span></th>';
+    html += '<th rowspan="3" style="min-width:70px;text-align:center;cursor:default">综合信号</th>';
     html += '<th rowspan="3" style="width:28px;font-size:10px;color:#8e8e93;text-align:center;cursor:default">周期</th>';
     // 对比列
     const compareCols = [
@@ -709,13 +737,15 @@ function renderTable(rows) {
     html += '</tr></thead><tbody>';
 
     if (rows.length === 0) {
-        html += '<tr><td colspan="13" style="text-align:center;color:#999;padding:20px;">暂无数据</td></tr>';
+        html += '<tr><td colspan="14" style="text-align:center;color:#999;padding:20px;">暂无数据</td></tr>';
     }
     for (const r of rows) {
         // ── 本周行 ──
         html += '<tr class="row-tw" onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
         html += '<td rowspan="3" style="font-family:\'SF Mono\',Menlo,monospace;font-weight:600;vertical-align:middle"><a href="/stock_detail?code=' + encodeURIComponent(r.stock_code) + '" onclick="event.stopPropagation()" style="color:#667eea;text-decoration:none" title="查看个股详情">' + r.stock_code + '</a></td>';
         html += '<td rowspan="3" style="vertical-align:middle">' + (r.stock_name || '-') + '</td>';
+        var sig = computeSignal(r);
+        html += '<td rowspan="3" style="vertical-align:middle;text-align:center">' + fmtSignalHtml(sig) + '</td>';
         html += '<td style="font-size:9px;color:#667eea;font-weight:600;text-align:center">本周</td>';
         html += '<td>' + dirBadge(r.pred_direction) + '<br><span style="font-size:10px;color:#aaa">' + getWeekRange(r.predict_date) + '</span></td>';
         html += '<td>' + confBadge(r.confidence) + '</td>';
@@ -1695,6 +1725,7 @@ function renderVerifyTable(rows) {
     const cols = [
         {key:'stock_code', label:'代码'},
         {key:'stock_name', label:'名称'},
+        {key:'signal', label:'综合信号'},
         {key:'predict_date', label:'预测周'},
         {key:'pred_direction', label:'预测方向'},
         {key:'confidence', label:'置信度'},
@@ -1713,12 +1744,14 @@ function renderVerifyTable(rows) {
     html += '<th>概念板块</th></tr></thead><tbody>';
 
     if (rows.length === 0) {
-        html += '<tr><td colspan="12" style="text-align:center;color:#999;padding:20px;">暂无数据</td></tr>';
+        html += '<tr><td colspan="14" style="text-align:center;color:#999;padding:20px;">暂无数据</td></tr>';
     }
     for (const r of rows) {
         html += '<tr onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
         html += '<td style="font-family:\'SF Mono\',Menlo,monospace;font-weight:600"><a href="/stock_detail?code=' + encodeURIComponent(r.stock_code) + '" onclick="event.stopPropagation()" style="color:#667eea;text-decoration:none" title="查看个股详情">' + r.stock_code + '</a></td>';
         html += '<td>' + (r.stock_name || '-') + '</td>';
+        var vSig = computeSignal(r);
+        html += '<td style="text-align:center">' + fmtSignalHtml(vSig) + '</td>';
         // 预测周日期范围
         const weekRange = r.predict_date ? getWeekRange(r.predict_date) : '';
         html += '<td style="font-size:11px;color:#666">' + (weekRange || '-') + '<br><span style="font-size:10px;color:#aaa">Y' + r.iso_year + '-W' + String(r.iso_week).padStart(2,'0') + '</span></td>';
