@@ -1185,9 +1185,10 @@ class V12PredictionEngine:
         
         # ── 置信度分级（简化版，只保留验证有效的维度）──
         # 
-        # 全量回测验证（5000股×100周）后的结论：
-        # - 有效维度：大盘协同（+3.8pp）、n_agree信号一致数（+11.3pp@200股）
-        # - 边缘有效：缩量+低换手组合（+3.9pp@5000股）
+        # 全量回测验证（5000股×100周, 28134条预测）后的结论：
+        # - 强有效：n_supporting信号一致数（ns=4 66.7% vs ns=3 55.0%, +11.7pp）
+        # - 有效：大盘协同（协同60.6% vs 独立56.8%, +3.8pp）
+        # - 边缘有效：缩量+低换手组合（62.2% vs 58.3%, +3.9pp）
         # - 无效已移除：低显著性惩罚（+0.4pp）、IVOL惩罚（+1.3pp）
         #
         # 基础分级：extreme_score + market_aligned（与之前相同）
@@ -1211,6 +1212,15 @@ class V12PredictionEngine:
                 confidence = 'medium'
             elif confidence == 'medium':
                 confidence = 'high'
+        
+        # 降级因子: 信号一致性不足（n_supporting == 3）
+        # 学术依据：Microalphas — 3/5一致性(60%)远不如4/5(80%)
+        # 5000股验证：n_supporting=3 准确率55.0% vs n_supporting=4 准确率66.7%（+11.7pp）
+        # 200股验证：ns=3+协同 53.7% vs ns=4+协同 76.2%
+        # 即使大盘协同，ns=3的预测质量也显著低于ns=4
+        if n_supporting == 3:
+            if confidence == 'high':
+                confidence = 'medium'
         
         # 升级因子2: 缩量确认 + 低换手持续性（同时满足）
         # 学术依据：Dai et al. (2024 FAJ) — 低换手+缩量 = 最强反转组合

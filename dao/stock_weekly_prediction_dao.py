@@ -940,7 +940,10 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
                    h.nw_actual_direction as nw_actual_direction,
                    h.nw_actual_weekly_chg as nw_actual_chg,
                    h.nw_is_correct as nw_is_correct,
-                   h.concept_boards
+                   h.concept_boards,
+                   h.pred_direction, h.confidence,
+                   h.v5_pred_direction,
+                   h.fund_flow_signal, h.finance_score, h.board_momentum, h.vol_trend
             {from_sql}
             {where_sql}
             ORDER BY {sort_col} {order_dir}
@@ -1075,7 +1078,9 @@ def get_v5_prediction_verification(iso_year: int = None, iso_week: int = None,
                    h.v5_actual_direction, h.v5_actual_5d_chg, h.v5_is_correct,
                    h.pred_direction as tw_pred_direction,
                    h.actual_weekly_chg as tw_actual_chg,
-                   h.concept_boards
+                   h.concept_boards,
+                   h.pred_direction, h.confidence, h.nw_pred_direction,
+                   h.fund_flow_signal, h.finance_score, h.board_momentum, h.vol_trend
             {from_sql}
             {where_sql}
             ORDER BY h.{safe_sort} {order_dir}

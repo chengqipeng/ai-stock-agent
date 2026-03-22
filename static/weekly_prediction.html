@@ -2077,6 +2077,7 @@ function renderNwVerifyTable(rows) {
     const cols = [
         {key:'stock_code', label:'代码'},
         {key:'stock_name', label:'名称'},
+        {key:'signal', label:'综合信号'},
         {key:'predict_date', label:'预测发起周'},
         {key:'nw_pred_direction', label:'下周预测方向'},
         {key:'nw_confidence', label:'置信度'},
@@ -2093,12 +2094,15 @@ function renderNwVerifyTable(rows) {
     html += '<th>目标周</th><th>概念板块</th></tr></thead><tbody>';
 
     if (rows.length === 0) {
-        html += '<tr><td colspan="11" style="text-align:center;color:#999;padding:20px;">暂无数据（仅显示有下周预测信号的股票）</td></tr>';
+        html += '<tr><td colspan="12" style="text-align:center;color:#999;padding:20px;">暂无数据（仅显示有下周预测信号的股票）</td></tr>';
     }
     for (const r of rows) {
         html += '<tr onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
         html += '<td style="font-family:\'SF Mono\',Menlo,monospace;font-weight:600"><a href="/stock_detail?code=' + encodeURIComponent(r.stock_code) + '" onclick="event.stopPropagation()" style="color:#667eea;text-decoration:none" title="查看个股详情">' + r.stock_code + '</a></td>';
         html += '<td>' + (r.stock_name || '-') + '</td>';
+        // 综合信号
+        var nwSig = computeSignal(r);
+        html += '<td style="text-align:center">' + fmtSignalHtml(nwSig) + '</td>';
         // 预测发起周
         const srcRange = r.predict_date ? getWeekRange(r.predict_date) : '';
         html += '<td style="font-size:11px;color:#666">' + (srcRange || '-') + '<br><span style="font-size:10px;color:#aaa">Y' + r.iso_year + '-W' + String(r.iso_week).padStart(2,'0') + '</span></td>';
@@ -2312,6 +2316,7 @@ function renderV5VerifyTable(rows) {
     const cols = [
         {key:'stock_code', label:'代码'},
         {key:'stock_name', label:'名称'},
+        {key:'signal', label:'综合信号'},
         {key:'v5_signal_date', label:'信号日期'},
         {key:'v5_pred_direction', label:'预测方向'},
         {key:'v5_confidence', label:'置信度'},
@@ -2328,12 +2333,15 @@ function renderV5VerifyTable(rows) {
     html += '<th>预测理由</th><th>概念板块</th></tr></thead><tbody>';
 
     if (rows.length === 0) {
-        html += '<tr><td colspan="11" style="text-align:center;color:#999;padding:20px;">暂无数据（仅显示有OBV信号的股票）</td></tr>';
+        html += '<tr><td colspan="12" style="text-align:center;color:#999;padding:20px;">暂无数据（仅显示有OBV信号的股票）</td></tr>';
     }
     for (const r of rows) {
         html += '<tr onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\',\'v5\')">';
         html += '<td style="font-family:\'SF Mono\',Menlo,monospace;font-weight:600"><a href="/stock_detail?code=' + encodeURIComponent(r.stock_code) + '" onclick="event.stopPropagation()" style="color:#667eea;text-decoration:none" title="查看个股详情">' + r.stock_code + '</a></td>';
         html += '<td>' + (r.stock_name || '-') + '</td>';
+        // 综合信号
+        var v5Sig = computeSignal(r);
+        html += '<td style="text-align:center">' + fmtSignalHtml(v5Sig) + '</td>';
         // 信号日期
         html += '<td style="font-size:11px;color:#666">' + (r.v5_signal_date || '-') + '</td>';
         // 预测方向
