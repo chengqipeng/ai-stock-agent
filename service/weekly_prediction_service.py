@@ -1063,7 +1063,7 @@ def _compute_finance_signal(code: str, data: dict) -> dict:
     profit_yoy = None
     roe = None
 
-    for key in ('营业总收入同比增长率(%)', '营业收入同比增长率(%)'):
+    for key in ('营业总收入同比增长(%)', '营业总收入同比增长率(%)', '营业收入同比增长率(%)', 'TOTALOPERATEREVETZ'):
         if key in latest:
             try:
                 revenue_yoy = float(latest[key])
@@ -1071,7 +1071,7 @@ def _compute_finance_signal(code: str, data: dict) -> dict:
                 pass
             break
 
-    for key in ('净利润同比增长率(%)', '归属母公司股东的净利润同比增长率(%)'):
+    for key in ('归属净利润同比增长(%)', '净利润同比增长率(%)', '归属母公司股东的净利润同比增长率(%)', 'PARENTNETPROFITTZ'):
         if key in latest:
             try:
                 profit_yoy = float(latest[key])
@@ -1079,7 +1079,7 @@ def _compute_finance_signal(code: str, data: dict) -> dict:
                 pass
             break
 
-    for key in ('净资产收益率(%)', '加权净资产收益率(%)'):
+    for key in ('净资产收益率(加权)(%)', '净资产收益率(%)', '加权净资产收益率(%)', 'ROEJQ'):
         if key in latest:
             try:
                 roe = float(latest[key])

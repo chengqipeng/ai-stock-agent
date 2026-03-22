@@ -143,10 +143,12 @@ async def stock_detail_overview(stock_code: str = Query(..., description="股票
         result["finance"] = _serialize(finance_rows)
 
         # 8. 所属概念板块 + 板块强弱势
+        # stock_concept_board_stock 使用6位纯数字代码（如 600519），需去掉后缀
+        stock_code_6 = stock_code.split(".")[0]
         cur.execute(
             "SELECT DISTINCT s.board_code, s.board_name "
             "FROM stock_concept_board_stock s WHERE s.stock_code = %s",
-            (stock_code,),
+            (stock_code_6,),
         )
         boards = cur.fetchall()
         # 补充板块大盘强弱势评分
@@ -168,7 +170,7 @@ async def stock_detail_overview(stock_code: str = Query(..., description="股票
             "rank_in_board, board_total_stocks, score_date "
             "FROM stock_concept_strength WHERE stock_code = %s "
             "ORDER BY strength_score DESC",
-            (stock_code,),
+            (stock_code_6,),
         )
         result["stock_strength"] = _serialize(cur.fetchall())
 
