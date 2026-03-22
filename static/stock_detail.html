@@ -107,6 +107,10 @@ var RH=function(v){return v==null?'-':v?'<span class="ok">✓</span>':'<span cla
 var MI=function(lb,vl,cls){return '<div class="mi"><div class="lb">'+lb+'</div><div class="vl '+cls+'">'+vl+'</div></div>'};
 /* 财报字段取值：兼容多种key格式 */
 function FV(d,keys){if(!d)return null;if(typeof keys==='string')keys=[keys];for(var i=0;i<keys.length;i++){var v=d[keys[i]];if(v!=null)return v}return null}
+/* 解析金额字符串: "1309.04亿"->130904000000, "456.78万"->4567800, 数字原样返回 */
+function PA(v){if(v==null)return null;if(typeof v==='number')return v;var s=String(v);var m=s.match(/^([\-]?[\d\.]+)\s*亿$/);if(m)return parseFloat(m[1])*100000000;m=s.match(/^([\-]?[\d\.]+)\s*万$/);if(m)return parseFloat(m[1])*10000;var n=parseFloat(s);return isNaN(n)?null:n}
+/* 格式化金额显示: 自动转亿/万 */
+function FA(v){if(v==null)return '-';var a=Math.abs(v);if(a>=100000000)return (v/100000000).toFixed(2)+'亿';if(a>=10000)return (v/10000).toFixed(2)+'万';return v.toFixed(2)+'元'}
 
 
 var ps=new URLSearchParams(location.search);
@@ -290,7 +294,7 @@ function rFinance(){
   var rev=FV(ld,['营业总收入(元)','营业总收入','TOTALOPERATEREVE']);
   var prof=FV(ld,['归母净利润(元)','归属净利润(元)','PARENTNETPROFIT']);
   var gm=FV(ld,['毛利率(%)','毛利率','XSMLL']),nm2=FV(ld,['净利率(%)','净利率','XSJLL']),roe2=FV(ld,['净资产收益率(加权)(%)','净资产收益率(加权)','ROEJQ']),eps=FV(ld,['基本每股收益(元)','基本每股收益','EPSJB']);
-  h+=MI('营业收入',rev!=null?FW(rev/10000):'-','');h+=MI('净利润',prof!=null?FW(prof/10000):'-',CC(prof));
+  h+=MI('营业收入',rev!=null?FA(PA(rev)):'-','');h+=MI('净利润',prof!=null?FA(PA(prof)):'-',CC(PA(prof)));
   h+=MI('毛利率',FP(gm),'');h+=MI('净利率',FP(nm2),'');h+=MI('ROE',FP(roe2),'');h+=MI('每股收益',F(eps),'');
   h+='</div></div>';
   h+='<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:#e67e22;margin-bottom:6px">📈 成长能力</div><div class="mg">';
@@ -316,8 +320,8 @@ function rFinance(){
     var rev2=FV(d,['营业总收入(元)','营业总收入','TOTALOPERATEREVE']),prof2=FV(d,['归母净利润(元)','归属净利润(元)','PARENTNETPROFIT']);
     var rY2=FV(d,['营业总收入同比增长(%)','营业总收入同比增长','TOTALOPERATEREVETZ']),pY2=FV(d,['归属净利润同比增长(%)','归属净利润同比增长','PARENTNETPROFITTZ']);
     var gm2=FV(d,['毛利率(%)','毛利率','XSMLL']),nm3=FV(d,['净利率(%)','净利率','XSJLL']),roe3=FV(d,['净资产收益率(加权)(%)','净资产收益率(加权)','ROEJQ']),eps2=FV(d,['基本每股收益(元)','基本每股收益','EPSJB']);
-    h+='<tr><td>'+(f.report_period_name||f.report_date)+'</td><td>'+(rev2!=null?FW(rev2/10000):'-')+'</td><td class="'+CC(rY2)+'">'+FP(rY2)+'</td>';
-    h+='<td>'+(prof2!=null?FW(prof2/10000):'-')+'</td><td class="'+CC(pY2)+'">'+FP(pY2)+'</td><td>'+FP(gm2)+'</td><td>'+FP(nm3)+'</td><td>'+FP(roe3)+'</td><td>'+F(eps2)+'</td></tr>'});
+    h+='<tr><td>'+(f.report_period_name||f.report_date)+'</td><td>'+(rev2!=null?FA(PA(rev2)):'-')+'</td><td class="'+CC(rY2)+'">'+FP(rY2)+'</td>';
+    h+='<td>'+(prof2!=null?FA(PA(prof2)):'-')+'</td><td class="'+CC(pY2)+'">'+FP(pY2)+'</td><td>'+FP(gm2)+'</td><td>'+FP(nm3)+'</td><td>'+FP(roe3)+'</td><td>'+F(eps2)+'</td></tr>'});
   h+='</tbody></table></div></div>';
   if(fin.length>=2){
     h+='<div class="card"><div class="card-t">📈 财报趋势分析</div><div style="font-size:12px;line-height:1.8;color:#333;padding:8px">';
