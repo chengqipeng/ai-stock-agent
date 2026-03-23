@@ -75,6 +75,51 @@ def _enrich_finance_rows(finance_rows: list[dict]):
                 d["归属净利润环比增长(%)"] = round((sq_prof - prev_sq_prof) / abs(prev_sq_prof) * 100, 2)
 
 
+def _fill_finance_from_report(prediction: dict, finance_rows: list[dict]):
+    """当 prediction 中 finance_score 等字段为空时，从财报原始数据实时计算并回填。"""
+    if not prediction or not finance_rows:
+        return
+    # 如果已有值则跳过
+    if prediction.get('finance_score') is not None:
+        return
+    latest_data = finance_rows[0].get('data') if finance_rows else None
+    if not latest_data:
+        return
+
+    def _try_float(d, keys):
+        for k in keys:
+            v = d.get(k)
+            if v is not None:
+                try:
+                    return float(v)
+                except (ValueError, TypeError):
+                    pass
+        return None
+
+    rev_yoy = _try_float(latest_data, [
+        '营业总收入同比增长(%)', '营业总收入同比增长率(%)',
+        '营业收入同比增长率(%)', 'TOTALOPERATEREVETZ'])
+    prof_yoy = _try_float(latest_data, [
+        '归属净利润同比增长(%)', '净利润同比增长率(%)',
+        '归属母公司股东的净利润同比增长率(%)', 'PARENTNETPROFITTZ'])
+    roe = _try_float(latest_data, [
+        '净资产收益率(加权)(%)', '净资产收益率(%)',
+        '加权净资产收益率(%)', 'ROEJQ'])
+
+    parts = []
+    if rev_yoy is not None:
+        parts.append(max(-1, min(1, rev_yoy / 30)))
+    if prof_yoy is not None:
+        parts.append(max(-1, min(1, prof_yoy / 40)))
+    if roe is not None:
+        parts.append(max(-1, min(1, (roe - 10) / 10)))
+
+    prediction['finance_score'] = round(sum(parts) / len(parts), 4) if parts else None
+    prediction['revenue_yoy'] = round(rev_yoy, 2) if rev_yoy is not None else None
+    prediction['profit_yoy'] = round(prof_yoy, 2) if prof_yoy is not None else None
+    prediction['roe'] = round(roe, 2) if roe is not None else None
+
+
 def _serialize(obj):
     """将 Decimal / datetime 等转为 JSON 可序列化类型"""
     if isinstance(obj, dict):
@@ -192,6 +237,17 @@ async def stock_detail_overview(stock_code: str = Query(..., description="股票
                 del row["data_json"]
         _enrich_finance_rows(finance_rows)
         result["finance"] = _serialize(finance_rows)
+
+        # 7b. 如果预测数据中财务评分为空，从财报原始数据实时计算
+        if prediction:
+            _fill_finance_from_report(prediction, finance_rows)
+            result["prediction"] = _serialize(prediction)
+        elif finance_rows:
+            # 即使没有预测记录，也从财报数据计算财务评分
+            prediction = {}
+            _fill_finance_from_report(prediction, finance_rows)
+            if prediction.get('finance_score') is not None:
+                result["prediction"] = _serialize(prediction)
 
         # 8. 所属概念板块 + 板块强弱势
         # stock_concept_board_stock 使用6位纯数字代码（如 600519），需去掉后缀

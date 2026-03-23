@@ -220,6 +220,47 @@ async def v5_prediction_verification(
         return {"success": False, "error": str(e)}
 
 
+@router.get("/api/weekly_prediction/v12_verification")
+async def v12_prediction_verification(
+    iso_year: int = Query(None, description="ISO年"),
+    iso_week: int = Query(None, description="ISO周"),
+    direction: str = Query(None, description="预测方向: UP/DOWN"),
+    result: str = Query(None, description="验证结果: correct/wrong/pending"),
+    keyword: str = Query(None, description="股票代码或名称"),
+    sort_by: str = Query("stock_code"),
+    sort_dir: str = Query("asc"),
+    limit: int = Query(50),
+    offset: int = Query(0),
+):
+    """获取V12极端信号预测验证数据：v12_pred_direction vs 实际下周涨跌"""
+    try:
+        from dao.stock_weekly_prediction_dao import get_v12_prediction_verification
+        keywords = None
+        if keyword:
+            terms = re.split(r'[,，、;；\s]+', keyword.strip())
+            keywords = [t.strip() for t in terms if t.strip()]
+            if not keywords:
+                keywords = None
+        rows, total, summary = get_v12_prediction_verification(
+            iso_year=iso_year, iso_week=iso_week,
+            keywords=keywords, direction_filter=direction,
+            result_filter=result,
+            sort_by=sort_by, sort_dir=sort_dir,
+            limit=limit, offset=offset,
+        )
+        for r in rows:
+            for k, v in list(r.items()):
+                if v is not None and not isinstance(v, (str, int, float, bool)):
+                    r[k] = str(v)
+        for k, v in list(summary.items()):
+            if v is not None and not isinstance(v, (str, int, float, bool)):
+                summary[k] = str(v)
+        return {"success": True, "data": rows, "total": total, "summary": summary}
+    except Exception as e:
+        logger.error("查询V12极端信号预测验证失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
 @router.get("/api/weekly_prediction/weeks")
 async def prediction_weeks(limit: int = Query(20)):
     """获取有预测记录的周列表"""
