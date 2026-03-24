@@ -71,15 +71,6 @@ def precompute(klines):
     rsi14 = calc_rsi(c, 14)
     kv, dv, jv = calc_kdj(h, l, c)
 
-    obv = [0.0] * n
-    for i in range(1, n):
-        if c[i] > c[i - 1]:
-            obv[i] = obv[i - 1] + v[i]
-        elif c[i] < c[i - 1]:
-            obv[i] = obv[i - 1] - v[i]
-        else:
-            obv[i] = obv[i - 1]
-
     boll_up = [0.0] * n
     boll_dn = [0.0] * n
     boll_mid = [0.0] * n
@@ -108,7 +99,7 @@ def precompute(klines):
         'dif': dif, 'dea': dea, 'macd_bar': macd_bar,
         'rsi6': rsi6, 'rsi14': rsi14,
         'k': kv, 'd': dv, 'j': jv,
-        'obv': obv, 'boll_up': boll_up, 'boll_dn': boll_dn, 'boll_mid': boll_mid,
+        'boll_up': boll_up, 'boll_dn': boll_dn, 'boll_mid': boll_mid,
         'atr14': atr14,
     }
 
@@ -421,9 +412,6 @@ def _(ind, i): return ind['k'][i] > ind['d'][i] and ind['k'][i] < 80
 
 @_reg('F_RSI适中')
 def _(ind, i): return 40 <= ind['rsi14'][i] <= 70
-
-@_reg('F_OBV上升')
-def _(ind, i): return i >= 5 and ind['obv'][i] > ind['obv'][i - 5]
 
 @_reg('F_布林收窄')
 def _(ind, i):

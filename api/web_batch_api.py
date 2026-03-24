@@ -464,38 +464,40 @@ async def trigger_monthly_prediction_job():
     return {"success": True, "message": "月预测任务已触发"}
 
 
-# ── V5技术形态批量预测 ──
-_v5_job_status = {"running": False, "total": 0, "done": 0, "signal_count": 0, "error": None}
+# ── V20量价超跌反弹批量预测 ──
+_v20_job_status = {"running": False, "total": 0, "done": 0, "signal_count": 0, "error": None}
 
 
-@app.get("/api/v5_tech_job_status")
-async def v5_tech_job_status():
-    """获取V5技术预测任务状态"""
-    return {"success": True, "data": _v5_job_status}
+@app.get("/api/v20_job_status")
+async def v20_job_status():
+    """获取V20量价预测任务状态"""
+    return {"success": True, "data": _v20_job_status}
 
 
-@app.post("/api/trigger_v5_tech_predict")
-async def trigger_v5_tech_predict():
-    """手动触发V5技术形态批量预测"""
-    if _v5_job_status["running"]:
-        return {"success": False, "message": "V5技术预测任务正在执行中"}
-    asyncio.create_task(_run_v5_tech_predict())
-    return {"success": True, "message": "V5技术预测任务已触发"}
+@app.post("/api/trigger_v20_predict")
+async def trigger_v20_predict():
+    """手动触发V20量价超跌反弹批量预测"""
+    if _v20_job_status["running"]:
+        return {"success": False, "message": "V20量价预测任务正在执行中"}
+    asyncio.create_task(_run_v20_predict())
+    return {"success": True, "message": "V20量价预测任务已触发"}
 
 
-async def _run_v5_tech_predict():
-    """后台执行V5技术形态批量预测并写入DB"""
-    _v5_job_status.update(running=True, total=0, done=0, signal_count=0, error=None)
+async def _run_v20_predict():
+    """后台执行V20量价超跌反弹批量预测并写入DB"""
+    _v20_job_status.update(running=True, total=0, done=0, signal_count=0, error=None)
     try:
         from dao.stock_kline_dao import get_all_stock_codes
-        from service.analysis.v5_tech_predictor import batch_predict_v5_tech
         from dao.stock_weekly_prediction_dao import ensure_tables
         from dao import get_connection
+        from service.v20_prediction.v20_engine import V20PredictionEngine
+        from collections import defaultdict
+        from datetime import datetime, timedelta
 
         ensure_tables()
         all_codes = await asyncio.get_event_loop().run_in_executor(None, get_all_stock_codes)
         if not all_codes:
-            _v5_job_status["error"] = "无股票数据"
+            _v20_job_status["error"] = "无股票数据"
             return
 
         # 获取最新交易日
@@ -512,43 +514,109 @@ async def _run_v5_tech_predict():
 
         latest_date = await asyncio.get_event_loop().run_in_executor(None, _get_latest)
         if not latest_date:
-            _v5_job_status["error"] = "无法获取最新交易日"
+            _v20_job_status["error"] = "无法获取最新交易日"
             return
 
-        _v5_job_status["total"] = len(all_codes)
+        _v20_job_status["total"] = len(all_codes)
 
-        def _progress(total, done):
-            _v5_job_status["total"] = total
-            _v5_job_status["done"] = done
+        # 加载K线数据（需要60日）
+        def _load_and_predict():
+            conn = get_connection(use_dict_cursor=True)
+            cur = conn.cursor()
+            try:
+                dt_latest = datetime.strptime(latest_date, '%Y-%m-%d')
+                lookback_start = (dt_latest - timedelta(days=120)).strftime('%Y-%m-%d')
 
-        results = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: batch_predict_v5_tech(all_codes, latest_date, progress_callback=_progress)
-        )
-        _v5_job_status["signal_count"] = len(results)
+                stock_klines = defaultdict(list)
+                batch_size = 200
+                for i in range(0, len(all_codes), batch_size):
+                    batch = all_codes[i:i + batch_size]
+                    ph = ','.join(['%s'] * len(batch))
+                    cur.execute(
+                        f"SELECT stock_code, `date`, open_price, close_price, high_price, "
+                        f"low_price, change_percent, trading_volume, change_hand "
+                        f"FROM stock_kline WHERE stock_code IN ({ph}) "
+                        f"AND `date` >= %s AND `date` <= %s ORDER BY `date`",
+                        batch + [lookback_start, latest_date])
+                    for row in cur.fetchall():
+                        stock_klines[row['stock_code']].append({
+                            'close': float(row['close_price'] or 0),
+                            'open': float(row['open_price'] or 0),
+                            'high': float(row['high_price'] or 0),
+                            'low': float(row['low_price'] or 0),
+                            'volume': float(row['trading_volume'] or 0),
+                            'turnover': float(row.get('change_hand') or 0),
+                            'change_percent': float(row['change_percent'] or 0),
+                        })
+                    _v20_job_status["done"] = min(i + batch_size, len(all_codes))
 
-        # 写入DB: 更新已有预测记录的v5_*字段
+                engine = V20PredictionEngine()
+                results = engine.predict_batch(dict(stock_klines))
+                return results
+            finally:
+                cur.close()
+                conn.close()
+
+        results = await asyncio.get_event_loop().run_in_executor(None, _load_and_predict)
+        _v20_job_status["signal_count"] = len(results)
+        _v20_job_status["done"] = len(all_codes)
+
+        # 写入DB
         def _write_db():
             conn = get_connection()
             cur = conn.cursor()
             try:
-                v5_cols = [
-                    'v5_pred_direction', 'v5_confidence', 'v5_strategy', 'v5_reason',
-                    'v5_win_rate', 'v5_signal_date', 'v5_signal_count', 'v5_all_strategies',
+                v20_cols = [
+                    'v20_pred_direction', 'v20_confidence', 'v20_rule_name', 'v20_reason',
+                    'v20_backtest_acc', 'v20_matched_count', 'v20_matched_rules',
+                    'v20_pos', 'v20_vr5', 'v20_ma20d', 'v20_cdn',
                 ]
-                set_clause = ', '.join(f'{c} = %({c})s' for c in v5_cols)
+                set_clause = ', '.join(f'{c} = %({c})s' for c in v20_cols)
                 sql = f"UPDATE stock_weekly_prediction SET {set_clause} WHERE stock_code = %(stock_code)s"
-                sql_h = f"UPDATE stock_weekly_prediction_history SET {set_clause} WHERE stock_code = %(stock_code)s AND iso_year = %(iso_year)s AND iso_week = %(iso_week)s"
 
-                from datetime import datetime
+                # history 表用 INSERT ... ON DUPLICATE KEY UPDATE，确保行不存在时也能写入
+                h_insert_cols = ['stock_code', 'stock_name', 'iso_year', 'iso_week', 'predict_date',
+                                 'pred_direction', 'confidence', 'strategy'] + v20_cols
+                h_vals = ', '.join(f'%({c})s' for c in h_insert_cols)
+                h_update = ', '.join(f'{c} = VALUES({c})' for c in v20_cols)
+                sql_h = (f"INSERT INTO stock_weekly_prediction_history ({', '.join(h_insert_cols)}) "
+                         f"VALUES ({h_vals}) "
+                         f"ON DUPLICATE KEY UPDATE {h_update}")
+
                 dt = datetime.strptime(latest_date, '%Y-%m-%d')
                 iso_cal = dt.isocalendar()
 
-                # 先清空所有v5字段
-                cur.execute(f"UPDATE stock_weekly_prediction SET {', '.join(c + ' = NULL' for c in v5_cols)}")
+                # 先清空所有v20字段
+                cur.execute(f"UPDATE stock_weekly_prediction SET {', '.join(c + ' = NULL' for c in v20_cols)}")
+
+                # 查询stock_name映射
+                cur.execute("SELECT stock_code, stock_name FROM stock_weekly_prediction")
+                name_map = {r[0]: r[1] for r in cur.fetchall()}
 
                 updated = 0
-                for code, v5 in results.items():
-                    params = {**v5, 'stock_code': code, 'iso_year': iso_cal[0], 'iso_week': iso_cal[1]}
+                for code, v20 in results.items():
+                    feat = v20.get('features', {})
+                    params = {
+                        'stock_code': code,
+                        'stock_name': name_map.get(code),
+                        'iso_year': iso_cal[0],
+                        'iso_week': iso_cal[1],
+                        'predict_date': latest_date,
+                        'pred_direction': v20['pred_direction'],
+                        'confidence': v20['confidence'],
+                        'strategy': 'v20_volume_price',
+                        'v20_pred_direction': v20['pred_direction'],
+                        'v20_confidence': v20['confidence'],
+                        'v20_rule_name': v20['rule_name'],
+                        'v20_reason': (v20.get('reason') or '')[:200],
+                        'v20_backtest_acc': v20['backtest_acc'],
+                        'v20_matched_count': v20['matched_count'],
+                        'v20_matched_rules': ','.join(v20['matched_rules']),
+                        'v20_pos': feat.get('pos'),
+                        'v20_vr5': feat.get('vr5'),
+                        'v20_ma20d': feat.get('ma20d'),
+                        'v20_cdn': feat.get('cdn'),
+                    }
                     cur.execute(sql, params)
                     cur.execute(sql_h, params)
                     updated += cur.rowcount
@@ -559,13 +627,163 @@ async def _run_v5_tech_predict():
                 conn.close()
 
         updated = await asyncio.get_event_loop().run_in_executor(None, _write_db)
-        logger.info("V5技术预测写入DB: %d只有信号, 更新%d条", len(results), updated)
+        logger.info("V20量价预测写入DB: %d只有信号, 更新%d条", len(results), updated)
 
     except Exception as e:
-        _v5_job_status["error"] = str(e)
-        logger.error("V5技术预测异常: %s", e, exc_info=True)
+        _v20_job_status["error"] = str(e)
+        logger.error("V20量价预测异常: %s", e, exc_info=True)
     finally:
-        _v5_job_status["running"] = False
+        _v20_job_status["running"] = False
+
+
+# ═══════════════════════════════════════════════════════════
+# V30 情绪预测 批量触发
+# ═══════════════════════════════════════════════════════════
+
+_v30_job_status = {"running": False, "total": 0, "done": 0, "signal_count": 0, "error": None, "phase": None}
+
+
+@app.get("/api/v30_job_status")
+async def v30_job_status():
+    """获取V30情绪预测任务状态"""
+    return {"success": True, "data": _v30_job_status}
+
+
+@app.post("/api/trigger_v30_predict")
+async def trigger_v30_predict():
+    """手动触发V30情绪预测批量计算"""
+    if _v30_job_status["running"]:
+        return {"success": False, "message": "V30情绪预测任务正在执行中"}
+    asyncio.create_task(_run_v30_predict())
+    return {"success": True, "message": "V30情绪预测任务已触发"}
+
+
+async def _run_v30_predict():
+    """后台执行V30情绪预测批量计算并写入DB"""
+    _v30_job_status.update(running=True, total=0, done=0, signal_count=0, error=None, phase="初始化")
+    try:
+        from dao.stock_kline_dao import get_all_stock_codes
+        from dao.stock_weekly_prediction_dao import ensure_tables
+        from dao import get_connection
+        from service.v30_prediction.v30_predictor import batch_predict_v30
+        from datetime import datetime
+
+        ensure_tables()
+        all_codes = await asyncio.get_event_loop().run_in_executor(None, get_all_stock_codes)
+        if not all_codes:
+            _v30_job_status["error"] = "无股票数据"
+            return
+
+        # 获取最新交易日
+        def _get_latest():
+            conn = get_connection(use_dict_cursor=True)
+            cur = conn.cursor()
+            try:
+                cur.execute("SELECT MAX(`date`) as d FROM stock_kline WHERE stock_code = '000001.SZ'")
+                row = cur.fetchone()
+                return str(row['d']) if row and row['d'] else None
+            finally:
+                cur.close()
+                conn.close()
+
+        latest_date = await asyncio.get_event_loop().run_in_executor(None, _get_latest)
+        if not latest_date:
+            _v30_job_status["error"] = "无法获取最新交易日"
+            return
+
+        _v30_job_status["total"] = len(all_codes)
+
+        # 批量预测（V30 predictor内部会训练引擎+批量预测）
+        def _predict():
+            def _progress(done, total):
+                if done == -1:
+                    _v30_job_status["phase"] = "训练引擎"
+                else:
+                    _v30_job_status["phase"] = "预测中"
+                    _v30_job_status["done"] = done
+            _v30_job_status["done"] = 0
+            _v30_job_status["phase"] = "加载数据"
+            results = batch_predict_v30(all_codes, latest_date, progress_callback=_progress)
+            _v30_job_status["done"] = len(all_codes)
+            _v30_job_status["phase"] = "写入DB"
+            return results
+
+        results = await asyncio.get_event_loop().run_in_executor(None, _predict)
+
+        # 只保留有信号的
+        signal_results = {k: v for k, v in results.items() if v.get('v30_pred_direction')}
+        _v30_job_status["signal_count"] = len(signal_results)
+
+        # 写入DB
+        def _write_db():
+            conn = get_connection()
+            cur = conn.cursor()
+            try:
+                v30_cols = [
+                    'v30_pred_direction', 'v30_confidence', 'v30_strategy', 'v30_reason',
+                    'v30_composite_score', 'v30_sent_agree', 'v30_tech_agree', 'v30_mkt_ret_20d',
+                ]
+                set_clause = ', '.join(f'{c} = %({c})s' for c in v30_cols)
+                sql = f"UPDATE stock_weekly_prediction SET {set_clause} WHERE stock_code = %(stock_code)s"
+
+                # history 表用 INSERT ... ON DUPLICATE KEY UPDATE，确保行不存在时也能写入
+                h_insert_cols = ['stock_code', 'stock_name', 'iso_year', 'iso_week', 'predict_date',
+                                 'pred_direction', 'confidence', 'strategy'] + v30_cols
+                h_vals = ', '.join(f'%({c})s' for c in h_insert_cols)
+                h_update = ', '.join(f'{c} = VALUES({c})' for c in v30_cols)
+                sql_h = (f"INSERT INTO stock_weekly_prediction_history ({', '.join(h_insert_cols)}) "
+                         f"VALUES ({h_vals}) "
+                         f"ON DUPLICATE KEY UPDATE {h_update}")
+
+                dt = datetime.strptime(latest_date, '%Y-%m-%d')
+                iso_cal = dt.isocalendar()
+
+                # 先清空所有v30字段
+                cur.execute(f"UPDATE stock_weekly_prediction SET {', '.join(c + ' = NULL' for c in v30_cols)}")
+
+                # 查询stock_name映射
+                cur.execute("SELECT stock_code, stock_name FROM stock_weekly_prediction")
+                name_map = {r[0]: r[1] for r in cur.fetchall()}
+
+                updated = 0
+                for code, v30 in results.items():
+                    direction = v30.get('v30_pred_direction') or 'UP'
+                    params = {
+                        'stock_code': code,
+                        'stock_name': name_map.get(code),
+                        'iso_year': iso_cal[0],
+                        'iso_week': iso_cal[1],
+                        'predict_date': latest_date,
+                        'pred_direction': direction,
+                        'confidence': v30.get('v30_confidence') or 'medium',
+                        'strategy': 'v30_sentiment',
+                        'v30_pred_direction': v30.get('v30_pred_direction'),
+                        'v30_confidence': v30.get('v30_confidence'),
+                        'v30_strategy': v30.get('v30_strategy'),
+                        'v30_reason': (v30.get('v30_reason') or '')[:200],
+                        'v30_composite_score': v30.get('v30_composite_score'),
+                        'v30_sent_agree': v30.get('v30_sent_agree'),
+                        'v30_tech_agree': v30.get('v30_tech_agree'),
+                        'v30_mkt_ret_20d': v30.get('v30_mkt_ret_20d'),
+                    }
+                    cur.execute(sql, params)
+                    cur.execute(sql_h, params)
+                    updated += cur.rowcount
+                conn.commit()
+                return updated
+            finally:
+                cur.close()
+                conn.close()
+
+        updated = await asyncio.get_event_loop().run_in_executor(None, _write_db)
+        logger.info("V30情绪预测写入DB: %d只有信号, 更新%d条", len(signal_results), updated)
+
+    except Exception as e:
+        _v30_job_status["error"] = str(e)
+        logger.error("V30情绪预测异常: %s", e, exc_info=True)
+    finally:
+        _v30_job_status["running"] = False
+        _v30_job_status["phase"] = None
 
 
 @app.get("/api/stock_list")
@@ -710,7 +928,6 @@ async def get_batch_stocks(batch_id: int):
                 stock['nw_reason'] = wp.get('nw_reason')
                 stock['nw_pred_chg'] = wp.get('nw_pred_chg')
                 stock['nw_backtest_accuracy'] = wp.get('nw_backtest_accuracy')
-                stock['v5_pred_direction'] = wp.get('v5_pred_direction')
                 stock['fund_flow_signal'] = wp.get('fund_flow_signal')
                 stock['finance_score'] = wp.get('finance_score')
                 stock['board_momentum'] = wp.get('board_momentum')
@@ -720,7 +937,6 @@ async def get_batch_stocks(batch_id: int):
                 stock['tw_confidence'] = None
                 stock['nw_pred_direction'] = None
                 stock['nw_confidence'] = None
-                stock['v5_pred_direction'] = None
                 stock['fund_flow_signal'] = None
                 stock['finance_score'] = None
                 stock['board_momentum'] = None

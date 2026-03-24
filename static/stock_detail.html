@@ -144,7 +144,10 @@ function csig(){
   sc.push({l:'本周',v:p.pred_direction||'-'});
   if(p.nw_pred_direction==='UP'){b+=2;rs.push('下周V11看涨')}else if(p.nw_pred_direction==='DOWN'){s+=2;rs.push('下周V11看跌')}
   sc.push({l:'下周V11',v:p.nw_pred_direction||'-'});
-  if(p.v5_pred_direction==='UP'){b+=1.5;rs.push('OBV信号看涨')}sc.push({l:'OBV',v:p.v5_pred_direction||'无信号'});
+  if(p.v20_pred_direction==='UP'){var v20s=p.v20_confidence==='high'?1.5:1;b+=v20s;rs.push('V20超跌反弹'+(p.v20_confidence==='high'?'(高)':''))}
+  sc.push({l:'V20',v:p.v20_pred_direction||'无信号'});
+  if(p.v30_pred_direction==='UP'){var v30s=p.v30_confidence==='high'?2:p.v30_confidence==='medium'?1:0.5;b+=v30s;rs.push('V30情绪共振'+(p.v30_confidence==='high'?'(高)':p.v30_confidence==='medium'?'(中)':'(低)'))}
+  sc.push({l:'V30',v:p.v30_pred_direction||'无信号'});
   if(p.fund_flow_signal>0.3){b+=1;rs.push('资金净流入')}else if(p.fund_flow_signal<-0.3){s+=1;rs.push('资金净流出')}
   if(p.finance_score>0.3)b+=0.5;else if(p.finance_score<-0.3)s+=0.5;
   if(p.board_momentum>0.3){b+=0.5;rs.push('板块动量强')}else if(p.board_momentum<-0.3)s+=0.5;
@@ -209,7 +212,9 @@ function rOverview(){
   h+='<div class="card"><div class="card-t">🔮 预测信号</div><div class="mg">';
   h+=MI('本周预测',DH(p.pred_direction)+' '+CH(p.confidence),'');h+=MI('预测涨跌幅',FP(p.pred_weekly_chg),CC(p.pred_weekly_chg));
   h+=MI('下周V11',DH(p.nw_pred_direction)+' '+CH(p.nw_confidence),'');h+=MI('下周预测涨跌',FP(p.nw_pred_chg),CC(p.nw_pred_chg));
-  h+=MI('OBV V5',DH(p.v5_pred_direction)+' '+CH(p.v5_confidence),'');h+=MI('OBV胜率',FP(p.v5_win_rate),'');
+  h+=MI('V20超跌',DH(p.v20_pred_direction)+' '+CH(p.v20_confidence),'');h+=MI('V20回测准确率',p.v20_backtest_acc?p.v20_backtest_acc+'%':'-','');
+  h+=MI('V30情绪',DH(p.v30_pred_direction)+' '+CH(p.v30_confidence),'');h+=MI('V30综合评分',p.v30_composite_score?F(p.v30_composite_score,2):'-','');
+  
   h+='</div></div>';
   h+='<div class="card"><div class="card-t">💰 资金 & 财务</div><div class="mg">';
   h+=MI('资金流信号',F(p.fund_flow_signal),CC(p.fund_flow_signal));h+=MI('大单净额(周)',FW(p.big_net_sum),CC(p.big_net_sum));
@@ -373,15 +378,7 @@ function rPredict(){
     var vf2=nw.filter(function(r){return r.nw_is_correct!=null}),vc2=vf2.filter(function(r){return r.nw_is_correct}).length;
     if(vf2.length)h+='<div style="margin-top:8px;font-size:11px;color:#666">已验证 '+vf2.length+' 周，正确 '+vc2+' 周，准确率 <b>'+(vc2/vf2.length*100).toFixed(1)+'%</b></div>';
   }else h+='<div style="color:#8e8e93;font-size:12px">暂无下周V11预测历史</div>';h+='</div>';
-  var v5=D.v5_history||[];
-  h+='<div class="card"><div class="card-t">📡 OBV V5预测历史 ('+v5.length+'条)</div>';
-  if(v5.length){
-    h+='<div style="overflow-x:auto"><table class="dt"><thead><tr><th>预测日期</th><th>周</th><th>方向</th><th>置信度</th><th>策略</th><th>胜率</th><th>信号日期</th><th>实际方向</th><th>实际5日涨跌</th><th>正确</th></tr></thead><tbody>';
-    v5.forEach(function(r){h+='<tr><td>'+r.predict_date+'</td><td>W'+r.iso_week+'</td><td>'+DH(r.v5_pred_direction)+'</td><td>'+CH(r.v5_confidence)+'</td><td>'+(r.v5_strategy||'-')+'</td><td>'+FP(r.v5_win_rate)+'</td><td>'+(r.v5_signal_date||'-')+'</td><td>'+DH(r.v5_actual_direction)+'</td><td class="'+CC(r.v5_actual_5d_chg)+'">'+FP(r.v5_actual_5d_chg)+'</td><td>'+RH(r.v5_is_correct)+'</td></tr>'});
-    h+='</tbody></table></div>';
-    var vf3=v5.filter(function(r){return r.v5_is_correct!=null}),vc3=vf3.filter(function(r){return r.v5_is_correct}).length;
-    if(vf3.length)h+='<div style="margin-top:8px;font-size:11px;color:#666">已验证 '+vf3.length+' 次，正确 '+vc3+' 次，胜率 <b>'+(vc3/vf3.length*100).toFixed(1)+'%</b></div>';
-  }else h+='<div style="color:#8e8e93;font-size:12px">暂无OBV V5预测历史</div>';h+='</div>';
+  
   var ds=D.deepseek_history||[];
   if(ds.length){h+='<div class="card"><div class="card-t">🤖 DeepSeek预测历史 ('+ds.length+'条)</div>';
     h+='<div style="overflow-x:auto"><table class="dt"><thead><tr><th>预测日期</th><th>目标周</th><th>方向</th><th>置信度</th><th>理由</th><th>本周涨跌</th><th>实际方向</th><th>实际涨跌</th><th>正确</th></tr></thead><tbody>';

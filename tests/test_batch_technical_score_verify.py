@@ -253,7 +253,6 @@ def verify_boll_lower_bounce(s: dict) -> tuple[int, str, list[str]]:
     维度2 量能配合 (满分25):
       2a. 近5日出现缩量(vol < vol_ma5*0.6) +8
       2b. 反弹放量阳线: vol/vol_ma5 >1.5 +10, >1.2 +5
-      2c. OBV量价背离(%b<0.3且OBV上行但价格未涨) +7
 
     维度3 K线形态 (满分25):
       3a. 长下影线(下影/实体>2) +10
@@ -336,15 +335,6 @@ def verify_boll_lower_bounce(s: dict) -> tuple[int, str, list[str]]:
         elif vr > 1.2:
             score += 5
             details.append(f"反弹温和放量({vr:.1f})+5")
-
-    # 2c. OBV量价背离
-    if pct_b is not None and pct_b < 0.3:
-        obv_tail5 = s.get("obv_tail5", [])
-        price_tail5 = s.get("price_tail5", [])
-        if len(obv_tail5) >= 3 and obv_tail5[-1] > obv_tail5[-3]:
-            if len(price_tail5) >= 3 and price_tail5[-1] <= price_tail5[-3]:
-                score += 7
-                details.append("OBV量价背离+7")
 
     # ─── 维度3: K线形态 ───
     body = abs(close - open_)

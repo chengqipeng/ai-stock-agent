@@ -50,9 +50,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
 .pred-table tbody tr:hover{background:rgba(102,126,234,0.06)}
 .pred-table tbody tr.row-nw{background:rgba(255,152,0,0.03)}
 .pred-table tbody tr.row-nw:hover{background:rgba(255,152,0,0.08)}
-.pred-table tbody tr.row-v5{background:rgba(156,39,176,0.03)}
-.pred-table tbody tr.row-v5:hover{background:rgba(156,39,176,0.08)}
+
 .pred-table tbody tr.row-tw{border-top:2px solid rgba(102,126,234,0.12)}
+.pred-table tbody tr.row-v20{background:rgba(0,150,136,0.03)}
+.pred-table tbody tr.row-v20:hover{background:rgba(0,150,136,0.08)}
+.pred-table tbody tr.row-v30{background:rgba(121,85,72,0.03)}
+.pred-table tbody tr.row-v30:hover{background:rgba(121,85,72,0.08)}
 
 /* 方向/置信度标签 */
 .dir-up{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(231,76,60,0.12);color:#e74c3c}
@@ -157,10 +160,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
             <option value="UNCERTAIN">下周不确定</option>
             <option value="HAS_SIGNAL">下周有信号</option>
         </select>
-        <select id="filterV5Direction" onchange="loadList()">
-            <option value="">OBV 5日: 全部</option>
-            <option value="UP">OBV有信号 ↑</option>
-            <option value="NO_SIGNAL">OBV无信号</option>
+        <select id="filterV20Direction" onchange="loadList()">
+            <option value="">V20量价: 全部</option>
+            <option value="UP">V20有信号 ↑</option>
+            <option value="NO_SIGNAL">V20无信号</option>
+        </select>
+        <select id="filterV30Direction" onchange="loadList()">
+            <option value="">V30情绪: 全部</option>
+            <option value="UP">V30有信号 ↑</option>
+            <option value="NO_SIGNAL">V30无信号</option>
         </select>
         <input id="searchInput" type="text" placeholder="搜索代码/名称（逗号/空格分隔可搜多只）..." style="width:260px" oninput="debounceSearch()" onkeydown="handleSearchEnter(event)" onpaste="handleSearchPaste(event)">
         <span id="searchClear" onclick="clearSearch()" style="cursor:pointer;color:#999;font-size:14px;display:none" title="清空搜索">&times;</span>
@@ -168,7 +176,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
         <button class="btn" style="background:rgba(231,76,60,0.85)" id="btnRecompute" onclick="triggerRecompute()">全部重新计算</button>
         <button class="btn" style="background:rgba(52,152,219,0.85)" id="btnThisWeek" onclick="triggerThisWeekPredict()">本周d3/d4预测</button>
         <button class="btn" style="background:rgba(255,152,0,0.85)" id="btnNextWeek" onclick="triggerNextWeekPredict()">下周预测V11+回测</button>
-        <button class="btn" style="background:rgba(156,39,176,0.85)" id="btnV5Tech" onclick="triggerV5TechPredict()">OBV 5日预测</button>
+        <button class="btn" style="background:rgba(0,150,136,0.85)" id="btnV20Predict" onclick="triggerV20Predict()">V20量价预测</button>
+        <button class="btn" style="background:rgba(121,85,72,0.85)" id="btnV30Predict" onclick="triggerV30Predict()">V30情绪预测</button>
         <span class="info" id="listInfo"></span>
     </div>
     <div id="tableWrap"></div>
@@ -181,7 +190,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
     <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
         <button class="tab-btn active" id="subTabTw" onclick="switchVerifySubTab('tw')" style="font-size:11px;padding:3px 12px">本周预测验证</button>
         <button class="tab-btn" id="subTabNw" onclick="switchVerifySubTab('nw')" style="font-size:11px;padding:3px 12px">V11下周预测验证</button>
-        <button class="tab-btn" id="subTabV5" onclick="switchVerifySubTab('v5')" style="font-size:11px;padding:3px 12px;border-color:rgba(156,39,176,0.5);color:rgba(156,39,176,0.9)">OBV 5日预测验证</button>
+        <button class="tab-btn" id="subTabV20" onclick="switchVerifySubTab('v20')" style="font-size:11px;padding:3px 12px;border-color:rgba(0,150,136,0.5);color:rgba(0,150,136,0.9)">V20量价验证</button>
+        <button class="tab-btn" id="subTabV30" onclick="switchVerifySubTab('v30')" style="font-size:11px;padding:3px 12px;border-color:rgba(121,85,72,0.5);color:rgba(121,85,72,0.9)">V30情绪验证</button>
         <span style="margin-left:auto;display:flex;gap:6px">
             <button class="btn" style="background:rgba(46,204,113,0.85);font-size:11px;padding:4px 12px" id="btnVerifyAll" onclick="triggerVerifyAll()">回填全部待验证</button>
             <button class="btn" style="background:rgba(52,152,219,0.85);font-size:11px;padding:4px 12px" id="btnVerifyWeek" onclick="triggerVerifyWeek()">回填当前选中周</button>
@@ -246,28 +256,52 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
     <div class="pagination" id="nwVerifyPagination"></div>
     </div>
 
-    <!-- OBV 5日预测验证 -->
-    <div id="verifyV5Content" style="display:none">
+    <!-- V20量价预测验证 -->
+    <div id="verifyV20Content" style="display:none">
     <div class="summary-section">
-        <div class="summary-label">🔮 OBV 5日预测验证 — V5信号日起5个交易日实际涨跌</div>
-        <div class="summary-row" id="v5VerifySummaryRow"></div>
+        <div class="summary-label">📊 V20量价预测验证 — 超跌反弹信号 vs 实际5日涨跌</div>
+        <div class="summary-row" id="v20VerifySummaryRow"></div>
     </div>
     <div class="toolbar">
-        <select id="v5VerifyWeekSelect" onchange="loadV5VerifyList()">
+        <select id="v20VerifyWeekSelect" onchange="loadV20VerifyList()">
             <option value="">加载中...</option>
         </select>
-        <select id="v5VerifyFilterResult" onchange="loadV5VerifyList()">
+        <select id="v20VerifyFilterResult" onchange="loadV20VerifyList()">
             <option value="">全部结果</option>
             <option value="correct">✓ 预测正确</option>
             <option value="wrong">✗ 预测错误</option>
             <option value="pending">- 待验证</option>
         </select>
-        <input id="v5VerifySearchInput" type="text" placeholder="搜索代码/名称..." style="width:220px" oninput="debounceV5VerifySearch()">
-        <button class="btn" onclick="loadV5VerifyList()">刷新</button>
-        <span class="info" id="v5VerifyListInfo"></span>
+        <input id="v20VerifySearchInput" type="text" placeholder="搜索代码/名称..." style="width:220px" oninput="debounceV20VerifySearch()">
+        <button class="btn" onclick="loadV20VerifyList()">刷新</button>
+        <span class="info" id="v20VerifyListInfo"></span>
     </div>
-    <div id="v5VerifyTableWrap"></div>
-    <div class="pagination" id="v5VerifyPagination"></div>
+    <div id="v20VerifyTableWrap"></div>
+    <div class="pagination" id="v20VerifyPagination"></div>
+    </div>
+
+    <!-- V30情绪预测验证 -->
+    <div id="verifyV30Content" style="display:none">
+    <div class="summary-section">
+        <div class="summary-label">🧠 V30情绪预测验证 — 情绪+技术因子 vs 实际5日涨跌</div>
+        <div class="summary-row" id="v30VerifySummaryRow"></div>
+    </div>
+    <div class="toolbar">
+        <select id="v30VerifyWeekSelect" onchange="loadV30VerifyList()">
+            <option value="">加载中...</option>
+        </select>
+        <select id="v30VerifyFilterResult" onchange="loadV30VerifyList()">
+            <option value="">全部结果</option>
+            <option value="correct">✓ 预测正确</option>
+            <option value="wrong">✗ 预测错误</option>
+            <option value="pending">- 待验证</option>
+        </select>
+        <input id="v30VerifySearchInput" type="text" placeholder="搜索代码/名称..." style="width:220px" oninput="debounceV30VerifySearch()">
+        <button class="btn" onclick="loadV30VerifyList()">刷新</button>
+        <span class="info" id="v30VerifyListInfo"></span>
+    </div>
+    <div id="v30VerifyTableWrap"></div>
+    <div class="pagination" id="v30VerifyPagination"></div>
     </div>
 
     </div>
@@ -435,16 +469,24 @@ const INDICATOR_TIPS = {
             {h: '使用场景', p: '如果剩余涨跌幅为正且较大，说明模型认为后续交易日还有上涨空间；如果为负，说明模型认为已经涨过头或还会继续跌。'},
         ],
     },
-    'v5_pred_direction': {
-        title: 'OBV 5日预测',
+    'v20_pred_direction': {
+        title: 'V20量价超跌反弹预测',
         sections: [
-            {h: '预测原理', p: '基于蜻蜓布林+OBV上升+收阳三层过滤策略，预测未来5个交易日方向。回测胜率约75.8%。'},
-            {h: '策略1: 蜻蜓布林+OBV+收阳', p: '布林带下轨附近出现蜻蜓十字线，同时OBV上升且当日收阳。三重信号共振，胜率最高(~75.8%)。'},
-            {h: '策略2: 空中加油+缩量', p: '上涨趋势中出现缩量回调（空中加油形态），胜率约65.7%。'},
-            {h: '策略3: 蜻蜓布林(单独)', p: '仅布林带下轨附近出现蜻蜓十字线，信号量大但胜率较低(~58.2%)。'},
-            {h: '信号数 (N/3)', p: '显示命中了几个策略（最多3个）。命中越多信号越强。'},
-            {h: '信号日期', p: '触发信号的K线日期。信号在该日收盘后产生，预测未来5个交易日方向。'},
-            {h: '注意', p: 'OBV 5日预测仅预测涨方向(UP)，无信号时不做预测。信号有效期约5个交易日。'},
+            {h: '预测原理', p: '基于量价因子的超跌反弹预测模型，识别短期超跌后的反弹机会。回测准确率约66-72%。'},
+            {h: '核心因子', p: '综合考虑价格位置(MA20偏离度)、量比(VR5)、跌幅深度(CDN)等量价因子。'},
+            {h: '置信度', p: '高置信: 多因子共振，信号强度高；中置信: 部分因子满足条件。'},
+            {h: '注意', p: 'V20仅预测涨方向(UP)，无信号时不做预测。'},
+        ],
+    },
+    'v30_pred_direction': {
+        title: 'V30情绪+技术因子预测',
+        sections: [
+            {h: '预测原理', p: '基于情绪因子和技术因子投票的综合预测模型。回测准确率约61-80%。'},
+            {h: '情绪因子', p: '包括市场情绪、资金流向、板块动量等情绪面指标。'},
+            {h: '技术因子', p: '包括RSI、MACD、布林带等技术面指标。'},
+            {h: '置信度', p: '高置信: 情绪+技术双重确认；中置信: 单方面确认；低置信: 弱信号。'},
+            {h: '综合评分', p: 'v30_composite_score为各因子加权综合评分，分数越高信号越强。'},
+            {h: '注意', p: 'V30仅预测涨方向(UP)，无信号时不做预测。'},
         ],
     },
     'nw_pred_direction': {
@@ -542,7 +584,8 @@ function computeSignal(r) {
     var b=0,s=0;
     if(r.pred_direction==='UP')b+=(r.confidence==='high'?2:1);else if(r.pred_direction==='DOWN')s+=(r.confidence==='high'?2:1);
     if(r.nw_pred_direction==='UP')b+=2;else if(r.nw_pred_direction==='DOWN')s+=2;
-    if(r.v5_pred_direction==='UP')b+=1.5;
+    if(r.v20_pred_direction==='UP'){if(r.v20_confidence==='high')b+=1.5;else b+=1;}
+    if(r.v30_pred_direction==='UP'){if(r.v30_confidence==='high')b+=2;else if(r.v30_confidence==='medium')b+=1;else b+=0.5;}
     if(r.fund_flow_signal!=null){if(r.fund_flow_signal>0.3)b+=1;else if(r.fund_flow_signal<-0.3)s+=1;}
     if(r.finance_score!=null){if(r.finance_score>0.3)b+=0.5;else if(r.finance_score<-0.3)s+=0.5;}
     if(r.board_momentum!=null){if(r.board_momentum>0.3)b+=0.5;else if(r.board_momentum<-0.3)s+=0.5;}
@@ -675,7 +718,8 @@ async function loadList() {
     const direction = document.getElementById('filterDirection').value;
     const confidence = document.getElementById('filterConfidence').value;
     const nwDirection = document.getElementById('filterNwDirection').value;
-    const v5Direction = document.getElementById('filterV5Direction').value;
+    const v20Direction = document.getElementById('filterV20Direction').value;
+    const v30Direction = document.getElementById('filterV30Direction').value;
     const keyword = document.getElementById('searchInput').value.trim();
     const offset = (currentPage - 1) * PAGE_SIZE;
 
@@ -684,7 +728,8 @@ async function loadList() {
     if (direction) url += '&direction=' + direction;
     if (confidence) url += '&confidence=' + confidence;
     if (nwDirection) url += '&nw_direction=' + encodeURIComponent(nwDirection);
-    if (v5Direction) url += '&v5_direction=' + encodeURIComponent(v5Direction);
+    if (v20Direction) url += '&v20_direction=' + encodeURIComponent(v20Direction);
+    if (v30Direction) url += '&v30_direction=' + encodeURIComponent(v30Direction);
     if (keyword) url += '&keyword=' + encodeURIComponent(keyword);
 
     try {
@@ -704,13 +749,13 @@ async function loadList() {
 }
 
 function renderTable(rows) {
-    // 三行布局：本周 + 下周 + OBV 5日
+    // 四行布局：本周 + 下周V11 + V20量价 + V30情绪
     let html = '<table class="pred-table"><thead><tr>';
     // 共享列
-    html += '<th rowspan="3" onclick="toggleSort(\'stock_code\')"><span class="th-wrap">代码 <span class="tip-icon" onclick="showTip(\'stock_code\',event)" title="点击查看说明">?</span></span></th>';
-    html += '<th rowspan="3" onclick="toggleSort(\'stock_name\')"><span class="th-wrap">名称 <span class="tip-icon" onclick="showTip(\'stock_name\',event)" title="点击查看说明">?</span></span></th>';
-    html += '<th rowspan="3" style="min-width:70px;text-align:center;cursor:default">综合信号</th>';
-    html += '<th rowspan="3" style="width:28px;font-size:10px;color:#8e8e93;text-align:center;cursor:default">周期</th>';
+    html += '<th rowspan="4" onclick="toggleSort(\'stock_code\')"><span class="th-wrap">代码 <span class="tip-icon" onclick="showTip(\'stock_code\',event)" title="点击查看说明">?</span></span></th>';
+    html += '<th rowspan="4" onclick="toggleSort(\'stock_name\')"><span class="th-wrap">名称 <span class="tip-icon" onclick="showTip(\'stock_name\',event)" title="点击查看说明">?</span></span></th>';
+    html += '<th rowspan="4" style="min-width:70px;text-align:center;cursor:default">综合信号</th>';
+    html += '<th rowspan="4" style="width:28px;font-size:10px;color:#8e8e93;text-align:center;cursor:default">周期</th>';
     // 对比列
     const compareCols = [
         {key:'pred_direction', label:'方向'},
@@ -733,7 +778,7 @@ function renderTable(rows) {
         html += '</span></th>';
     }
     // 共享列
-    html += '<th rowspan="3"><span class="th-wrap">概念板块 <span class="tip-icon" onclick="showTip(\'concept_boards\',event)" title="点击查看说明">?</span></span></th>';
+    html += '<th rowspan="4"><span class="th-wrap">概念板块 <span class="tip-icon" onclick="showTip(\'concept_boards\',event)" title="点击查看说明">?</span></span></th>';
     html += '</tr></thead><tbody>';
 
     if (rows.length === 0) {
@@ -742,10 +787,10 @@ function renderTable(rows) {
     for (const r of rows) {
         // ── 本周行 ──
         html += '<tr class="row-tw" onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
-        html += '<td rowspan="3" style="font-family:\'SF Mono\',Menlo,monospace;font-weight:600;vertical-align:middle"><a href="/stock_detail?code=' + encodeURIComponent(r.stock_code) + '" onclick="event.stopPropagation()" style="color:#667eea;text-decoration:none" title="查看个股详情">' + r.stock_code + '</a></td>';
-        html += '<td rowspan="3" style="vertical-align:middle">' + (r.stock_name || '-') + '</td>';
+        html += '<td rowspan="4" style="font-family:\'SF Mono\',Menlo,monospace;font-weight:600;vertical-align:middle"><a href="/stock_detail?code=' + encodeURIComponent(r.stock_code) + '" onclick="event.stopPropagation()" style="color:#667eea;text-decoration:none" title="查看个股详情">' + r.stock_code + '</a></td>';
+        html += '<td rowspan="4" style="vertical-align:middle">' + (r.stock_name || '-') + '</td>';
         var sig = computeSignal(r);
-        html += '<td rowspan="3" style="vertical-align:middle;text-align:center">' + fmtSignalHtml(sig) + '</td>';
+        html += '<td rowspan="4" style="vertical-align:middle;text-align:center">' + fmtSignalHtml(sig) + '</td>';
         html += '<td style="font-size:9px;color:#667eea;font-weight:600;text-align:center">本周</td>';
         html += '<td>' + dirBadge(r.pred_direction) + '<br><span style="font-size:10px;color:#aaa">' + getWeekRange(r.predict_date) + '</span></td>';
         html += '<td>' + confBadge(r.confidence) + '</td>';
@@ -823,7 +868,7 @@ function renderTable(rows) {
         // 概念板块 (rowspan)
         const boards = r.concept_boards ? r.concept_boards.split(',').slice(0, 3).join(', ') : '-';
         const boardsFull = r.concept_boards || '';
-        html += '<td rowspan="3" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#888;vertical-align:middle" title="' + boardsFull + '">' + boards + '</td>';
+        html += '<td rowspan="4" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#888;vertical-align:middle" title="' + boardsFull + '">' + boards + '</td>';
         html += '</tr>';
 
         // ── 下周行 ──
@@ -878,24 +923,22 @@ function renderTable(rows) {
         html += '<td style="color:#ddd;font-size:10px">-</td>';
         html += '</tr>';
 
-        // ── OBV 5日行 ──
-        html += '<tr class="row-v5" onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\',\'v5\')">';
-        html += '<td style="font-size:9px;color:#9b59b6;font-weight:600;text-align:center">OBV</td>';
-        // OBV方向
-        if (r.v5_pred_direction) {
-            const v5Tip = (r.v5_all_strategies || '') + (r.v5_reason ? '\n' + r.v5_reason : '');
-            html += '<td><span title="' + v5Tip.replace(/"/g, '&quot;') + '">' + dirBadge(r.v5_pred_direction) + '</span>';
-            if (r.v5_signal_date) html += '<br><span style="font-size:10px;color:#aaa">' + r.v5_signal_date.slice(5) + '</span>';
-            html += '</td>';
+        // ── V20量价5日行 ──
+        html += '<tr class="row-v20" onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">'; 
+        html += '<td style="font-size:9px;color:#009688;font-weight:600;text-align:center">V20<br>5日</td>';
+        // V20方向
+        if (r.v20_pred_direction) {
+            html += '<td>' + dirBadge(r.v20_pred_direction) + '</td>';
         } else {
             html += '<td style="color:#ddd;font-size:10px">-</td>';
         }
-        // OBV置信度
-        html += '<td>' + (r.v5_confidence ? confBadge(r.v5_confidence) : '<span style="color:#ddd;font-size:10px">-</span>') + '</td>';
-        // OBV策略 + 信号数
-        if (r.v5_strategy) {
-            const sc = r.v5_signal_count || 0;
-            html += '<td><span style="font-size:11px;color:#9b59b6">' + r.v5_strategy + '</span><br><span style="font-size:10px;color:#888">' + sc + '/3信号</span></td>';
+        // V20置信度
+        html += '<td>' + (r.v20_confidence ? confBadge(r.v20_confidence) : '<span style="color:#ddd;font-size:10px">-</span>') + '</td>';
+        // V20规则
+        if (r.v20_rule_name) {
+            html += '<td><span style="font-size:11px;color:#009688">' + r.v20_rule_name + '</span>';
+            if (r.v20_matched_count) html += '<br><span style="font-size:10px;color:#888">' + r.v20_matched_count + '条规则</span>';
+            html += '</td>';
         } else {
             html += '<td style="color:#ddd;font-size:10px">-</td>';
         }
@@ -906,15 +949,48 @@ function renderTable(rows) {
         html += '<td style="color:#ddd;font-size:10px">-</td>';
         // 已实现/剩余 留空
         html += '<td style="color:#ddd;font-size:10px">-</td>';
-        // OBV回测胜率
-        if (r.v5_win_rate != null) {
-            html += '<td><span style="font-size:11px;color:#9b59b6;font-weight:600">' + parseFloat(r.v5_win_rate).toFixed(0) + '%</span> <span style="font-size:9px;color:#bbb">回测胜率</span></td>';
+        // V20回测准确率
+        if (r.v20_backtest_acc != null) {
+            html += '<td><span style="font-size:11px;color:#009688;font-weight:600">' + parseFloat(r.v20_backtest_acc).toFixed(1) + '%</span> <span style="font-size:9px;color:#bbb">回测</span></td>';
         } else {
             html += '<td style="color:#ddd;font-size:10px">-</td>';
         }
         // 买入建议 留空
         html += '<td style="color:#ddd;font-size:10px">-</td>';
         html += '</tr>';
+        // ── V30情绪5日行 ──
+        html += '<tr class="row-v30" onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
+        html += '<td style="font-size:9px;color:#795548;font-weight:600;text-align:center">V30<br>5日</td>';
+        // V30方向
+        if (r.v30_pred_direction) {
+            html += '<td>' + dirBadge(r.v30_pred_direction) + '</td>';
+        } else {
+            html += '<td style="color:#ddd;font-size:10px">-</td>';
+        }
+        // V30置信度
+        html += '<td>' + (r.v30_confidence ? confBadge(r.v30_confidence) : '<span style="color:#ddd;font-size:10px">-</span>') + '</td>';
+        // V30综合评分+情绪/技术一致
+        if (r.v30_composite_score != null) {
+            let v30Detail = '<span style="font-size:11px;color:#795548;font-weight:600">' + parseFloat(r.v30_composite_score).toFixed(2) + '</span>';
+            if (r.v30_sent_agree != null) v30Detail += '<br><span style="font-size:9px;color:#888">情绪' + r.v30_sent_agree + ' 技术' + (r.v30_tech_agree||0) + '</span>';
+            html += '<td>' + v30Detail + '</td>';
+        } else {
+            html += '<td style="color:#ddd;font-size:10px">-</td>';
+        }
+        // d4/d3 留空
+        html += '<td style="color:#ddd;font-size:10px">-</td>';
+        html += '<td style="color:#ddd;font-size:10px">-</td>';
+        // 预测涨跌幅 留空
+        html += '<td style="color:#ddd;font-size:10px">-</td>';
+        // 已实现/剩余 留空
+        html += '<td style="color:#ddd;font-size:10px">-</td>';
+        // V30回测 留空（V30没有单独的backtest_acc字段）
+        html += '<td style="color:#ddd;font-size:10px">-</td>';
+        // 买入建议 留空
+        html += '<td style="color:#ddd;font-size:10px">-</td>';
+        html += '</tr>';
+
+
     }
     html += '</tbody></table>';
     document.getElementById('tableWrap').innerHTML = html;
@@ -955,8 +1031,7 @@ function goPage(p) {
 }
 
 async function showHistory(code, name, type) {
-    const isV5 = type === 'v5';
-    const titleSuffix = isV5 ? ' - OBV 5日预测历史' : ' - 预测历史';
+    const titleSuffix = ' - 预测历史';
     document.getElementById('historyTitle').innerHTML = '<a href="/stock_detail?code=' + encodeURIComponent(code) + '" style="color:#667eea;text-decoration:none" title="查看个股详情">' + code + '</a> ' + name + titleSuffix;
     document.getElementById('historyBody').innerHTML = '<p style="color:#999;text-align:center;padding:20px;">加载中...</p>';
     document.getElementById('historyModal').classList.add('visible');
@@ -969,73 +1044,25 @@ async function showHistory(code, name, type) {
             return;
         }
         let rows = json.data;
-        // V5模式：只显示有OBV信号的记录
-        if (isV5) {
-            rows = rows.filter(r => r.v5_pred_direction);
-        }
+
         if (rows.length === 0) {
-            document.getElementById('historyBody').innerHTML = '<p style="color:#999;text-align:center;">暂无' + (isV5 ? 'OBV 5日预测' : '') + '历史记录</p>';
+            document.getElementById('historyBody').innerHTML = '<p style="color:#999;text-align:center;">暂无历史记录</p>';
             return;
         }
 
         let html = '<table class="hist-table"><thead><tr>';
-        if (isV5) {
-            html += '<th>周</th><th>信号日期</th><th>预测方向</th><th>置信度</th>';
-            html += '<th>策略</th><th>回测胜率</th><th>信号数</th>';
-            html += '<th>实际5日方向</th><th>实际5日涨跌</th><th>结果</th><th>预测理由</th>';
-        } else {
             html += '<th>周</th><th>预测日期</th><th>方向</th><th>置信度</th><th>策略</th>';
             html += '<th>d4涨跌%</th><th>d3涨跌%</th><th>预测涨跌幅</th><th>已实现/剩余</th>';
             html += '<th>下周方向</th><th>下周涨跌幅</th>';
             html += '<th>回测准确率</th><th>买入建议</th>';
             html += '<th>实际方向</th><th>实际涨跌%</th><th>正确</th><th>概念板块</th>';
-        }
         html += '</tr></thead><tbody>';
 
         for (const r of rows) {
             html += '<tr>';
             html += '<td>Y' + r.iso_year + '-W' + String(r.iso_week).padStart(2,'0') + '</td>';
 
-            if (isV5) {
-                // 信号日期
-                html += '<td style="font-size:11px;color:#666">' + (r.v5_signal_date || '-') + '</td>';
-                // 预测方向
-                html += '<td>' + dirBadge(r.v5_pred_direction) + '</td>';
-                // 置信度
-                html += '<td>' + (r.v5_confidence ? confBadge(r.v5_confidence) : '-') + '</td>';
-                // 策略
-                html += '<td style="font-size:11px;color:#666">' + (r.v5_strategy || '-') + '</td>';
-                // 回测胜率
-                html += '<td>' + (r.v5_win_rate != null ? parseFloat(r.v5_win_rate).toFixed(1) + '%' : '-') + '</td>';
-                // 信号数
-                let sigCount = '-';
-                if (r.v5_signal_count != null) {
-                    sigCount = r.v5_signal_count + '/3';
-                    if (r.v5_all_strategies) sigCount += '<br><span style="font-size:9px;color:#aaa" title="' + r.v5_all_strategies + '">' + r.v5_all_strategies + '</span>';
-                }
-                html += '<td>' + sigCount + '</td>';
-                // 实际5日方向
-                html += '<td>' + (r.v5_actual_direction ? dirBadge(r.v5_actual_direction) : '<span style="color:#ccc">待验证</span>') + '</td>';
-                // 实际5日涨跌
-                let v5ActualChg = '<span style="color:#ccc">-</span>';
-                if (r.v5_actual_5d_chg != null) {
-                    const an = parseFloat(r.v5_actual_5d_chg);
-                    const acls = an > 0 ? 'chg-pos' : an < 0 ? 'chg-neg' : '';
-                    v5ActualChg = '<span class="chg-val ' + acls + '" style="font-weight:600">' + (an > 0 ? '+' : '') + an.toFixed(2) + '%</span>';
-                }
-                html += '<td>' + v5ActualChg + '</td>';
-                // 结果
-                if (r.v5_is_correct === 1 || r.v5_is_correct === '1') {
-                    html += '<td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:rgba(46,204,113,0.15);color:#2ecc71">✓ 正确</span></td>';
-                } else if (r.v5_is_correct === 0 || r.v5_is_correct === '0') {
-                    html += '<td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:rgba(231,76,60,0.15);color:#e74c3c">✗ 错误</span></td>';
-                } else {
-                    html += '<td><span style="color:#ccc">-</span></td>';
-                }
-                // 预测理由
-                const reason = r.v5_reason || '-';
-                html += '<td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#888" title="' + reason.replace(/"/g,'&quot;') + '">' + reason + '</td>';
-            } else {
+                // 本周/下周预测历史渲染
                 // 原有的本周/下周预测历史渲染
                 html += '<td>' + (r.predict_date || '-') + '</td>';
                 html += '<td>' + dirBadge(r.pred_direction) + '<br><span style="font-size:10px;color:#aaa">' + getWeekRange(r.predict_date) + '</span></td>';
@@ -1118,7 +1145,6 @@ async function showHistory(code, name, type) {
                 else html += '<td style="color:#ccc">-</td>';
                 const hBoards = r.concept_boards ? r.concept_boards.split(',').slice(0, 3).join(', ') : '-';
                 html += '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#888" title="' + (r.concept_boards || '') + '">' + hBoards + '</td>';
-            }
             html += '</tr>';
         }
         html += '</tbody></table>';
@@ -1463,7 +1489,7 @@ async function triggerMonthlyRecompute() {
 }
 
 async function triggerRecompute() {
-    if (!confirm('确认全部重新计算？\n将执行: 本周d3/d4预测 + 下周预测V11+回测 + OBV 5日预测，耗时较长。')) return;
+    if (!confirm('确认全部重新计算？\n将执行: 本周d3/d4预测 + 下周预测V11+回测，耗时较长。')) return;
     try {
         const resp = await fetch('/api/trigger_weekly_prediction_job', {method: 'POST'});
         const json = await resp.json();
@@ -1479,7 +1505,7 @@ async function triggerRecompute() {
 }
 
 async function triggerThisWeekPredict() {
-    if (!confirm('确认执行本周d3/d4预测？\n仅更新本周方向预测、回测准确率、买入建议等，不含下周预测和OBV预测。')) return;
+    if (!confirm('确认执行本周d3/d4预测？\n仅更新本周方向预测、回测准确率、买入建议等，不含下周预测。')) return;
     try {
         const resp = await fetch('/api/trigger_this_week_predict', {method: 'POST'});
         const json = await resp.json();
@@ -1493,7 +1519,7 @@ async function triggerThisWeekPredict() {
 }
 
 async function triggerNextWeekPredict() {
-    if (!confirm('确认执行下周预测V11+回测？\n仅更新下周预测方向、涨跌幅、回测准确率，不影响本周预测和OBV预测。')) return;
+    if (!confirm('确认执行下周预测V11+回测？\n仅更新下周预测方向、涨跌幅、回测准确率，不影响本周预测。')) return;
     try {
         const resp = await fetch('/api/trigger_next_week_predict', {method: 'POST'});
         const json = await resp.json();
@@ -1563,17 +1589,14 @@ function pollJobStatus() {
         s => s.running, s => `${s.predict_done||0}/${s.predict_total||'?'}`, s => s.last_success);
 }
 
-// ═══════════════════════════════════════════════════════════
-// V5技术形态批量预测
-// ═══════════════════════════════════════════════════════════
-
-async function triggerV5TechPredict() {
-    if (!confirm('确认执行V5技术形态批量预测？\n将对全部股票计算蜻蜓布林+OBV+收阳等高胜率策略信号并写入数据库。')) return;
+// V20量价预测触发
+async function triggerV20Predict() {
+    if (!confirm('确认执行V20量价超跌反弹预测？\n将对全部股票计算量价因子信号并写入数据库。')) return;
     try {
-        const resp = await fetch('/api/trigger_v5_tech_predict', {method: 'POST'});
+        const resp = await fetch('/api/trigger_v20_predict', {method: 'POST'});
         const json = await resp.json();
         if (json.success) {
-            pollBtnProgress('btnV5Tech', 'OBV 5日预测', '/api/v5_tech_job_status',
+            pollBtnProgress('btnV20Predict', 'V20量价预测', '/api/v20_job_status',
                 s => s.running, s => `${s.done||0}/${s.total||'?'}`, s => !s.error);
         } else {
             alert('触发失败: ' + (json.message || json.error || '未知错误'));
@@ -1583,6 +1606,22 @@ async function triggerV5TechPredict() {
     }
 }
 
+// V30情绪预测触发
+async function triggerV30Predict() {
+    if (!confirm('确认执行V30情绪预测？\n将对全部股票计算情绪+技术因子信号并写入数据库。')) return;
+    try {
+        const resp = await fetch('/api/trigger_v30_predict', {method: 'POST'});
+        const json = await resp.json();
+        if (json.success) {
+            pollBtnProgress('btnV30Predict', 'V30情绪预测', '/api/v30_job_status',
+                s => s.running, s => (s.phase && s.phase !== '预测中' ? s.phase : `${s.done||0}/${s.total||'?'}`), s => !s.error);
+        } else {
+            alert('触发失败: ' + (json.message || json.error || '未知错误'));
+        }
+    } catch (e) {
+        alert('触发失败: ' + e.message);
+    }
+}
 // ═══════════════════════════════════════════════════════════
 // 预测验证 Tab 逻辑
 // ═══════════════════════════════════════════════════════════
@@ -1846,23 +1885,30 @@ function goVerifyPage(p) {
 
 let verifySubTab = 'tw';
 let nwVerifyLoaded = false;
-let v5VerifyLoaded = false;
+let v20VerifyLoaded = false;
+let v30VerifyLoaded = false;
 
 function switchVerifySubTab(sub) {
     verifySubTab = sub;
     document.getElementById('subTabTw').classList.toggle('active', sub === 'tw');
     document.getElementById('subTabNw').classList.toggle('active', sub === 'nw');
-    document.getElementById('subTabV5').classList.toggle('active', sub === 'v5');
+    document.getElementById('subTabV20').classList.toggle('active', sub === 'v20');
+    document.getElementById('subTabV30').classList.toggle('active', sub === 'v30');
     document.getElementById('verifyTwContent').style.display = sub === 'tw' ? '' : 'none';
     document.getElementById('verifyNwContent').style.display = sub === 'nw' ? '' : 'none';
-    document.getElementById('verifyV5Content').style.display = sub === 'v5' ? '' : 'none';
+    document.getElementById('verifyV20Content').style.display = sub === 'v20' ? '' : 'none';
+    document.getElementById('verifyV30Content').style.display = sub === 'v30' ? '' : 'none';
     if (sub === 'nw' && !nwVerifyLoaded) {
         nwVerifyLoaded = true;
         loadNwVerifyWeeks();
     }
-    if (sub === 'v5' && !v5VerifyLoaded) {
-        v5VerifyLoaded = true;
-        loadV5VerifyWeeks();
+    if (sub === 'v20' && !v20VerifyLoaded) {
+        v20VerifyLoaded = true;
+        loadV20VerifyWeeks();
+    }
+    if (sub === 'v30' && !v30VerifyLoaded) {
+        v30VerifyLoaded = true;
+        loadV30VerifyWeeks();
     }
 }
 
@@ -1882,17 +1928,22 @@ async function triggerVerifyAll() {
             if (s.nw_weeks_processed > 0) {
                 msg += '\n\n[V11下周预测] 额外回填 ' + s.nw_weeks_processed + ' 周, ' + (s.nw_verified||0) + ' 只';
             }
-            if (s.v5_verified > 0) {
-                msg += '\n\n[OBV 5日预测] 回填 ' + s.v5_verified + ' 只, 准确率: ' + (s.v5_accuracy != null ? s.v5_accuracy + '%' : '-');
+            if (s.v20_verified > 0) {
+                msg += '\n\n[V20量价预测] 回填 ' + s.v20_verified + ' 只, 准确率: ' + (s.v20_accuracy != null ? s.v20_accuracy + '%' : '-');
+            }
+            if (s.v30_verified > 0) {
+                msg += '\n\n[V30情绪预测] 回填 ' + s.v30_verified + ' 只, 准确率: ' + (s.v30_accuracy != null ? s.v30_accuracy + '%' : '-');
             }
             alert(msg);
             // 刷新当前页面数据
             loadVerifyList();
             if (nwVerifyLoaded) loadNwVerifyList();
-            if (v5VerifyLoaded) loadV5VerifyList();
+            if (v20VerifyLoaded) loadV20VerifyList();
+            if (v30VerifyLoaded) loadV30VerifyList();
             loadVerifyWeeks();
             if (nwVerifyLoaded) loadNwVerifyWeeks();
-            if (v5VerifyLoaded) loadV5VerifyWeeks();
+            if (v20VerifyLoaded) loadV20VerifyWeeks();
+            if (v30VerifyLoaded) loadV30VerifyWeeks();
         } else {
             alert('回填失败: ' + (json.error || '未知错误'));
         }
@@ -1906,13 +1957,14 @@ async function triggerVerifyAll() {
 
 async function triggerVerifyWeek() {
     // 根据当前子Tab选择对应的周选择器
-    const selId = verifySubTab === 'nw' ? 'nwVerifyWeekSelect' : verifySubTab === 'v5' ? 'v5VerifyWeekSelect' : 'verifyWeekSelect';
+    const selId = verifySubTab === 'nw' ? 'nwVerifyWeekSelect' : verifySubTab === 'v20' ? 'v20VerifyWeekSelect' : verifySubTab === 'v30' ? 'v30VerifyWeekSelect' : 'verifyWeekSelect';
     const weekVal = document.getElementById(selId).value;
     if (!weekVal) { alert('请先选择一个周'); return; }
     const [y, w] = weekVal.split('-');
     const isNw = verifySubTab === 'nw';
-    const isV5 = verifySubTab === 'v5';
-    const label = isV5 ? 'OBV 5日预测' : isNw ? 'V11下周预测' : '本周预测';
+    const isV20 = verifySubTab === 'v20';
+    const isV30 = verifySubTab === 'v30';
+    const label = isV30 ? 'V30情绪预测' : isV20 ? 'V20量价预测' : isNw ? 'V11下周预测' : '本周预测';
     if (!confirm('确认回填 Y' + y + '-W' + String(w).padStart(2,'0') + ' 的' + label + '实际结果？')) return;
     const btn = document.getElementById('btnVerifyWeek');
     btn.disabled = true;
@@ -1931,7 +1983,8 @@ async function triggerVerifyWeek() {
             alert(msg);
             loadVerifyList();
             if (nwVerifyLoaded) loadNwVerifyList();
-            if (v5VerifyLoaded) loadV5VerifyList();
+            if (v20VerifyLoaded) loadV20VerifyList();
+            if (v30VerifyLoaded) loadV30VerifyList();
         } else {
             alert('回填失败: ' + (json.error || '未知错误'));
         }
@@ -2190,26 +2243,26 @@ function goNwVerifyPage(p) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// OBV 5日预测验证
+// V20量价预测验证
 // ═══════════════════════════════════════════════════════════
 
-let v5VerifyCurrentPage = 1;
-let v5VerifyTotalCount = 0;
-let v5VerifyCurrentSort = 'stock_code';
-let v5VerifyCurrentSortDir = 'asc';
-let _v5VerifySearchTimer = null;
+let v20VerifyCurrentPage = 1;
+let v20VerifyTotalCount = 0;
+let v20VerifyCurrentSort = 'stock_code';
+let v20VerifyCurrentSortDir = 'asc';
+let _v20VerifySearchTimer = null;
 
-function debounceV5VerifySearch() {
-    clearTimeout(_v5VerifySearchTimer);
-    _v5VerifySearchTimer = setTimeout(() => { v5VerifyCurrentPage = 1; loadV5VerifyList(); }, 300);
+function debounceV20VerifySearch() {
+    clearTimeout(_v20VerifySearchTimer);
+    _v20VerifySearchTimer = setTimeout(() => { v20VerifyCurrentPage = 1; loadV20VerifyList(); }, 300);
 }
 
-async function loadV5VerifyWeeks() {
+async function loadV20VerifyWeeks() {
     try {
         const resp = await fetch('/api/weekly_prediction/weeks?limit=20');
         const json = await resp.json();
         if (!json.success) return;
-        const sel = document.getElementById('v5VerifyWeekSelect');
+        const sel = document.getElementById('v20VerifyWeekSelect');
         sel.innerHTML = '';
         for (let i = 0; i < json.data.length; i++) {
             const w = json.data[i];
@@ -2223,18 +2276,18 @@ async function loadV5VerifyWeeks() {
             if (i === 1) opt.selected = true;
             sel.appendChild(opt);
         }
-        loadV5VerifyList();
-    } catch (e) { console.error('loadV5VerifyWeeks error:', e); }
+        loadV20VerifyList();
+    } catch (e) { console.error('loadV20VerifyWeeks error:', e); }
 }
 
-async function loadV5VerifyList() {
-    const weekVal = document.getElementById('v5VerifyWeekSelect').value;
-    const result = document.getElementById('v5VerifyFilterResult').value;
-    const keyword = document.getElementById('v5VerifySearchInput').value.trim();
-    const offset = (v5VerifyCurrentPage - 1) * PAGE_SIZE;
+async function loadV20VerifyList() {
+    const weekVal = document.getElementById('v20VerifyWeekSelect').value;
+    const result = document.getElementById('v20VerifyFilterResult').value;
+    const keyword = document.getElementById('v20VerifySearchInput').value.trim();
+    const offset = (v20VerifyCurrentPage - 1) * PAGE_SIZE;
 
-    let url = '/api/weekly_prediction/v5_verification?limit=' + PAGE_SIZE + '&offset=' + offset +
-              '&sort_by=' + v5VerifyCurrentSort + '&sort_dir=' + v5VerifyCurrentSortDir;
+    let url = '/api/weekly_prediction/v20_verification?limit=' + PAGE_SIZE + '&offset=' + offset +
+        '&sort_by=' + v20VerifyCurrentSort + '&sort_dir=' + v20VerifyCurrentSortDir;
     if (weekVal) {
         const [y, w] = weekVal.split('-');
         url += '&iso_year=' + y + '&iso_week=' + w;
@@ -2246,22 +2299,22 @@ async function loadV5VerifyList() {
         const resp = await fetch(url);
         const json = await resp.json();
         if (!json.success) {
-            document.getElementById('v5VerifyTableWrap').innerHTML = '<p style="color:red;padding:20px;">加载失败: ' + (json.error || '') + '</p>';
+            document.getElementById('v20VerifyTableWrap').innerHTML = '<p style="color:red;padding:20px;">加载失败: ' + (json.error || '') + '</p>';
             return;
         }
-        v5VerifyTotalCount = json.total;
-        document.getElementById('v5VerifyListInfo').textContent = '共 ' + v5VerifyTotalCount + ' 条';
-        renderV5VerifySummary(json.summary);
-        renderV5VerifyTable(json.data);
-        renderV5VerifyPagination();
+        v20VerifyTotalCount = json.total;
+        document.getElementById('v20VerifyListInfo').textContent = '共 ' + v20VerifyTotalCount + ' 条';
+        renderV20VerifySummary(json.summary);
+        renderV20VerifyTable(json.data);
+        renderV20VerifyPagination();
     } catch (e) {
-        document.getElementById('v5VerifyTableWrap').innerHTML = '<p style="color:red;padding:20px;">加载失败: ' + e.message + '</p>';
+        document.getElementById('v20VerifyTableWrap').innerHTML = '<p style="color:red;padding:20px;">加载失败: ' + e.message + '</p>';
     }
 }
 
-function renderV5VerifySummary(s) {
+function renderV20VerifySummary(s) {
     if (!s || !s.total) {
-        document.getElementById('v5VerifySummaryRow').innerHTML = '<div class="summary-card"><div class="label">暂无数据</div><div class="value">-</div></div>';
+        document.getElementById('v20VerifySummaryRow').innerHTML = '<div class="summary-card"><div class="label">暂无数据</div><div class="value">-</div></div>';
         return;
     }
     let html = '';
@@ -2270,7 +2323,6 @@ function renderV5VerifySummary(s) {
     const wrong = parseInt(s.wrong) || 0;
     const pending = parseInt(s.pending) || 0;
     const accuracy = s.accuracy != null ? s.accuracy + '%' : '-';
-    const predUp = parseInt(s.pred_up) || 0;
 
     html += card('预测周', 'Y' + s.iso_year + '-W' + String(s.iso_week).padStart(2,'0'), '',
         (s.predict_date ? getWeekRange(s.predict_date) : '') + ' 信号数: ' + total + '只');
@@ -2280,90 +2332,57 @@ function renderV5VerifySummary(s) {
     html += card('实际准确率', accuracy, accCls,
         '正确' + correct + ' 错误' + wrong + (pending > 0 ? ' 待验证' + pending : ''));
 
-    const avgWr = s.avg_win_rate != null ? parseFloat(s.avg_win_rate).toFixed(1) + '%' : '-';
-    let diffStr = '';
-    if (accVal !== null && s.avg_win_rate != null) {
-        const diff = accVal - parseFloat(s.avg_win_rate);
-        const diffCls = diff >= 0 ? 'chg-pos' : 'chg-neg';
-        diffStr = '偏差: <span class="' + diffCls + '">' + (diff >= 0 ? '+' : '') + diff.toFixed(1) + '%</span>';
-    }
-    html += card('回测胜率', avgWr, '', diffStr || '对比实际准确率');
-
-    // 分置信度准确率
-    const highTotal = parseInt(s.high_total) || 0;
-    const highCorrect = parseInt(s.high_correct) || 0;
-    const highAcc = highTotal > 0 ? (highCorrect / highTotal * 100).toFixed(1) + '%' : '-';
-    html += card('高置信准确率', highAcc, '', highCorrect + '/' + highTotal);
-
-    const medTotal = parseInt(s.med_total) || 0;
-    const medCorrect = parseInt(s.med_correct) || 0;
-    const medAcc = medTotal > 0 ? (medCorrect / medTotal * 100).toFixed(1) + '%' : '-';
-    html += card('中置信准确率', medAcc, '', medCorrect + '/' + medTotal);
-
-    const lowTotal = parseInt(s.low_total) || 0;
-    const lowCorrect = parseInt(s.low_correct) || 0;
-    const lowAcc = lowTotal > 0 ? (lowCorrect / lowTotal * 100).toFixed(1) + '%' : '-';
-    html += card('低置信准确率', lowAcc, '', lowCorrect + '/' + lowTotal);
-
     const avgActual = s.avg_actual_chg != null ? parseFloat(s.avg_actual_chg).toFixed(2) + '%' : '-';
     html += card('平均5日涨跌', avgActual, '', '信号日后5个交易日', 'wide');
 
-    document.getElementById('v5VerifySummaryRow').innerHTML = html;
+    document.getElementById('v20VerifySummaryRow').innerHTML = html;
 }
 
-function renderV5VerifyTable(rows) {
+
+
+function renderV20VerifyTable(rows) {
     let html = '<table class="pred-table"><thead><tr>';
     const cols = [
         {key:'stock_code', label:'代码'},
         {key:'stock_name', label:'名称'},
         {key:'signal', label:'综合信号'},
-        {key:'v5_signal_date', label:'信号日期'},
-        {key:'v5_pred_direction', label:'预测方向'},
-        {key:'v5_confidence', label:'置信度'},
-        {key:'v5_strategy', label:'策略'},
-        {key:'v5_win_rate', label:'回测胜率'},
-        {key:'v5_actual_5d_chg', label:'实际5日涨跌'},
-        {key:'v5_is_correct', label:'结果'},
+        {key:'v20_pred_direction', label:'预测方向'},
+        {key:'v20_confidence', label:'置信度'},
+        {key:'v20_rule_name', label:'规则'},
+        {key:'v20_backtest_acc', label:'回测准确率'},
+        {key:'v20_actual_5d_chg', label:'实际5日涨跌'},
+        {key:'v20_is_correct', label:'结果'},
     ];
     for (const c of cols) {
         let cls = '';
-        if (c.key === v5VerifyCurrentSort) cls = v5VerifyCurrentSortDir === 'asc' ? 'sa' : 'sd';
-        html += '<th class="' + cls + '" onclick="toggleV5VerifySort(\'' + c.key + '\')">' + c.label + '</th>';
+        if (c.key === v20VerifyCurrentSort) cls = v20VerifyCurrentSortDir === 'asc' ? 'sa' : 'sd';
+        html += '<th class="' + cls + '" onclick="toggleV20VerifySort(\'' + c.key + '\')">' + c.label + '</th>';
     }
     html += '<th>预测理由</th><th>概念板块</th></tr></thead><tbody>';
 
     if (rows.length === 0) {
-        html += '<tr><td colspan="12" style="text-align:center;color:#999;padding:20px;">暂无数据（仅显示有OBV信号的股票）</td></tr>';
+        html += '<tr><td colspan="11" style="text-align:center;color:#999;padding:20px;">暂无数据（仅显示有V20信号的股票）</td></tr>';
     }
     for (const r of rows) {
-        html += '<tr onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\',\'v5\')">';
-        html += '<td style="font-family:\'SF Mono\',Menlo,monospace;font-weight:600"><a href="/stock_detail?code=' + encodeURIComponent(r.stock_code) + '" onclick="event.stopPropagation()" style="color:#667eea;text-decoration:none" title="查看个股详情">' + r.stock_code + '</a></td>';
+        html += '<tr onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
+        html += '<td style="font-family:\'SF Mono\',Menlo,monospace;font-weight:600"><a href="/stock_detail?code=' + encodeURIComponent(r.stock_code) + '" onclick="event.stopPropagation()" style="color:#667eea;text-decoration:none">' + r.stock_code + '</a></td>';
         html += '<td>' + (r.stock_name || '-') + '</td>';
-        // 综合信号
-        var v5Sig = computeSignal(r);
-        html += '<td style="text-align:center">' + fmtSignalHtml(v5Sig) + '</td>';
-        // 信号日期
-        html += '<td style="font-size:11px;color:#666">' + (r.v5_signal_date || '-') + '</td>';
-        // 预测方向
-        html += '<td>' + dirBadge(r.v5_pred_direction) + '</td>';
-        // 置信度
-        html += '<td>' + (r.v5_confidence ? confBadge(r.v5_confidence) : '-') + '</td>';
-        // 策略
-        html += '<td><span style="font-size:11px;color:#666">' + (r.v5_strategy || '-') + '</span></td>';
-        // 回测胜率
-        const wr = r.v5_win_rate != null ? parseFloat(r.v5_win_rate).toFixed(1) + '%' : '-';
-        html += '<td>' + wr + '</td>';
-        // 实际5日涨跌
+        var v20Sig = computeSignal(r);
+        html += '<td style="text-align:center">' + fmtSignalHtml(v20Sig) + '</td>';
+        html += '<td>' + dirBadge(r.v20_pred_direction) + '</td>';
+        html += '<td>' + (r.v20_confidence ? confBadge(r.v20_confidence) : '-') + '</td>';
+        html += '<td><span style="font-size:11px;color:#666">' + (r.v20_rule_name || '-') + '</span></td>';
+        const btAcc = r.v20_backtest_acc != null ? parseFloat(r.v20_backtest_acc).toFixed(1) + '%' : '-';
+        html += '<td>' + btAcc + '</td>';
         let actualHtml = '<span style="color:#ccc">待验证</span>';
-        if (r.v5_actual_5d_chg != null) {
-            const an = parseFloat(r.v5_actual_5d_chg);
+        if (r.v20_actual_5d_chg != null) {
+            const an = parseFloat(r.v20_actual_5d_chg);
             const acls = an > 0 ? 'chg-pos' : an < 0 ? 'chg-neg' : '';
             actualHtml = '<span class="chg-val ' + acls + '" style="font-weight:600">' + (an > 0 ? '+' : '') + an.toFixed(2) + '%</span>';
-            if (r.v5_actual_direction) actualHtml += '<br>' + dirBadge(r.v5_actual_direction);
+            if (r.v20_actual_direction) actualHtml += '<br>' + dirBadge(r.v20_actual_direction);
         }
         html += '<td>' + actualHtml + '</td>';
-        // 结果
-        const isCorrect = r.v5_is_correct;
+        const isCorrect = r.v20_is_correct;
         if (isCorrect === 1 || isCorrect === '1') {
             html += '<td><span style="display:inline-block;padding:2px 10px;border-radius:4px;font-size:12px;font-weight:700;background:rgba(46,204,113,0.15);color:#2ecc71">✓ 正确</span></td>';
         } else if (isCorrect === 0 || isCorrect === '0') {
@@ -2371,51 +2390,237 @@ function renderV5VerifyTable(rows) {
         } else {
             html += '<td><span style="color:#ccc;font-size:11px">-</span></td>';
         }
-        // 预测理由
-        const reason = r.v5_reason || '-';
+        const reason = r.v20_reason || '-';
         html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#888" title="' + reason.replace(/"/g,'&quot;') + '">' + reason + '</td>';
-        // 概念板块
         const boards = r.concept_boards ? r.concept_boards.split(',').slice(0, 3).join(', ') : '-';
         html += '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#888" title="' + (r.concept_boards || '') + '">' + boards + '</td>';
         html += '</tr>';
     }
     html += '</tbody></table>';
-    document.getElementById('v5VerifyTableWrap').innerHTML = html;
+    document.getElementById('v20VerifyTableWrap').innerHTML = html;
 }
 
-function toggleV5VerifySort(key) {
-    if (v5VerifyCurrentSort === key) {
-        v5VerifyCurrentSortDir = v5VerifyCurrentSortDir === 'asc' ? 'desc' : 'asc';
+function toggleV20VerifySort(key) {
+    if (v20VerifyCurrentSort === key) {
+        v20VerifyCurrentSortDir = v20VerifyCurrentSortDir === 'asc' ? 'desc' : 'asc';
     } else {
-        v5VerifyCurrentSort = key;
-        v5VerifyCurrentSortDir = key === 'v5_actual_5d_chg' || key === 'v5_is_correct' || key === 'v5_win_rate' ? 'desc' : 'asc';
+        v20VerifyCurrentSort = key;
+        v20VerifyCurrentSortDir = key === 'v20_actual_5d_chg' || key === 'v20_is_correct' || key === 'v20_backtest_acc' ? 'desc' : 'asc';
     }
-    v5VerifyCurrentPage = 1;
-    loadV5VerifyList();
+    v20VerifyCurrentPage = 1;
+    loadV20VerifyList();
 }
 
-function renderV5VerifyPagination() {
-    const totalPages = Math.ceil(v5VerifyTotalCount / PAGE_SIZE);
-    let html = '<span style="font-size:11px;color:#666;margin-right:8px;">共 ' + v5VerifyTotalCount + ' 条  ' + totalPages + ' 页</span>';
-    if (totalPages <= 1) { document.getElementById('v5VerifyPagination').innerHTML = html; return; }
-    html += '<button class="page-btn" onclick="goV5VerifyPage(1)" ' + (v5VerifyCurrentPage===1?'disabled':'') + '>首页</button>';
-    html += '<button class="page-btn" onclick="goV5VerifyPage(' + (v5VerifyCurrentPage-1) + ')" ' + (v5VerifyCurrentPage===1?'disabled':'') + '>上一页</button>';
-    const start = Math.max(1, v5VerifyCurrentPage - 3);
-    const end = Math.min(totalPages, v5VerifyCurrentPage + 3);
+function renderV20VerifyPagination() {
+    const totalPages = Math.ceil(v20VerifyTotalCount / PAGE_SIZE);
+    let html = '<span style="font-size:11px;color:#666;margin-right:8px;">共 ' + v20VerifyTotalCount + ' 条  ' + totalPages + ' 页</span>';
+    if (totalPages <= 1) { document.getElementById('v20VerifyPagination').innerHTML = html; return; }
+    html += '<button class="page-btn" onclick="goV20VerifyPage(1)" ' + (v20VerifyCurrentPage===1?'disabled':'') + '>首页</button>';
+    html += '<button class="page-btn" onclick="goV20VerifyPage(' + (v20VerifyCurrentPage-1) + ')" ' + (v20VerifyCurrentPage===1?'disabled':'') + '>上一页</button>';
+    const start = Math.max(1, v20VerifyCurrentPage - 3);
+    const end = Math.min(totalPages, v20VerifyCurrentPage + 3);
     for (let i = start; i <= end; i++) {
-        html += '<button class="page-btn' + (i===v5VerifyCurrentPage?' active':'') + '" onclick="goV5VerifyPage(' + i + ')">' + i + '</button>';
+        html += '<button class="page-btn' + (i===v20VerifyCurrentPage?' active':'') + '" onclick="goV20VerifyPage(' + i + ')">' + i + '</button>';
     }
-    html += '<button class="page-btn" onclick="goV5VerifyPage(' + (v5VerifyCurrentPage+1) + ')" ' + (v5VerifyCurrentPage===totalPages?'disabled':'') + '>下一页</button>';
-    document.getElementById('v5VerifyPagination').innerHTML = html;
+    html += '<button class="page-btn" onclick="goV20VerifyPage(' + (v20VerifyCurrentPage+1) + ')" ' + (v20VerifyCurrentPage===totalPages?'disabled':'') + '>下一页</button>';
+    document.getElementById('v20VerifyPagination').innerHTML = html;
 }
 
-function goV5VerifyPage(p) {
-    const totalPages = Math.ceil(v5VerifyTotalCount / PAGE_SIZE);
+function goV20VerifyPage(p) {
+    const totalPages = Math.ceil(v20VerifyTotalCount / PAGE_SIZE);
     if (p < 1 || p > totalPages) return;
-    v5VerifyCurrentPage = p;
-    loadV5VerifyList();
+    v20VerifyCurrentPage = p;
+    loadV20VerifyList();
 }
 
+// ═══════════════════════════════════════════════════════════
+// V30情绪预测验证
+// ═══════════════════════════════════════════════════════════
+
+let v30VerifyCurrentPage = 1;
+let v30VerifyTotalCount = 0;
+let v30VerifyCurrentSort = 'stock_code';
+let v30VerifyCurrentSortDir = 'asc';
+let _v30VerifySearchTimer = null;
+
+function debounceV30VerifySearch() {
+    clearTimeout(_v30VerifySearchTimer);
+    _v30VerifySearchTimer = setTimeout(() => { v30VerifyCurrentPage = 1; loadV30VerifyList(); }, 300);
+}
+
+async function loadV30VerifyWeeks() {
+    try {
+        const resp = await fetch('/api/weekly_prediction/weeks?limit=20');
+        const json = await resp.json();
+        if (!json.success) return;
+        const sel = document.getElementById('v30VerifyWeekSelect');
+        sel.innerHTML = '';
+        for (let i = 0; i < json.data.length; i++) {
+            const w = json.data[i];
+            const weekRange = w.predict_date ? getWeekRange(w.predict_date) : '';
+            const opt = document.createElement('option');
+            opt.value = w.iso_year + '-' + w.iso_week;
+            opt.textContent = 'Y' + w.iso_year + '-W' + String(w.iso_week).padStart(2,'0') +
+                (weekRange ? ' (' + weekRange + ')' : '') +
+                ' ' + w.stock_count + '只' +
+                (w.accuracy != null ? ' 准确率' + w.accuracy + '%' : '');
+            if (i === 1) opt.selected = true;
+            sel.appendChild(opt);
+        }
+        loadV30VerifyList();
+    } catch (e) { console.error('loadV30VerifyWeeks error:', e); }
+}
+
+async function loadV30VerifyList() {
+    const weekVal = document.getElementById('v30VerifyWeekSelect').value;
+    const result = document.getElementById('v30VerifyFilterResult').value;
+    const keyword = document.getElementById('v30VerifySearchInput').value.trim();
+    const offset = (v30VerifyCurrentPage - 1) * PAGE_SIZE;
+
+    let url = '/api/weekly_prediction/v30_verification?limit=' + PAGE_SIZE + '&offset=' + offset +
+        '&sort_by=' + v30VerifyCurrentSort + '&sort_dir=' + v30VerifyCurrentSortDir;
+    if (weekVal) {
+        const [y, w] = weekVal.split('-');
+        url += '&iso_year=' + y + '&iso_week=' + w;
+    }
+    if (result) url += '&result=' + result;
+    if (keyword) url += '&keyword=' + encodeURIComponent(keyword);
+
+    try {
+        const resp = await fetch(url);
+        const json = await resp.json();
+        if (!json.success) {
+            document.getElementById('v30VerifyTableWrap').innerHTML = '<p style="color:red;padding:20px;">加载失败: ' + (json.error || '') + '</p>';
+            return;
+        }
+        v30VerifyTotalCount = json.total;
+        document.getElementById('v30VerifyListInfo').textContent = '共 ' + v30VerifyTotalCount + ' 条';
+        renderV30VerifySummary(json.summary);
+        renderV30VerifyTable(json.data);
+        renderV30VerifyPagination();
+    } catch (e) {
+        document.getElementById('v30VerifyTableWrap').innerHTML = '<p style="color:red;padding:20px;">加载失败: ' + e.message + '</p>';
+    }
+}
+
+function renderV30VerifySummary(s) {
+    if (!s || !s.total) {
+        document.getElementById('v30VerifySummaryRow').innerHTML = '<div class="summary-card"><div class="label">暂无数据</div><div class="value">-</div></div>';
+        return;
+    }
+    let html = '';
+    const total = parseInt(s.total) || 0;
+    const correct = parseInt(s.correct) || 0;
+    const wrong = parseInt(s.wrong) || 0;
+    const pending = parseInt(s.pending) || 0;
+    const accuracy = s.accuracy != null ? s.accuracy + '%' : '-';
+
+    html += card('预测周', 'Y' + s.iso_year + '-W' + String(s.iso_week).padStart(2,'0'), '',
+        (s.predict_date ? getWeekRange(s.predict_date) : '') + ' 信号数: ' + total + '只');
+
+    const accVal = s.accuracy != null ? parseFloat(s.accuracy) : null;
+    const accCls = accVal !== null && accVal >= 50 ? 'up' : 'down';
+    html += card('实际准确率', accuracy, accCls,
+        '正确' + correct + ' 错误' + wrong + (pending > 0 ? ' 待验证' + pending : ''));
+
+    const avgActual = s.avg_actual_chg != null ? parseFloat(s.avg_actual_chg).toFixed(2) + '%' : '-';
+    html += card('平均5日涨跌', avgActual, '', '信号日后5个交易日', 'wide');
+
+    document.getElementById('v30VerifySummaryRow').innerHTML = html;
+}
+
+function renderV30VerifyTable(rows) {
+    let html = '<table class="pred-table"><thead><tr>';
+    const cols = [
+        {key:'stock_code', label:'代码'},
+        {key:'stock_name', label:'名称'},
+        {key:'signal', label:'综合信号'},
+        {key:'v30_pred_direction', label:'预测方向'},
+        {key:'v30_confidence', label:'置信度'},
+        {key:'v30_composite_score', label:'综合评分'},
+        {key:'v30_sent_agree', label:'情绪一致'},
+        {key:'v30_tech_agree', label:'技术一致'},
+        {key:'v30_actual_5d_chg', label:'实际5日涨跌'},
+        {key:'v30_is_correct', label:'结果'},
+    ];
+    for (const c of cols) {
+        let cls = '';
+        if (c.key === v30VerifyCurrentSort) cls = v30VerifyCurrentSortDir === 'asc' ? 'sa' : 'sd';
+        html += '<th class="' + cls + '" onclick="toggleV30VerifySort(\'' + c.key + '\')">' + c.label + '</th>';
+    }
+    html += '<th>概念板块</th></tr></thead><tbody>';
+
+    if (rows.length === 0) {
+        html += '<tr><td colspan="11" style="text-align:center;color:#999;padding:20px;">暂无数据（仅显示有V30信号的股票）</td></tr>';
+    }
+    for (const r of rows) {
+        html += '<tr onclick="showHistory(\'' + r.stock_code + '\',\'' + (r.stock_name||'') + '\')">';
+        html += '<td style="font-family:\'SF Mono\',Menlo,monospace;font-weight:600"><a href="/stock_detail?code=' + encodeURIComponent(r.stock_code) + '" onclick="event.stopPropagation()" style="color:#667eea;text-decoration:none">' + r.stock_code + '</a></td>';
+        html += '<td>' + (r.stock_name || '-') + '</td>';
+        var v30Sig = computeSignal(r);
+        html += '<td style="text-align:center">' + fmtSignalHtml(v30Sig) + '</td>';
+        html += '<td>' + dirBadge(r.v30_pred_direction) + '</td>';
+        html += '<td>' + (r.v30_confidence ? confBadge(r.v30_confidence) : '-') + '</td>';
+        const cs = r.v30_composite_score != null ? parseFloat(r.v30_composite_score).toFixed(1) : '-';
+        html += '<td><span style="font-size:11px;color:#795548;font-weight:600">' + cs + '</span></td>';
+        html += '<td>' + (r.v30_sent_agree != null ? r.v30_sent_agree : '-') + '</td>';
+        html += '<td>' + (r.v30_tech_agree != null ? r.v30_tech_agree : '-') + '</td>';
+        let actualHtml = '<span style="color:#ccc">待验证</span>';
+        if (r.v30_actual_5d_chg != null) {
+            const an = parseFloat(r.v30_actual_5d_chg);
+            const acls = an > 0 ? 'chg-pos' : an < 0 ? 'chg-neg' : '';
+            actualHtml = '<span class="chg-val ' + acls + '" style="font-weight:600">' + (an > 0 ? '+' : '') + an.toFixed(2) + '%</span>';
+            if (r.v30_actual_direction) actualHtml += '<br>' + dirBadge(r.v30_actual_direction);
+        }
+        html += '<td>' + actualHtml + '</td>';
+        const isCorrect = r.v30_is_correct;
+        if (isCorrect === 1 || isCorrect === '1') {
+            html += '<td><span style="display:inline-block;padding:2px 10px;border-radius:4px;font-size:12px;font-weight:700;background:rgba(46,204,113,0.15);color:#2ecc71">✓ 正确</span></td>';
+        } else if (isCorrect === 0 || isCorrect === '0') {
+            html += '<td><span style="display:inline-block;padding:2px 10px;border-radius:4px;font-size:12px;font-weight:700;background:rgba(231,76,60,0.15);color:#e74c3c">✗ 错误</span></td>';
+        } else {
+            html += '<td><span style="color:#ccc;font-size:11px">-</span></td>';
+        }
+        const boards = r.concept_boards ? r.concept_boards.split(',').slice(0, 3).join(', ') : '-';
+        html += '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#888" title="' + (r.concept_boards || '') + '">' + boards + '</td>';
+        html += '</tr>';
+    }
+    html += '</tbody></table>';
+    document.getElementById('v30VerifyTableWrap').innerHTML = html;
+}
+
+function toggleV30VerifySort(key) {
+    if (v30VerifyCurrentSort === key) {
+        v30VerifyCurrentSortDir = v30VerifyCurrentSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        v30VerifyCurrentSort = key;
+        v30VerifyCurrentSortDir = key === 'v30_actual_5d_chg' || key === 'v30_is_correct' || key === 'v30_composite_score' ? 'desc' : 'asc';
+    }
+    v30VerifyCurrentPage = 1;
+    loadV30VerifyList();
+}
+
+function renderV30VerifyPagination() {
+    const totalPages = Math.ceil(v30VerifyTotalCount / PAGE_SIZE);
+    let html = '<span style="font-size:11px;color:#666;margin-right:8px;">共 ' + v30VerifyTotalCount + ' 条  ' + totalPages + ' 页</span>';
+    if (totalPages <= 1) { document.getElementById('v30VerifyPagination').innerHTML = html; return; }
+    html += '<button class="page-btn" onclick="goV30VerifyPage(1)" ' + (v30VerifyCurrentPage===1?'disabled':'') + '>首页</button>';
+    html += '<button class="page-btn" onclick="goV30VerifyPage(' + (v30VerifyCurrentPage-1) + ')" ' + (v30VerifyCurrentPage===1?'disabled':'') + '>上一页</button>';
+    const start = Math.max(1, v30VerifyCurrentPage - 3);
+    const end = Math.min(totalPages, v30VerifyCurrentPage + 3);
+    for (let i = start; i <= end; i++) {
+        html += '<button class="page-btn' + (i===v30VerifyCurrentPage?' active':'') + '" onclick="goV30VerifyPage(' + i + ')">' + i + '</button>';
+    }
+    html += '<button class="page-btn" onclick="goV30VerifyPage(' + (v30VerifyCurrentPage+1) + ')" ' + (v30VerifyCurrentPage===totalPages?'disabled':'') + '>下一页</button>';
+    document.getElementById('v30VerifyPagination').innerHTML = html;
+}
+
+function goV30VerifyPage(p) {
+    const totalPages = Math.ceil(v30VerifyTotalCount / PAGE_SIZE);
+    if (p < 1 || p > totalPages) return;
+    v30VerifyCurrentPage = p;
+    loadV30VerifyList();
+}
 
 </script>
 </body>

@@ -75,15 +75,6 @@ def precompute(klines):
     rsi14 = calc_rsi(c, 14)
     kv, dv, jv = calc_kdj(h, l, c)
 
-    obv = [0.0] * n
-    for i in range(1, n):
-        if c[i] > c[i - 1]:
-            obv[i] = obv[i - 1] + v[i]
-        elif c[i] < c[i - 1]:
-            obv[i] = obv[i - 1] - v[i]
-        else:
-            obv[i] = obv[i - 1]
-
     boll_up = [0.0] * n
     boll_dn = [0.0] * n
     for i in range(19, n):
@@ -101,7 +92,7 @@ def precompute(klines):
         'dif': dif, 'dea': dea, 'mb': mb,
         'rsi6': rsi6, 'rsi14': rsi14,
         'k': kv, 'd': dv, 'j': jv,
-        'obv': obv, 'boll_up': boll_up, 'boll_dn': boll_dn,
+        'boll_up': boll_up, 'boll_dn': boll_dn,
     }
 
 

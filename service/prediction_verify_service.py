@@ -328,23 +328,20 @@ def verify_nw_week_predictions(iso_year: int, iso_week: int) -> dict:
         conn.close()
 
 
-def _get_v5_unverified_predictions(limit: int = 2000) -> list[dict]:
-    """获取有V5 OBV信号但尚未验证的历史记录。
 
-    条件：v5_pred_direction IS NOT NULL AND v5_is_correct IS NULL
-    且 v5_signal_date 距今已超过7个交易日（确保5日数据完整）。
-    """
+def _get_v20_unverified_predictions(limit: int = 2000) -> list[dict]:
+    """获取有V20量价信号但尚未验证的历史记录。"""
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
     try:
         cur.execute("""
-            SELECT stock_code, iso_year, iso_week, v5_pred_direction, v5_signal_date
+            SELECT stock_code, iso_year, iso_week, v20_pred_direction, predict_date
             FROM stock_weekly_prediction_history
-            WHERE v5_pred_direction IS NOT NULL
-              AND v5_pred_direction != ''
-              AND v5_is_correct IS NULL
-              AND v5_signal_date IS NOT NULL
-              AND v5_signal_date <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+            WHERE v20_pred_direction IS NOT NULL
+              AND v20_pred_direction != ''
+              AND v20_is_correct IS NULL
+              AND predict_date IS NOT NULL
+              AND predict_date <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
               AND (stock_code LIKE '6%%.SH' OR stock_code LIKE '0%%.SZ' OR stock_code LIKE '3%%.SZ')
               AND stock_code NOT LIKE '399%%'
               AND stock_code != '000001.SH'
@@ -357,32 +354,28 @@ def _get_v5_unverified_predictions(limit: int = 2000) -> list[dict]:
         conn.close()
 
 
-def verify_v5_pending() -> dict:
-    """验证所有待验证的V5 OBV预测。
+def verify_v20_pending() -> dict:
+    """验证所有待验证的V20量价超跌反弹预测。
 
-    对每条有 v5_signal_date 的预测，从该日期起取后5个交易日的K线，
+    对每条有 v20_pred_direction 的预测，从 predict_date 起取后5个交易日的K线，
     计算实际5日复合涨跌幅，与预测方向对比。
 
     Returns:
-        {'verified': N, 'correct': N, 'wrong': N, 'skipped': N, 'type': 'v5'}
+        {'verified': N, 'correct': N, 'wrong': N, 'skipped': N, 'type': 'v20'}
     """
-    predictions = _get_v5_unverified_predictions()
+    predictions = _get_v20_unverified_predictions()
     if not predictions:
         return {'verified': 0, 'correct': 0, 'wrong': 0, 'skipped': 0,
-                'message': '无待验证V5预测', 'type': 'v5'}
+                'message': '无待验证V20预测', 'type': 'v20'}
 
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
 
     try:
-        # 按 signal_date 分组批量查询K线
         stock_codes = list({p['stock_code'] for p in predictions})
-        signal_dates = {p['stock_code']: str(p['v5_signal_date']) for p in predictions}
+        predict_dates = {p['stock_code']: str(p['predict_date']) for p in predictions}
+        min_date = min(predict_dates.values())
 
-        # 找到最早的 signal_date
-        min_date = min(signal_dates.values())
-
-        # 批量加载K线（从最早signal_date到今天）
         kline_map = defaultdict(list)
         batch_size = 200
         for i in range(0, len(stock_codes), batch_size):
@@ -405,17 +398,16 @@ def verify_v5_pending() -> dict:
 
         for p in predictions:
             code = p['stock_code']
-            sig_date = str(p['v5_signal_date'])
+            pred_date = str(p['predict_date'])
             klines = kline_map.get(code, [])
 
-            # 找到 signal_date 之后的K线（不含signal_date当天，因为信号是当天收盘后产生的）
-            future_klines = [k for k in klines if str(k['date']) > sig_date]
+            # predict_date 之后的K线（不含当天）
+            future_klines = [k for k in klines if str(k['date']) > pred_date]
 
             if len(future_klines) < 5:
                 skipped += 1
                 continue
 
-            # 取前5个交易日
             pcts = []
             for k in future_klines[:5]:
                 cp = k.get('change_percent')
@@ -428,7 +420,7 @@ def verify_v5_pending() -> dict:
 
             actual_chg = _compound_return(pcts)
             actual_dir = 'UP' if actual_chg >= 0 else 'DOWN'
-            pred_dir = p['v5_pred_direction']
+            pred_dir = p['v20_pred_direction']
             is_correct = 1 if pred_dir == actual_dir else 0
 
             if is_correct:
@@ -440,20 +432,19 @@ def verify_v5_pending() -> dict:
                 'stock_code': code,
                 'iso_year': p['iso_year'],
                 'iso_week': p['iso_week'],
-                'v5_actual_direction': actual_dir,
-                'v5_actual_5d_chg': actual_chg,
-                'v5_is_correct': is_correct,
+                'v20_actual_direction': actual_dir,
+                'v20_actual_5d_chg': actual_chg,
+                'v20_is_correct': is_correct,
             })
 
-        # 回填
         if results:
-            from dao.stock_weekly_prediction_dao import backfill_v5_actual_results
-            backfill_v5_actual_results(results)
+            from dao.stock_weekly_prediction_dao import backfill_v20_actual_results
+            backfill_v20_actual_results(results)
 
         verified = len(results)
         accuracy = round(correct_count / verified * 100, 1) if verified > 0 else None
 
-        logger.info("V5 OBV验证: 验证%d只, 正确%d, 错误%d, 跳过%d, 准确率%s%%",
+        logger.info("V20量价验证: 验证%d只, 正确%d, 错误%d, 跳过%d, 准确率%s%%",
                     verified, correct_count, wrong_count, skipped,
                     accuracy if accuracy is not None else '-')
 
@@ -463,7 +454,139 @@ def verify_v5_pending() -> dict:
             'wrong': wrong_count,
             'skipped': skipped,
             'accuracy': accuracy,
-            'type': 'v5',
+            'type': 'v20',
+        }
+
+    finally:
+        cur.close()
+        conn.close()
+
+
+def _get_v30_unverified_predictions(limit: int = 2000) -> list[dict]:
+    """获取有V30情绪信号但尚未验证的历史记录。"""
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT stock_code, iso_year, iso_week, v30_pred_direction, predict_date
+            FROM stock_weekly_prediction_history
+            WHERE v30_pred_direction IS NOT NULL
+              AND v30_pred_direction != ''
+              AND v30_is_correct IS NULL
+              AND predict_date IS NOT NULL
+              AND predict_date <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+              AND (stock_code LIKE '6%%.SH' OR stock_code LIKE '0%%.SZ' OR stock_code LIKE '3%%.SZ')
+              AND stock_code NOT LIKE '399%%'
+              AND stock_code != '000001.SH'
+            ORDER BY iso_year DESC, iso_week DESC
+            LIMIT %s
+        """, (limit,))
+        return cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+
+def verify_v30_pending() -> dict:
+    """验证所有待验证的V30情绪预测。
+
+    对每条有 v30_pred_direction 的预测，从 predict_date 起取后5个交易日的K线，
+    计算实际5日复合涨跌幅，与预测方向对比。
+
+    Returns:
+        {'verified': N, 'correct': N, 'wrong': N, 'skipped': N, 'type': 'v30'}
+    """
+    predictions = _get_v30_unverified_predictions()
+    if not predictions:
+        return {'verified': 0, 'correct': 0, 'wrong': 0, 'skipped': 0,
+                'message': '无待验证V30预测', 'type': 'v30'}
+
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+
+    try:
+        stock_codes = list({p['stock_code'] for p in predictions})
+        predict_dates = {p['stock_code']: str(p['predict_date']) for p in predictions}
+        min_date = min(predict_dates.values())
+
+        kline_map = defaultdict(list)
+        batch_size = 200
+        for i in range(0, len(stock_codes), batch_size):
+            batch = stock_codes[i:i + batch_size]
+            ph = ','.join(['%s'] * len(batch))
+            cur.execute(f"""
+                SELECT stock_code, `date`, close_price, change_percent
+                FROM stock_kline
+                WHERE stock_code IN ({ph})
+                  AND `date` >= %s
+                ORDER BY stock_code, `date`
+            """, batch + [min_date])
+            for row in cur.fetchall():
+                kline_map[row['stock_code']].append(row)
+
+        results = []
+        skipped = 0
+        correct_count = 0
+        wrong_count = 0
+
+        for p in predictions:
+            code = p['stock_code']
+            pred_date = str(p['predict_date'])
+            klines = kline_map.get(code, [])
+
+            future_klines = [k for k in klines if str(k['date']) > pred_date]
+
+            if len(future_klines) < 5:
+                skipped += 1
+                continue
+
+            pcts = []
+            for k in future_klines[:5]:
+                cp = k.get('change_percent')
+                if cp is not None:
+                    pcts.append(float(cp))
+
+            if not pcts:
+                skipped += 1
+                continue
+
+            actual_chg = _compound_return(pcts)
+            actual_dir = 'UP' if actual_chg >= 0 else 'DOWN'
+            pred_dir = p['v30_pred_direction']
+            is_correct = 1 if pred_dir == actual_dir else 0
+
+            if is_correct:
+                correct_count += 1
+            else:
+                wrong_count += 1
+
+            results.append({
+                'stock_code': code,
+                'iso_year': p['iso_year'],
+                'iso_week': p['iso_week'],
+                'v30_actual_direction': actual_dir,
+                'v30_actual_5d_chg': actual_chg,
+                'v30_is_correct': is_correct,
+            })
+
+        if results:
+            from dao.stock_weekly_prediction_dao import backfill_v30_actual_results
+            backfill_v30_actual_results(results)
+
+        verified = len(results)
+        accuracy = round(correct_count / verified * 100, 1) if verified > 0 else None
+
+        logger.info("V30情绪验证: 验证%d只, 正确%d, 错误%d, 跳过%d, 准确率%s%%",
+                    verified, correct_count, wrong_count, skipped,
+                    accuracy if accuracy is not None else '-')
+
+        return {
+            'verified': verified,
+            'correct': correct_count,
+            'wrong': wrong_count,
+            'skipped': skipped,
+            'accuracy': accuracy,
+            'type': 'v30',
         }
 
     finally:
@@ -472,11 +595,10 @@ def verify_v5_pending() -> dict:
 
 
 def verify_all_pending_weeks() -> list[dict]:
-    """验证所有有待验证预测的历史周，包括下周预测的目标周和V5 OBV预测。
+    """验证所有有待验证预测的历史周，包括下周预测的目标周。
 
     1. 回填本周预测的 actual_direction（跳过最新一周）
     2. 回填下周预测目标周的 actual_direction（确保 nw 验证可用）
-    3. 回填V5 OBV预测的实际5日结果
 
     Returns:
         [{'iso_year': ..., 'iso_week': ..., 'verified': N, ...}, ...]
@@ -527,23 +649,36 @@ def verify_all_pending_weeks() -> list[dict]:
                 'type': 'nw',
             })
 
-    # ── 3. V5 OBV预测验证 ──
-    v5_count = 0
+    # ── 3. V20 量价超跌反弹预测验证 ──
+    v20_count = 0
     try:
-        v5_result = verify_v5_pending()
-        if v5_result.get('verified', 0) > 0:
-            results.append(v5_result)
-            v5_count = v5_result['verified']
+        v20_result = verify_v20_pending()
+        if v20_result.get('verified', 0) > 0:
+            results.append(v20_result)
+            v20_count = v20_result['verified']
     except Exception as e:
-        logger.error("V5 OBV验证失败: %s", e, exc_info=True)
-        results.append({'error': str(e), 'type': 'v5'})
+        logger.error("V20量价验证失败: %s", e, exc_info=True)
+        results.append({'error': str(e), 'type': 'v20'})
+
+    # ── 4. V30 情绪预测验证 ──
+    v30_count = 0
+    try:
+        v30_result = verify_v30_pending()
+        if v30_result.get('verified', 0) > 0:
+            results.append(v30_result)
+            v30_count = v30_result['verified']
+    except Exception as e:
+        logger.error("V30情绪验证失败: %s", e, exc_info=True)
+        results.append({'error': str(e), 'type': 'v30'})
 
     if not results:
         logger.info("无待验证的预测周")
 
     if nw_count > 0:
         logger.info("额外回填了 %d 个下周预测目标周", nw_count)
-    if v5_count > 0:
-        logger.info("V5 OBV回填了 %d 只", v5_count)
+    if v20_count > 0:
+        logger.info("V20量价回填了 %d 只", v20_count)
+    if v30_count > 0:
+        logger.info("V30情绪回填了 %d 只", v30_count)
 
     return results

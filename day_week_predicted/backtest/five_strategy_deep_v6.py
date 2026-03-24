@@ -3,14 +3,14 @@
 策略融合回测 v6 — v5最优策略 × TDX通达信公式 深度交叉验证
 ==========================================================
 核心思路:
-  v5最优: 蜻蜓布林(58.2%), 蜻蜓布林+OBV+收阳(75.8%), 空中加油+缩量(65.7%)
+  v5最优: 蜻蜓布林(58.2%), 空中加油+缩量(65.7%)
   TDX有价值条件: 多头排列, 六十向上, 贴线MA5, KD金叉, 刚启动
   TDX打分维度: 均线斜率, 动态贴线, 量价配合, 动量共振, 启动时机
 
 融合方式:
   1. v5策略 + TDX条件作为额外过滤器
   2. v5策略 + TDX打分作为信号质量评分
-  3. TDX原版/放宽版 + v5过滤器(布林/OBV/缩量)增强
+  3. TDX原版/放宽版 + v5过滤器(布林/缩量)增强
   4. 全新融合策略: v5形态 AND TDX趋势确认
   5. 统一加权投票: v5策略分 + TDX打分 综合排序
 
@@ -77,15 +77,6 @@ def precompute(klines):
     rsi14 = calc_rsi(c, 14)
     kv, dv, jv = calc_kdj(h, l, c)
 
-    obv = [0.0] * n
-    for i in range(1, n):
-        if c[i] > c[i - 1]:
-            obv[i] = obv[i - 1] + v[i]
-        elif c[i] < c[i - 1]:
-            obv[i] = obv[i - 1] - v[i]
-        else:
-            obv[i] = obv[i - 1]
-
     boll_up = [0.0] * n
     boll_dn = [0.0] * n
     for i in range(19, n):
@@ -107,7 +98,7 @@ def precompute(klines):
         'vm5': vm5, 'vm10': vm10, 'vm20': vm20,
         'dif': dif, 'dea': dea, 'macd_bar': macd_bar,
         'rsi14': rsi14, 'k': kv, 'd': dv, 'j': jv,
-        'obv': obv, 'boll_up': boll_up, 'boll_dn': boll_dn,
+        'boll_up': boll_up, 'boll_dn': boll_dn,
         'atr14': atr14,
     }
 
@@ -306,9 +297,6 @@ def _reg(name):
 
 @_reg('F_收阳')
 def _(ind, i): return ind['c'][i] > ind['o'][i]
-
-@_reg('F_OBV上升')
-def _(ind, i): return i >= 5 and ind['obv'][i] > ind['obv'][i-5]
 
 @_reg('F_缩量')
 def _(ind, i): return ind['vm5'][i] > 0 and ind['v'][i] < ind['vm5'][i] * 0.8
@@ -536,14 +524,6 @@ def run(sample_limit=1000):
         if st['n'] > 0:
             logger.info("  %-30s %6d  %6.1f%%  %6.2f%%  %6.2f%%", sname, st['n'], st['wr'], st['avg'], st['med'])
 
-    # v5最优组合
-    qt_obv_yang = [s for s in all_sigs if s.get('h_V5_蜻蜓布林', False)
-                   and s.get('f_F_OBV上升', False) and s.get('f_F_收阳', False)]
-    baselines['V5_蜻蜓+OBV+阳'] = qt_obv_yang
-    st = qs(qt_obv_yang, 5)
-    if st['n'] > 0:
-        logger.info("  %-30s %6d  %6.1f%%  %6.2f%%  %6.2f%%", 'V5_蜻蜓+OBV+阳', st['n'], st['wr'], st['avg'], st['med'])
-
     s6_suoliang = [s for s in all_sigs if s.get('h_V5_空中加油', False) and s.get('f_F_缩量', False)]
     baselines['V5_空中加油+缩量'] = s6_suoliang
     st = qs(s6_suoliang, 5)
@@ -677,20 +657,6 @@ def run(sample_limit=1000):
             logger.info("  %-50s %5d  %6.1f%%  %6.2f%%  %6.2f%%",
                          combo_label, st['n'], st['wr'], st['avg'], st['med'])
 
-    # 4b. 蜻蜓布林+OBV+收阳 AND TDX条件
-    for combo_label, tdx_keys in [
-        ('蜻蜓+OBV+阳 AND 多头排列', ['T_多头排列']),
-        ('蜻蜓+OBV+阳 AND 六十向上', ['T_六十向上']),
-        ('蜻蜓+OBV+阳 AND 刚启动', ['T_刚启动']),
-        ('蜻蜓+OBV+阳 AND 盈利', ['T_盈利']),
-    ]:
-        filtered = [s for s in qt_obv_yang if all(s.get(f'h_{k}', False) for k in tdx_keys)]
-        st = qs(filtered, 5)
-        if st['n'] >= 5:
-            fusion_results.append((combo_label, st, filtered))
-            logger.info("  %-50s %5d  %6.1f%%  %6.2f%%  %6.2f%%",
-                         combo_label, st['n'], st['wr'], st['avg'], st['med'])
-
     # 4c. 空中加油 AND TDX条件
     for combo_label, tdx_keys in [
         ('空中加油 AND 多头排列', ['T_多头排列']),
@@ -711,8 +677,7 @@ def run(sample_limit=1000):
 
     # 4d. v5策略 + TDX打分阈值
     for v5name, v5sigs in [('蜻蜓布林', baselines['V5_蜻蜓布林']),
-                            ('空中加油', baselines['V5_空中加油']),
-                            ('蜻蜓+OBV+阳', qt_obv_yang)]:
+                            ('空中加油', baselines['V5_空中加油'])]:
         for thr in [50, 60, 70, 80]:
             filtered = [s for s in v5sigs if s.get('tdx_score', 0) >= thr]
             st = qs(filtered, 5)
@@ -724,11 +689,9 @@ def run(sample_limit=1000):
 
     # 4e. TDX放宽版 + v5最优过滤器组合
     for combo_label, filter_keys in [
-        ('TDX放宽 + OBV+收阳', ['F_OBV上升', 'F_收阳']),
         ('TDX放宽 + 缩量', ['F_缩量']),
         ('TDX放宽 + 布林收窄', ['F_布林收窄']),
         ('TDX放宽 + 布林收窄+下轨', ['F_布林收窄', 'F_布林下轨']),
-        ('TDX放宽 + OBV+收阳+近期不跌', ['F_OBV上升', 'F_收阳', 'F_近期不跌']),
     ]:
         filtered = [s for s in tdx_relax if all(s.get(f'f_{k}', False) for k in filter_keys)]
         st = qs(filtered, 5)
@@ -747,7 +710,6 @@ def run(sample_limit=1000):
     or_combos = [
         ('蜻蜓布林 OR TDX原版', lambda s: s.get('h_V5_蜻蜓布林') or s.get('h_T_原版全AND')),
         ('蜻蜓布林 OR TDX放宽', lambda s: s.get('h_V5_蜻蜓布林') or s.get('h_T_放宽版')),
-        ('蜻蜓+OBV+阳 OR TDX原版', lambda s: (s.get('h_V5_蜻蜓布林') and s.get('f_F_OBV上升') and s.get('f_F_收阳')) or s.get('h_T_原版全AND')),
         ('空中加油+缩量 OR TDX原版', lambda s: (s.get('h_V5_空中加油') and s.get('f_F_缩量')) or s.get('h_T_原版全AND')),
         ('蜻蜓布林 OR 空中加油 OR TDX原版', lambda s: s.get('h_V5_蜻蜓布林') or s.get('h_V5_空中加油') or s.get('h_T_原版全AND')),
         ('v5全部 OR TDX原版', lambda s: s.get('h_V5_蜻蜓布林') or s.get('h_V5_空中加油') or s.get('h_V5_试盘线') or s.get('h_T_原版全AND')),
@@ -868,7 +830,6 @@ def run(sample_limit=1000):
 
     # v5基线
     logger.info("  📌 v5基线:")
-    logger.info("     蜻蜓布林+OBV+收阳: 75.8%%, 91信号 (v5最优)")
     logger.info("     蜻蜓布林: 58.2%%, 1726信号")
 
     # 融合版是否有提升

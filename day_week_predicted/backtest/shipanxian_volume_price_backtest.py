@@ -12,9 +12,8 @@
   VP5. 实体阳线占比高（实体/振幅 > 0.5，非十字星）
   VP6. 下影线短（下影线/振幅 < 0.3，非锤子线）
   VP7. 连续放量（近3日成交量均 > 10日均量）
-  VP8. OBV趋势向上（5日OBV斜率为正）
-  VP9. 量价背离过滤（排除价涨量缩的虚涨）
-  VP10. 低位首次放量（前10日无量倍增信号）
+  VP8. 量价背离过滤（排除价涨量缩的虚涨）
+  VP9. 低位首次放量（前10日无量倍增信号）
 
 用法：
     python -m day_week_predicted.backtest.shipanxian_volume_price_backtest
@@ -62,16 +61,6 @@ def precompute_vp_indicators(klines: list[dict]) -> dict:
     ma10 = calc_ma(closes, 10)
     ma20 = calc_ma(closes, 20)
 
-    # OBV
-    obv = [0.0] * n
-    for i in range(1, n):
-        if closes[i] > closes[i - 1]:
-            obv[i] = obv[i - 1] + vols[i]
-        elif closes[i] < closes[i - 1]:
-            obv[i] = obv[i - 1] - vols[i]
-        else:
-            obv[i] = obv[i - 1]
-
     # MACD / KDJ / RSI for combo strategies
     dif, dea, macd_bar = calc_macd(closes)
     k_vals, d_vals, j_vals = calc_kdj(highs, lows, closes)
@@ -83,7 +72,6 @@ def precompute_vp_indicators(klines: list[dict]) -> dict:
         'vol_ma3': vol_ma3, 'vol_ma5': vol_ma5, 'vol_ma10': vol_ma10,
         'vol_ma20': vol_ma20,
         'ma5': ma5, 'ma10': ma10, 'ma20': ma20,
-        'obv': obv,
         'dif': dif, 'dea': dea, 'macd_bar': macd_bar,
         'k': k_vals, 'd': d_vals,
     }
@@ -173,14 +161,6 @@ def _(ind, i):
     return v[i] > ma10 and v[i - 1] > ma10 and v[i - 2] > ma10
 
 
-@vp_filter('VP8_OBV上升')
-def _(ind, i):
-    """5日OBV斜率为正（资金持续流入）"""
-    if i < 5:
-        return False
-    return ind['obv'][i] > ind['obv'][i - 5]
-
-
 @vp_filter('VP9_非量价背离')
 def _(ind, i):
     """排除价涨量缩：如果收盘涨幅>3%但量比<1.2则为背离"""
@@ -249,17 +229,16 @@ STRATEGIES = {
     '+VP5_实体阳线': ['VP5_实体阳线'],
     '+VP6_下影线短': ['VP6_下影线短'],
     '+VP7_连续放量': ['VP7_连续放量'],
-    '+VP8_OBV上升': ['VP8_OBV上升'],
     '+VP9_非量价背离': ['VP9_非量价背离'],
     '+VP10_低位首次放量': ['VP10_低位首次放量'],
     '+VP11_量能温和放大': ['VP11_量能温和放大'],
     '+VP12_收盘价上半区': ['VP12_收盘价上半区'],
     # 量价组合
     '+VP1+VP4(量比+换手)': ['VP1_量比适中', 'VP4_换手率适中'],
-    '+VP2+VP8(缩放+OBV)': ['VP2_缩量后放量', 'VP8_OBV上升'],
+    '+VP2+VP9(缩放+非背离)': ['VP2_缩量后放量', 'VP9_非量价背离'],
     '+VP5+VP6(阳线形态)': ['VP5_实体阳线', 'VP6_下影线短'],
     '+VP1+VP5+VP12': ['VP1_量比适中', 'VP5_实体阳线', 'VP12_收盘价上半区'],
-    '+VP4+VP8+VP11': ['VP4_换手率适中', 'VP8_OBV上升', 'VP11_量能温和放大'],
+    '+VP4+VP11': ['VP4_换手率适中', 'VP11_量能温和放大'],
     # 量价 + 技术指标组合
     '+VP1+均线多头': ['VP1_量比适中', '均线多头'],
     '+VP4+均线多头': ['VP4_换手率适中', '均线多头'],

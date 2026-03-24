@@ -2882,51 +2882,88 @@ def run_batch_weekly_prediction(progress_callback=None, mode='all'):
             'nw_backtest_accuracy', 'nw_backtest_samples',
         ])
 
-    # 6c. V5技术形态5日预测（仅 all 模式执行）
+    # 6d. V20量价超跌反弹预测（仅 all 模式执行）
+    _V20_FIELDS = [
+        'v20_pred_direction', 'v20_confidence', 'v20_rule_name', 'v20_reason',
+        'v20_backtest_acc', 'v20_matched_count', 'v20_matched_rules',
+        'v20_pos', 'v20_vr5', 'v20_ma20d', 'v20_cdn',
+    ]
     if mode == 'all':
-        logger.info("[3c/4] V5技术形态预测...")
+        logger.info("[3d/4] V20量价超跌反弹预测...")
         try:
-            from service.analysis.v5_tech_predictor import batch_predict_v5_tech
-            v5_results = batch_predict_v5_tech(all_codes, latest_date)
-            v5_count = 0
+            from service.v20_prediction.v20_engine import V20PredictionEngine
+            v20_engine = V20PredictionEngine()
+            stock_klines_data = data.get('stock_klines', {})
+            v20_results = v20_engine.predict_batch(stock_klines_data)
+            v20_count = 0
             for p in predictions:
                 code = p['stock_code']
-                v5 = v5_results.get(code)
-                if v5:
-                    p.update(v5)
-                    v5_count += 1
+                v20 = v20_results.get(code)
+                if v20:
+                    p['v20_pred_direction'] = v20['pred_direction']
+                    p['v20_confidence'] = v20['confidence']
+                    p['v20_rule_name'] = v20['rule_name']
+                    p['v20_reason'] = v20['reason'][:200] if v20.get('reason') else None
+                    p['v20_backtest_acc'] = v20['backtest_acc']
+                    p['v20_matched_count'] = v20['matched_count']
+                    p['v20_matched_rules'] = ','.join(v20['matched_rules'])
+                    feat = v20.get('features', {})
+                    p['v20_pos'] = feat.get('pos')
+                    p['v20_vr5'] = feat.get('vr5')
+                    p['v20_ma20d'] = feat.get('ma20d')
+                    p['v20_cdn'] = feat.get('cdn')
+                    v20_count += 1
                 else:
-                    p['v5_pred_direction'] = None
-                    p['v5_confidence'] = None
-                    p['v5_strategy'] = None
-                    p['v5_reason'] = None
-                    p['v5_win_rate'] = None
-                    p['v5_signal_date'] = None
-                    p['v5_signal_count'] = None
-                    p['v5_all_strategies'] = None
-            v5_high = sum(1 for p in predictions if p.get('v5_confidence') == 'high')
-            v5_med = sum(1 for p in predictions if p.get('v5_confidence') == 'medium')
-            v5_low = sum(1 for p in predictions if p.get('v5_confidence') == 'low')
-            logger.info("  V5技术预测: %d只有信号 (高%d 中%d 低%d), 覆盖率=%.1f%%",
-                        v5_count, v5_high, v5_med, v5_low,
-                        round(v5_count / len(predictions) * 100, 1) if predictions else 0)
+                    for f in _V20_FIELDS:
+                        p[f] = None
+            v20_high = sum(1 for p in predictions if p.get('v20_confidence') == 'high')
+            v20_med = sum(1 for p in predictions if p.get('v20_confidence') == 'medium')
+            logger.info("  V20量价预测: %d只有信号 (高%d 中%d), 覆盖率=%.1f%%",
+                        v20_count, v20_high, v20_med,
+                        round(v20_count / len(predictions) * 100, 1) if predictions else 0)
         except Exception as e:
-            logger.error("V5技术预测异常: %s", e, exc_info=True)
+            logger.error("V20量价预测异常: %s", e, exc_info=True)
             for p in predictions:
-                p['v5_pred_direction'] = None
-                p['v5_confidence'] = None
-                p['v5_strategy'] = None
-                p['v5_reason'] = None
-                p['v5_win_rate'] = None
-                p['v5_signal_date'] = None
-                p['v5_signal_count'] = None
-                p['v5_all_strategies'] = None
+                for f in _V20_FIELDS:
+                    p[f] = None
     else:
-        # this_week 模式: 跳过V5预测，保留DB中已有的v5_*字段
-        _preserve_existing_fields(predictions, 'v5_', [
-            'v5_pred_direction', 'v5_confidence', 'v5_strategy', 'v5_reason',
-            'v5_win_rate', 'v5_signal_date', 'v5_signal_count', 'v5_all_strategies',
-        ])
+        # this_week 模式: 跳过V20预测，保留DB中已有的v20_*字段
+        _preserve_existing_fields(predictions, 'v20_', _V20_FIELDS)
+
+    # 6e. V30情绪因子预测（仅 all 模式执行）
+    _V30_FIELDS = [
+        'v30_pred_direction', 'v30_confidence', 'v30_strategy', 'v30_reason',
+        'v30_composite_score', 'v30_sent_agree', 'v30_tech_agree', 'v30_mkt_ret_20d',
+    ]
+    if mode == 'all':
+        logger.info("[3e/4] V30情绪因子预测...")
+        try:
+            from service.v30_prediction.v30_predictor import batch_predict_v30
+            v30_results = batch_predict_v30(all_codes, latest_date)
+            v30_count = 0
+            for p in predictions:
+                code = p['stock_code']
+                v30 = v30_results.get(code)
+                if v30 and v30.get('v30_pred_direction'):
+                    p.update(v30)
+                    v30_count += 1
+                else:
+                    for f in _V30_FIELDS:
+                        p[f] = None
+            v30_high = sum(1 for p in predictions if p.get('v30_confidence') == 'high')
+            v30_med = sum(1 for p in predictions if p.get('v30_confidence') == 'medium')
+            v30_low = sum(1 for p in predictions if p.get('v30_confidence') == 'low')
+            logger.info("  V30情绪预测: %d只有信号 (高%d 中%d 低%d), 覆盖率=%.1f%%",
+                        v30_count, v30_high, v30_med, v30_low,
+                        round(v30_count / len(predictions) * 100, 1) if predictions else 0)
+        except Exception as e:
+            logger.error("V30情绪预测异常: %s", e, exc_info=True)
+            for p in predictions:
+                for f in _V30_FIELDS:
+                    p[f] = None
+    else:
+        # this_week 模式: 跳过V30预测，保留DB中已有的v30_*字段
+        _preserve_existing_fields(predictions, 'v30_', _V30_FIELDS)
 
     # 填充回测准确率：优先使用个股+策略准确率，其次个股整体准确率，最后全局
     #
@@ -3088,7 +3125,9 @@ def run_batch_weekly_prediction(progress_callback=None, mode='all'):
                 nw_global_bt['accuracy'],
                 nw_global_bt['total'], nw_global_bt.get('coverage', 0))
     v5_total = sum(1 for p in predictions if p.get('v5_pred_direction'))
+    v30_total = sum(1 for p in predictions if p.get('v30_pred_direction'))
     logger.info("  V5技术形态: %d只有信号", v5_total)
+    logger.info("  V30情绪因子: %d只有信号", v30_total)
     logger.info("  耗时: %.1fs", elapsed)
     logger.info("=" * 70)
 
@@ -3107,6 +3146,7 @@ def run_batch_weekly_prediction(progress_callback=None, mode='all'):
         'next_week_reference': nw_reference,
         'next_week_coverage': nw_coverage,
         'v5_tech_count': sum(1 for p in predictions if p.get('v5_pred_direction')),
+        'v30_sentiment_count': sum(1 for p in predictions if p.get('v30_pred_direction')),
         'elapsed': round(elapsed, 1),
     }
 

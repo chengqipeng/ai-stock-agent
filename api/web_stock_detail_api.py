@@ -165,7 +165,7 @@ async def stock_detail_overview(stock_code: str = Query(..., description="股票
         klines = _serialize(cur.fetchall())
         result["klines"] = klines
 
-        # 2. 最新预测数据（本周 + 下周V11 + OBV V5）
+        # 2. 最新预测数据（本周 + 下周V11）
         cur.execute(
             "SELECT * FROM stock_weekly_prediction WHERE stock_code = %s",
             (stock_code,),
@@ -197,20 +197,7 @@ async def stock_detail_overview(stock_code: str = Query(..., description="股票
         )
         result["nw_history"] = _serialize(cur.fetchall())
 
-        # 5. OBV V5预测历史
-        cur.execute(
-            "SELECT predict_date, iso_year, iso_week, "
-            "v5_pred_direction, v5_confidence, v5_strategy, v5_reason, "
-            "v5_win_rate, v5_signal_date, v5_actual_direction, "
-            "v5_actual_5d_chg, v5_is_correct "
-            "FROM stock_weekly_prediction_history "
-            "WHERE stock_code = %s AND v5_pred_direction IS NOT NULL "
-            "ORDER BY predict_date DESC LIMIT 20",
-            (stock_code,),
-        )
-        result["v5_history"] = _serialize(cur.fetchall())
-
-        # 6. 资金流向（最近60天）
+        # 5. 资金流向（最近60天）
         cur.execute(
             "SELECT `date`, close_price, change_pct, net_flow, main_net_5day, "
             "big_net, big_net_pct, mid_net, mid_net_pct, small_net, small_net_pct "

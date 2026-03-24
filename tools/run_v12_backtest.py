@@ -376,6 +376,11 @@ def run_v12_backtest(n_weeks: int = 30, n_stocks: int = 200):
             by_quality_factors[ns_key]['total'] += 1
             if is_correct:
                 by_quality_factors[ns_key]['correct'] += 1
+            # CGW缩量下跌统计
+            cgw_key = 'cgw_low_vol_decline' if pred.get('cgw_low_vol_decline', False) else 'cgw_normal'
+            by_quality_factors[cgw_key]['total'] += 1
+            if is_correct:
+                by_quality_factors[cgw_key]['correct'] += 1
 
     # 3. 输出结果
     logger.info("[3/3] 生成报告...")

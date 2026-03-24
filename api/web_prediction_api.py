@@ -12,7 +12,6 @@ from dao.stock_weekly_prediction_dao import (
     get_prediction_accuracy_stats,
     get_prediction_verification,
     get_nw_prediction_verification,
-    get_v5_prediction_verification,
     get_available_prediction_weeks,
 )
 
@@ -41,7 +40,8 @@ async def prediction_list(
     direction: str = Query(None, description="UP/DOWN"),
     confidence: str = Query(None, description="high/medium/low"),
     nw_direction: str = Query(None, description="下周预测方向: UP/DOWN/UNCERTAIN/HAS_SIGNAL"),
-    v5_direction: str = Query(None, description="OBV5日预测: UP/HAS_SIGNAL/NO_SIGNAL"),
+    v20_direction: str = Query(None, description="V20量价预测: UP/NO_SIGNAL"),
+    v30_direction: str = Query(None, description="V30情绪预测: UP/NO_SIGNAL"),
     keyword: str = Query(None, description="股票代码或名称，多个用逗号分隔"),
     sort_by: str = Query("stock_code"),
     sort_dir: str = Query("asc"),
@@ -58,7 +58,8 @@ async def prediction_list(
                 keywords = None
         rows, total = get_latest_predictions_page(
             direction=direction, confidence=confidence, keywords=keywords,
-            nw_direction=nw_direction, v5_direction=v5_direction,
+            nw_direction=nw_direction,
+            v20_direction=v20_direction, v30_direction=v30_direction,
             sort_by=sort_by, sort_dir=sort_dir, limit=limit, offset=offset,
         )
         return {"success": True, "data": rows, "total": total}
@@ -180,8 +181,8 @@ async def nw_prediction_verification(
         return {"success": False, "error": str(e)}
 
 
-@router.get("/api/weekly_prediction/v5_verification")
-async def v5_prediction_verification(
+@router.get("/api/weekly_prediction/v20_verification")
+async def v20_prediction_verification(
     iso_year: int = Query(None, description="ISO年"),
     iso_week: int = Query(None, description="ISO周"),
     direction: str = Query(None, description="预测方向: UP"),
@@ -192,15 +193,16 @@ async def v5_prediction_verification(
     limit: int = Query(50),
     offset: int = Query(0),
 ):
-    """获取OBV 5日预测验证数据：v5_pred_direction vs 实际5日涨跌"""
+    """获取V20量价超跌反弹预测验证数据：v20_pred_direction vs 实际5日涨跌"""
     try:
+        from dao.stock_weekly_prediction_dao import get_v20_prediction_verification
         keywords = None
         if keyword:
             terms = re.split(r'[,，、;；\s]+', keyword.strip())
             keywords = [t.strip() for t in terms if t.strip()]
             if not keywords:
                 keywords = None
-        rows, total, summary = get_v5_prediction_verification(
+        rows, total, summary = get_v20_prediction_verification(
             iso_year=iso_year, iso_week=iso_week,
             keywords=keywords, direction_filter=direction,
             result_filter=result,
@@ -216,7 +218,48 @@ async def v5_prediction_verification(
                 summary[k] = str(v)
         return {"success": True, "data": rows, "total": total, "summary": summary}
     except Exception as e:
-        logger.error("查询V5 OBV预测验证失败: %s", e, exc_info=True)
+        logger.error("查询V20量价预测验证失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/api/weekly_prediction/v30_verification")
+async def v30_prediction_verification(
+    iso_year: int = Query(None, description="ISO年"),
+    iso_week: int = Query(None, description="ISO周"),
+    direction: str = Query(None, description="预测方向: UP"),
+    result: str = Query(None, description="验证结果: correct/wrong/pending"),
+    keyword: str = Query(None, description="股票代码或名称"),
+    sort_by: str = Query("stock_code"),
+    sort_dir: str = Query("asc"),
+    limit: int = Query(50),
+    offset: int = Query(0),
+):
+    """获取V30情绪因子预测验证数据：v30_pred_direction vs 实际5日涨跌"""
+    try:
+        from dao.stock_weekly_prediction_dao import get_v30_prediction_verification
+        keywords = None
+        if keyword:
+            terms = re.split(r'[,，、;；\s]+', keyword.strip())
+            keywords = [t.strip() for t in terms if t.strip()]
+            if not keywords:
+                keywords = None
+        rows, total, summary = get_v30_prediction_verification(
+            iso_year=iso_year, iso_week=iso_week,
+            keywords=keywords, direction_filter=direction,
+            result_filter=result,
+            sort_by=sort_by, sort_dir=sort_dir,
+            limit=limit, offset=offset,
+        )
+        for r in rows:
+            for k, v in list(r.items()):
+                if v is not None and not isinstance(v, (str, int, float, bool)):
+                    r[k] = str(v)
+        for k, v in list(summary.items()):
+            if v is not None and not isinstance(v, (str, int, float, bool)):
+                summary[k] = str(v)
+        return {"success": True, "data": rows, "total": total, "summary": summary}
+    except Exception as e:
+        logger.error("查询V30情绪预测验证失败: %s", e, exc_info=True)
         return {"success": False, "error": str(e)}
 
 
@@ -281,18 +324,21 @@ async def prediction_weeks(limit: int = Query(20)):
 # ═══════════════════════════════════════════════════════════
 
 async def verify_all_predictions():
-    """验证所有待验证的历史预测（用实际K线数据回填），包括下周预测目标周和V5 OBV预测"""
+    """验证所有待验证的历史预测（用实际K线数据回填），包括下周预测目标周"""
     try:
         from service.prediction_verify_service import verify_all_pending_weeks
         results = verify_all_pending_weeks()
-        tw_results = [r for r in results if r.get('type') not in ('nw', 'v5')]
+        tw_results = [r for r in results if r.get('type') not in ('nw', 'v20')]
         nw_results = [r for r in results if r.get('type') == 'nw']
-        v5_results = [r for r in results if r.get('type') == 'v5']
+        v20_results = [r for r in results if r.get('type') == 'v20']
+        v30_results = [r for r in results if r.get('type') == 'v30']
         total_verified = sum(r.get('verified', 0) for r in results)
         total_correct = sum(r.get('correct', 0) for r in results)
         nw_verified = sum(r.get('verified', 0) for r in nw_results)
-        v5_verified = sum(r.get('verified', 0) for r in v5_results)
-        v5_correct = sum(r.get('correct', 0) for r in v5_results)
+        v20_verified = sum(r.get('verified', 0) for r in v20_results)
+        v20_correct = sum(r.get('correct', 0) for r in v20_results)
+        v30_verified = sum(r.get('verified', 0) for r in v30_results)
+        v30_correct = sum(r.get('correct', 0) for r in v30_results)
         return {
             "success": True,
             "data": results,
@@ -303,9 +349,12 @@ async def verify_all_predictions():
                 "accuracy": round(total_correct / total_verified * 100, 1) if total_verified > 0 else None,
                 "nw_weeks_processed": len(nw_results),
                 "nw_verified": nw_verified,
-                "v5_verified": v5_verified,
-                "v5_correct": v5_correct,
-                "v5_accuracy": round(v5_correct / v5_verified * 100, 1) if v5_verified > 0 else None,
+                "v20_verified": v20_verified,
+                "v20_correct": v20_correct,
+                "v20_accuracy": round(v20_correct / v20_verified * 100, 1) if v20_verified > 0 else None,
+                "v30_verified": v30_verified,
+                "v30_correct": v30_correct,
+                "v30_accuracy": round(v30_correct / v30_verified * 100, 1) if v30_verified > 0 else None,
             }
         }
     except Exception as e:

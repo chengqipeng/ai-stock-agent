@@ -38,7 +38,7 @@ HOLD_DAYS = [3, 5, 7]
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  指标预计算（扩展版，含OBV/布林/ATR）
+#  指标预计算（扩展版，含布林/ATR）
 # ═══════════════════════════════════════════════════════════════════
 
 def _safe_div(a, b, default=0.0):
@@ -75,16 +75,6 @@ def precompute_all(klines: list[dict]) -> dict | None:
     rsi14 = calc_rsi(closes, 14)
     k_vals, d_vals, j_vals = calc_kdj(highs, lows, closes)
 
-    # OBV
-    obv = [0.0] * n
-    for i in range(1, n):
-        if closes[i] > closes[i - 1]:
-            obv[i] = obv[i - 1] + vols[i]
-        elif closes[i] < closes[i - 1]:
-            obv[i] = obv[i - 1] - vols[i]
-        else:
-            obv[i] = obv[i - 1]
-
     # 布林带 (20日)
     boll_mid = ma20[:]
     boll_up = [0.0] * n
@@ -118,7 +108,7 @@ def precompute_all(klines: list[dict]) -> dict | None:
         'dif': dif, 'dea': dea, 'macd_bar': macd_bar,
         'rsi6': rsi6, 'rsi14': rsi14,
         'k': k_vals, 'd': d_vals, 'j': j_vals,
-        'obv': obv, 'boll_up': boll_up, 'boll_dn': boll_dn, 'boll_mid': boll_mid,
+        'boll_up': boll_up, 'boll_dn': boll_dn, 'boll_mid': boll_mid,
         'atr14': atr14,
     }
 
@@ -476,13 +466,6 @@ def f_solid_yang(ind, i):
     return abs(c - o) / amp > 0.5 and c > o
 
 
-def f_obv_up(ind, i):
-    """OBV 5日上升"""
-    if i < 5:
-        return False
-    return ind['obv'][i] > ind['obv'][i - 5]
-
-
 def f_ma_bull(ind, i):
     """均线多头: MA5>MA10>MA20"""
     return ind['ma5'][i] > ind['ma10'][i] > ind['ma20'][i] > 0
@@ -573,7 +556,6 @@ FILTERS = {
     'F_温和放量': f_vol_mild,
     'F_换手率OK': f_turnover_ok,
     'F_实体阳线': f_solid_yang,
-    'F_OBV上升': f_obv_up,
     'F_均线多头': f_ma_bull,
     'F_大趋势多头': f_ma_bull_60,
     'F_MACD多头': f_macd_bull,

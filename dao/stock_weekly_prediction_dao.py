@@ -93,17 +93,6 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction (
     nm_backtest_accuracy DOUBLE COMMENT '下月预测回测准确率(%)',
     nm_backtest_samples INT COMMENT '下月预测回测样本数',
     nm_dim_scores VARCHAR(500) COMMENT '下月预测各维度评分(JSON)',
-    v5_pred_direction VARCHAR(4) COMMENT 'V5技术预测方向: UP',
-    v5_confidence VARCHAR(10) COMMENT 'V5预测置信度: high/medium/low',
-    v5_strategy VARCHAR(30) COMMENT 'V5命中策略名',
-    v5_reason VARCHAR(200) COMMENT 'V5预测理由',
-    v5_win_rate DOUBLE COMMENT 'V5策略回测胜率(%)',
-    v5_signal_date VARCHAR(20) COMMENT 'V5信号触发日期',
-    v5_signal_count INT COMMENT 'V5命中策略数量',
-    v5_all_strategies VARCHAR(100) COMMENT 'V5所有命中策略(逗号分隔)',
-    v5_actual_direction VARCHAR(4) COMMENT 'V5实际5日方向(回填): UP/DOWN',
-    v5_actual_5d_chg DOUBLE COMMENT 'V5实际5日涨跌幅(%)(回填)',
-    v5_is_correct TINYINT COMMENT 'V5预测是否正确(回填)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_code (stock_code),
@@ -198,17 +187,6 @@ CREATE TABLE IF NOT EXISTS stock_weekly_prediction_history (
     nm_backtest_accuracy DOUBLE COMMENT '下月预测回测准确率(%)',
     nm_backtest_samples INT COMMENT '下月预测回测样本数',
     nm_dim_scores VARCHAR(500) COMMENT '下月预测各维度评分(JSON)',
-    v5_pred_direction VARCHAR(4) COMMENT 'V5技术预测方向: UP',
-    v5_confidence VARCHAR(10) COMMENT 'V5预测置信度: high/medium/low',
-    v5_strategy VARCHAR(30) COMMENT 'V5命中策略名',
-    v5_reason VARCHAR(200) COMMENT 'V5预测理由',
-    v5_win_rate DOUBLE COMMENT 'V5策略回测胜率(%)',
-    v5_signal_date VARCHAR(20) COMMENT 'V5信号触发日期',
-    v5_signal_count INT COMMENT 'V5命中策略数量',
-    v5_all_strategies VARCHAR(100) COMMENT 'V5所有命中策略(逗号分隔)',
-    v5_actual_direction VARCHAR(4) COMMENT 'V5实际5日方向(回填): UP/DOWN',
-    v5_actual_5d_chg DOUBLE COMMENT 'V5实际5日涨跌幅(%)(回填)',
-    v5_is_correct TINYINT COMMENT 'V5预测是否正确(回填)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_week (stock_code, iso_year, iso_week),
     INDEX idx_predict_date (predict_date),
@@ -247,9 +225,15 @@ _PREDICTION_COLUMNS = [
     'nm_target_year', 'nm_target_month', 'nm_date_range',
     'nm_backtest_accuracy', 'nm_backtest_samples',
     'nm_dim_scores',
-    # V5技术形态预测 v5_* 列
-    'v5_pred_direction', 'v5_confidence', 'v5_strategy', 'v5_reason',
-    'v5_win_rate', 'v5_signal_date', 'v5_signal_count', 'v5_all_strategies',
+    # V20量价超跌反弹预测 v20_* 列
+    'v20_pred_direction', 'v20_confidence', 'v20_rule_name', 'v20_reason',
+    'v20_backtest_acc', 'v20_matched_count', 'v20_matched_rules',
+    'v20_pos', 'v20_vr5', 'v20_ma20d', 'v20_cdn',
+    'v20_actual_direction', 'v20_actual_5d_chg', 'v20_is_correct',
+    # V30情绪因子预测 v30_* 列
+    'v30_pred_direction', 'v30_confidence', 'v30_strategy', 'v30_reason',
+    'v30_composite_score', 'v30_sent_agree', 'v30_tech_agree', 'v30_mkt_ret_20d',
+    'v30_actual_direction', 'v30_actual_5d_chg', 'v30_is_correct',
 ]
 
 # 不参与 ON DUPLICATE KEY UPDATE 的列（主键/唯一键）
@@ -330,19 +314,6 @@ def ensure_tables():
             ("nm_backtest_accuracy", "DOUBLE COMMENT '下月预测回测准确率(%)'", "nm_date_range"),
             ("nm_backtest_samples", "INT COMMENT '下月预测回测样本数'", "nm_backtest_accuracy"),
             ("nm_dim_scores", "VARCHAR(500) COMMENT '下月预测各维度评分(JSON)'", "nm_backtest_samples"),
-            # V5技术形态预测 v5_* 列
-            ("v5_pred_direction", "VARCHAR(4) COMMENT 'V5技术预测方向: UP'", "nm_dim_scores"),
-            ("v5_confidence", "VARCHAR(10) COMMENT 'V5预测置信度: high/medium/low'", "v5_pred_direction"),
-            ("v5_strategy", "VARCHAR(30) COMMENT 'V5命中策略名'", "v5_confidence"),
-            ("v5_reason", "VARCHAR(200) COMMENT 'V5预测理由'", "v5_strategy"),
-            ("v5_win_rate", "DOUBLE COMMENT 'V5策略回测胜率(%)'", "v5_reason"),
-            ("v5_signal_date", "VARCHAR(20) COMMENT 'V5信号触发日期'", "v5_win_rate"),
-            ("v5_signal_count", "INT COMMENT 'V5命中策略数量'", "v5_signal_date"),
-            ("v5_all_strategies", "VARCHAR(100) COMMENT 'V5所有命中策略(逗号分隔)'", "v5_signal_count"),
-            # V5验证回填字段
-            ("v5_actual_direction", "VARCHAR(4) COMMENT 'V5实际5日方向(回填): UP/DOWN'", "v5_all_strategies"),
-            ("v5_actual_5d_chg", "DOUBLE COMMENT 'V5实际5日涨跌幅(%)(回填)'", "v5_actual_direction"),
-            ("v5_is_correct", "TINYINT COMMENT 'V5预测是否正确(回填)'", "v5_actual_5d_chg"),
             ("market_index", "VARCHAR(20) COMMENT '对应大盘指数代码'", "market_d4_chg"),
             ("vol_ratio", "DOUBLE COMMENT '本周均量/20日均量'", "pred_remaining_chg"),
             ("vol_price_corr", "DOUBLE COMMENT '量价相关性[-1,1]'", "vol_ratio"),
@@ -354,6 +325,33 @@ def ensure_tables():
             ("revenue_yoy", "DOUBLE COMMENT '营收同比增长率(%)'", "finance_score"),
             ("profit_yoy", "DOUBLE COMMENT '净利润同比增长率(%)'", "revenue_yoy"),
             ("roe", "DOUBLE COMMENT 'ROE(%)'", "profit_yoy"),
+            # V20量价超跌反弹预测 v20_* 列
+            ("v20_pred_direction", "VARCHAR(4) COMMENT 'V20量价预测方向: UP'", "nm_dim_scores"),
+            ("v20_confidence", "VARCHAR(10) COMMENT 'V20预测置信度: high/medium'", "v20_pred_direction"),
+            ("v20_rule_name", "VARCHAR(30) COMMENT 'V20命中主规则名'", "v20_confidence"),
+            ("v20_reason", "VARCHAR(200) COMMENT 'V20预测理由'", "v20_rule_name"),
+            ("v20_backtest_acc", "DOUBLE COMMENT 'V20规则回测准确率(%)'", "v20_reason"),
+            ("v20_matched_count", "INT COMMENT 'V20命中规则数量'", "v20_backtest_acc"),
+            ("v20_matched_rules", "VARCHAR(100) COMMENT 'V20所有命中规则(逗号分隔)'", "v20_matched_count"),
+            ("v20_pos", "DOUBLE COMMENT 'V20特征:60日位置'", "v20_matched_rules"),
+            ("v20_vr5", "DOUBLE COMMENT 'V20特征:5日量比'", "v20_pos"),
+            ("v20_ma20d", "DOUBLE COMMENT 'V20特征:MA20偏离度(%)'", "v20_vr5"),
+            ("v20_cdn", "INT COMMENT 'V20特征:连跌天数'", "v20_ma20d"),
+            ("v20_actual_direction", "VARCHAR(4) COMMENT 'V20实际5日方向(回填): UP/DOWN'", "v20_cdn"),
+            ("v20_actual_5d_chg", "DOUBLE COMMENT 'V20实际5日涨跌幅(%)(回填)'", "v20_actual_direction"),
+            ("v20_is_correct", "TINYINT COMMENT 'V20预测是否正确(回填)'", "v20_actual_5d_chg"),
+            # V30情绪因子预测 v30_* 列
+            ("v30_pred_direction", "VARCHAR(4) COMMENT 'V30情绪预测方向: UP'", "v20_is_correct"),
+            ("v30_confidence", "VARCHAR(10) COMMENT 'V30预测置信度: high/medium/low'", "v30_pred_direction"),
+            ("v30_strategy", "VARCHAR(30) COMMENT 'V30预测策略名'", "v30_confidence"),
+            ("v30_reason", "VARCHAR(200) COMMENT 'V30预测理由'", "v30_strategy"),
+            ("v30_composite_score", "DOUBLE COMMENT 'V30综合评分'", "v30_reason"),
+            ("v30_sent_agree", "INT COMMENT 'V30情绪因子看涨数'", "v30_composite_score"),
+            ("v30_tech_agree", "INT COMMENT 'V30技术因子看涨数'", "v30_sent_agree"),
+            ("v30_mkt_ret_20d", "DOUBLE COMMENT 'V30大盘20日涨幅(%)'", "v30_tech_agree"),
+            ("v30_actual_direction", "VARCHAR(4) COMMENT 'V30实际5日方向(回填): UP/DOWN'", "v30_mkt_ret_20d"),
+            ("v30_actual_5d_chg", "DOUBLE COMMENT 'V30实际5日涨跌幅(%)(回填)'", "v30_actual_direction"),
+            ("v30_is_correct", "TINYINT COMMENT 'V30预测是否正确(回填)'", "v30_actual_5d_chg"),
         ]
         for tbl in ("stock_weekly_prediction", "stock_weekly_prediction_history"):
             for col_name, col_def, after_col in _migrate_cols:
@@ -569,7 +567,8 @@ def get_prediction_accuracy_stats(iso_year: int = None, iso_week: int = None) ->
 def get_latest_predictions_page(direction: str = None, confidence: str = None,
                                 keyword: str = None, keywords: list[str] = None,
                                 nw_direction: str = None,
-                                v5_direction: str = None,
+                                v20_direction: str = None,
+                                v30_direction: str = None,
                                 sort_by: str = 'stock_code',
                                 sort_dir: str = 'asc',
                                 limit: int = 50, offset: int = 0,
@@ -579,7 +578,6 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
     keywords: 多关键词列表，任一匹配即命中（OR逻辑）。
     keyword: 兼容旧的单关键词参数。
     nw_direction: 下周预测方向筛选，支持 UP/DOWN/UNCERTAIN/HAS_SIGNAL。
-    v5_direction: OBV5日预测筛选，支持 UP/HAS_SIGNAL/NO_SIGNAL。
     monthly_only: 仅返回有月度预测(nm_pred_direction IS NOT NULL)的行。
     """
     conn = get_connection(use_dict_cursor=True)
@@ -613,15 +611,20 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
             else:
                 where_parts.append("p.nw_pred_direction = %s")
                 params.append(nw_direction)
-        # OBV5日预测筛选
-        if v5_direction:
-            if v5_direction == 'NO_SIGNAL':
-                where_parts.append("p.v5_pred_direction IS NULL")
-            elif v5_direction == 'HAS_SIGNAL':
-                where_parts.append("p.v5_pred_direction IS NOT NULL")
+        # V20量价预测方向筛选
+        if v20_direction:
+            if v20_direction == 'NO_SIGNAL':
+                where_parts.append("p.v20_pred_direction IS NULL")
             else:
-                where_parts.append("p.v5_pred_direction = %s")
-                params.append(v5_direction)
+                where_parts.append("p.v20_pred_direction = %s")
+                params.append(v20_direction)
+        # V30情绪预测方向筛选
+        if v30_direction:
+            if v30_direction == 'NO_SIGNAL':
+                where_parts.append("p.v30_pred_direction IS NULL")
+            else:
+                where_parts.append("p.v30_pred_direction = %s")
+                params.append(v30_direction)
         # 多关键词搜索（OR逻辑）
         search_terms = keywords or ([keyword] if keyword else None)
         if search_terms:
@@ -641,7 +644,6 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
             'week_realized_chg', 'pred_remaining_chg',
             'nw_pred_direction', 'nw_pred_chg', 'nw_backtest_accuracy',
             'nm_pred_direction', 'nm_composite_score', 'nm_backtest_accuracy',
-            'v5_pred_direction', 'v5_confidence', 'v5_win_rate',
         }
         if sort_by not in allowed_sorts:
             sort_by = 'stock_code'
@@ -671,10 +673,13 @@ def get_latest_predictions_page(direction: str = None, confidence: str = None,
                    p.nm_composite_score, p.nm_this_month_chg,
                    p.nm_target_year, p.nm_target_month, p.nm_date_range,
                    p.nm_backtest_accuracy, p.nm_backtest_samples, p.nm_dim_scores,
-                   p.v5_pred_direction, p.v5_confidence, p.v5_strategy, p.v5_reason,
-                   p.v5_win_rate, p.v5_signal_date, p.v5_signal_count, p.v5_all_strategies,
                    p.concept_boards,
-                   p.fund_flow_signal, p.finance_score, p.board_momentum, p.vol_trend
+                   p.fund_flow_signal, p.finance_score, p.board_momentum, p.vol_trend,
+                   p.v20_pred_direction, p.v20_confidence, p.v20_rule_name, p.v20_reason,
+                   p.v20_backtest_acc, p.v20_matched_count, p.v20_matched_rules,
+                   p.v20_pos, p.v20_vr5, p.v20_ma20d, p.v20_cdn,
+                   p.v30_pred_direction, p.v30_confidence, p.v30_strategy, p.v30_reason,
+                   p.v30_composite_score, p.v30_sent_agree, p.v30_tech_agree, p.v30_mkt_ret_20d
             FROM stock_weekly_prediction p
             {where_sql}
             ORDER BY {sort_by} {order_dir}
@@ -788,8 +793,7 @@ def get_prediction_verification(iso_year: int = None, iso_week: int = None,
                    h.nw_pred_direction, h.nw_confidence, h.nw_strategy,
                    h.nw_pred_chg, h.nw_date_range, h.nw_backtest_accuracy,
                    h.concept_boards,
-                   h.fund_flow_signal, h.finance_score, h.board_momentum, h.vol_trend,
-                   h.v5_pred_direction
+                   h.fund_flow_signal, h.finance_score, h.board_momentum, h.vol_trend
             FROM stock_weekly_prediction_history h
             {where_sql}
             ORDER BY {sort_by} {order_dir}
@@ -942,7 +946,6 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
                    h.nw_is_correct as nw_is_correct,
                    h.concept_boards,
                    h.pred_direction, h.confidence,
-                   h.v5_pred_direction,
                    h.fund_flow_signal, h.finance_score, h.board_momentum, h.vol_trend
             {from_sql}
             {where_sql}
@@ -987,17 +990,165 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
 
 
 
-def get_v5_prediction_verification(iso_year: int = None, iso_week: int = None,
-                                   keyword: str = None, keywords: list[str] = None,
-                                   direction_filter: str = None,
-                                   result_filter: str = None,
-                                   sort_by: str = 'stock_code',
-                                   sort_dir: str = 'asc',
-                                   limit: int = 50, offset: int = 0) -> tuple[list[dict], int, dict]:
-    """获取OBV 5日预测验证数据。
+def get_v20_prediction_verification(iso_year: int = None, iso_week: int = None,
+                                    keywords: list[str] = None,
+                                    direction_filter: str = None,
+                                    result_filter: str = None,
+                                    sort_by: str = 'stock_code',
+                                    sort_dir: str = 'asc',
+                                    limit: int = 50, offset: int = 0):
+    """获取V20量价超跌反弹预测验证数据。
 
-    逻辑：取有 v5_pred_direction 的历史记录，
-    对比 v5_actual_direction / v5_actual_5d_chg（从 v5_signal_date 起5个交易日的实际涨跌幅）。
+    返回 (rows, total_count, summary)。
+    """
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+    try:
+        from_sql = "FROM stock_weekly_prediction_history h"
+        where_parts = ["h.v20_pred_direction IS NOT NULL", "h.v20_pred_direction != ''"]
+        params = []
+
+        if iso_year and iso_week:
+            where_parts.append("h.iso_year = %s AND h.iso_week = %s")
+            params += [iso_year, iso_week]
+
+        if keywords:
+            kw_parts = []
+            for kw in keywords:
+                kw_parts.append("(h.stock_code LIKE %s OR h.stock_name LIKE %s)")
+                params += [f'%{kw}%', f'%{kw}%']
+            where_parts.append('(' + ' OR '.join(kw_parts) + ')')
+
+        if direction_filter:
+            where_parts.append("h.v20_pred_direction = %s")
+            params.append(direction_filter)
+
+        if result_filter == 'correct':
+            where_parts.append("h.v20_is_correct = 1")
+        elif result_filter == 'wrong':
+            where_parts.append("h.v20_is_correct = 0")
+        elif result_filter == 'pending':
+            where_parts.append("h.v20_is_correct IS NULL")
+
+        where_sql = "WHERE " + " AND ".join(where_parts) if where_parts else ""
+
+        # total
+        cur.execute(f"SELECT COUNT(*) as cnt {from_sql} {where_sql}", params)
+        total = cur.fetchone()['cnt']
+
+        # sort
+        allowed_sorts = {
+            'stock_code', 'stock_name', 'v20_pred_direction', 'v20_confidence',
+            'v20_rule_name', 'v20_backtest_acc', 'v20_actual_5d_chg', 'v20_is_correct',
+            'predict_date',
+        }
+        safe_sort = sort_by if sort_by in allowed_sorts else 'stock_code'
+        order_dir = 'DESC' if sort_dir.lower() == 'desc' else 'ASC'
+
+        cur.execute(f"""
+            SELECT h.stock_code, h.stock_name, h.predict_date, h.iso_year, h.iso_week,
+                   h.v20_pred_direction, h.v20_confidence, h.v20_rule_name, h.v20_reason,
+                   h.v20_backtest_acc, h.v20_matched_count, h.v20_matched_rules,
+                   h.v20_pos, h.v20_vr5, h.v20_ma20d, h.v20_cdn,
+                   h.v20_actual_direction, h.v20_actual_5d_chg, h.v20_is_correct,
+                   h.concept_boards
+            {from_sql}
+            {where_sql}
+            ORDER BY h.{safe_sort} {order_dir}
+            LIMIT %s OFFSET %s
+        """, params + [limit, offset])
+        rows = cur.fetchall()
+
+        cur.execute(f"""
+            SELECT
+                COUNT(*) as total,
+                SUM(h.v20_is_correct = 1) as correct,
+                SUM(h.v20_is_correct = 0) as wrong,
+                SUM(h.v20_is_correct IS NULL) as pending,
+                ROUND(SUM(h.v20_is_correct = 1) / NULLIF(SUM(h.v20_is_correct IS NOT NULL), 0) * 100, 1) as accuracy,
+                SUM(h.v20_pred_direction = 'UP') as pred_up,
+                SUM(h.v20_confidence = 'high' AND h.v20_is_correct = 1) as high_correct,
+                SUM(h.v20_confidence = 'high' AND h.v20_is_correct IS NOT NULL) as high_total,
+                SUM(h.v20_confidence = 'medium' AND h.v20_is_correct = 1) as med_correct,
+                SUM(h.v20_confidence = 'medium' AND h.v20_is_correct IS NOT NULL) as med_total,
+                ROUND(AVG(h.v20_actual_5d_chg), 2) as avg_actual_chg,
+                ROUND(AVG(h.v20_backtest_acc), 1) as avg_backtest_acc,
+                MAX(h.predict_date) as predict_date
+            {from_sql}
+            {where_sql}
+        """, params)
+        summary = cur.fetchone() or {}
+        summary['iso_year'] = iso_year
+        summary['iso_week'] = iso_week
+
+        return rows, total, summary
+    finally:
+        cur.close()
+        conn.close()
+
+
+def backfill_v20_actual_results(results: list[dict]):
+    """回填V20量价超跌反弹预测的实际5日结果。
+
+    results: [{'stock_code': ..., 'iso_year': ..., 'iso_week': ...,
+               'v20_actual_direction': 'UP'/'DOWN',
+               'v20_actual_5d_chg': float, 'v20_is_correct': 0/1}, ...]
+    """
+    if not results:
+        return
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.executemany("""
+            UPDATE stock_weekly_prediction_history
+            SET v20_actual_direction = %(v20_actual_direction)s,
+                v20_actual_5d_chg = %(v20_actual_5d_chg)s,
+                v20_is_correct = %(v20_is_correct)s
+            WHERE stock_code = %(stock_code)s
+              AND iso_year = %(iso_year)s AND iso_week = %(iso_week)s
+        """, results)
+        conn.commit()
+        logger.info("V20回填实际结果: %d 条", len(results))
+    finally:
+        cur.close()
+        conn.close()
+
+
+def backfill_v30_actual_results(results: list[dict]):
+    """回填V30情绪因子预测的实际5日结果。
+
+    results: [{'stock_code': ..., 'iso_year': ..., 'iso_week': ...,
+               'v30_actual_direction': 'UP'/'DOWN',
+               'v30_actual_5d_chg': float, 'v30_is_correct': 0/1}, ...]
+    """
+    if not results:
+        return
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.executemany("""
+            UPDATE stock_weekly_prediction_history
+            SET v30_actual_direction = %(v30_actual_direction)s,
+                v30_actual_5d_chg = %(v30_actual_5d_chg)s,
+                v30_is_correct = %(v30_is_correct)s
+            WHERE stock_code = %(stock_code)s
+              AND iso_year = %(iso_year)s AND iso_week = %(iso_week)s
+        """, results)
+        conn.commit()
+        logger.info("V30回填实际结果: %d 条", len(results))
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_v30_prediction_verification(iso_year: int = None, iso_week: int = None,
+                                    keyword: str = None, keywords: list[str] = None,
+                                    direction_filter: str = None,
+                                    result_filter: str = None,
+                                    sort_by: str = 'stock_code',
+                                    sort_dir: str = 'asc',
+                                    limit: int = 50, offset: int = 0) -> tuple[list[dict], int, dict]:
+    """获取V30情绪因子5日预测验证数据。
 
     返回 (rows, total_count, summary)。
     """
@@ -1015,7 +1166,7 @@ def get_v5_prediction_verification(iso_year: int = None, iso_week: int = None,
                 SELECT DISTINCT iso_year, iso_week
                 FROM stock_weekly_prediction_history
                 WHERE {_stock_filter}
-                  AND v5_pred_direction IS NOT NULL
+                  AND v30_pred_direction IS NOT NULL
                 ORDER BY iso_year DESC, iso_week DESC
                 LIMIT 3
             """)
@@ -1031,21 +1182,21 @@ def get_v5_prediction_verification(iso_year: int = None, iso_week: int = None,
             "(h.stock_code LIKE '6%%.SH' OR h.stock_code LIKE '0%%.SZ' OR h.stock_code LIKE '3%%.SZ')",
             "h.stock_code NOT LIKE '399%%'",
             "h.stock_code != '000001.SH'",
-            "h.v5_pred_direction IS NOT NULL",
-            "h.v5_pred_direction != ''",
+            "h.v30_pred_direction IS NOT NULL",
+            "h.v30_pred_direction != ''",
         ]
         params = [iso_year, iso_week]
 
         if direction_filter:
-            where_parts.append("h.v5_pred_direction = %s")
+            where_parts.append("h.v30_pred_direction = %s")
             params.append(direction_filter)
 
         if result_filter == 'correct':
-            where_parts.append("h.v5_is_correct = 1")
+            where_parts.append("h.v30_is_correct = 1")
         elif result_filter == 'wrong':
-            where_parts.append("h.v5_is_correct = 0")
+            where_parts.append("h.v30_is_correct = 0")
         elif result_filter == 'pending':
-            where_parts.append("h.v5_is_correct IS NULL")
+            where_parts.append("h.v30_is_correct IS NULL")
 
         search_terms = keywords or ([keyword] if keyword else None)
         if search_terms:
@@ -1058,9 +1209,9 @@ def get_v5_prediction_verification(iso_year: int = None, iso_week: int = None,
         where_sql = "WHERE " + " AND ".join(where_parts)
 
         allowed_sorts = {
-            'stock_code', 'stock_name', 'v5_pred_direction', 'v5_confidence',
-            'v5_strategy', 'v5_win_rate', 'v5_actual_5d_chg', 'v5_is_correct',
-            'v5_signal_date', 'predict_date',
+            'stock_code', 'stock_name', 'v30_pred_direction', 'v30_confidence',
+            'v30_strategy', 'v30_composite_score', 'v30_actual_5d_chg', 'v30_is_correct',
+            'v30_sent_agree', 'v30_tech_agree', 'predict_date',
         }
         safe_sort = sort_by if sort_by in allowed_sorts else 'stock_code'
         order_dir = 'DESC' if sort_dir.lower() == 'desc' else 'ASC'
@@ -1073,9 +1224,9 @@ def get_v5_prediction_verification(iso_year: int = None, iso_week: int = None,
         cur.execute(f"""
             SELECT h.stock_code, h.stock_name, h.predict_date,
                    h.iso_year, h.iso_week,
-                   h.v5_pred_direction, h.v5_confidence, h.v5_strategy, h.v5_reason,
-                   h.v5_win_rate, h.v5_signal_date, h.v5_signal_count, h.v5_all_strategies,
-                   h.v5_actual_direction, h.v5_actual_5d_chg, h.v5_is_correct,
+                   h.v30_pred_direction, h.v30_confidence, h.v30_strategy, h.v30_reason,
+                   h.v30_composite_score, h.v30_sent_agree, h.v30_tech_agree, h.v30_mkt_ret_20d,
+                   h.v30_actual_direction, h.v30_actual_5d_chg, h.v30_is_correct,
                    h.pred_direction as tw_pred_direction,
                    h.actual_weekly_chg as tw_actual_chg,
                    h.concept_boards,
@@ -1091,21 +1242,20 @@ def get_v5_prediction_verification(iso_year: int = None, iso_week: int = None,
         cur.execute(f"""
             SELECT
                 COUNT(*) as total,
-                SUM(h.v5_is_correct = 1) as correct,
-                SUM(h.v5_is_correct = 0) as wrong,
-                SUM(h.v5_is_correct IS NULL) as pending,
-                ROUND(SUM(h.v5_is_correct = 1) / NULLIF(SUM(h.v5_is_correct IS NOT NULL), 0) * 100, 1) as accuracy,
-                SUM(h.v5_pred_direction = 'UP') as pred_up,
-                SUM(h.v5_confidence = 'high' AND h.v5_is_correct = 1) as high_correct,
-                SUM(h.v5_confidence = 'high' AND h.v5_is_correct IS NOT NULL) as high_total,
-                SUM(h.v5_confidence = 'medium' AND h.v5_is_correct = 1) as med_correct,
-                SUM(h.v5_confidence = 'medium' AND h.v5_is_correct IS NOT NULL) as med_total,
-                SUM(h.v5_confidence = 'low' AND h.v5_is_correct = 1) as low_correct,
-                SUM(h.v5_confidence = 'low' AND h.v5_is_correct IS NOT NULL) as low_total,
-                ROUND(AVG(h.v5_actual_5d_chg), 2) as avg_actual_chg,
-                ROUND(AVG(h.v5_win_rate), 1) as avg_win_rate,
-                MAX(h.predict_date) as predict_date,
-                MAX(h.v5_signal_date) as latest_signal_date
+                SUM(h.v30_is_correct = 1) as correct,
+                SUM(h.v30_is_correct = 0) as wrong,
+                SUM(h.v30_is_correct IS NULL) as pending,
+                ROUND(SUM(h.v30_is_correct = 1) / NULLIF(SUM(h.v30_is_correct IS NOT NULL), 0) * 100, 1) as accuracy,
+                SUM(h.v30_pred_direction = 'UP') as pred_up,
+                SUM(h.v30_confidence = 'high' AND h.v30_is_correct = 1) as high_correct,
+                SUM(h.v30_confidence = 'high' AND h.v30_is_correct IS NOT NULL) as high_total,
+                SUM(h.v30_confidence = 'medium' AND h.v30_is_correct = 1) as med_correct,
+                SUM(h.v30_confidence = 'medium' AND h.v30_is_correct IS NOT NULL) as med_total,
+                SUM(h.v30_confidence = 'low' AND h.v30_is_correct = 1) as low_correct,
+                SUM(h.v30_confidence = 'low' AND h.v30_is_correct IS NOT NULL) as low_total,
+                ROUND(AVG(h.v30_actual_5d_chg), 2) as avg_actual_chg,
+                ROUND(AVG(h.v30_composite_score), 2) as avg_composite_score,
+                MAX(h.predict_date) as predict_date
             {from_sql}
             {where_sql}
         """, params)
@@ -1114,33 +1264,6 @@ def get_v5_prediction_verification(iso_year: int = None, iso_week: int = None,
         summary['iso_week'] = iso_week
 
         return rows, total, summary
-    finally:
-        cur.close()
-        conn.close()
-
-
-def backfill_v5_actual_results(results: list[dict]):
-    """回填V5 OBV预测的实际5日结果。
-
-    results: [{'stock_code': ..., 'iso_year': ..., 'iso_week': ...,
-               'v5_actual_direction': 'UP'/'DOWN',
-               'v5_actual_5d_chg': float, 'v5_is_correct': 0/1}, ...]
-    """
-    if not results:
-        return
-    conn = get_connection()
-    cur = conn.cursor()
-    try:
-        cur.executemany("""
-            UPDATE stock_weekly_prediction_history
-            SET v5_actual_direction = %(v5_actual_direction)s,
-                v5_actual_5d_chg = %(v5_actual_5d_chg)s,
-                v5_is_correct = %(v5_is_correct)s
-            WHERE stock_code = %(stock_code)s
-              AND iso_year = %(iso_year)s AND iso_week = %(iso_week)s
-        """, results)
-        conn.commit()
-        logger.info("V5回填实际结果: %d 条", len(results))
     finally:
         cur.close()
         conn.close()
@@ -1243,7 +1366,7 @@ def get_weekly_predictions_by_codes(stock_codes: list[str]) -> dict[str, dict]:
             SELECT stock_code, pred_direction, confidence, strategy,
                    nw_pred_direction, nw_confidence, nw_strategy, nw_reason,
                    nw_pred_chg, nw_backtest_accuracy,
-                   v5_pred_direction, fund_flow_signal, finance_score,
+                   fund_flow_signal, finance_score,
                    board_momentum, vol_trend
             FROM stock_weekly_prediction
             WHERE stock_code IN ({placeholders})
