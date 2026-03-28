@@ -84,6 +84,8 @@ from service.auto_job.weekly_prediction_scheduler import start_weekly_prediction
 from service.auto_job.weekly_prediction_scheduler import _execute_job as _weekly_prediction_execute_job
 from service.auto_job.monthly_prediction_scheduler import start_monthly_prediction_scheduler, get_monthly_prediction_job_status
 from service.auto_job.monthly_prediction_scheduler import _execute_job as _monthly_prediction_execute_job
+from service.auto_job.stock_news_scheduler import start_news_scheduler, get_news_job_status
+from service.auto_job.stock_news_scheduler import _execute_job as _news_execute_job
 from service.auto_job.scheduler_orchestrator import is_auto_job_enabled
 
 GRADE_SCORE_MAP = {
@@ -157,6 +159,12 @@ async def lifespan(application: FastAPI):
             logger.info("[lifespan] 月预测调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动月预测调度器异常: %s", e, exc_info=True)
+
+        try:
+            await start_news_scheduler()
+            logger.info("[lifespan] 新闻公告调度器已激活")
+        except Exception as e:
+            logger.error("[lifespan] 启动新闻公告调度器异常: %s", e, exc_info=True)
 
         # 关键：app_ready 必须在 try 之外，确保一定会被 set
         app_ready.set()
@@ -462,6 +470,36 @@ async def trigger_monthly_prediction_job():
         return {"success": False, "message": "月预测任务正在执行中"}
     asyncio.create_task(_monthly_prediction_execute_job(manual=True))
     return {"success": True, "message": "月预测任务已触发"}
+
+
+# ── 新闻公告调度 ──
+
+@app.get("/api/news_job_status")
+async def news_job_status():
+    """获取新闻公告定时任务状态"""
+    return {"success": True, "data": get_news_job_status()}
+
+
+@app.post("/api/trigger_news_job")
+async def trigger_news_job():
+    """手动触发新闻公告抓取"""
+    status = get_news_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "新闻抓取任务正在执行中"}
+    asyncio.create_task(_news_execute_job(manual=True))
+    return {"success": True, "message": "新闻抓取任务已触发"}
+
+
+@app.get("/api/stock_news")
+async def get_stock_news(
+    stock_code: str = Query(..., description="股票代码如002371.SZ"),
+    news_type: str = Query(None, description="类型: news/notice/industry/report"),
+    limit: int = Query(50, description="返回条数"),
+):
+    """查询某只股票的新闻公告"""
+    from dao.stock_news_dao import get_news_by_stock
+    rows = get_news_by_stock(stock_code, news_type=news_type, limit=limit)
+    return {"success": True, "data": rows}
 
 
 # ── V20量价超跌反弹批量预测 ──

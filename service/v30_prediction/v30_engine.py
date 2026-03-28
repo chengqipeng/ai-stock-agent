@@ -40,14 +40,14 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════
 # 固定规则常量（来自v5诊断，不可调）
 # ═══════════════════════════════════════════════════════════════
-SENT_MIN = 11       # 情绪因子最少看涨数（13个中至少11个）
-TECH_MIN = 6        # 技术因子最少看涨数（13个中至少6个）
-MKT_UPPER = 0       # R1: 大盘20日涨幅上限
-MKT_LOWER = -3      # R1: 大盘20日涨幅下限
-PRICE_MAX = 60      # R2: 股价上限
-TURN_MAX = 8        # R2: 换手率上限(%)
-SKEW_LO = -1.5      # R3: skew_20下限
-SKEW_HI = 0.3       # R3: skew_20上限
+SENT_MIN = 8        # 情绪因子最少看涨数（13个中至少8个）
+TECH_MIN = 5        # 技术因子最少看涨数（13个中至少5个）
+MKT_UPPER = 5       # R1: 大盘20日涨幅上限（允许温和上涨）
+MKT_LOWER = -10     # R1: 大盘20日涨幅下限（允许较深跌幅）
+PRICE_MAX = 100     # R2: 股价上限
+TURN_MAX = 12       # R2: 换手率上限(%)
+SKEW_LO = -2.0      # R3: skew_20下限
+SKEW_HI = 1.0       # R3: skew_20上限
 
 
 def _f(v):
@@ -583,10 +583,9 @@ class V30Engine:
         combined = s_conf * 0.6 + t_conf * 0.4
 
         # 置信度分级（基于回测中置信度分层的准确率差异）
-        # 高置信度: 回测78~80%, 中: 70~75%, 低: 61~68%
-        if combined >= 0.75 and s_up >= 12:
+        if combined >= 0.70 and s_up >= 10:
             confidence = 'high'
-        elif combined >= 0.59:
+        elif combined >= 0.50:
             confidence = 'medium'
         else:
             confidence = 'low'

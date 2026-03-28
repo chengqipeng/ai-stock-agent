@@ -323,6 +323,7 @@ async def prediction_weeks(limit: int = Query(20)):
 # 预测结果验证（回填实际数据）
 # ═══════════════════════════════════════════════════════════
 
+@router.post("/api/weekly_prediction/verify_all")
 async def verify_all_predictions():
     """验证所有待验证的历史预测（用实际K线数据回填），包括下周预测目标周"""
     try:
@@ -335,10 +336,13 @@ async def verify_all_predictions():
         total_verified = sum(r.get('verified', 0) for r in results)
         total_correct = sum(r.get('correct', 0) for r in results)
         nw_verified = sum(r.get('verified', 0) for r in nw_results)
+        nw_skipped = sum(r.get('skipped', 0) for r in nw_results)
         v20_verified = sum(r.get('verified', 0) for r in v20_results)
         v20_correct = sum(r.get('correct', 0) for r in v20_results)
+        v20_skipped = sum(r.get('skipped', 0) for r in v20_results)
         v30_verified = sum(r.get('verified', 0) for r in v30_results)
         v30_correct = sum(r.get('correct', 0) for r in v30_results)
+        v30_skipped = sum(r.get('skipped', 0) for r in v30_results)
         return {
             "success": True,
             "data": results,
@@ -349,12 +353,16 @@ async def verify_all_predictions():
                 "accuracy": round(total_correct / total_verified * 100, 1) if total_verified > 0 else None,
                 "nw_weeks_processed": len(nw_results),
                 "nw_verified": nw_verified,
+                "nw_skipped": nw_skipped,
                 "v20_verified": v20_verified,
                 "v20_correct": v20_correct,
+                "v20_skipped": v20_skipped,
                 "v20_accuracy": round(v20_correct / v20_verified * 100, 1) if v20_verified > 0 else None,
                 "v30_verified": v30_verified,
                 "v30_correct": v30_correct,
+                "v30_skipped": v30_skipped,
                 "v30_accuracy": round(v30_correct / v30_verified * 100, 1) if v30_verified > 0 else None,
+                "message": None if total_verified > 0 else "当前无可验证数据（V20/V30需predict_date后5个交易日K线，NW需目标周完整K线）",
             }
         }
     except Exception as e:

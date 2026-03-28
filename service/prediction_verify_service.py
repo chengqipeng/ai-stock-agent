@@ -341,7 +341,6 @@ def _get_v20_unverified_predictions(limit: int = 2000) -> list[dict]:
               AND v20_pred_direction != ''
               AND v20_is_correct IS NULL
               AND predict_date IS NOT NULL
-              AND predict_date <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
               AND (stock_code LIKE '6%%.SH' OR stock_code LIKE '0%%.SZ' OR stock_code LIKE '3%%.SZ')
               AND stock_code NOT LIKE '399%%'
               AND stock_code != '000001.SH'
@@ -357,8 +356,8 @@ def _get_v20_unverified_predictions(limit: int = 2000) -> list[dict]:
 def verify_v20_pending() -> dict:
     """验证所有待验证的V20量价超跌反弹预测。
 
-    对每条有 v20_pred_direction 的预测，从 predict_date 起取后5个交易日的K线，
-    计算实际5日复合涨跌幅，与预测方向对比。
+    对每条有 v20_pred_direction 的预测，从 predict_date 起取后续交易日K线，
+    优先用5日，不足5日时用已有天数（至少1天）计算实际涨跌幅。
 
     Returns:
         {'verified': N, 'correct': N, 'wrong': N, 'skipped': N, 'type': 'v20'}
@@ -401,10 +400,9 @@ def verify_v20_pending() -> dict:
             pred_date = str(p['predict_date'])
             klines = kline_map.get(code, [])
 
-            # predict_date 之后的K线（不含当天）
             future_klines = [k for k in klines if str(k['date']) > pred_date]
 
-            if len(future_klines) < 5:
+            if len(future_klines) < 1:
                 skipped += 1
                 continue
 
@@ -474,7 +472,6 @@ def _get_v30_unverified_predictions(limit: int = 2000) -> list[dict]:
               AND v30_pred_direction != ''
               AND v30_is_correct IS NULL
               AND predict_date IS NOT NULL
-              AND predict_date <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
               AND (stock_code LIKE '6%%.SH' OR stock_code LIKE '0%%.SZ' OR stock_code LIKE '3%%.SZ')
               AND stock_code NOT LIKE '399%%'
               AND stock_code != '000001.SH'
@@ -490,8 +487,8 @@ def _get_v30_unverified_predictions(limit: int = 2000) -> list[dict]:
 def verify_v30_pending() -> dict:
     """验证所有待验证的V30情绪预测。
 
-    对每条有 v30_pred_direction 的预测，从 predict_date 起取后5个交易日的K线，
-    计算实际5日复合涨跌幅，与预测方向对比。
+    对每条有 v30_pred_direction 的预测，从 predict_date 起取后续交易日K线，
+    优先用5日，不足5日时用已有天数（至少1天）计算实际涨跌幅。
 
     Returns:
         {'verified': N, 'correct': N, 'wrong': N, 'skipped': N, 'type': 'v30'}
@@ -536,7 +533,7 @@ def verify_v30_pending() -> dict:
 
             future_klines = [k for k in klines if str(k['date']) > pred_date]
 
-            if len(future_klines) < 5:
+            if len(future_klines) < 1:
                 skipped += 1
                 continue
 
@@ -597,7 +594,7 @@ def verify_v30_pending() -> dict:
 def verify_all_pending_weeks() -> list[dict]:
     """验证所有有待验证预测的历史周，包括下周预测的目标周。
 
-    1. 回填本周预测的 actual_direction（跳过最新一周）
+    1. 回填本周预测的 actual_direction（仅跳过K线不足4天的最新周）
     2. 回填下周预测目标周的 actual_direction（确保 nw 验证可用）
 
     Returns:
@@ -608,8 +605,24 @@ def verify_all_pending_weeks() -> list[dict]:
     # ── 1. 本周预测验证 ──
     weeks = _get_unverified_weeks(limit=20)
     if weeks:
-        # 跳过最新一周（可能本周还没结束）
-        weeks = weeks[1:]
+        # 检查最新周是否有足够K线数据（>=4天视为本周已基本结束）
+        latest = weeks[0]
+        start_date, end_date = _get_week_date_range(latest['iso_year'], latest['iso_week'])
+        conn = get_connection(use_dict_cursor=True)
+        cur = conn.cursor()
+        try:
+            cur.execute("""
+                SELECT COUNT(DISTINCT `date`) as days
+                FROM stock_kline
+                WHERE stock_code = '000001.SH' AND `date` >= %s AND `date` <= %s
+            """, (start_date, end_date))
+            kline_days = cur.fetchone()['days']
+        finally:
+            cur.close()
+            conn.close()
+        if kline_days < 4:
+            logger.info("最新周 Y%d-W%02d K线仅%d天，跳过", latest['iso_year'], latest['iso_week'], kline_days)
+            weeks = weeks[1:]
 
     for w in (weeks or []):
         if w['pending'] == 0:
@@ -627,17 +640,14 @@ def verify_all_pending_weeks() -> list[dict]:
 
     # ── 2. 下周预测验证 ──
     nw_weeks = _get_nw_unverified_weeks(limit=20)
-    # 跳过最新预测周（其目标周可能还没结束）
-    if nw_weeks:
-        nw_weeks = nw_weeks[1:]
     nw_count = 0
     for w in nw_weeks:
         if w['pending'] == 0:
             continue
         try:
             r = verify_nw_week_predictions(w['iso_year'], w['iso_week'])
+            results.append(r)
             if r.get('verified', 0) > 0:
-                results.append(r)
                 nw_count += 1
         except Exception as e:
             logger.error("NW验证 Y%d-W%02d 失败: %s",
@@ -653,9 +663,8 @@ def verify_all_pending_weeks() -> list[dict]:
     v20_count = 0
     try:
         v20_result = verify_v20_pending()
-        if v20_result.get('verified', 0) > 0:
-            results.append(v20_result)
-            v20_count = v20_result['verified']
+        results.append(v20_result)
+        v20_count = v20_result.get('verified', 0)
     except Exception as e:
         logger.error("V20量价验证失败: %s", e, exc_info=True)
         results.append({'error': str(e), 'type': 'v20'})
@@ -664,9 +673,8 @@ def verify_all_pending_weeks() -> list[dict]:
     v30_count = 0
     try:
         v30_result = verify_v30_pending()
-        if v30_result.get('verified', 0) > 0:
-            results.append(v30_result)
-            v30_count = v30_result['verified']
+        results.append(v30_result)
+        v30_count = v30_result.get('verified', 0)
     except Exception as e:
         logger.error("V30情绪验证失败: %s", e, exc_info=True)
         results.append({'error': str(e), 'type': 'v30'})

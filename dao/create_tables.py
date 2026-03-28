@@ -508,6 +508,26 @@ _TABLES = [
         INDEX idx_is_correct (is_correct)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
+
+    # ── stock_news（股票新闻公告） ──
+    """
+    CREATE TABLE IF NOT EXISTS stock_news (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        stock_code VARCHAR(20) NOT NULL COMMENT '股票代码',
+        news_type VARCHAR(20) NOT NULL COMMENT '类型: news/notice/industry/report',
+        title VARCHAR(500) NOT NULL COMMENT '标题',
+        url VARCHAR(1000) COMMENT '链接地址',
+        publish_date VARCHAR(20) COMMENT '发布日期',
+        publish_time VARCHAR(30) COMMENT '发布时间(含时分)',
+        source VARCHAR(100) COMMENT '来源',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_code_type_title_date (stock_code, news_type, title(200), publish_date),
+        INDEX idx_stock_code (stock_code),
+        INDEX idx_news_type (news_type),
+        INDEX idx_publish_date (publish_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
 ]
 
 

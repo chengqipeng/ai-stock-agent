@@ -120,6 +120,7 @@ document.getElementById('si').addEventListener('keydown',function(e){if(e.key===
 function go(){var v=document.getElementById('si').value.trim();if(!v)return;SC=v;history.replaceState(null,'','?code='+encodeURIComponent(v));load(v)}
 
 function load(code){
+  _newsLoaded=false;
   var app=document.getElementById('app');app.innerHTML='<div class="loading">加载中...</div>';
   fetch('/api/stock_detail/overview?stock_code='+encodeURIComponent(code)).then(function(r){return r.json()}).then(function(j){
     if(!j.success){app.innerHTML='<div class="loading">加载失败: '+j.error+'</div>';return}
@@ -132,7 +133,7 @@ function stab(n){
   document.querySelectorAll('.tabs button').forEach(function(b){b.classList.toggle('active',b.textContent.indexOf(m[n]||'_')>=0)});
   document.querySelectorAll('.tc').forEach(function(el){el.classList.remove('active')});
   var el=document.getElementById('t-'+n);if(el)el.classList.add('active');
-  if(n==='kline')setTimeout(drawAllKline,50);if(n==='fund')setTimeout(drawF,50);
+  if(n==='kline')setTimeout(drawAllKline,50);if(n==='fund')setTimeout(drawF,50);if(n==='news')loadNews();
 }
 function setKRange(n){KRange=n;document.querySelectorAll('.kr-btn').forEach(function(b){b.classList.toggle('active',parseInt(b.dataset.r)===n)});drawAllKline()}
 function setKIndicator(ind){KIndicator=ind;document.querySelectorAll('.ki-btn').forEach(function(b){b.classList.toggle('active',b.dataset.i===ind)});drawAllKline()}
@@ -178,7 +179,8 @@ function render(){
   h+='<button onclick="stab(\'finance\')">📋 财报分析</button>';
   h+='<button onclick="stab(\'predict\')">🔮 预测历史</button>';
   h+='<button onclick="stab(\'concept\')">🏷️ 概念板块</button>';
-  h+='<button onclick="stab(\'canslim\')">🎯 CAN SLIM</button></div>';
+  h+='<button onclick="stab(\'canslim\')">🎯 CAN SLIM</button>';
+  h+='<button onclick="stab(\'news\')">📰 新闻公告</button></div>';
   h+='<div class="tc active" id="t-overview">'+rOverview()+'</div>';
   h+='<div class="tc" id="t-kline">'+rKline()+'</div>';
   h+='<div class="tc" id="t-fund">'+rFund()+'</div>';
@@ -186,6 +188,7 @@ function render(){
   h+='<div class="tc" id="t-predict">'+rPredict()+'</div>';
   h+='<div class="tc" id="t-concept">'+rConcept()+'</div>';
   h+='<div class="tc" id="t-canslim">'+rCanslim()+'</div>';
+  h+='<div class="tc" id="t-news"><div class="loading" id="newsLoading">点击加载新闻公告数据...</div></div>';
   document.getElementById('app').innerHTML=h;
   setTimeout(function(){drawAllKline();drawF()},100);
 }
@@ -423,6 +426,47 @@ function rCanslim(){
     if(hist[0]&&hist[0].overall_analysis)h+='<div style="margin-top:8px"><div style="font-size:11px;font-weight:600;color:#48484a;margin-bottom:4px">最新深度分析:</div><div class="atext">'+hist[0].overall_analysis+'</div></div>';h+='</div>'}
   return h;
 }
+var _newsLoaded=false;
+function loadNews(){
+  if(_newsLoaded)return;
+  var el=document.getElementById('newsLoading');
+  if(el)el.innerHTML='<div class="loading">加载新闻公告中...</div>';
+  fetch('/api/stock_news?stock_code='+encodeURIComponent(SC)+'&limit=50')
+    .then(function(r){return r.json()})
+    .then(function(j){
+      _newsLoaded=true;
+      if(!j.success||!j.data||!j.data.length){
+        document.getElementById('t-news').innerHTML='<div class="card"><div class="card-t">📰 新闻公告</div><div style="color:#8e8e93;font-size:12px">暂无新闻公告数据，请先通过调度器抓取</div></div>';
+        return;
+      }
+      var all=j.data;
+      var types={news:'公司新闻',notice:'公司公告',industry:'行业资讯',report:'研究报告'};
+      var icons={news:'📰',notice:'📋',industry:'🏭',report:'📊'};
+      var h='';
+      ['news','notice','industry','report'].forEach(function(t){
+        var items=all.filter(function(r){return r.news_type===t});
+        h+='<div class="card"><div class="card-t">'+icons[t]+' '+types[t]+' ('+items.length+')</div>';
+        if(items.length){
+          h+='<div style="max-height:300px;overflow-y:auto">';
+          items.forEach(function(r){
+            h+='<div style="padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.04);display:flex;align-items:baseline;gap:8px">';
+            h+='<span style="font-size:11px;color:#8e8e93;white-space:nowrap;flex-shrink:0">'+(r.publish_date||'').slice(5)+(r.publish_time?' '+r.publish_time:'')+'</span>';
+            h+='<a href="'+(r.url||'#')+'" target="_blank" style="font-size:12px;color:#333;text-decoration:none;line-height:1.5">'+r.title+'</a>';
+            h+='</div>';
+          });
+          h+='</div>';
+        }else{
+          h+='<div style="color:#8e8e93;font-size:12px">暂无数据</div>';
+        }
+        h+='</div>';
+      });
+      document.getElementById('t-news').innerHTML=h;
+    })
+    .catch(function(e){
+      document.getElementById('t-news').innerHTML='<div class="card"><div class="card-t">📰 新闻公告</div><div style="color:#e74c3c;font-size:12px">加载失败: '+e.message+'</div></div>';
+    });
+}
+
 /* 技术指标计算 */
 function calcMA(data,period){var r=[];for(var i=0;i<data.length;i++){if(i<period-1){r.push(null);continue}var s=0;for(var j=i-period+1;j<=i;j++)s+=data[j].close_price;r.push(s/period)}return r}
 function calcEMA(vals,period){var r=[],k=2/(period+1);for(var i=0;i<vals.length;i++){if(i===0)r.push(vals[i]);else r.push(vals[i]*k+r[i-1]*(1-k))}return r}
