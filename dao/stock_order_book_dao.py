@@ -21,6 +21,8 @@ def create_order_book_table(cursor=None):
             low_price DOUBLE,
             volume BIGINT COMMENT '成交量（手）',
             amount VARCHAR(50) COMMENT '成交额',
+            outer_vol BIGINT COMMENT '外盘（手）',
+            inner_vol BIGINT COMMENT '内盘（手）',
             buy1_price DOUBLE, buy1_vol INT,
             buy2_price DOUBLE, buy2_vol INT,
             buy3_price DOUBLE, buy3_vol INT,
@@ -49,30 +51,48 @@ def create_order_book_table(cursor=None):
         conn.close()
 
 
-def upsert_order_book(stock_code: str, trade_date: str, data: dict, cursor=None):
-    """
-    写入或更新盘口数据。
+def ensure_outer_inner_columns():
+    """为已有表添加 outer_vol / inner_vol 列（幂等）"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        for col in ("outer_vol", "inner_vol"):
+            try:
+                cursor.execute(
+                    f"ALTER TABLE {TABLE_NAME} ADD COLUMN {col} BIGINT COMMENT "
+                    f"'{'外盘' if col == 'outer_vol' else '内盘'}（手）' AFTER amount"
+                )
+                conn.commit()
+                logger.info("[stock_order_book] 已添加列 %s", col)
+            except Exception as e:
+                if "Duplicate column" in str(e):
+                    pass
+                else:
+                    logger.warning("[stock_order_book] 添加列 %s 失败: %s", col, e)
+                conn.rollback()
+    finally:
+        cursor.close()
+        conn.close()
 
-    Args:
-        stock_code: 股票代码
-        trade_date: 交易日期 YYYY-MM-DD
-        data: 盘口数据字典
-    """
+
+def upsert_order_book(stock_code: str, trade_date: str, data: dict, cursor=None):
+    """写入或更新盘口数据。"""
     sql = f"""
         INSERT INTO {TABLE_NAME}
             (stock_code, trade_date, current_price, open_price, prev_close, high_price, low_price,
-             volume, amount,
+             volume, amount, outer_vol, inner_vol,
              buy1_price, buy1_vol, buy2_price, buy2_vol, buy3_price, buy3_vol,
              buy4_price, buy4_vol, buy5_price, buy5_vol,
              sell1_price, sell1_vol, sell2_price, sell2_vol, sell3_price, sell3_vol,
              sell4_price, sell4_vol, sell5_price, sell5_vol)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             current_price=VALUES(current_price), open_price=VALUES(open_price),
             prev_close=VALUES(prev_close), high_price=VALUES(high_price), low_price=VALUES(low_price),
             volume=VALUES(volume), amount=VALUES(amount),
+            outer_vol=VALUES(outer_vol), inner_vol=VALUES(inner_vol),
             buy1_price=VALUES(buy1_price), buy1_vol=VALUES(buy1_vol),
             buy2_price=VALUES(buy2_price), buy2_vol=VALUES(buy2_vol),
             buy3_price=VALUES(buy3_price), buy3_vol=VALUES(buy3_vol),
@@ -84,7 +104,6 @@ def upsert_order_book(stock_code: str, trade_date: str, data: dict, cursor=None)
             sell4_price=VALUES(sell4_price), sell4_vol=VALUES(sell4_vol),
             sell5_price=VALUES(sell5_price), sell5_vol=VALUES(sell5_vol)
     """
-
     own = cursor is None
     if own:
         conn = get_connection()
@@ -95,6 +114,7 @@ def upsert_order_book(stock_code: str, trade_date: str, data: dict, cursor=None)
         data.get("current_price"), data.get("open_price"), data.get("prev_close"),
         data.get("high_price"), data.get("low_price"),
         data.get("volume"), data.get("amount"),
+        data.get("outer_vol"), data.get("inner_vol"),
         data.get("buy1_price"), data.get("buy1_vol"),
         data.get("buy2_price"), data.get("buy2_vol"),
         data.get("buy3_price"), data.get("buy3_vol"),
@@ -140,4 +160,3 @@ def has_order_book(stock_code: str, trade_date: str) -> bool:
     finally:
         cursor.close()
         conn.close()
-

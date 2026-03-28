@@ -1,10 +1,9 @@
 """
 五档盘口数据模块（用于盘后调度入库）
 
-数据来源：新浪财经实时行情接口 hq.sinajs.cn
+数据来源：腾讯财经实时行情接口 qt.gtimg.cn
 返回英文key格式，与 stock_order_book DAO 字段对齐。
-
-注意：同花顺 today.js 接口不包含五档盘口数据，因此改用新浪接口。
+包含五档买卖盘、外盘、内盘数据。
 """
 
 import asyncio
@@ -15,76 +14,38 @@ import re
 import aiohttp
 
 from common.utils.stock_info_utils import StockInfo
+from common.utils.amount_utils import convert_amount_unit
 
 logger = logging.getLogger(__name__)
 
-_SINA_HQ_URL = "https://hq.sinajs.cn"
+_QT_URL = "https://qt.gtimg.cn/q="
+_HEADERS = {
+    "Referer": "https://stockpage.10jqka.com.cn/",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/145.0.0.0 Safari/537.36",
+}
 
 
-def _build_sina_symbol(stock_info: StockInfo) -> str:
+def _build_qt_symbol(stock_info: StockInfo) -> str:
+    """600519.SH → sh600519, 002371.SZ → sz002371"""
     code, market = stock_info.stock_code_normalize.split('.')
     prefix = 'sh' if market == 'SH' else 'sz'
     return f"{prefix}{code}"
 
 
-async def get_order_book_10jqka(stock_info: StockInfo) -> dict | None:
+def _parse_qt_fields(fields: list[str]) -> dict:
     """
-    从新浪财经获取五档盘口数据，返回与 DAO upsert_order_book 对齐的英文key字典。
+    解析腾讯行情接口字段列表。
 
-    Returns:
-        dict: {
-            "current_price": 18.50,
-            "open_price": 18.30,
-            "prev_close": 18.20,
-            "high_price": 18.80,
-            "low_price": 18.10,
-            "volume": 123456,          # 成交量（手）
-            "amount": "2.28亿",        # 成交额
-            "buy1_price": ..., "buy1_vol": ...,
-            ...
-            "sell5_price": ..., "sell5_vol": ...,
-        }
-    """
-    symbol = _build_sina_symbol(stock_info)
-    url = f"{_SINA_HQ_URL}/list={symbol}"
-    headers = {
-        "Referer": "https://finance.sina.com.cn/",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                      "AppleWebKit/537.36 (KHTML, like Gecko) "
-                      "Chrome/120.0.0.0 Safari/537.36",
-    }
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as resp:
-                text = await resp.text(encoding='gbk')
-
-        match = re.search(r'"(.+)"', text)
-        if not match:
-            logger.warning("[%s] 新浪盘口接口返回异常: %s", stock_info.stock_code, text[:200])
-            return None
-
-        fields = match.group(1).split(',')
-        if len(fields) < 32:
-            logger.warning("[%s] 新浪盘口字段不足: %d", stock_info.stock_code, len(fields))
-            return None
-
-        return _parse_fields(fields)
-
-    except Exception as e:
-        logger.error("[%s] 获取盘口数据异常: %s", stock_info.stock_code, e)
-        return None
-
-
-def _parse_fields(fields: list[str]) -> dict:
-    """
-    解析新浪行情接口字段列表。
-
-    新浪字段索引（0-based）：
-    0: 股票名称, 1: 今开, 2: 昨收, 3: 当前价, 4: 最高, 5: 最低
-    8: 成交量(股), 9: 成交额(元)
-    10,11: 买一量,买一价  12,13: 买二  14,15: 买三  16,17: 买四  18,19: 买五
-    20,21: 卖一量,卖一价  22,23: 卖二  24,25: 卖三  26,27: 卖四  28,29: 卖五
+    腾讯字段索引（0-based，以 ~ 分隔）：
+    0: 未知(51), 1: 名称, 2: 代码, 3: 当前价, 4: 昨收, 5: 今开
+    6: 成交量(手), 7: 外盘(手), 8: 内盘(手)
+    9,10: 买一价,买一量  11,12: 买二  13,14: 买三  15,16: 买四  17,18: 买五
+    19,20: 卖一价,卖一量  21,22: 卖二  23,24: 卖三  25,26: 卖四  27,28: 卖五
+    30: 时间(YYYYMMDDHHmmss), 31: 涨跌额, 32: 涨跌幅
+    33: 最高, 34: 最低, 36: 成交量(手), 37: 成交额(万)
+    38: 换手率
     """
     def _f(idx):
         try:
@@ -92,47 +53,99 @@ def _parse_fields(fields: list[str]) -> dict:
         except (ValueError, TypeError, IndexError):
             return 0.0
 
-    def _vol(idx):
-        """成交量：股 → 手"""
+    def _i(idx):
         try:
-            return int(float(fields[idx])) // 100
+            return int(float(fields[idx]))
         except (ValueError, TypeError, IndexError):
             return 0
 
-    from common.utils.amount_utils import convert_amount_unit
-    amount_yuan = _f(9)
-
-    # 新浪字段30是日期(YYYY-MM-DD)，31是时间(HH:MM:SS)
+    # 解析交易日期: "20260327161412" → "2026-03-27"
     trade_date = ""
-    if len(fields) > 30:
-        trade_date = fields[30].strip()
+    if len(fields) > 30 and fields[30]:
+        dt_str = fields[30].strip()
+        if len(dt_str) >= 8:
+            trade_date = f"{dt_str[:4]}-{dt_str[4:6]}-{dt_str[6:8]}"
+
+    # 成交额：腾讯返回单位是万元，转换为元后再用 convert_amount_unit
+    amount_wan = _f(37)
+    amount_yuan = amount_wan * 10000
 
     result = {
         "current_price": _f(3),
-        "open_price": _f(1),
-        "prev_close": _f(2),
-        "high_price": _f(4),
-        "low_price": _f(5),
-        "volume": _vol(8),
+        "open_price": _f(5),
+        "prev_close": _f(4),
+        "high_price": _f(33),
+        "low_price": _f(34),
+        "volume": _i(6),
         "amount": convert_amount_unit(amount_yuan),
+        "outer_vol": _i(7),
+        "inner_vol": _i(8),
     }
 
     if trade_date:
         result["_trade_date"] = trade_date
 
-    # 五档买盘：(量idx, 价idx)
+    # 五档买盘
     for i in range(5):
         n = i + 1
-        result[f"buy{n}_price"] = _f(11 + i * 2)
-        result[f"buy{n}_vol"] = _vol(10 + i * 2)
+        result[f"buy{n}_price"] = _f(9 + i * 2)
+        result[f"buy{n}_vol"] = _i(10 + i * 2)
 
     # 五档卖盘
     for i in range(5):
         n = i + 1
-        result[f"sell{n}_price"] = _f(21 + i * 2)
-        result[f"sell{n}_vol"] = _vol(20 + i * 2)
+        result[f"sell{n}_price"] = _f(19 + i * 2)
+        result[f"sell{n}_vol"] = _i(20 + i * 2)
 
     return result
+
+
+async def get_order_book_10jqka(stock_info: StockInfo) -> dict | None:
+    """
+    获取五档盘口数据（含外盘、内盘），返回与 DAO upsert_order_book 对齐的英文key字典。
+
+    Returns:
+        dict: {
+            "current_price": 452.98,
+            "open_price": 439.50,
+            "prev_close": 446.11,
+            "high_price": 457.97,
+            "low_price": 434.50,
+            "volume": 58054,           # 成交量（手）
+            "amount": "25.99亿",       # 成交额
+            "outer_vol": 31020,        # 外盘（手）
+            "inner_vol": 27034,        # 内盘（手）
+            "buy1_price": ..., "buy1_vol": ...,
+            ...
+            "sell5_price": ..., "sell5_vol": ...,
+            "_trade_date": "2026-03-27",
+        }
+    """
+    symbol = _build_qt_symbol(stock_info)
+    url = f"{_QT_URL}{symbol}"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=_HEADERS,
+                                   timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                text = await resp.text(encoding='gbk')
+
+        # 响应格式: v_sz002371="51~北方华创~002371~452.98~...";
+        if '="' not in text:
+            logger.warning("[%s] 腾讯盘口接口返回异常: %s", stock_info.stock_code, text[:200])
+            return None
+
+        content = text.split('="')[1].rstrip('";').rstrip('"')
+        fields = content.split('~')
+        if len(fields) < 35:
+            logger.warning("[%s] 腾讯盘口字段不足: %d", stock_info.stock_code, len(fields))
+            return None
+
+        return _parse_qt_fields(fields)
+
+    except Exception as e:
+        logger.error("[%s] 获取盘口数据异常: %s", stock_info.stock_code, e)
+        return None
 
 
 if __name__ == "__main__":

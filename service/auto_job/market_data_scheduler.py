@@ -18,7 +18,7 @@ from common.constants.stocks_data import MAIN_STOCK
 from common.utils.stock_info_utils import get_stock_info_by_code
 from dao import get_connection
 from dao.stock_time_data_dao import create_time_data_table, batch_upsert_time_data, has_time_data
-from dao.stock_order_book_dao import create_order_book_table, upsert_order_book, has_order_book
+from dao.stock_order_book_dao import create_order_book_table, upsert_order_book, has_order_book, ensure_outer_inner_columns
 from dao.stock_dragon_tiger_dao import create_dragon_tiger_table, batch_upsert_dragon_tiger, has_dragon_tiger
 from service.jqka10.stock_time_kline_data_10jqka import get_stock_time_kline_10jqka
 from service.jqka10.stock_order_book_10jqka import get_order_book_10jqka
@@ -332,6 +332,9 @@ async def _execute_job_inner():
         finally:
             cursor.close()
             conn.close()
+
+        # 1b. 确保 outer_vol / inner_vol 列存在（兼容旧表）
+        ensure_outer_inner_columns()
 
         # 2. 构建股票列表（排除指数）
         all_stocks = _build_stock_list()
