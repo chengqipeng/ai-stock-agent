@@ -233,6 +233,12 @@ async def get_scheduler_logs(job_name: str = None, limit: int = 50, offset: int 
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/auto_job_enabled")
+async def auto_job_enabled():
+    """检查 system.properties 中 run_auto_job 是否启用"""
+    return {"success": True, "enabled": is_auto_job_enabled()}
+
+
 @app.get("/api/kline_job_status")
 async def kline_job_status():
     """获取日线数据定时拉取任务状态"""

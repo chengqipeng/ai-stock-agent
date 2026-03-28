@@ -354,6 +354,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
 const PAGE_SIZE = 50;
 let currentPage = 1;
 let totalCount = 0;
+
+// ── 自动调度开关检查 ──
+async function checkAutoJobEnabled() {
+    try {
+        const resp = await fetch('/api/auto_job_enabled');
+        const json = await resp.json();
+        if (!json.enabled) {
+            alert('系统禁止执行：run_auto_job=0，请在 system.properties 中设置 run_auto_job=1 后重试');
+            return false;
+        }
+        return true;
+    } catch(e) { return true; /* 接口异常时不阻断 */ }
+}
 let currentSort = 'stock_code';
 let currentSortDir = 'asc';
 let _searchTimer = null;
@@ -1471,6 +1484,7 @@ async function showMonthlyHistory(code, name) {
 }
 
 async function triggerMonthlyRecompute() {
+    if (!await checkAutoJobEnabled()) return;
     if (!confirm('确认重新计算月度预测？\n将使用CAN SLIM最优算法（67.4%胜率）对全量A股进行评分和预测，耗时约10-20分钟。')) return;
     try {
         const resp = await fetch('/api/trigger_monthly_prediction_job', {method: 'POST'});
@@ -1489,6 +1503,7 @@ async function triggerMonthlyRecompute() {
 }
 
 async function triggerRecompute() {
+    if (!await checkAutoJobEnabled()) return;
     if (!confirm('确认全部重新计算？\n将执行: 本周d3/d4预测 + 下周预测V11+回测，耗时较长。')) return;
     try {
         const resp = await fetch('/api/trigger_weekly_prediction_job', {method: 'POST'});
@@ -1505,6 +1520,7 @@ async function triggerRecompute() {
 }
 
 async function triggerThisWeekPredict() {
+    if (!await checkAutoJobEnabled()) return;
     if (!confirm('确认执行本周d3/d4预测？\n仅更新本周方向预测、回测准确率、买入建议等，不含下周预测。')) return;
     try {
         const resp = await fetch('/api/trigger_this_week_predict', {method: 'POST'});
@@ -1519,6 +1535,7 @@ async function triggerThisWeekPredict() {
 }
 
 async function triggerNextWeekPredict() {
+    if (!await checkAutoJobEnabled()) return;
     if (!confirm('确认执行下周预测V11+回测？\n仅更新下周预测方向、涨跌幅、回测准确率，不影响本周预测。')) return;
     try {
         const resp = await fetch('/api/trigger_next_week_predict', {method: 'POST'});
@@ -1591,6 +1608,7 @@ function pollJobStatus() {
 
 // V20量价预测触发
 async function triggerV20Predict() {
+    if (!await checkAutoJobEnabled()) return;
     if (!confirm('确认执行V20量价超跌反弹预测？\n将对全部股票计算量价因子信号并写入数据库。')) return;
     try {
         const resp = await fetch('/api/trigger_v20_predict', {method: 'POST'});
@@ -1608,6 +1626,7 @@ async function triggerV20Predict() {
 
 // V30情绪预测触发
 async function triggerV30Predict() {
+    if (!await checkAutoJobEnabled()) return;
     if (!confirm('确认执行V30情绪预测？\n将对全部股票计算情绪+技术因子信号并写入数据库。')) return;
     try {
         const resp = await fetch('/api/trigger_v30_predict', {method: 'POST'});
@@ -1915,6 +1934,7 @@ function switchVerifySubTab(sub) {
 // ── 回填验证按钮 ──
 
 async function triggerVerifyAll() {
+    if (!await checkAutoJobEnabled()) return;
     if (!confirm('确认回填全部待验证周的实际结果？\n将从K线数据计算每周实际涨跌幅，并与预测方向对比标记正确/错误。')) return;
     const btn = document.getElementById('btnVerifyAll');
     btn.disabled = true;
@@ -1956,6 +1976,7 @@ async function triggerVerifyAll() {
 }
 
 async function triggerVerifyWeek() {
+    if (!await checkAutoJobEnabled()) return;
     // 根据当前子Tab选择对应的周选择器
     const selId = verifySubTab === 'nw' ? 'nwVerifyWeekSelect' : verifySubTab === 'v20' ? 'v20VerifyWeekSelect' : verifySubTab === 'v30' ? 'v30VerifyWeekSelect' : 'verifyWeekSelect';
     const weekVal = document.getElementById(selId).value;

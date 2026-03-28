@@ -2697,6 +2697,11 @@
         // ─── 手动触发调度任务 ───
         async function triggerJob(jobType) {
             const names = {kline:'日线数据',price:'最高最低价',db_check:'数据异常检测',market_data:'盘后数据',us_market:'海外市场数据',fund_flow:'资金流向',concept_strength:'概念板块强弱势',weekly_prediction:'周预测',news:'新闻公告'};
+            try {
+                const chk = await fetch('/api/auto_job_enabled');
+                const chkJson = await chk.json();
+                if (!chkJson.enabled) { alert('系统禁止执行：run_auto_job=0，请在 system.properties 中设置 run_auto_job=1 后重试'); return; }
+            } catch(e) { /* 接口异常时不阻断 */ }
             if (!confirm('确认手动执行「' + names[jobType] + '」任务？')) return;
             try {
                 const resp = await fetch('/api/trigger_' + jobType + '_job', {method:'POST'});
