@@ -173,7 +173,7 @@ async def _execute_job(manual: bool = False):
                         await asyncio.sleep(2)
 
             _job_status["last_run_date"] = today_str
-            _job_status["last_run_time"] = datetime.now(_CST).isoformat()
+            _job_status["last_run_time"] = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")
             _job_status["last_success"] = True
             _job_status["total_news"] = total_news
 
