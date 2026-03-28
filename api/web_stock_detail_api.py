@@ -207,6 +207,20 @@ async def stock_detail_overview(stock_code: str = Query(..., description="股票
         )
         result["fund_flow"] = _serialize(cur.fetchall())
 
+        # 6. 大单追踪（最近100条）
+        stock_code_6 = stock_code.split(".")[0]
+        try:
+            cur.execute(
+                "SELECT trade_date, `time`, stock_code, stock_name, price, volume, "
+                "amount, direction, change_pct, turnover_rate "
+                "FROM stock_big_order WHERE stock_code = %s "
+                "ORDER BY trade_date DESC, `time` DESC LIMIT 100",
+                (stock_code_6,),
+            )
+            result["big_orders"] = _serialize(cur.fetchall())
+        except Exception:
+            result["big_orders"] = []
+
         # 7. 财报数据（最近8期）
         cur.execute(
             "SELECT report_date, report_period_name, data_json "

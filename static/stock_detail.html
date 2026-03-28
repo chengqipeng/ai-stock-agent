@@ -278,7 +278,24 @@ function rFund(){
     h+='<tr><td>'+f.date+'</td><td>'+F(f.close_price)+'</td><td class="'+CC(f.change_pct)+'">'+FP(f.change_pct)+'</td>';
     h+='<td class="'+CC(f.net_flow)+'">'+FW(f.net_flow)+'</td><td class="'+CC(f.big_net)+'">'+FW(f.big_net)+'</td><td>'+FP(f.big_net_pct)+'</td>';
     h+='<td class="'+CC(f.mid_net)+'">'+FW(f.mid_net)+'</td><td class="'+CC(f.small_net)+'">'+FW(f.small_net)+'</td><td class="'+CC(f.main_net_5day)+'">'+FW(f.main_net_5day)+'</td></tr>'});
-  h+='</tbody></table></div></div>';return h;
+  h+='</tbody></table></div></div>';
+  /* 大单追踪 */
+  var bo=D.big_orders||[];
+  h+='<div class="card"><div class="card-t">🔥 大单追踪 ('+bo.length+'条)</div>';
+  if(bo.length){
+    h+='<div style="max-height:400px;overflow-y:auto">';
+    h+='<table class="dt"><thead><tr><th>日期</th><th>时间</th><th>代码</th><th>名称</th><th>成交价</th><th>成交量(手)</th><th>成交额(万)</th><th>方向</th><th>涨跌幅</th><th>换手率</th></tr></thead><tbody>';
+    bo.forEach(function(r){
+      var dc=(r.direction==='买入'||r.direction==='买盘')?'cp':(r.direction==='卖出'||r.direction==='卖盘')?'cn':'';
+      h+='<tr><td>'+(r.trade_date||'-')+'</td><td>'+(r.time||'-')+'</td><td>'+(r.stock_code||'-')+'</td><td>'+(r.stock_name||'-')+'</td>';
+      h+='<td>'+(r.price||'-')+'</td><td>'+(r.volume||'-')+'</td><td>'+(r.amount||'-')+'</td>';
+      h+='<td class="'+dc+'" style="font-weight:600">'+(r.direction||'-')+'</td>';
+      h+='<td>'+(r.change_pct||'-')+'</td><td>'+(r.turnover_rate||'-')+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+  }else{h+='<div style="color:#8e8e93;font-size:12px">暂无大单追踪数据，请先通过调度器抓取</div>'}
+  h+='</div>';
+  return h;
 }
 
 function rFinance(){

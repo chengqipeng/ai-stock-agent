@@ -3,7 +3,7 @@
 
 - 每个A股交易日 18:30 自动触发，抓取所有关注股票的新闻公告
 - 项目启动时检查当天是否已完成，未完成则立即补拉
-- 四类数据：公司新闻、公司公告、行业资讯、研究报告
+- 五类数据：公司新闻、公司公告、行业资讯、研究报告、大单追踪
 """
 import asyncio
 import json
@@ -17,8 +17,10 @@ from curl_cffi.requests import AsyncSession
 
 from common.constants.stocks_data import MAIN_STOCK
 from dao.stock_news_dao import create_news_table, batch_upsert_news
+from dao.stock_big_order_dao import create_big_order_table, batch_insert_big_orders, has_big_orders
 from dao.scheduler_log_dao import insert_log, update_log
 from service.jqka10.stock_news_10jqka import fetch_stock_news, IMPERSONATE
+from service.jqka10.stock_fund_flow_10jqka import fetch_fund_flow_all_pages
 from service.auto_job.kline_data_scheduler import app_ready
 from service.auto_job.scheduler_orchestrator import scheduler_lock
 
@@ -70,6 +72,14 @@ _job_status = {
     "failed_stocks": 0,
 }
 _persisted = _load_persisted_status()
+# 兼容旧版 isoformat 时间格式，统一转为 "YYYY-MM-DD HH:MM:SS"
+_lrt = _persisted.get("last_run_time")
+if _lrt and ("T" in str(_lrt) or "+" in str(_lrt)):
+    try:
+        _lrt_dt = datetime.fromisoformat(str(_lrt))
+        _persisted["last_run_time"] = _lrt_dt.astimezone(_CST).strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        pass
 _job_status.update(_persisted)
 _job_status["running"] = False
 _job_status["error"] = None
@@ -131,6 +141,7 @@ async def _execute_job(manual: bool = False):
 
         # 建表
         create_news_table()
+        create_big_order_table()
 
         stocks = _build_stock_list()
         _job_status["total_stocks"] = len(stocks)
@@ -177,6 +188,22 @@ async def _execute_job(manual: bool = False):
             _job_status["last_success"] = True
             _job_status["total_news"] = total_news
 
+            # ── 大单追踪数据拉取 ──
+            big_order_count = 0
+            try:
+                if not has_big_orders(today_str):
+                    logger.info("[新闻调度] 开始拉取大单追踪数据...")
+                    big_order_rows = await fetch_fund_flow_all_pages("ddzz", max_pages=5)
+                    if big_order_rows:
+                        big_order_count = batch_insert_big_orders(today_str, big_order_rows)
+                        logger.info("[新闻调度] 大单追踪写入 %d 条", big_order_count)
+                    else:
+                        logger.warning("[新闻调度] 大单追踪数据为空")
+                else:
+                    logger.info("[新闻调度] 今日大单追踪数据已存在，跳过")
+            except Exception as e:
+                logger.error("[新闻调度] 大单追踪拉取失败: %s", e, exc_info=True)
+
             finished_at = datetime.now(_CST)
             duration = int((finished_at - started_at).total_seconds())
             detail = json.dumps({
@@ -184,6 +211,7 @@ async def _execute_job(manual: bool = False):
                 "success": success_count,
                 "failed": failed_count,
                 "total_news": total_news,
+                "big_order_count": big_order_count,
             }, ensure_ascii=False)
 
             status = "success" if failed_count == 0 else "partial"

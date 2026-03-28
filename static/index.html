@@ -885,10 +885,10 @@
             position: relative;
         ">
             <span id="newsJobIcon" class="job-icon" style="font-size: 12px; flex-shrink: 0;">⏳</span>
-            <span id="newsJobText" style="overflow: hidden; text-overflow: ellipsis;">新闻公告状态加载中<span class="job-dots"></span></span>
+            <span id="newsJobText" style="overflow: hidden; text-overflow: ellipsis;">资讯数据状态加载中<span class="job-dots"></span></span>
             <span id="newsJobElapsed" class="job-elapsed"></span>
             <button onclick="triggerJob('news')" style="flex-shrink:0;margin-left:auto;padding:2px 6px;background:rgba(255,255,255,0.3);border:none;border-radius:4px;color:white;cursor:pointer;font-size:10px;" title="手动执行">▶</button>
-            <a href="/scheduler_logs?job_name=新闻公告" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
+            <a href="/scheduler_logs?job_name=资讯数据" style="flex-shrink:0;padding:2px 6px;background:rgba(255,255,255,0.3);border-radius:4px;color:white;font-size:10px;text-decoration:none;" title="执行记录">📋</a>
             <div class="job-progress-bar"><div id="newsJobProgress" class="job-progress-fill" style="width:0%"></div></div>
         </div>
     </div>
@@ -2696,7 +2696,7 @@
 
         // ─── 手动触发调度任务 ───
         async function triggerJob(jobType) {
-            const names = {kline:'日线数据',price:'最高最低价',db_check:'数据异常检测',market_data:'盘后数据',us_market:'海外市场数据',fund_flow:'资金流向',concept_strength:'概念板块强弱势',weekly_prediction:'周预测',news:'新闻公告'};
+            const names = {kline:'日线数据',price:'最高最低价',db_check:'数据异常检测',market_data:'盘后数据',us_market:'海外市场数据',fund_flow:'资金流向',concept_strength:'概念板块强弱势',weekly_prediction:'周预测',news:'资讯(新闻/公告/研报/事件/排名/预告)'};
             try {
                 const chk = await fetch('/api/auto_job_enabled');
                 const chkJson = await chk.json();
@@ -3200,7 +3200,7 @@
                 // 静默失败
             }
         }
-        // ─── 新闻公告状态轮询 ───
+        // ─── 资讯数据状态轮询 ───
         async function pollNewsJobStatus() {
             try {
                 const resp = await fetch('/api/news_job_status');
@@ -3214,7 +3214,7 @@
 
                 if (d.error && !d.running) {
                     icon.textContent = '❌';
-                    text.textContent = '新闻公告执行异常: ' + d.error;
+                    text.textContent = '资讯数据执行异常: ' + d.error;
                     banner.style.background = 'rgba(217,83,79,0.25)';
                 } else if (d.running) {
                     const sTotal = d.total_stocks || 0;
@@ -3222,7 +3222,7 @@
                     const sFailed = d.failed_stocks || 0;
                     const pct = sTotal > 0 ? Math.round((sDone / sTotal) * 100) : 0;
                     icon.textContent = '🔄';
-                    let msg = '新闻公告抓取中';
+                    let msg = '资讯数据抓取中';
                     if (sTotal > 0) {
                         msg += '  ' + pct + '%  ' + sDone + '/' + sTotal;
                         if (d.total_news > 0) msg += '  已抓' + d.total_news + '条';
@@ -3237,21 +3237,21 @@
                     if (isToday) {
                         if (d.last_success) {
                             icon.textContent = '✅';
-                            text.textContent = d.last_run_time + ' 新闻公告完成  ' + (d.total_news || 0) + '条';
+                            text.textContent = d.last_run_time + ' 资讯数据完成  ' + (d.total_news || 0) + '条';
                             banner.style.background = 'rgba(92,184,92,0.25)';
                         } else {
                             icon.textContent = '⚠️';
-                            text.textContent = d.last_run_time + ' 新闻公告部分失败  ' + (d.error || '');
+                            text.textContent = d.last_run_time + ' 资讯数据部分失败  ' + (d.error || '');
                             banner.style.background = 'rgba(240,173,78,0.25)';
                         }
                     } else {
                         icon.textContent = '⏳';
-                        text.textContent = '新闻公告等待调度（每天18:30自动执行）  上次: ' + d.last_run_time;
+                        text.textContent = '资讯(新闻/公告/研报/事件/排名/预告)等待调度(18:30)  上次: ' + d.last_run_time;
                         banner.style.background = 'rgba(255,255,255,0.2)';
                     }
                 } else {
                     icon.textContent = '⏳';
-                    text.textContent = '新闻公告等待调度（每天18:30自动执行）';
+                    text.textContent = '资讯(新闻/公告/研报/事件/排名/预告)等待调度(每天18:30)';
                     banner.style.background = 'rgba(255,255,255,0.2)';
                 }
             } catch (e) {
