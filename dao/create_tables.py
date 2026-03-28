@@ -520,6 +520,7 @@ _TABLES = [
         publish_date VARCHAR(20) COMMENT '发布日期',
         publish_time VARCHAR(30) COMMENT '发布时间(含时分)',
         source VARCHAR(100) COMMENT '来源',
+        content MEDIUMTEXT COMMENT '正文内容',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY uk_code_type_title_date (stock_code, news_type, title(200), publish_date),

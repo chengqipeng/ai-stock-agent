@@ -147,7 +147,7 @@ async def _execute_job(manual: bool = False):
                     code = stock["code"]
                     name = stock.get("name", code)
                     try:
-                        result = await fetch_stock_news(code, session=session)
+                        result = await fetch_stock_news(code, session=session, fetch_content=True)
                         stock_news_count = 0
                         for news_type, items in result.items():
                             if items:

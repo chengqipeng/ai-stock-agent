@@ -427,6 +427,14 @@ function rCanslim(){
   return h;
 }
 var _newsLoaded=false;
+var _newsIdCounter=0;
+function toggleNewsContent(id){
+  var el=document.getElementById('nc-'+id);
+  var btn=document.getElementById('nb-'+id);
+  if(!el)return;
+  if(el.style.display==='none'){el.style.display='block';btn.textContent='收起'}
+  else{el.style.display='none';btn.textContent='展开'}
+}
 function loadNews(){
   if(_newsLoaded)return;
   var el=document.getElementById('newsLoading');
@@ -436,34 +444,44 @@ function loadNews(){
     .then(function(j){
       _newsLoaded=true;
       if(!j.success||!j.data||!j.data.length){
-        document.getElementById('t-news').innerHTML='<div class="card"><div class="card-t">📰 新闻公告</div><div style="color:#8e8e93;font-size:12px">暂无新闻公告数据，请先通过调度器抓取</div></div>';
+        document.getElementById('t-news').innerHTML='<div class="card"><div class="card-t">\ud83d\udcf0 \u65b0\u95fb\u516c\u544a</div><div style="color:#8e8e93;font-size:12px">\u6682\u65e0\u65b0\u95fb\u516c\u544a\u6570\u636e\uff0c\u8bf7\u5148\u901a\u8fc7\u8c03\u5ea6\u5668\u6293\u53d6</div></div>';
         return;
       }
       var all=j.data;
-      var types={news:'公司新闻',notice:'公司公告',industry:'行业资讯',report:'研究报告'};
-      var icons={news:'📰',notice:'📋',industry:'🏭',report:'📊'};
+      var types={news:'公司新闻',notice:'公司公告',industry:'行业资讯',report:'研究报告',event:'近期重要事件',ranking:'行业排名',forecast:'业绩预告'};
+      var icons={news:'📰',notice:'📋',industry:'🏭',report:'📊',event:'📅',ranking:'🏆',forecast:'📈'};
       var h='';
-      ['news','notice','industry','report'].forEach(function(t){
+      ['news','notice','industry','report','event','ranking','forecast'].forEach(function(t){
         var items=all.filter(function(r){return r.news_type===t});
         h+='<div class="card"><div class="card-t">'+icons[t]+' '+types[t]+' ('+items.length+')</div>';
         if(items.length){
-          h+='<div style="max-height:300px;overflow-y:auto">';
+          h+='<div style="max-height:500px;overflow-y:auto">';
           items.forEach(function(r){
-            h+='<div style="padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.04);display:flex;align-items:baseline;gap:8px">';
+            var nid=++_newsIdCounter;
+            var hasContent=r.content&&r.content.length>0;
+            h+='<div style="padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.04)">';
+            h+='<div style="display:flex;align-items:baseline;gap:8px">';
             h+='<span style="font-size:11px;color:#8e8e93;white-space:nowrap;flex-shrink:0">'+(r.publish_date||'').slice(5)+(r.publish_time?' '+r.publish_time:'')+'</span>';
-            h+='<a href="'+(r.url||'#')+'" target="_blank" style="font-size:12px;color:#333;text-decoration:none;line-height:1.5">'+r.title+'</a>';
+            h+='<a href="'+(r.url||'#')+'" target="_blank" style="font-size:12px;color:#333;text-decoration:none;line-height:1.5;flex:1">'+r.title+'</a>';
+            if(hasContent){
+              h+='<button id="nb-'+nid+'" onclick="toggleNewsContent('+nid+')" style="flex-shrink:0;padding:2px 8px;border:1px solid rgba(102,126,234,0.3);border-radius:4px;background:rgba(102,126,234,0.06);color:#667eea;cursor:pointer;font-size:10px;font-weight:600">\u5c55\u5f00</button>';
+            }
+            h+='</div>';
+            if(hasContent){
+              h+='<div id="nc-'+nid+'" style="display:none;margin-top:6px;padding:8px 10px;background:rgba(0,0,0,0.02);border-radius:6px;font-size:12px;line-height:1.8;color:#444;white-space:pre-wrap;max-height:300px;overflow-y:auto">'+r.content.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>';
+            }
             h+='</div>';
           });
           h+='</div>';
         }else{
-          h+='<div style="color:#8e8e93;font-size:12px">暂无数据</div>';
+          h+='<div style="color:#8e8e93;font-size:12px">\u6682\u65e0\u6570\u636e</div>';
         }
         h+='</div>';
       });
       document.getElementById('t-news').innerHTML=h;
     })
     .catch(function(e){
-      document.getElementById('t-news').innerHTML='<div class="card"><div class="card-t">📰 新闻公告</div><div style="color:#e74c3c;font-size:12px">加载失败: '+e.message+'</div></div>';
+      document.getElementById('t-news').innerHTML='<div class="card"><div class="card-t">\ud83d\udcf0 \u65b0\u95fb\u516c\u544a</div><div style="color:#e74c3c;font-size:12px">\u52a0\u8f7d\u5931\u8d25: '+e.message+'</div></div>';
     });
 }
 

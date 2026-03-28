@@ -2,6 +2,7 @@
 股票新闻公告 DAO — MySQL 单表版
 
 存储四类信息：公司新闻(news)、公司公告(notice)、行业资讯(industry)、研究报告(report)
+含正文内容字段 content。
 """
 import logging
 from datetime import datetime
@@ -28,6 +29,7 @@ def create_news_table(cursor=None):
             publish_date VARCHAR(20) COMMENT '发布日期',
             publish_time VARCHAR(30) COMMENT '发布时间(含时分)',
             source VARCHAR(100) COMMENT '来源',
+            content MEDIUMTEXT COMMENT '正文内容',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             UNIQUE KEY uk_code_type_title_date (stock_code, news_type, title(200), publish_date),
@@ -41,6 +43,14 @@ def create_news_table(cursor=None):
         conn = get_connection()
         cursor = conn.cursor()
     cursor.execute(ddl)
+    # 兼容已有表：添加 content 列
+    try:
+        cursor.execute(
+            f"ALTER TABLE {TABLE_NAME} ADD COLUMN "
+            f"content MEDIUMTEXT COMMENT '正文内容' AFTER source"
+        )
+    except Exception:
+        pass  # 列已存在
     if own:
         conn.commit()
         cursor.close()
@@ -51,12 +61,13 @@ def create_news_table(cursor=None):
 
 _UPSERT_SQL = f"""
     INSERT INTO {TABLE_NAME}
-    (stock_code, news_type, title, url, publish_date, publish_time, source, updated_at)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    (stock_code, news_type, title, url, publish_date, publish_time, source, content, updated_at)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON DUPLICATE KEY UPDATE
         url = VALUES(url),
         publish_time = VALUES(publish_time),
         source = VALUES(source),
+        content = IF(VALUES(content) IS NOT NULL AND VALUES(content) != '', VALUES(content), content),
         updated_at = VALUES(updated_at)
 """
 
@@ -66,7 +77,7 @@ def batch_upsert_news(stock_code: str, news_list: list[dict]):
 
     Args:
         stock_code: 股票代码如 002371.SZ
-        news_list: [{"news_type", "title", "url", "publish_date", "publish_time", "source"}, ...]
+        news_list: [{"news_type", "title", "url", "publish_date", "publish_time", "source", "content"}, ...]
     """
     if not news_list:
         return 0
@@ -84,6 +95,7 @@ def batch_upsert_news(stock_code: str, news_list: list[dict]):
                 item.get("publish_date", ""),
                 item.get("publish_time", ""),
                 item.get("source", ""),
+                item.get("content", ""),
                 now,
             ))
             count += 1
@@ -102,13 +114,7 @@ def batch_upsert_news(stock_code: str, news_list: list[dict]):
 # ─────────────────── 查询 ───────────────────
 
 def get_news_by_stock(stock_code: str, news_type: str = None, limit: int = 50) -> list[dict]:
-    """查询某只股票的新闻
-
-    Args:
-        stock_code: 股票代码
-        news_type: 可选过滤类型 news/notice/industry/report
-        limit: 返回条数
-    """
+    """查询某只股票的新闻"""
     conn = get_connection(use_dict_cursor=True)
     cursor = conn.cursor()
     try:
