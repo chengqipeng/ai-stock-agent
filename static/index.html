@@ -107,16 +107,16 @@ var _jobs=[
      var ls=[];var tc=d.type_counts||{};
      ls.push(_dim('新闻抓取',d.done_stocks,d.total_stocks,d.failed_stocks));
      var tl={news:'公司新闻',notice:'公司公告',industry:'行业资讯',report:'研究报告',event:'重要事件',ranking:'行业排名',forecast:'业绩预告'};
-     for(var k in tl){if(tc[k]>0)ls.push('📊 '+tl[k]+' '+tc[k]+'条')}
+     for(var k in tl){ls.push(_dimCnt(tl[k],tc[k]||0))}
      var bo=d.big_order_status||'';
      if(bo==='done')ls.push('✅ 大单追踪 '+(d.big_order_count||0)+'条');
      else if(bo==='skipped')ls.push('✅ 大单追踪 已存在');
      else if(bo==='failed')ls.push('❌ 大单追踪 失败');
-     else if(bo==='fetching')ls.push('🔄 大单追踪...');
+     else if(bo==='fetching')ls.push('🔄 大单追踪...');else if(bo)ls.push('⏳ 大单追踪');else ls.push('⏳ 大单追踪');
      var cs=d.content_summary;
      if(cs&&cs.total>0){var pend=(cs.pending||0)+(cs.fetching||0);var done=cs.done||0;
        ls.push((pend>0?'🔄':'✅')+' 正文抓取 '+Math.round(done/cs.total*100)+'% '+done+'/'+cs.total+(pend>0?' 待抓'+pend:''))}
-     return ls}},
+     else{ls.push('⏳ 正文抓取')}return ls}},
   {id:'concept_strength',label:'概念强弱势',api:'/api/concept_strength_job_status',trigger:'/api/trigger_concept_strength_job',log:'概念强弱势',group:'compute',
    dims:function(d){return[
      _dim('板块K线',d.board_kline_success,d.board_kline_total,d.board_kline_failed,d.board_kline_skipped?'跳过'+d.board_kline_skipped:''),

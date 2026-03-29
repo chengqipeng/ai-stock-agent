@@ -76,6 +76,9 @@ _job_status = {
     "done_stocks": 0,
     "total_news": 0,
     "failed_stocks": 0,
+    "type_counts": {},
+    "big_order_count": 0,
+    "big_order_status": "",
 }
 _persisted = _load_persisted_status()
 # 兼容旧版 isoformat 时间格式，统一转为 "YYYY-MM-DD HH:MM:SS"
