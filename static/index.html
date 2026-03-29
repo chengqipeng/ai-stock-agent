@@ -2696,7 +2696,7 @@
 
         // ─── 手动触发调度任务 ───
         async function triggerJob(jobType) {
-            const names = {kline:'日线数据',price:'最高最低价',db_check:'数据异常检测',market_data:'盘后数据',us_market:'海外市场数据',fund_flow:'资金流向',concept_strength:'概念板块强弱势',weekly_prediction:'周预测',news:'资讯(新闻/公告/研报/事件/排名/预告)'};
+            const names = {kline:'日线数据',price:'最高最低价',db_check:'数据异常检测',market_data:'盘后数据',us_market:'海外市场数据',fund_flow:'资金流向',concept_strength:'概念板块强弱势',weekly_prediction:'周预测',news:'资讯(新闻/公告/研报/事件/排名/预告/大单追踪)'};
             try {
                 const chk = await fetch('/api/auto_job_enabled');
                 const chkJson = await chk.json();
@@ -3207,14 +3207,23 @@
                 const json = await resp.json();
                 if (!json.success) return;
                 const d = json.data;
+                const cs = d.content_summary;
                 const banner = document.getElementById('newsJobBanner');
                 const icon = document.getElementById('newsJobIcon');
                 const text = document.getElementById('newsJobText');
                 setBannerRunning(banner, d.running);
 
+                // 正文统计标签
+                var csTip = '';
+                if (cs) {
+                    var pending = (cs.pending || 0) + (cs.fetching || 0);
+                    csTip = '  📄' + (cs.total||0) + '条';
+                    if (pending > 0) csTip += ' 待抓' + pending;
+                }
+
                 if (d.error && !d.running) {
                     icon.textContent = '❌';
-                    text.textContent = '资讯数据执行异常: ' + d.error;
+                    text.textContent = '资讯数据执行异常: ' + d.error + csTip;
                     banner.style.background = 'rgba(217,83,79,0.25)';
                 } else if (d.running) {
                     const sTotal = d.total_stocks || 0;
@@ -3228,6 +3237,7 @@
                         if (d.total_news > 0) msg += '  已抓' + d.total_news + '条';
                         if (sFailed > 0) msg += '  失败' + sFailed;
                     }
+                    msg += csTip;
                     text.textContent = msg;
                     updateJobProgress('newsJobProgress', 'newsJobElapsed', sDone, sTotal, d.start_time);
                 } else if (d.last_run_time) {
@@ -3237,21 +3247,21 @@
                     if (isToday) {
                         if (d.last_success) {
                             icon.textContent = '✅';
-                            text.textContent = d.last_run_time + ' 资讯数据完成  ' + (d.total_news || 0) + '条';
+                            text.textContent = d.last_run_time + ' 资讯数据完成  ' + (d.total_news || 0) + '条' + csTip;
                             banner.style.background = 'rgba(92,184,92,0.25)';
                         } else {
                             icon.textContent = '⚠️';
-                            text.textContent = d.last_run_time + ' 资讯数据部分失败  ' + (d.error || '');
+                            text.textContent = d.last_run_time + ' 资讯数据部分失败  ' + (d.error || '') + csTip;
                             banner.style.background = 'rgba(240,173,78,0.25)';
                         }
                     } else {
                         icon.textContent = '⏳';
-                        text.textContent = '资讯(新闻/公告/研报/事件/排名/预告)等待调度(18:30)  上次: ' + d.last_run_time;
+                        text.textContent = '资讯等待调度(18:30)  上次:' + d.last_run_time + csTip;
                         banner.style.background = 'rgba(255,255,255,0.2)';
                     }
                 } else {
                     icon.textContent = '⏳';
-                    text.textContent = '资讯(新闻/公告/研报/事件/排名/预告)等待调度(每天18:30)';
+                    text.textContent = '资讯等待调度(每天18:30)' + csTip;
                     banner.style.background = 'rgba(255,255,255,0.2)';
                 }
             } catch (e) {

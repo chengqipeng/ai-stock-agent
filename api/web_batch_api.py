@@ -86,6 +86,7 @@ from service.auto_job.monthly_prediction_scheduler import start_monthly_predicti
 from service.auto_job.monthly_prediction_scheduler import _execute_job as _monthly_prediction_execute_job
 from service.auto_job.stock_news_scheduler import start_news_scheduler, get_news_job_status
 from service.auto_job.stock_news_scheduler import _execute_job as _news_execute_job
+from service.auto_job.news_content_worker import start_news_content_worker, get_content_worker_status
 from service.auto_job.scheduler_orchestrator import is_auto_job_enabled
 
 GRADE_SCORE_MAP = {
@@ -165,6 +166,12 @@ async def lifespan(application: FastAPI):
             logger.info("[lifespan] 新闻公告调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动新闻公告调度器异常: %s", e, exc_info=True)
+
+        try:
+            await start_news_content_worker()
+            logger.info("[lifespan] 新闻正文拉取Worker已激活（2并发）")
+        except Exception as e:
+            logger.error("[lifespan] 启动新闻正文Worker异常: %s", e, exc_info=True)
 
         # 关键：app_ready 必须在 try 之外，确保一定会被 set
         app_ready.set()
@@ -482,8 +489,14 @@ async def trigger_monthly_prediction_job():
 
 @app.get("/api/news_job_status")
 async def news_job_status():
-    """获取新闻公告定时任务状态"""
-    return {"success": True, "data": get_news_job_status()}
+    """获取新闻公告定时任务状态（含正文抓取统计）"""
+    from dao.stock_news_dao import get_news_content_summary
+    data = get_news_job_status()
+    try:
+        data["content_summary"] = get_news_content_summary()
+    except Exception:
+        data["content_summary"] = None
+    return {"success": True, "data": data}
 
 
 @app.post("/api/trigger_news_job")
@@ -494,6 +507,15 @@ async def trigger_news_job():
         return {"success": False, "message": "新闻抓取任务正在执行中"}
     asyncio.create_task(_news_execute_job(manual=True))
     return {"success": True, "message": "新闻抓取任务已触发"}
+
+
+@app.get("/api/news_content_worker_status")
+async def news_content_worker_status():
+    """获取新闻正文拉取Worker状态"""
+    from dao.stock_news_dao import get_content_status_stats
+    worker = get_content_worker_status()
+    stats = get_content_status_stats()
+    return {"success": True, "data": {**worker, "content_stats": stats}}
 
 
 @app.get("/api/stock_news")

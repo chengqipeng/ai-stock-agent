@@ -51,6 +51,37 @@ def create_news_table(cursor=None):
         )
     except Exception:
         pass  # 列已存在
+    # 兼容已有表：添加 content_status 列
+    try:
+        cursor.execute(
+            f"ALTER TABLE {TABLE_NAME} ADD COLUMN "
+            f"content_status VARCHAR(20) DEFAULT 'pending' "
+            f"COMMENT 'pending/fetching/done/skip/failed' AFTER content"
+        )
+    except Exception:
+        pass  # 列已存在
+    # 为 content_status 添加索引（加速 worker 查询待处理记录）
+    try:
+        cursor.execute(
+            f"ALTER TABLE {TABLE_NAME} ADD INDEX idx_content_status (content_status)"
+        )
+    except Exception:
+        pass  # 索引已存在
+    # 迁移：已有 content 的记录标记为 done，无 content 且有 url 的标记为 pending
+    try:
+        cursor.execute(
+            f"UPDATE {TABLE_NAME} SET content_status = 'done' "
+            f"WHERE content IS NOT NULL AND content != '' AND "
+            f"(content_status IS NULL OR content_status = 'pending')"
+        )
+        cursor.execute(
+            f"UPDATE {TABLE_NAME} SET content_status = 'skip' "
+            f"WHERE (content IS NULL OR content = '') AND "
+            f"(url IS NULL OR url = '' OR url NOT LIKE '%%10jqka.com.cn%%') AND "
+            f"content_status IS NULL"
+        )
+    except Exception:
+        pass
     if own:
         conn.commit()
         cursor.close()
@@ -61,13 +92,15 @@ def create_news_table(cursor=None):
 
 _UPSERT_SQL = f"""
     INSERT INTO {TABLE_NAME}
-    (stock_code, news_type, title, url, publish_date, publish_time, source, content, updated_at)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    (stock_code, news_type, title, url, publish_date, publish_time, source, content, content_status, updated_at)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON DUPLICATE KEY UPDATE
         url = VALUES(url),
         publish_time = VALUES(publish_time),
         source = VALUES(source),
         content = IF(VALUES(content) IS NOT NULL AND VALUES(content) != '', VALUES(content), content),
+        content_status = IF(VALUES(content) IS NOT NULL AND VALUES(content) != '', 'done',
+                           IF(content IS NOT NULL AND content != '', content_status, VALUES(content_status))),
         updated_at = VALUES(updated_at)
 """
 
@@ -87,6 +120,14 @@ def batch_upsert_news(stock_code: str, news_list: list[dict]):
     count = 0
     try:
         for item in news_list:
+            content = item.get("content", "")
+            # 有内容 → done；无内容但有URL → pending；无URL → skip
+            if content:
+                status = "done"
+            elif item.get("url") and "10jqka.com.cn" in item.get("url", ""):
+                status = "pending"
+            else:
+                status = "skip"
             cursor.execute(_UPSERT_SQL, (
                 stock_code,
                 item.get("news_type", ""),
@@ -95,7 +136,8 @@ def batch_upsert_news(stock_code: str, news_list: list[dict]):
                 item.get("publish_date", ""),
                 item.get("publish_time", ""),
                 item.get("source", ""),
-                item.get("content", ""),
+                content,
+                status,
                 now,
             ))
             count += 1
@@ -152,6 +194,137 @@ def get_latest_news_date(stock_code: str, news_type: str = None) -> str | None:
             )
         row = cursor.fetchone()
         return str(row[0]) if row and row[0] else None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ─────────────────── 内容拉取 Worker 专用 ───────────────────
+
+def get_pending_content_records(limit: int = 50) -> list[dict]:
+    """获取待拉取正文的新闻记录（content_status='pending'）"""
+    conn = get_connection(use_dict_cursor=True)
+    cursor = conn.cursor()
+    try:
+        sql = (f"SELECT id, stock_code, news_type, title, url "
+               f"FROM {TABLE_NAME} "
+               f"WHERE content_status = 'pending' "
+               f"ORDER BY id DESC LIMIT %s")
+        cursor.execute(sql, (limit,))
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_content_status(record_id: int, status: str, content: str = ""):
+    """更新单条记录的正文内容和状态"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        if content:
+            cursor.execute(
+                f"UPDATE {TABLE_NAME} SET content = %s, content_status = %s, "
+                f"updated_at = %s WHERE id = %s",
+                (content, status, datetime.now(_CST), record_id),
+            )
+        else:
+            cursor.execute(
+                f"UPDATE {TABLE_NAME} SET content_status = %s, "
+                f"updated_at = %s WHERE id = %s",
+                (status, datetime.now(_CST), record_id),
+            )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        logger.error("更新内容状态失败 [id=%d]: %s", record_id, e)
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def mark_as_fetching(record_ids: list[int]):
+    """批量标记为 fetching 状态（防止多 worker 重复拉取）"""
+    if not record_ids:
+        return
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        placeholders = ",".join(["%s"] * len(record_ids))
+        cursor.execute(
+            f"UPDATE {TABLE_NAME} SET content_status = 'fetching' "
+            f"WHERE id IN ({placeholders}) AND content_status = 'pending'",
+            record_ids,
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        logger.error("批量标记 fetching 失败: %s", e)
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_content_status_stats() -> dict:
+    """统计各 content_status 的数量（利用 idx_content_status 索引）"""
+    conn = get_connection(use_dict_cursor=True)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            f"SELECT content_status, COUNT(*) AS cnt FROM {TABLE_NAME} "
+            f"GROUP BY content_status"
+        )
+        rows = cursor.fetchall()
+        return {r["content_status"] or "null": r["cnt"] for r in rows}
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_news_content_summary() -> dict:
+    """快速获取新闻总数和待抓取数（轻量查询，供首页轮询使用）"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            f"SELECT COUNT(*) AS total, "
+            f"SUM(content_status = 'pending') AS pending, "
+            f"SUM(content_status = 'fetching') AS fetching, "
+            f"SUM(content_status = 'done') AS done, "
+            f"SUM(content_status = 'failed') AS failed "
+            f"FROM {TABLE_NAME}"
+        )
+        row = cursor.fetchone()
+        return {
+            "total": row[0] or 0,
+            "pending": int(row[1] or 0),
+            "fetching": int(row[2] or 0),
+            "done": int(row[3] or 0),
+            "failed": int(row[4] or 0),
+        }
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def reset_stale_fetching(timeout_minutes: int = 30):
+    """将超时的 fetching 状态重置为 pending（防止 worker 崩溃后卡死）"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            f"UPDATE {TABLE_NAME} SET content_status = 'pending' "
+            f"WHERE content_status = 'fetching' "
+            f"AND updated_at < DATE_SUB(NOW(), INTERVAL %s MINUTE)",
+            (timeout_minutes,),
+        )
+        affected = cursor.rowcount
+        conn.commit()
+        if affected > 0:
+            logger.info("[内容Worker] 重置 %d 条超时 fetching 记录", affected)
+    except Exception as e:
+        conn.rollback()
+        logger.error("重置超时 fetching 失败: %s", e)
     finally:
         cursor.close()
         conn.close()

@@ -12,44 +12,66 @@ logger = logging.getLogger(__name__)
 
 class PDFParser:
     @staticmethod
-    async def download_pdf(pdf_url: str, save_dir: str = "temp_files") -> Optional[str]:
-        """下载PDF文件"""
-        try:
-            os.makedirs(save_dir, exist_ok=True)
-            file_hash = hashlib.md5(pdf_url.encode()).hexdigest()
-            file_path = os.path.join(save_dir, f"{file_hash}.pdf")
-            
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Referer": "http://ft.10jqka.com.cn/",
-                "Accept": "*/*",
-                "Connection": "keep-alive"
-            }
-            
-            timeout = aiohttp.ClientTimeout(total=300)
-            async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
-                async with session.get(pdf_url) as response:
-                    if response.status != 200:
-                        logger.warning("服务器拒绝请求，状态码: %d", response.status)
-                        return None
-                    
-                    async with aiofiles.open(file_path, 'wb') as f:
-                        try:
-                            async for chunk in response.content.iter_chunked(4096):
-                                if chunk:
-                                    await f.write(chunk)
-                        except (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError) as e:
-                            logger.warning("PDF下载连接断开 [%s]: %s", pdf_url, e)
-                            logger.warning("服务器连接提前断开，尝试抢救已下载的数据...")
-            
-            if os.path.exists(file_path):
-                file_size = os.path.getsize(file_path)
-                logger.info("下载完成，文件大小: %d 字节", file_size)
-                return file_path
-            return None
-        except Exception as e:
-            logger.error("PDF下载失败: %s, 错误: %s", pdf_url, e)
-            return None
+    async def download_pdf(pdf_url: str, save_dir: str = "temp_files", max_retries: int = 3) -> Optional[str]:
+        """下载PDF文件，带重试和指数退避"""
+        os.makedirs(save_dir, exist_ok=True)
+        file_hash = hashlib.md5(pdf_url.encode()).hexdigest()
+        file_path = os.path.join(save_dir, f"{file_hash}.pdf")
+
+        # 根据域名设置合适的 Referer
+        referer = "http://ft.10jqka.com.cn/"
+        if "szse.cn" in pdf_url:
+            referer = "http://www.szse.cn/"
+        elif "sse.com.cn" in pdf_url:
+            referer = "http://www.sse.com.cn/"
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": referer,
+            "Accept": "*/*",
+            "Connection": "keep-alive"
+        }
+
+        for attempt in range(max_retries):
+            try:
+                timeout = aiohttp.ClientTimeout(total=300)
+                async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+                    async with session.get(pdf_url) as response:
+                        if response.status != 200:
+                            logger.warning("服务器拒绝请求，状态码: %d, URL: %s", response.status, pdf_url)
+                            return None
+
+                        async with aiofiles.open(file_path, 'wb') as f:
+                            try:
+                                async for chunk in response.content.iter_chunked(4096):
+                                    if chunk:
+                                        await f.write(chunk)
+                            except (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError) as e:
+                                logger.warning("PDF下载连接断开 [%s]: %s", pdf_url, e)
+                                logger.warning("服务器连接提前断开，尝试抢救已下载的数据...")
+
+                if os.path.exists(file_path):
+                    file_size = os.path.getsize(file_path)
+                    if file_size > 0:
+                        logger.info("下载完成，文件大小: %d 字节", file_size)
+                        return file_path
+                    # 文件为空，删除后重试
+                    os.remove(file_path)
+
+            except (ConnectionResetError, ConnectionError, OSError) as e:
+                wait = 2 ** attempt
+                logger.warning("PDF下载连接被重置 (第%d/%d次) [%s]: %s, %ds后重试",
+                               attempt + 1, max_retries, pdf_url, e, wait)
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(wait)
+                    continue
+                logger.error("PDF下载失败（重试耗尽）: %s", pdf_url)
+                return None
+            except Exception as e:
+                logger.error("PDF下载失败: %s, 错误: %s", pdf_url, e)
+                return None
+
+        return None
     
     @staticmethod
     async def parse_pdf(file_path: str) -> Optional[str]:
