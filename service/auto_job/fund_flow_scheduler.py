@@ -100,21 +100,30 @@ def _convert_em_klines_to_dicts(klines: list[str]) -> list[dict]:
 
 
 def _load_persisted_status():
-    try:
-        if _STATUS_FILE.exists():
-            return json.loads(_STATUS_FILE.read_text("utf-8"))
-    except Exception:
-        pass
-    return {}
+    """从数据库恢复状态，JSON 文件兜底"""
+    from service.auto_job.scheduler_status_helper import restore_status
+    return restore_status("fund_flow", _STATUS_FILE)
 
 
 def _save_persisted_status(status):
+    """持久化到数据库 + JSON 文件双写"""
+    from service.auto_job.scheduler_status_helper import persist_status
+    persist_status("fund_flow", {
+        "last_run_date": status.get("last_run_date"),
+        "last_run_time": status.get("last_run_time"),
+        "last_success": status.get("last_success"),
+        "error": status.get("error"),
+    }, {
+        "fund_flow": {"total": status.get("total", 0), "success": status.get("success", 0), "failed": status.get("failed", 0), "skipped": status.get("skipped", 0)},
+    })
+    # JSON 文件兜底
     try:
         _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        txt = json.dumps(status, ensure_ascii=False, indent=2)
-        _STATUS_FILE.write_text(txt, "utf-8")
-    except Exception as e:
-        logger.warning("状态持久化失败: %s", e)
+        payload = {k: status.get(k) for k in ("last_run_time", "last_run_date", "last_success",
+                   "total", "success", "failed", "skipped")}
+        _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
 
 
 _job_status = {

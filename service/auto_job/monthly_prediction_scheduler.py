@@ -24,29 +24,31 @@ _STATUS_FILE = _project_root / "data_results" / ".monthly_prediction_scheduler_s
 
 
 def _load_persisted_status() -> dict:
-    try:
-        if _STATUS_FILE.exists():
-            data = json.loads(_STATUS_FILE.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                return data
-    except Exception:
-        pass
-    return {}
+    """从数据库恢复状态，JSON 文件兜底"""
+    from service.auto_job.scheduler_status_helper import restore_status
+    return restore_status("monthly_pred", _STATUS_FILE)
 
 
 def _save_persisted_status(status: dict):
+    """持久化到数据库 + JSON 文件双写"""
+    from service.auto_job.scheduler_status_helper import persist_status
+    persist_status("monthly_pred", {
+        "last_run_date": status.get("last_run_date"),
+        "last_run_time": status.get("last_run_time"),
+        "last_success": status.get("last_success"),
+        "error": status.get("error"),
+    }, {
+        "predict": {"total": status.get("predict_total", 0), "success": status.get("predict_done", 0),
+                    "extra_json": {"backtest_accuracy": status.get("backtest_accuracy", 0)}},
+    })
+    # JSON 文件兜底
     try:
         _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "last_run_date": status.get("last_run_date"),
-            "last_run_time": status.get("last_run_time"),
-            "last_success": status.get("last_success"),
-            "predict_total": status.get("predict_total", 0),
-            "backtest_accuracy": status.get("backtest_accuracy", 0),
-        }
+        payload = {k: status.get(k) for k in ("last_run_date", "last_run_time", "last_success",
+                   "predict_total", "predict_done", "backtest_accuracy")}
         _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception as e:
-        logger.warning("[月预测调度] 状态持久化失败: %s", e)
+    except Exception:
+        pass
 
 
 # ─────────── 全局状态 ───────────

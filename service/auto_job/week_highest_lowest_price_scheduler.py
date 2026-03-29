@@ -44,33 +44,30 @@ def _query_last_update_from_db() -> dict:
 
 
 def _load_persisted_status() -> dict:
-    """从本地文件恢复上次执行状态，文件不存在时从数据库兜底"""
-    try:
-        if _PRICE_STATUS_FILE.exists():
-            data = json.loads(_PRICE_STATUS_FILE.read_text(encoding="utf-8"))
-            logger.info("[最高最低价调度] 从文件恢复状态: last_run_date=%s", data.get("last_run_date"))
-            return data
-    except Exception as e:
-        logger.warning("[最高最低价调度] 读取状态文件失败: %s", e)
-    # 文件不存在，尝试从数据库获取
-    return _query_last_update_from_db()
+    """从数据库恢复状态，JSON 文件兜底"""
+    from service.auto_job.scheduler_status_helper import restore_status
+    return restore_status("price", _PRICE_STATUS_FILE)
 
 
 def _save_persisted_status(status: dict):
-    """将关键状态持久化到本地文件"""
+    """持久化到数据库 + JSON 文件双写"""
+    from service.auto_job.scheduler_status_helper import persist_status
+    persist_status("price", {
+        "last_run_date": status.get("last_run_date"),
+        "last_run_time": status.get("last_run_time"),
+        "last_success": status.get("last_success"),
+        "error": status.get("error"),
+    }, {
+        "price": {"total": status.get("price_total", 0), "success": status.get("price_success", 0), "failed": status.get("price_failed", 0)},
+    })
+    # JSON 文件兜底
     try:
         _PRICE_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "last_run_time": status.get("last_run_time"),
-            "last_run_date": status.get("last_run_date"),
-            "last_success": status.get("last_success"),
-            "price_total": status.get("price_total", 0),
-            "price_success": status.get("price_success", 0),
-            "price_failed": status.get("price_failed", 0),
-        }
+        payload = {k: status.get(k) for k in ("last_run_time", "last_run_date", "last_success",
+                   "price_total", "price_success", "price_failed")}
         _PRICE_STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception as e:
-        logger.warning("[最高最低价调度] 写入状态文件失败: %s", e)
+    except Exception:
+        pass
 
 
 # ─────────── 全局状态 ───────────

@@ -35,34 +35,34 @@ _STATUS_FILE = _project_root / "data_results" / ".market_data_scheduler_status.j
 
 
 def _load_persisted_status() -> dict:
-    try:
-        if _STATUS_FILE.exists():
-            data = json.loads(_STATUS_FILE.read_text(encoding="utf-8"))
-            logger.info("[盘后数据调度] 从文件恢复状态: last_run_date=%s", data.get("last_run_date"))
-            return data
-    except Exception as e:
-        logger.warning("[盘后数据调度] 读取状态文件失败: %s", e)
-    return {}
+    """从数据库恢复状态，JSON 文件兜底"""
+    from service.auto_job.scheduler_status_helper import restore_status
+    return restore_status("market_data", _STATUS_FILE)
 
 
 def _save_persisted_status(status: dict):
+    """持久化到数据库 + JSON 文件双写"""
+    from service.auto_job.scheduler_status_helper import persist_status
+    persist_status("market_data", {
+        "last_run_date": status.get("last_run_date"),
+        "last_run_time": status.get("last_run_time"),
+        "last_success": status.get("last_success"),
+        "error": status.get("error"),
+    }, {
+        "time_data": {"total": status.get("time_data_total", 0), "success": status.get("time_data_success", 0), "failed": status.get("time_data_failed", 0)},
+        "order_book": {"total": status.get("order_book_total", 0), "success": status.get("order_book_success", 0), "failed": status.get("order_book_failed", 0)},
+        "dragon_tiger": {"extra_json": {"dragon_tiger_count": status.get("dragon_tiger_count", 0)}},
+    })
+    # JSON 文件兜底
     try:
         _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "last_run_time": status.get("last_run_time"),
-            "last_run_date": status.get("last_run_date"),
-            "last_success": status.get("last_success"),
-            "time_data_total": status.get("time_data_total", 0),
-            "time_data_success": status.get("time_data_success", 0),
-            "time_data_failed": status.get("time_data_failed", 0),
-            "order_book_total": status.get("order_book_total", 0),
-            "order_book_success": status.get("order_book_success", 0),
-            "order_book_failed": status.get("order_book_failed", 0),
-            "dragon_tiger_count": status.get("dragon_tiger_count", 0),
-        }
+        payload = {k: status.get(k) for k in ("last_run_time", "last_run_date", "last_success",
+                   "time_data_total", "time_data_success", "time_data_failed",
+                   "order_book_total", "order_book_success", "order_book_failed",
+                   "dragon_tiger_count")}
         _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception as e:
-        logger.warning("[盘后数据调度] 写入状态文件失败: %s", e)
+    except Exception:
+        pass
 
 
 # ─────────── 启动就绪信号 ───────────

@@ -34,34 +34,33 @@ _STATUS_FILE = _project_root / "data_results" / ".news_scheduler_status.json"
 
 
 def _load_persisted_status() -> dict:
-    try:
-        if _STATUS_FILE.exists():
-            data = json.loads(_STATUS_FILE.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                return data
-    except Exception:
-        pass
-    return {}
+    """从数据库恢复状态，JSON 文件兜底"""
+    from service.auto_job.scheduler_status_helper import restore_status
+    return restore_status("news", _STATUS_FILE)
 
 
 def _save_persisted_status(status: dict):
+    """持久化到数据库 + JSON 文件双写"""
+    from service.auto_job.scheduler_status_helper import persist_status
+    persist_status("news", {
+        "last_run_date": status.get("last_run_date"),
+        "last_run_time": status.get("last_run_time"),
+        "last_success": status.get("last_success"),
+        "error": status.get("error"),
+    }, {
+        "news_fetch": {"total": status.get("total_stocks", 0), "success": status.get("done_stocks", 0), "failed": status.get("failed_stocks", 0),
+                       "extra_json": {"total_news": status.get("total_news", 0), "type_counts": status.get("type_counts", {}),
+                                      "big_order_count": status.get("big_order_count", 0), "big_order_status": status.get("big_order_status", "")}},
+    })
+    # JSON 文件兜底
     try:
         _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "last_run_date": status.get("last_run_date"),
-            "last_run_time": status.get("last_run_time"),
-            "last_success": status.get("last_success"),
-            "total_news": status.get("total_news", 0),
-            "total_stocks": status.get("total_stocks", 0),
-            "done_stocks": status.get("done_stocks", 0),
-            "failed_stocks": status.get("failed_stocks", 0),
-            "type_counts": status.get("type_counts", {}),
-            "big_order_count": status.get("big_order_count", 0),
-            "big_order_status": status.get("big_order_status", ""),
-        }
+        payload = {k: status.get(k) for k in ("last_run_date", "last_run_time", "last_success",
+                   "total_news", "total_stocks", "done_stocks", "failed_stocks",
+                   "type_counts", "big_order_count", "big_order_status")}
         _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception as e:
-        logger.warning("[新闻调度] 状态持久化失败: %s", e)
+    except Exception:
+        pass
 
 
 # ─────────── 全局状态 ───────────

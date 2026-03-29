@@ -51,31 +51,33 @@ _STATUS_FILE = _project_root / "data_results" / ".us_market_scheduler_status.jso
 
 
 def _load_persisted_status() -> dict:
-    try:
-        if _STATUS_FILE.exists():
-            data = json.loads(_STATUS_FILE.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                return data
-    except Exception:
-        pass
-    return {}
+    """从数据库恢复状态，JSON 文件兜底"""
+    from service.auto_job.scheduler_status_helper import restore_status
+    return restore_status("us_market", _STATUS_FILE)
 
 
 def _save_persisted_status(status: dict):
+    """持久化到数据库 + JSON 文件双写"""
+    from service.auto_job.scheduler_status_helper import persist_status
+    persist_status("us_market", {
+        "last_run_date": status.get("last_run_date"),
+        "last_run_time": status.get("last_run_time"),
+        "last_success": status.get("last_success"),
+        "error": status.get("error"),
+    }, {
+        "kline": {"extra_json": {"kline_count": status.get("kline_count", 0)}},
+        "index_realtime": {"extra_json": {"index_realtime_count": status.get("index_realtime_count", 0)}},
+        "ranking": {"extra_json": {"ranking_count": status.get("ranking_count", 0)}},
+        "us_stock_kline": {"extra_json": {"us_stock_kline_count": status.get("us_stock_kline_count", 0)}},
+    })
+    # JSON 文件兜底
     try:
         _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "last_run_date": status.get("last_run_date"),
-            "last_run_time": status.get("last_run_time"),
-            "last_success": status.get("last_success"),
-            "kline_count": status.get("kline_count", 0),
-            "index_realtime_count": status.get("index_realtime_count", 0),
-            "ranking_count": status.get("ranking_count", 0),
-            "us_stock_kline_count": status.get("us_stock_kline_count", 0),
-        }
+        payload = {k: status.get(k) for k in ("last_run_date", "last_run_time", "last_success",
+                   "kline_count", "index_realtime_count", "ranking_count", "us_stock_kline_count")}
         _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception as e:
-        logger.warning("[海外数据调度] 状态持久化失败: %s", e)
+    except Exception:
+        pass
 
 
 # ─────────── 全局状态 ───────────

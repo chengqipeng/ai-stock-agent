@@ -27,28 +27,34 @@ _STATUS_FILE = _project_root / "data_results" / ".concept_strength_scheduler_sta
 
 
 def _load_persisted_status() -> dict:
-    try:
-        if _STATUS_FILE.exists():
-            data = json.loads(_STATUS_FILE.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                return data
-    except Exception:
-        pass
-    return {}
+    """从数据库恢复状态，JSON 文件兜底"""
+    from service.auto_job.scheduler_status_helper import restore_status
+    return restore_status("concept_strength", _STATUS_FILE)
 
 
 def _save_persisted_status(status: dict):
+    """持久化到数据库 + JSON 文件双写"""
+    from service.auto_job.scheduler_status_helper import persist_status
+    persist_status("concept_strength", {
+        "last_run_date": status.get("last_run_date"),
+        "last_run_time": status.get("last_run_time"),
+        "last_success": status.get("last_success"),
+        "error": status.get("error"),
+    }, {
+        "board_kline": {"total": status.get("board_kline_total", 0), "success": status.get("board_kline_success", 0), "failed": status.get("board_kline_failed", 0), "skipped": status.get("board_kline_skipped", 0)},
+        "board_market": {"total": status.get("board_market_total", 0), "success": status.get("board_market_success", 0), "failed": status.get("board_market_failed", 0)},
+        "stock_board": {"total": status.get("stock_board_total", 0), "success": status.get("stock_board_success", 0), "failed": status.get("stock_board_failed", 0)},
+    })
+    # JSON 文件兜底
     try:
         _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        # 只持久化需要跨重启保留的字段，不保存 running/stage 等运行时状态
-        payload = {
-            "last_run_date": status.get("last_run_date"),
-            "last_run_time": status.get("last_run_time"),
-            "last_success": status.get("last_success"),
-        }
+        payload = {k: status.get(k) for k in ("last_run_date", "last_run_time", "last_success",
+                   "board_kline_total", "board_kline_success", "board_kline_failed", "board_kline_skipped",
+                   "board_market_total", "board_market_success", "board_market_failed",
+                   "stock_board_total", "stock_board_success", "stock_board_failed")}
         _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception as e:
-        logger.warning("[概念强弱势调度] 状态持久化失败: %s", e)
+    except Exception:
+        pass
 
 
 # ─────────── 全局状态 ───────────

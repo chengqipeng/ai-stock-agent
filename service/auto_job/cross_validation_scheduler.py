@@ -28,25 +28,27 @@ _STATUS_FILE = _project_root / "data_results" / ".cross_validation_scheduler_sta
 
 
 def _load_persisted_status() -> dict:
-    try:
-        if _STATUS_FILE.exists():
-            return json.loads(_STATUS_FILE.read_text("utf-8"))
-    except Exception:
-        pass
-    return {}
+    """从数据库恢复状态，JSON 文件兜底"""
+    from service.auto_job.scheduler_status_helper import restore_status
+    return restore_status("cross_val", _STATUS_FILE)
 
 
 def _save_persisted_status(status: dict):
+    """持久化到数据库 + JSON 文件双写"""
+    from service.auto_job.scheduler_status_helper import persist_status
+    persist_status("cross_val", {
+        "last_run_date": status.get("last_run_date"),
+        "last_run_time": status.get("last_run_time"),
+        "last_success": status.get("last_success"),
+        "error": status.get("error"),
+    })
+    # JSON 文件兜底
     try:
         _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "last_run_date": status.get("last_run_date"),
-            "last_run_time": status.get("last_run_time"),
-            "last_success": status.get("last_success"),
-        }
-        _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), "utf-8")
-    except Exception as e:
-        logger.warning("[交叉验证调度] 状态持久化失败: %s", e)
+        payload = {k: status.get(k) for k in ("last_run_date", "last_run_time", "last_success")}
+        _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
 
 
 _job_status = {

@@ -56,35 +56,31 @@ _STATUS_FILE = Path(__file__).parent.parent.parent / "data_results" / ".kline_sc
 
 
 def _load_persisted_status() -> dict:
-    """从本地文件恢复上次执行状态"""
-    try:
-        if _STATUS_FILE.exists():
-            data = json.loads(_STATUS_FILE.read_text(encoding="utf-8"))
-            logger.info("[定时调度] 从文件恢复状态: last_run_date=%s", data.get("last_run_date"))
-            return data
-    except Exception as e:
-        logger.warning("[定时调度] 读取状态文件失败: %s", e)
-    return {}
+    """从数据库恢复状态，JSON 文件兜底"""
+    from service.auto_job.scheduler_status_helper import restore_status
+    return restore_status("kline", _STATUS_FILE)
 
 
 def _save_persisted_status(status: dict):
-    """将关键状态持久化到本地文件"""
+    """持久化到数据库 + JSON 文件双写"""
+    from service.auto_job.scheduler_status_helper import persist_status
+    persist_status("kline", {
+        "last_run_date": status.get("last_run_date"),
+        "last_run_time": status.get("last_run_time"),
+        "last_success": status.get("last_success"),
+        "error": status.get("error"),
+    }, {
+        "kline": {"total": status.get("kline_total", 0), "success": status.get("kline_success", 0), "failed": status.get("kline_failed", 0)},
+        "finance": {"total": status.get("finance_total", 0), "success": status.get("finance_success", 0), "failed": status.get("finance_failed", 0)},
+    })
+    # JSON 文件兜底
     try:
         _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "last_run_time": status.get("last_run_time"),
-            "last_run_date": status.get("last_run_date"),
-            "last_success": status.get("last_success"),
-            "kline_total": status.get("kline_total", 0),
-            "kline_success": status.get("kline_success", 0),
-            "kline_failed": status.get("kline_failed", 0),
-            "finance_total": status.get("finance_total", 0),
-            "finance_success": status.get("finance_success", 0),
-            "finance_failed": status.get("finance_failed", 0),
-        }
+        payload = {k: status.get(k) for k in ("last_run_time", "last_run_date", "last_success",
+                   "kline_total", "kline_success", "kline_failed", "finance_total", "finance_success", "finance_failed")}
         _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception as e:
-        logger.warning("[定时调度] 写入状态文件失败: %s", e)
+    except Exception:
+        pass
 
 
 # ─────────── 启动就绪信号 ───────────

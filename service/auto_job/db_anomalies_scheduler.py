@@ -74,27 +74,29 @@ _STATUS_FILE = Path(__file__).parent.parent.parent / "data_results" / ".db_anoma
 
 
 def _load_persisted_status() -> dict:
-    try:
-        if _STATUS_FILE.exists():
-            data = json.loads(_STATUS_FILE.read_text(encoding="utf-8"))
-            logger.info("[数据异常检测] 从文件恢复状态: last_run_date=%s", data.get("last_run_date"))
-            return data
-    except Exception as e:
-        logger.warning("[数据异常检测] 读取状态文件失败: %s", e)
-    return {}
+    """从数据库恢复状态，JSON 文件兜底"""
+    from service.auto_job.scheduler_status_helper import restore_status
+    return restore_status("db_check", _STATUS_FILE)
 
 
 def _save_persisted_status(status: dict):
+    """持久化到数据库 + JSON 文件双写"""
+    from service.auto_job.scheduler_status_helper import persist_status
+    persist_status("db_check", {
+        "last_run_date": status.get("last_run_date"),
+        "last_run_time": status.get("last_run_time"),
+        "last_success": status.get("last_success"),
+        "error": status.get("error"),
+        "extra_json": {"check_total": status.get("check_total", 0), "check_anomalies": status.get("check_anomalies", 0), "check_repaired": status.get("check_repaired", 0)},
+    })
+    # JSON 文件兜底
     try:
         _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "last_run_time": status.get("last_run_time"),
-            "last_run_date": status.get("last_run_date"),
-            "last_success": status.get("last_success"),
-        }
+        payload = {k: status.get(k) for k in ("last_run_time", "last_run_date", "last_success",
+                   "check_total", "check_anomalies", "check_repaired")}
         _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception as e:
-        logger.warning("[数据异常检测] 写入状态文件失败: %s", e)
+    except Exception:
+        pass
 
 
 # ─────────── 全局状态 ───────────
