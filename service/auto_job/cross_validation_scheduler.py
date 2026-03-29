@@ -7,7 +7,6 @@
 - 验证结果保存到 data_cross_validation / data_cross_validation_summary 表
 """
 import asyncio
-import json
 import logging
 import random
 from datetime import datetime, date, timedelta, time as dtime
@@ -24,17 +23,14 @@ _project_root = Path(__file__).parent.parent.parent
 SAMPLE_SIZE = 0  # 保留变量兼容，0 表示全量
 
 # ─────────── 状态持久化 ───────────
-_STATUS_FILE = _project_root / "data_results" / ".cross_validation_scheduler_status.json"
-
-
 def _load_persisted_status() -> dict:
-    """从数据库恢复状态，JSON 文件兜底"""
+    """从数据库恢复状态"""
     from service.auto_job.scheduler_status_helper import restore_status
-    return restore_status("cross_val", _STATUS_FILE)
+    return restore_status("cross_val")
 
 
 def _save_persisted_status(status: dict):
-    """持久化到数据库 + JSON 文件双写"""
+    """持久化到数据库"""
     from service.auto_job.scheduler_status_helper import persist_status
     persist_status("cross_val", {
         "last_run_date": status.get("last_run_date"),
@@ -42,13 +38,7 @@ def _save_persisted_status(status: dict):
         "last_success": status.get("last_success"),
         "error": status.get("error"),
     })
-    # JSON 文件兜底
-    try:
-        _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {k: status.get(k) for k in ("last_run_date", "last_run_time", "last_success")}
-        _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+
 
 
 _job_status = {

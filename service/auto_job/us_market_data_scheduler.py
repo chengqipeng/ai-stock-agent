@@ -8,7 +8,6 @@
 - 项目启动时检查当天是否已完成，未完成则补拉
 """
 import asyncio
-import json
 import logging
 from datetime import datetime, date, timedelta, time as dtime
 from pathlib import Path
@@ -47,17 +46,14 @@ logger = logging.getLogger(__name__)
 _project_root = Path(__file__).parent.parent.parent
 
 # ─────────── 状态持久化 ───────────
-_STATUS_FILE = _project_root / "data_results" / ".us_market_scheduler_status.json"
-
-
 def _load_persisted_status() -> dict:
-    """从数据库恢复状态，JSON 文件兜底"""
+    """从数据库恢复状态"""
     from service.auto_job.scheduler_status_helper import restore_status
-    return restore_status("us_market", _STATUS_FILE)
+    return restore_status("us_market")
 
 
 def _save_persisted_status(status: dict):
-    """持久化到数据库 + JSON 文件双写"""
+    """持久化到数据库"""
     from service.auto_job.scheduler_status_helper import persist_status
     persist_status("us_market", {
         "last_run_date": status.get("last_run_date"),
@@ -70,14 +66,7 @@ def _save_persisted_status(status: dict):
         "ranking": {"extra_json": {"ranking_count": status.get("ranking_count", 0)}},
         "us_stock_kline": {"extra_json": {"us_stock_kline_count": status.get("us_stock_kline_count", 0)}},
     })
-    # JSON 文件兜底
-    try:
-        _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {k: status.get(k) for k in ("last_run_date", "last_run_time", "last_success",
-                   "kline_count", "index_realtime_count", "ranking_count", "us_stock_kline_count")}
-        _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+
 
 
 # ─────────── 全局状态 ───────────

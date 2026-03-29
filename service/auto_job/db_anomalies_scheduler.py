@@ -57,10 +57,8 @@
   5. 数据源写入后再次从 K线同步价格（防止数据源带入不准确的价格）
 """
 import asyncio
-import json
 import logging
 from datetime import datetime
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from service.auto_job.kline_data_scheduler import app_ready, kline_done_event_for_dbcheck
@@ -70,17 +68,14 @@ _CST = ZoneInfo("Asia/Shanghai")
 logger = logging.getLogger(__name__)
 
 # ─────────── 状态持久化 ───────────
-_STATUS_FILE = Path(__file__).parent.parent.parent / "data_results" / ".db_anomalies_scheduler_status.json"
-
-
 def _load_persisted_status() -> dict:
-    """从数据库恢复状态，JSON 文件兜底"""
+    """从数据库恢复状态"""
     from service.auto_job.scheduler_status_helper import restore_status
-    return restore_status("db_check", _STATUS_FILE)
+    return restore_status("db_check")
 
 
 def _save_persisted_status(status: dict):
-    """持久化到数据库 + JSON 文件双写"""
+    """持久化到数据库"""
     from service.auto_job.scheduler_status_helper import persist_status
     persist_status("db_check", {
         "last_run_date": status.get("last_run_date"),
@@ -89,14 +84,7 @@ def _save_persisted_status(status: dict):
         "error": status.get("error"),
         "extra_json": {"check_total": status.get("check_total", 0), "check_anomalies": status.get("check_anomalies", 0), "check_repaired": status.get("check_repaired", 0)},
     })
-    # JSON 文件兜底
-    try:
-        _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {k: status.get(k) for k in ("last_run_time", "last_run_date", "last_success",
-                   "check_total", "check_anomalies", "check_repaired")}
-        _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+
 
 
 # ─────────── 全局状态 ───────────

@@ -7,7 +7,6 @@
 - 执行状态持久化到本地文件，重启后不会重复全量拉取
 """
 import asyncio
-import json
 import logging
 import re
 import threading
@@ -52,17 +51,14 @@ _SKIP_INDEX_CODES = {
 }
 
 # ─────────── 状态持久化 ───────────
-_STATUS_FILE = Path(__file__).parent.parent.parent / "data_results" / ".kline_scheduler_status.json"
-
-
 def _load_persisted_status() -> dict:
-    """从数据库恢复状态，JSON 文件兜底"""
+    """从数据库恢复状态"""
     from service.auto_job.scheduler_status_helper import restore_status
-    return restore_status("kline", _STATUS_FILE)
+    return restore_status("kline")
 
 
 def _save_persisted_status(status: dict):
-    """持久化到数据库 + JSON 文件双写"""
+    """持久化到数据库"""
     from service.auto_job.scheduler_status_helper import persist_status
     persist_status("kline", {
         "last_run_date": status.get("last_run_date"),
@@ -73,14 +69,7 @@ def _save_persisted_status(status: dict):
         "kline": {"total": status.get("kline_total", 0), "success": status.get("kline_success", 0), "failed": status.get("kline_failed", 0)},
         "finance": {"total": status.get("finance_total", 0), "success": status.get("finance_success", 0), "failed": status.get("finance_failed", 0)},
     })
-    # JSON 文件兜底
-    try:
-        _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {k: status.get(k) for k in ("last_run_time", "last_run_date", "last_success",
-                   "kline_total", "kline_success", "kline_failed", "finance_total", "finance_success", "finance_failed")}
-        _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+
 
 
 # ─────────── 启动就绪信号 ───────────

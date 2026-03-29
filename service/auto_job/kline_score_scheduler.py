@@ -8,10 +8,8 @@ K线初筛定时调度模块
 - 状态通过API暴露给前端展示
 """
 import asyncio
-import json
 import logging
 from datetime import datetime
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from service.auto_job.kline_data_scheduler import app_ready, is_a_share_trading_day, kline_done_event_for_kscore
@@ -23,34 +21,23 @@ _RETRY_INTERVAL = 300
 _MAX_RETRY = 3
 
 # ─────────── 状态持久化 ───────────
-_STATUS_FILE = Path(__file__).parent.parent.parent / "data_results" / ".kline_score_scheduler_status.json"
 
 
 def _load_persisted_status() -> dict:
-    try:
-        if _STATUS_FILE.exists():
-            data = json.loads(_STATUS_FILE.read_text(encoding="utf-8"))
-            logger.info("[K线初筛调度] 从文件恢复状态: last_run_date=%s", data.get("last_run_date"))
-            return data
-    except Exception as e:
-        logger.warning("[K线初筛调度] 读取状态文件失败: %s", e)
-    return {}
+    """从数据库恢复状态"""
+    from service.auto_job.scheduler_status_helper import restore_status
+    return restore_status("kline_score")
 
 
 def _save_persisted_status(status: dict):
-    try:
-        _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "last_run_time": status.get("last_run_time"),
-            "last_run_date": status.get("last_run_date"),
-            "last_success": status.get("last_success"),
-            "done_stock_ids": status.get("done_stock_ids", []),
-            "running": status.get("running", False),
-            "error": status.get("error"),
-        }
-        _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception as e:
-        logger.warning("[K线初筛调度] 写入状态文件失败: %s", e)
+    """持久化到数据库"""
+    from service.auto_job.scheduler_status_helper import persist_status
+    persist_status("kline_score", {
+        "last_run_date": status.get("last_run_date"),
+        "last_run_time": status.get("last_run_time"),
+        "last_success": status.get("last_success"),
+        "error": status.get("error"),
+    })
 
 
 # ─────────── 全局状态 ───────────

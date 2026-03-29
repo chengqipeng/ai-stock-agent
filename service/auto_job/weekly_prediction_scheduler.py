@@ -8,7 +8,6 @@
 - 项目启动时检查当天是否需要补拉（仅周三/周四）
 """
 import asyncio
-import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -22,17 +21,14 @@ logger = logging.getLogger(__name__)
 _project_root = Path(__file__).parent.parent.parent
 
 # ─────────── 状态持久化 ───────────
-_STATUS_FILE = _project_root / "data_results" / ".weekly_prediction_scheduler_status.json"
-
-
 def _load_persisted_status() -> dict:
-    """从数据库恢复状态，JSON 文件兜底"""
+    """从数据库恢复状态"""
     from service.auto_job.scheduler_status_helper import restore_status
-    return restore_status("weekly_pred", _STATUS_FILE)
+    return restore_status("weekly_pred")
 
 
 def _save_persisted_status(status: dict):
-    """持久化到数据库 + JSON 文件双写"""
+    """持久化到数据库"""
     from service.auto_job.scheduler_status_helper import persist_status
     persist_status("weekly_pred", {
         "last_run_date": status.get("last_run_date"),
@@ -44,15 +40,7 @@ def _save_persisted_status(status: dict):
                     "extra_json": {"predict_up": status.get("predict_up", 0), "predict_down": status.get("predict_down", 0),
                                    "backtest_accuracy": status.get("backtest_accuracy", 0), "backtest_lowo_accuracy": status.get("backtest_lowo_accuracy", 0)}},
     })
-    # JSON 文件兜底
-    try:
-        _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {k: status.get(k) for k in ("last_run_date", "last_run_time", "last_success",
-                   "predict_total", "predict_done", "predict_up", "predict_down",
-                   "backtest_accuracy", "backtest_lowo_accuracy")}
-        _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+
 
 
 # ─────────── 全局状态 ───────────

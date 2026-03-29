@@ -7,7 +7,6 @@
 - 执行状态持久化到本地文件，重启后不会重复全量拉取
 """
 import asyncio
-import json
 import logging
 from datetime import datetime, date, timedelta, time as dtime
 from pathlib import Path
@@ -31,17 +30,14 @@ _project_root = Path(__file__).parent.parent.parent
 _INDEX_CODES = {s['code'] for s in MAIN_STOCK}
 
 # ─────────── 状态持久化 ───────────
-_STATUS_FILE = _project_root / "data_results" / ".market_data_scheduler_status.json"
-
-
 def _load_persisted_status() -> dict:
-    """从数据库恢复状态，JSON 文件兜底"""
+    """从数据库恢复状态"""
     from service.auto_job.scheduler_status_helper import restore_status
-    return restore_status("market_data", _STATUS_FILE)
+    return restore_status("market_data")
 
 
 def _save_persisted_status(status: dict):
-    """持久化到数据库 + JSON 文件双写"""
+    """持久化到数据库"""
     from service.auto_job.scheduler_status_helper import persist_status
     persist_status("market_data", {
         "last_run_date": status.get("last_run_date"),
@@ -53,16 +49,7 @@ def _save_persisted_status(status: dict):
         "order_book": {"total": status.get("order_book_total", 0), "success": status.get("order_book_success", 0), "failed": status.get("order_book_failed", 0)},
         "dragon_tiger": {"extra_json": {"dragon_tiger_count": status.get("dragon_tiger_count", 0)}},
     })
-    # JSON 文件兜底
-    try:
-        _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {k: status.get(k) for k in ("last_run_time", "last_run_date", "last_success",
-                   "time_data_total", "time_data_success", "time_data_failed",
-                   "order_book_total", "order_book_success", "order_book_failed",
-                   "dragon_tiger_count")}
-        _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+
 
 
 # ─────────── 启动就绪信号 ───────────

@@ -5,7 +5,6 @@
 - 项目启动时检查当天是否已完成，未完成则补拉
 """
 import asyncio
-import json
 import logging
 import random
 from datetime import datetime, timedelta, time as dtime
@@ -25,7 +24,7 @@ _CST = ZoneInfo("Asia/Shanghai")
 logger = logging.getLogger(__name__)
 _project_root = Path(__file__).parent.parent.parent
 _INDEX_CODES = {s["code"] for s in MAIN_STOCK}
-_STATUS_FILE = _project_root / "data_results" / ".fund_flow_scheduler_status.json"
+
 
 
 def _convert_em_klines_to_dicts(klines: list[str]) -> list[dict]:
@@ -100,13 +99,13 @@ def _convert_em_klines_to_dicts(klines: list[str]) -> list[dict]:
 
 
 def _load_persisted_status():
-    """从数据库恢复状态，JSON 文件兜底"""
+    """从数据库恢复状态"""
     from service.auto_job.scheduler_status_helper import restore_status
-    return restore_status("fund_flow", _STATUS_FILE)
+    return restore_status("fund_flow")
 
 
 def _save_persisted_status(status):
-    """持久化到数据库 + JSON 文件双写"""
+    """持久化到数据库"""
     from service.auto_job.scheduler_status_helper import persist_status
     persist_status("fund_flow", {
         "last_run_date": status.get("last_run_date"),
@@ -116,14 +115,7 @@ def _save_persisted_status(status):
     }, {
         "fund_flow": {"total": status.get("total", 0), "success": status.get("success", 0), "failed": status.get("failed", 0), "skipped": status.get("skipped", 0)},
     })
-    # JSON 文件兜底
-    try:
-        _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {k: status.get(k) for k in ("last_run_time", "last_run_date", "last_success",
-                   "total", "success", "failed", "skipped")}
-        _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+
 
 
 _job_status = {

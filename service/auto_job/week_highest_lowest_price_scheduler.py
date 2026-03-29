@@ -8,7 +8,6 @@
 - 状态通过API暴露给前端展示
 """
 import asyncio
-import json
 import logging
 import re
 from datetime import datetime, date, timedelta, time as dtime
@@ -27,9 +26,6 @@ _RETRY_INTERVAL = 300
 _MAX_RETRY = 3
 
 # ─────────── 状态持久化 ───────────
-_PRICE_STATUS_FILE = Path(__file__).parent.parent.parent / "data_results" / ".price_scheduler_status.json"
-
-
 def _query_last_update_from_db() -> dict:
     """从数据库查询最近一次 update_time 作为兜底"""
     try:
@@ -44,13 +40,13 @@ def _query_last_update_from_db() -> dict:
 
 
 def _load_persisted_status() -> dict:
-    """从数据库恢复状态，JSON 文件兜底"""
+    """从数据库恢复状态"""
     from service.auto_job.scheduler_status_helper import restore_status
-    return restore_status("price", _PRICE_STATUS_FILE)
+    return restore_status("price")
 
 
 def _save_persisted_status(status: dict):
-    """持久化到数据库 + JSON 文件双写"""
+    """持久化到数据库"""
     from service.auto_job.scheduler_status_helper import persist_status
     persist_status("price", {
         "last_run_date": status.get("last_run_date"),
@@ -60,14 +56,7 @@ def _save_persisted_status(status: dict):
     }, {
         "price": {"total": status.get("price_total", 0), "success": status.get("price_success", 0), "failed": status.get("price_failed", 0)},
     })
-    # JSON 文件兜底
-    try:
-        _PRICE_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        payload = {k: status.get(k) for k in ("last_run_time", "last_run_date", "last_success",
-                   "price_total", "price_success", "price_failed")}
-        _PRICE_STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+
 
 
 # ─────────── 全局状态 ───────────
