@@ -347,8 +347,74 @@ async def _execute_job():
                         logger.warning("  [%s] 日期=%s  %s", iss["type"], iss["date"], iss["detail"])
                     anomaly_details.append(f"{stock_code}(仅记录): " + "; ".join(issue_lines))
 
-                logger.info("[数据异常检测] K线检测完成：共 %d 只股票，%d 只有异常，共 %d 条异常记录（仅记录，未修复）",
+                logger.info("[数据异常检测] K线检测完成：共 %d 只股票，%d 只有异常，共 %d 条异常记录",
                             len(stock_codes), counter["anomalies"], total_issues)
+
+                # ── K线衍生字段全零修复（纯SQL，利用前收盘价重算） ──
+                if total_issues > 0:
+                    try:
+                        from dao.stock_kline_dao import TABLE_NAME as KLINE_TABLE
+                        from dao import get_connection as _get_conn
+                        import time as _time
+
+                        conn_repair = _get_conn()
+                        cur_repair = conn_repair.cursor()
+                        try:
+                            cur_repair.execute(f"""
+                                SELECT COUNT(*) FROM {KLINE_TABLE}
+                                WHERE amplitude = 0 AND change_percent = 0 AND change_amount = 0
+                                  AND NOT (open_price = 0 AND close_price = 0
+                                           AND high_price = 0 AND low_price = 0)
+                                  AND NOT (open_price = close_price AND close_price = high_price
+                                           AND high_price = low_price)
+                            """)
+                            zero_cnt = cur_repair.fetchone()[0]
+
+                            if zero_cnt > 0:
+                                logger.info("[K线衍生字段修复] 待修复 %d 条 zero_derived 记录...", zero_cnt)
+                                t0 = _time.time()
+                                cur_repair.execute(f"""
+                                    UPDATE {KLINE_TABLE} AS t
+                                    INNER JOIN (
+                                        SELECT id,
+                                               LAG(close_price) OVER (
+                                                   PARTITION BY stock_code ORDER BY `date`
+                                               ) AS prev_close,
+                                               high_price, low_price, close_price
+                                        FROM {KLINE_TABLE}
+                                    ) AS calc ON t.id = calc.id
+                                    SET
+                                        t.amplitude      = IF(calc.prev_close > 0,
+                                            ROUND((calc.high_price - calc.low_price)
+                                                  / calc.prev_close * 100, 2), 0),
+                                        t.change_percent = IF(calc.prev_close > 0,
+                                            ROUND((calc.close_price - calc.prev_close)
+                                                  / calc.prev_close * 100, 2), 0),
+                                        t.change_amount  = IF(calc.prev_close > 0,
+                                            ROUND(calc.close_price - calc.prev_close, 2), 0)
+                                    WHERE t.amplitude = 0 AND t.change_percent = 0
+                                      AND t.change_amount = 0
+                                      AND NOT (t.open_price = 0 AND t.close_price = 0
+                                               AND t.high_price = 0 AND t.low_price = 0)
+                                      AND NOT (t.open_price = t.close_price
+                                               AND t.close_price = t.high_price
+                                               AND t.high_price = t.low_price)
+                                      AND calc.prev_close IS NOT NULL
+                                      AND calc.prev_close > 0
+                                """)
+                                updated = cur_repair.rowcount
+                                conn_repair.commit()
+                                elapsed = _time.time() - t0
+                                counter["repaired"] += updated
+                                logger.info("[K线衍生字段修复] 完成：修复 %d 条，耗时 %.1fs",
+                                            updated, elapsed)
+                            else:
+                                logger.info("[K线衍生字段修复] 无需修复")
+                        finally:
+                            cur_repair.close()
+                            conn_repair.close()
+                    except Exception as e:
+                        logger.error("[K线衍生字段修复] 执行异常: %s", e, exc_info=True)
 
         except Exception as e:
             logger.error("[数据异常检测] K线检测异常: %s", e, exc_info=True)
@@ -565,7 +631,9 @@ async def _execute_job():
                 conn.close()
 
             if recent_dates and stock_codes:
-                ob_stock_codes = [c for c in stock_codes if not c.endswith('.BJ')]
+                from common.constants.stocks_data import INDEX_CODES_FULL
+                ob_stock_codes = [c for c in stock_codes
+                                  if not c.endswith('.BJ') and c not in INDEX_CODES_FULL]
                 counter["phase"] = "order_book"
                 counter["phase_label"] = "盘口数据校验"
                 counter["ob_total"] = len(ob_stock_codes)
@@ -588,6 +656,15 @@ async def _execute_job():
                     )
                     ob_count_map = {r["stock_code"].split(".")[0]: r["cnt"] for r in cur.fetchall()}
 
+                    # 盘口数据采集起始日期（全局最早记录），用于公平比较覆盖率
+                    cur.execute("SELECT MIN(trade_date) AS min_d FROM stock_order_book")
+                    ob_min_row = cur.fetchone()
+                    ob_start_date = str(ob_min_row["min_d"]) if ob_min_row and ob_min_row["min_d"] else None
+                    # 只统计盘口采集开始之后的K线天数，避免历史数据差异导致误报
+                    ob_eligible_dates = ([d for d in recent_dates if d >= ob_start_date]
+                                         if ob_start_date else recent_dates)
+                    ph_ob_dates = ",".join(["%s"] * len(ob_eligible_dates)) if ob_eligible_dates else None
+
                     # 统计每只股票在最近交易日中有K线数据的天数
                     cur.execute(
                         f"SELECT stock_code, COUNT(*) AS cnt "
@@ -597,6 +674,19 @@ async def _execute_job():
                         recent_dates,
                     )
                     kline_count_map = {r["stock_code"]: r["cnt"] for r in cur.fetchall()}
+
+                    # 盘口采集期间内的K线天数（用于覆盖率比较）
+                    if ph_ob_dates and ob_eligible_dates:
+                        cur.execute(
+                            f"SELECT stock_code, COUNT(*) AS cnt "
+                            f"FROM stock_kline "
+                            f"WHERE `date` IN ({ph_ob_dates}) "
+                            f"GROUP BY stock_code",
+                            ob_eligible_dates,
+                        )
+                        kline_since_ob_map = {r["stock_code"]: r["cnt"] for r in cur.fetchall()}
+                    else:
+                        kline_since_ob_map = kline_count_map
                 finally:
                     cur.close()
                     conn.close()
@@ -615,12 +705,15 @@ async def _execute_job():
                         ob_counter["anomalies"] += 1
                         counter["anomalies"] += 1
                         anomaly_details.append(f"{code}[盘口] 最近{len(recent_dates)}个交易日无盘口数据")
-                    elif kline_days > 5 and ob_days < kline_days * 0.5:
-                        ob_counter["anomalies"] += 1
-                        counter["anomalies"] += 1
-                        anomaly_details.append(
-                            f"{code}[盘口] 盘口覆盖率低: K线{kline_days}天 盘口{ob_days}天"
-                        )
+                    else:
+                        # 覆盖率比较：只看盘口采集开始之后的K线天数
+                        kline_since_ob = kline_since_ob_map.get(code, 0)
+                        if kline_since_ob > 5 and ob_days < kline_since_ob * 0.5:
+                            ob_counter["anomalies"] += 1
+                            counter["anomalies"] += 1
+                            anomaly_details.append(
+                                f"{code}[盘口] 盘口覆盖率低: 采集期内K线{kline_since_ob}天 盘口{ob_days}天"
+                            )
 
                 logger.info("[盘口数据校验] 完成：%d 只检测，%d 只有异常",
                             ob_counter["checked"], ob_counter["anomalies"])
@@ -634,7 +727,8 @@ async def _execute_job():
             from dao import get_connection as _get_conn
 
             if recent_dates and stock_codes:
-                td_stock_codes = [c for c in stock_codes if not c.endswith('.BJ')]
+                td_stock_codes = [c for c in stock_codes
+                                  if not c.endswith('.BJ') and c not in INDEX_CODES_FULL]
                 counter["phase"] = "time_data"
                 counter["phase_label"] = "分时数据校验"
                 counter["td_total"] = len(td_stock_codes)

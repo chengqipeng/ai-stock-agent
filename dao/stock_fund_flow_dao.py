@@ -182,8 +182,9 @@ def check_fund_flow_db(stock_code: str) -> list[dict]:
     每条异常: {"type": str, "date": str, "detail": str}
 
     检测规则：
-    1. 关键字段缺失：net_flow 为 NULL
-    2. close_price / change_pct 为 NULL 且 K线表中也无对应数据
+    1. net_flow 为 NULL → 始终报异常
+    2. close_price / change_pct 为 NULL → 仅当 K线表有对应日期数据时才报异常
+       （K线表也无数据说明该日期确实无价格来源，属于数据源覆盖范围问题，不算异常）
 
     注意：
     - 北交所股票直接跳过（数据源不覆盖北交所资金流向）。
@@ -212,10 +213,14 @@ def check_fund_flow_db(stock_code: str) -> list[dict]:
         row = cursor.fetchone()
         first_kline_date = str(row["first_date"]) if row and row["first_date"] else None
 
-        # 获取资金流向数据
+        # LEFT JOIN K线表，获取 K线侧的 close_price / change_percent
+        # 只有当 K线表有数据而资金流向表为 NULL 时才算异常
         cursor.execute(
-            f"SELECT ff.`date`, ff.close_price, ff.change_pct, ff.net_flow "
+            f"SELECT ff.`date`, ff.close_price, ff.change_pct, ff.net_flow, "
+            f"       k.close_price AS k_close, k.change_percent AS k_change "
             f"FROM {TABLE_NAME} ff "
+            f"LEFT JOIN stock_kline k "
+            f"  ON ff.stock_code = k.stock_code AND ff.`date` = k.`date` "
             f"WHERE ff.stock_code = %s ORDER BY ff.`date`",
             (stock_code,),
         )
@@ -230,14 +235,28 @@ def check_fund_flow_db(stock_code: str) -> list[dict]:
             if first_kline_date and d_str == first_kline_date:
                 continue
 
-            # 关键字段缺失
-            for field in ("close_price", "change_pct", "net_flow"):
-                if ff.get(field) is None:
-                    issues.append({
-                        "type": "ff_null_field",
-                        "date": d_str,
-                        "detail": f"资金流向 {field} 为 NULL",
-                    })
+            # net_flow 为 NULL 始终是异常
+            if ff.get("net_flow") is None:
+                issues.append({
+                    "type": "ff_null_field",
+                    "date": d_str,
+                    "detail": "资金流向 net_flow 为 NULL",
+                })
+
+            # close_price / change_pct 仅在 K线表有对应数据时才报异常
+            # （K线表也没数据说明该日期确实无价格来源，不算数据异常）
+            if ff.get("close_price") is None and ff.get("k_close") is not None:
+                issues.append({
+                    "type": "ff_null_field",
+                    "date": d_str,
+                    "detail": "资金流向 close_price 为 NULL",
+                })
+            if ff.get("change_pct") is None and ff.get("k_change") is not None:
+                issues.append({
+                    "type": "ff_null_field",
+                    "date": d_str,
+                    "detail": "资金流向 change_pct 为 NULL",
+                })
     finally:
         cursor.close()
         conn.close()

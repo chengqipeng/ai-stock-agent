@@ -127,12 +127,19 @@ def get_finance_from_db(stock_code: str, limit: int | None = None) -> list[dict]
 
 
 def get_finance_latest_updated_at(stock_code: str) -> str | None:
-    """获取该股票财报数据中最新的 updated_at 时间戳。"""
+    """获取该股票 *正式财报*（排除业绩预告）中最新的 updated_at 时间戳。
+
+    业绩预告同步也会写入 stock_finance 表并更新 updated_at，
+    如果不排除预告记录，会导致正式财报拉取的"今日已更新"跳过逻辑误判，
+    使得正式年报数据无法覆盖预告数据。
+    """
     conn = get_connection()
     cursor = conn.cursor()
     try:
         cursor.execute(
-            f"SELECT MAX(updated_at) FROM {TABLE_NAME} WHERE stock_code = %s",
+            f"SELECT MAX(updated_at) FROM {TABLE_NAME} "
+            f"WHERE stock_code = %s "
+            f"AND (report_period_name IS NULL OR report_period_name NOT LIKE '%%预告%%')",
             (stock_code,),
         )
         row = cursor.fetchone()

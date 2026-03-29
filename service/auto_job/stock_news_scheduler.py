@@ -17,10 +17,8 @@ from curl_cffi.requests import AsyncSession
 
 from common.constants.stocks_data import MAIN_STOCK
 from dao.stock_news_dao import create_news_table, batch_upsert_news
-from dao.stock_big_order_dao import create_big_order_table, batch_insert_big_orders, has_big_orders
 from dao.scheduler_log_dao import insert_log, update_log
 from service.jqka10.stock_news_10jqka import fetch_stock_news, IMPERSONATE
-from service.jqka10.stock_fund_flow_10jqka import fetch_fund_flow_all_pages
 from service.auto_job.kline_data_scheduler import app_ready
 from service.auto_job.scheduler_orchestrator import scheduler_lock
 
@@ -47,7 +45,8 @@ def _save_persisted_status(status: dict):
     }, {
         "news_fetch": {"total": status.get("total_stocks", 0), "success": status.get("done_stocks", 0), "failed": status.get("failed_stocks", 0),
                        "extra_json": {"total_news": status.get("total_news", 0), "type_counts": status.get("type_counts", {}),
-                                      "big_order_count": status.get("big_order_count", 0), "big_order_status": status.get("big_order_status", "")}},
+                                      "big_order_count": status.get("big_order_count", 0), "big_order_status": status.get("big_order_status", ""),
+                                      "forecast_sync_count": status.get("forecast_sync_count", 0)}},
     })
 
 
@@ -69,6 +68,13 @@ _job_status = {
     "big_order_status": "",
 }
 _persisted = _load_persisted_status()
+# 映射持久化字段名到运行时字段名
+if 'news_fetch_total' in _persisted:
+    _persisted['total_stocks'] = _persisted.pop('news_fetch_total')
+if 'news_fetch_success' in _persisted:
+    _persisted['done_stocks'] = _persisted.pop('news_fetch_success')
+if 'news_fetch_failed' in _persisted:
+    _persisted['failed_stocks'] = _persisted.pop('news_fetch_failed')
 # 兼容旧版 isoformat 时间格式，统一转为 "YYYY-MM-DD HH:MM:SS"
 _lrt = _persisted.get("last_run_time")
 if _lrt and ("T" in str(_lrt) or "+" in str(_lrt)):
@@ -194,43 +200,6 @@ async def _execute_job(manual: bool = False):
             _job_status["last_success"] = True
             _job_status["total_news"] = total_news
 
-            # ── 大单追踪数据拉取 ──
-            big_order_count = 0
-            _job_status["phase"] = "big_order"
-            _job_status["phase_label"] = "大单追踪"
-            try:
-                if not has_big_orders(today_str):
-                    _job_status["big_order_status"] = "fetching"
-                    logger.info("[新闻调度] 开始拉取大单追踪数据...")
-                    big_order_rows = await fetch_fund_flow_all_pages("ddzz", max_pages=5)
-                    if big_order_rows:
-                        big_order_count = batch_insert_big_orders(today_str, big_order_rows)
-                        _job_status["big_order_count"] = big_order_count
-                        _job_status["big_order_status"] = "done"
-                        logger.info("[新闻调度] 大单追踪写入 %d 条", big_order_count)
-                    else:
-                        _job_status["big_order_status"] = "empty"
-                        logger.warning("[新闻调度] 大单追踪数据为空")
-                else:
-                    _job_status["big_order_status"] = "skipped"
-                    logger.info("[新闻调度] 今日大单追踪数据已存在，跳过")
-            except Exception as e:
-                _job_status["big_order_status"] = "failed"
-                logger.error("[新闻调度] 大单追踪拉取失败: %s", e, exc_info=True)
-
-            # ── 业绩预告同步到财报表 ──
-            forecast_count = 0
-            _job_status["phase"] = "forecast_sync"
-            _job_status["phase_label"] = "业绩预告同步"
-            try:
-                from tools.extract_forecast_to_finance import run_extraction
-                logger.info("[新闻调度] 开始同步业绩预告到财报表...")
-                forecast_count = run_extraction() or 0
-                _job_status["forecast_sync_count"] = forecast_count
-                logger.info("[新闻调度] 业绩预告同步完成: %s", forecast_count)
-            except Exception as e:
-                logger.error("[新闻调度] 业绩预告同步失败: %s", e, exc_info=True)
-
             finished_at = datetime.now(_CST)
             duration = int((finished_at - started_at).total_seconds())
             detail = json.dumps({
@@ -238,8 +207,6 @@ async def _execute_job(manual: bool = False):
                 "success": success_count,
                 "failed": failed_count,
                 "total_news": total_news,
-                "big_order_count": big_order_count,
-                "forecast_sync_count": forecast_count,
             }, ensure_ascii=False)
 
             status = "success" if failed_count == 0 else "partial"

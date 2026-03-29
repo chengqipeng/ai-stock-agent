@@ -89,6 +89,12 @@ from service.auto_job.stock_news_scheduler import _execute_job as _news_execute_
 from service.auto_job.news_content_worker import start_news_content_worker, get_content_worker_status
 from service.auto_job.cross_validation_scheduler import start_cross_validation_scheduler, get_cross_validation_job_status
 from service.auto_job.cross_validation_scheduler import _execute_job as _cross_validation_execute_job
+from service.auto_job.data_supplement_scheduler import (
+    start_data_supplement_schedulers,
+    get_ranking_job_status, _execute_ranking_job,
+    get_forecast_job_status, _execute_forecast_job,
+    get_big_order_job_status, _execute_big_order_job,
+)
 from service.auto_job.scheduler_orchestrator import is_auto_job_enabled
 
 GRADE_SCORE_MAP = {
@@ -180,6 +186,12 @@ async def lifespan(application: FastAPI):
             logger.info("[lifespan] 数据交叉验证调度器已激活")
         except Exception as e:
             logger.error("[lifespan] 启动数据交叉验证调度器异常: %s", e, exc_info=True)
+
+        try:
+            await start_data_supplement_schedulers()
+            logger.info("[lifespan] 行业排名/业绩预告/大单追踪调度器已激活")
+        except Exception as e:
+            logger.error("[lifespan] 启动数据补充调度器异常: %s", e, exc_info=True)
 
         # 关键：app_ready 必须在 try 之外，确保一定会被 set
         app_ready.set()
@@ -550,6 +562,45 @@ async def trigger_cross_validation_job():
         return {"success": False, "message": "交叉验证任务正在执行中"}
     asyncio.create_task(_cross_validation_execute_job(manual=True))
     return {"success": True, "message": "交叉验证任务已触发"}
+
+
+# ── 行业排名 / 业绩预告 / 大单追踪 ──
+
+@app.get("/api/ranking_job_status")
+async def ranking_job_status():
+    return {"success": True, "data": get_ranking_job_status()}
+
+@app.post("/api/trigger_ranking_job")
+async def trigger_ranking_job():
+    status = get_ranking_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "行业排名任务正在执行中"}
+    asyncio.create_task(_execute_ranking_job(manual=True))
+    return {"success": True, "message": "行业排名任务已触发"}
+
+@app.get("/api/forecast_job_status")
+async def forecast_job_status():
+    return {"success": True, "data": get_forecast_job_status()}
+
+@app.post("/api/trigger_forecast_job")
+async def trigger_forecast_job():
+    status = get_forecast_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "业绩预告任务正在执行中"}
+    asyncio.create_task(_execute_forecast_job(manual=True))
+    return {"success": True, "message": "业绩预告任务已触发"}
+
+@app.get("/api/big_order_job_status")
+async def big_order_job_status():
+    return {"success": True, "data": get_big_order_job_status()}
+
+@app.post("/api/trigger_big_order_job")
+async def trigger_big_order_job():
+    status = get_big_order_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "大单追踪任务正在执行中"}
+    asyncio.create_task(_execute_big_order_job(manual=True))
+    return {"success": True, "message": "大单追踪任务已触发"}
 
 
 @app.get("/api/news_content_worker_status")

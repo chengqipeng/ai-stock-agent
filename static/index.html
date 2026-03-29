@@ -102,17 +102,29 @@ var _jobs=[
    dims:function(d){var s=d.success||0,f=d.failed||0,sk=d.skipped||0,t=d.total||0;return[
      _dim('资金流向',s,t,f,sk?'跳过'+sk:'')
    ]}},
+  {id:'big_order',label:'大单追踪',api:'/api/big_order_job_status',trigger:'/api/trigger_big_order_job',log:'大单追踪',group:'fetch',
+    dims:function(d){return[_dim('大单数据',d.total_rows||0,d.total_rows||0,0)]}},
+  {id:'ranking',label:'行业排名',api:'/api/ranking_job_status',trigger:'/api/trigger_ranking_job',log:'行业排名',group:'fetch',
+    dims:function(d){var dn=d.done||0,t=d.total||0;return[_dim('行业排名',dn,t,0,d.total_rows?d.total_rows+'条':'')]}},
+  {id:'forecast',label:'业绩预告',api:'/api/forecast_job_status',trigger:'/api/trigger_forecast_job',log:'业绩预告',group:'fetch',
+    dims:function(d){var dn=d.done||0,t=d.total||0;var ls=[_dim('业绩预告',dn,t,0,d.total_rows?d.total_rows+'条':'')];if(d.synced>0)ls.push('✅ 同步财报'+d.synced+'条');return ls}},
+
   {id:'news',label:'资讯数据',api:'/api/news_job_status',trigger:'/api/trigger_news_job',log:'资讯数据',group:'fetch',
    dims:function(d){
-     var ls=[];var tc=d.type_counts||{};
-     ls.push(_dim('新闻抓取',d.done_stocks,d.total_stocks,d.failed_stocks));
-     var tl={news:'公司新闻',notice:'公司公告',industry:'行业资讯',report:'研究报告',event:'重要事件',ranking:'行业排名',forecast:'业绩预告'};
-     for(var k in tl){ls.push(_dimCnt(tl[k],tc[k]||0))}
-     var bo=d.big_order_status||'';
-     if(bo==='done')ls.push('✅ 大单追踪 '+(d.big_order_count||0)+'条');
-     else if(bo==='skipped')ls.push('✅ 大单追踪 已存在');
-     else if(bo==='failed')ls.push('❌ 大单追踪 失败');
-     else if(bo==='fetching')ls.push('🔄 大单追踪...');else if(bo)ls.push('⏳ 大单追踪');else ls.push('⏳ 大单追踪');
+     var ls=[];var tc=d.type_counts||{};var ph=d.phase||'';var isRun=d.running;
+     /* 阶段1: 新闻抓取 */
+     if(isRun&&ph==='news_fetch'){
+       var pct=d.total_stocks>0?Math.round(d.done_stocks/d.total_stocks*100):0;
+       ls.push('🔄 新闻抓取 '+pct+'% '+d.done_stocks+'/'+d.total_stocks+(d.failed_stocks>0?' 失败'+d.failed_stocks:''))
+     }else{
+       ls.push(_dim('新闻抓取',d.done_stocks,d.total_stocks,d.failed_stocks))
+     }
+     /* 各类型计数 */
+     var tl={news:'公司新闻',notice:'公司公告',industry:'行业资讯',report:'研究报告',event:'重要事件'};
+     var totalNews=d.total_news||0;
+     if(totalNews>0||!isRun){for(var k in tl){ls.push(_dimCnt(tl[k],tc[k]||0))}}
+     else if(isRun&&ph==='news_fetch'){ls.push('⏳ 各类型新闻 采集中...')}
+     /* 正文抓取 */
      var cs=d.content_summary;
      if(cs&&cs.total>0){var pend=(cs.pending||0)+(cs.fetching||0);var done=cs.done||0;
        ls.push((pend>0?'🔄':'✅')+' 正文抓取 '+Math.round(done/cs.total*100)+'% '+done+'/'+cs.total+(pend>0?' 待抓'+pend:''))}
@@ -215,6 +227,8 @@ async function pollJob(j){
       var pct=tot>0?Math.round(dn/tot*100):0;
       ic.textContent='🔄';var msg=tot>0?(j.label+' '+pct+'%  '+dn+'/'+tot):(d.error||j.label+' 准备中...');
       if(d.current_category)msg=j.label+' · '+d.current_category+(tot>0?' '+pct+'%':'');
+      if(d.phase_label&&pct>=100)msg=j.label+' · '+d.phase_label;
+      else if(d.phase_label&&tot>0)msg=j.label+' · '+d.phase_label+' '+pct+'%  '+dn+'/'+tot;
       tx.textContent=msg;
       if(det){if(dims.length>0){det.innerHTML=dims.join('<br>');det.style.display='block'}else det.style.display='none'}
       updProg('p_'+j.id,'e_'+j.id,dn,tot,d.start_time);
@@ -239,6 +253,41 @@ async function pollJob(j){
 function pollAll(){_jobs.forEach(function(j){pollJob(j)})}
 initBanners();pollAll();setInterval(pollAll,8000);
 
+
+async function triggerCV(){
+  try{var r=await fetch('/api/trigger_cross_validation_job',{method:'POST'});var d=await r.json();
+  if(d.success){pollAll();setTimeout(pollCV,2000)}else alert(d.message||'触发失败')}catch(e){alert('请求失败')}
+}
+var _cvLabels={kline:'日K线',order_book:'盘口数据',time_data:'分时数据',price:'最高最低价',finance:'财报数据',fund_flow:'资金流向'};
+async function pollCV(){
+  try{
+    var r=await fetch('/api/cross_validation_summary');var j=await r.json();
+    var el=document.getElementById('cvLoading');
+    var ct=document.getElementById('cvContent');
+    var em=document.getElementById('cvEmpty');
+    if(!j.success||!j.data||j.data.length===0){
+      el.style.display='none';ct.style.display='none';em.style.display='block';return;
+    }
+    el.style.display='none';em.style.display='none';ct.style.display='block';
+    var rows=j.data;
+    document.getElementById('cvMeta').textContent='验证日期: '+rows[0].run_date+'  共'+rows.length+'项';
+    var grid=document.getElementById('cvGrid');var h='';
+    rows.forEach(function(r){
+      var rate=parseFloat(r.match_rate)||0;
+      var color=rate>=95?'#34c759':rate>=80?'#f0ad4e':'#d9534f';
+      var bg=rate>=95?'rgba(52,199,89,0.08)':rate>=80?'rgba(240,173,78,0.08)':'rgba(217,83,79,0.08)';
+      var label=_cvLabels[r.category]||r.category;
+      h+='<div class="cv-card" style="background:'+bg+'">';
+      h+='<div style="font-weight:700;font-size:12px;margin-bottom:4px">'+label+'</div>';
+      h+='<div style="font-size:20px;font-weight:700;color:'+color+'">'+rate.toFixed(1)+'%</div>';
+      h+='<div style="font-size:10px;color:#8e8e93;margin-top:2px">匹配'+r.match_count+' 不匹配'+r.mismatch_count+' 缺失'+r.missing_count+'</div>';
+      h+='<div style="font-size:10px;color:#aeaeb2">抽样'+r.sample_stocks+'只 共'+r.total_checks+'项</div>';
+      h+='</div>';
+    });
+    grid.innerHTML=h;
+  }catch(e){}
+}
+pollCV();setInterval(pollCV,30000);
 </script>
 </body>
 </html>
