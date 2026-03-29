@@ -192,6 +192,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
         <button class="tab-btn" id="subTabNw" onclick="switchVerifySubTab('nw')" style="font-size:11px;padding:3px 12px">V11下周预测验证</button>
         <button class="tab-btn" id="subTabV20" onclick="switchVerifySubTab('v20')" style="font-size:11px;padding:3px 12px;border-color:rgba(0,150,136,0.5);color:rgba(0,150,136,0.9)">V20量价验证</button>
         <button class="tab-btn" id="subTabV30" onclick="switchVerifySubTab('v30')" style="font-size:11px;padding:3px 12px;border-color:rgba(121,85,72,0.5);color:rgba(121,85,72,0.9)">V30情绪验证</button>
+        <button class="tab-btn" id="subTabUnified" onclick="switchVerifySubTab('unified')" style="font-size:11px;padding:3px 12px;border-color:rgba(233,30,99,0.5);color:rgba(233,30,99,0.9)">📊 多模型叠加</button>
         <span style="margin-left:auto;display:flex;gap:6px">
             <button class="btn" style="background:rgba(46,204,113,0.85);font-size:11px;padding:4px 12px" id="btnVerifyAll" onclick="triggerVerifyAll()">回填全部待验证</button>
             <button class="btn" style="background:rgba(52,152,219,0.85);font-size:11px;padding:4px 12px" id="btnVerifyWeek" onclick="triggerVerifyWeek()">回填当前选中周</button>
@@ -230,7 +231,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
     <!-- V11下周预测验证 -->
     <div id="verifyNwContent" style="display:none">
     <div class="summary-section">
-        <div class="summary-label">📅 V11下周预测验证 — W周的下周预测 vs W+1周实际结果</div>
+        <div class="summary-label">📅 V11下周预测验证 — 按目标周查看预测 vs 实际结果</div>
         <div class="summary-row" id="nwVerifySummaryRow"></div>
     </div>
     <div class="toolbar">
@@ -302,6 +303,71 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
     </div>
     <div id="v30VerifyTableWrap"></div>
     <div class="pagination" id="v30VerifyPagination"></div>
+    </div>
+
+    <!-- 多模型叠加验证 -->
+    <div id="verifyUnifiedContent" style="display:none">
+    <div class="summary-section">
+        <div class="summary-label">📊 多模型叠加验证 — V11 + V20量价 + V30情绪 统一目标周视图</div>
+        <div class="summary-row" id="unifiedSummaryRow"></div>
+    </div>
+    <div class="toolbar" style="flex-wrap:wrap;gap:4px">
+        <select id="unifiedWeekSelect" onchange="loadUnifiedList()" style="min-width:100px">
+            <option value="">加载中...</option>
+        </select>
+        <select id="unifiedNwDir" onchange="loadUnifiedList()">
+            <option value="">V11方向:全部</option>
+            <option value="UP">V11看涨↑</option>
+            <option value="DOWN">V11看跌↓</option>
+        </select>
+        <select id="unifiedV20Dir" onchange="loadUnifiedList()">
+            <option value="">V20:全部</option>
+            <option value="any">V20有信号</option>
+            <option value="UP">V20看涨↑</option>
+            <option value="none">V20无信号</option>
+        </select>
+        <select id="unifiedV30Dir" onchange="loadUnifiedList()">
+            <option value="">V30:全部</option>
+            <option value="any">V30有信号</option>
+            <option value="UP">V30看涨↑</option>
+            <option value="DOWN">V30看跌↓</option>
+            <option value="none">V30无信号</option>
+        </select>
+        <select id="unifiedNwResult" onchange="loadUnifiedList()">
+            <option value="">V11结果:全部</option>
+            <option value="correct">V11✓正确</option>
+            <option value="wrong">V11✗错误</option>
+            <option value="pending">V11待验证</option>
+        </select>
+        <select id="unifiedV20Result" onchange="loadUnifiedList()">
+            <option value="">V20结果:全部</option>
+            <option value="correct">V20✓正确</option>
+            <option value="wrong">V20✗错误</option>
+        </select>
+        <select id="unifiedV30Result" onchange="loadUnifiedList()">
+            <option value="">V30结果:全部</option>
+            <option value="correct">V30✓正确</option>
+            <option value="wrong">V30✗错误</option>
+        </select>
+        <select id="unifiedCombo" onchange="loadUnifiedList()">
+            <option value="">组合:不限</option>
+            <option value="all_up">三模型全涨</option>
+            <option value="nw_v30_up">V11+V30看涨</option>
+            <option value="nw_v20_up">V11+V20看涨</option>
+        </select>
+        <select id="unifiedConfidence" onchange="loadUnifiedList()">
+            <option value="">置信度:不限</option>
+            <option value="all_high">三模型全高置信</option>
+            <option value="nw_high">V11高置信</option>
+            <option value="v20_high">V20高置信</option>
+            <option value="v30_high">V30高/中置信</option>
+        </select>
+        <input id="unifiedSearch" type="text" placeholder="搜索代码/名称..." style="width:180px" oninput="debounceUnifiedSearch()">
+        <button class="btn" onclick="loadUnifiedList()">刷新</button>
+        <span class="info" id="unifiedListInfo"></span>
+    </div>
+    <div id="unifiedTableWrap"></div>
+    <div class="pagination" id="unifiedPagination"></div>
     </div>
 
     </div>
@@ -1659,24 +1725,20 @@ function debounceVerifySearch() {
 
 async function loadVerifyWeeks() {
     try {
-        const resp = await fetch('/api/weekly_prediction/weeks?limit=20');
+        const resp = await fetch('/api/prediction/unified_weeks');
         const json = await resp.json();
         if (!json.success || !json.data) return;
         const sel = document.getElementById('verifyWeekSelect');
         sel.innerHTML = '';
-        // 默认选第二个（上一周），第一个是本周
         for (let i = 0; i < json.data.length; i++) {
             const w = json.data[i];
-            const acc = w.accuracy != null ? ' 准确率:' + w.accuracy + '%' : '';
-            const verified = parseInt(w.verified_count) || 0;
-            const weekRange = w.predict_date ? getWeekRange(w.predict_date) : '';
+            const weekRange = isoWeekRange(w.iso_year, w.iso_week);
             const opt = document.createElement('option');
             opt.value = w.iso_year + '-' + w.iso_week;
-            opt.textContent = 'Y' + w.iso_year + '-W' + String(w.iso_week).padStart(2,'0') +
-                (weekRange ? ' (' + weekRange + ')' : '') +
-                ' ' + (w.stock_count||0) + '只' +
-                (verified > 0 ? ' 已验证' + verified + '只' + acc : ' 待验证');
-            if (i === 1) opt.selected = true;  // 默认选上一周
+            opt.textContent = '目标周 Y' + w.iso_year + '-W' + String(w.iso_week).padStart(2,'0') +
+                ' (' + weekRange + ')' +
+                ' ' + (w.total||0) + '条';
+            if (i === 0) opt.selected = true;
             sel.appendChild(opt);
         }
         loadVerifyList();
@@ -1732,8 +1794,8 @@ function renderVerifySummary(s) {
     const predDown = parseInt(s.pred_down) || 0;
     const weekRange = s.predict_date ? getWeekRange(s.predict_date) : '';
 
-    html += card('验证周', 'Y' + s.iso_year + '-W' + String(s.iso_week).padStart(2,'0'), '',
-        (weekRange ? weekRange + '  ' : '') + '共' + total + '只股票');
+    html += card('目标验证周', 'Y' + s.iso_year + '-W' + String(s.iso_week).padStart(2,'0'), '',
+        isoWeekRange(s.iso_year, s.iso_week) + '  共' + total + '只股票');
 
     // 实际准确率（核心指标）
     const accVal = s.accuracy != null ? parseFloat(s.accuracy) : null;
@@ -1913,10 +1975,12 @@ function switchVerifySubTab(sub) {
     document.getElementById('subTabNw').classList.toggle('active', sub === 'nw');
     document.getElementById('subTabV20').classList.toggle('active', sub === 'v20');
     document.getElementById('subTabV30').classList.toggle('active', sub === 'v30');
+    document.getElementById('subTabUnified').classList.toggle('active', sub === 'unified');
     document.getElementById('verifyTwContent').style.display = sub === 'tw' ? '' : 'none';
     document.getElementById('verifyNwContent').style.display = sub === 'nw' ? '' : 'none';
     document.getElementById('verifyV20Content').style.display = sub === 'v20' ? '' : 'none';
     document.getElementById('verifyV30Content').style.display = sub === 'v30' ? '' : 'none';
+    document.getElementById('verifyUnifiedContent').style.display = sub === 'unified' ? '' : 'none';
     if (sub === 'nw' && !nwVerifyLoaded) {
         nwVerifyLoaded = true;
         loadNwVerifyWeeks();
@@ -1928,6 +1992,10 @@ function switchVerifySubTab(sub) {
     if (sub === 'v30' && !v30VerifyLoaded) {
         v30VerifyLoaded = true;
         loadV30VerifyWeeks();
+    }
+    if (sub === 'unified' && !unifiedLoaded) {
+        unifiedLoaded = true;
+        loadUnifiedWeeks();
     }
 }
 
@@ -2034,21 +2102,23 @@ function debounceNwVerifySearch() {
 
 async function loadNwVerifyWeeks() {
     try {
-        const resp = await fetch('/api/weekly_prediction/weeks?limit=20');
+        const resp = await fetch('/api/prediction/unified_weeks');
         const json = await resp.json();
         if (!json.success || !json.data) return;
         const sel = document.getElementById('nwVerifyWeekSelect');
         sel.innerHTML = '';
-        // 默认选第二个（上周），nw实际结果直接存在W周记录上
         for (let i = 0; i < json.data.length; i++) {
             const w = json.data[i];
-            const weekRange = w.predict_date ? getWeekRange(w.predict_date) : '';
+            const weekRange = isoWeekRange(w.iso_year, w.iso_week);
+            const nwVerified = parseInt(w.nw_verified) || 0;
+            const nwCorrect = parseInt(w.nw_correct) || 0;
+            const nwAcc = nwVerified > 0 ? ' V11准确率:' + (nwCorrect / nwVerified * 100).toFixed(1) + '%' : '';
             const opt = document.createElement('option');
             opt.value = w.iso_year + '-' + w.iso_week;
-            opt.textContent = 'Y' + w.iso_year + '-W' + String(w.iso_week).padStart(2,'0') +
-                (weekRange ? ' (' + weekRange + ')' : '') +
-                ' ' + (w.stock_count||0) + '只';
-            if (i === 1) opt.selected = true;  // 默认选上周
+            opt.textContent = '目标周 Y' + w.iso_year + '-W' + String(w.iso_week).padStart(2,'0') +
+                ' (' + weekRange + ')' +
+                ' ' + (w.total||0) + '条' + nwAcc;
+            if (i === 0) opt.selected = true;
             sel.appendChild(opt);
         }
         loadNwVerifyList();
@@ -2105,8 +2175,8 @@ function renderNwVerifySummary(s) {
     const weekRange = s.predict_date ? getWeekRange(s.predict_date) : '';
     const nwDateRange = s.nw_date_range ? fmtDateRange(s.nw_date_range) : '';
 
-    html += card('预测发起周', 'Y' + s.iso_year + '-W' + String(s.iso_week).padStart(2,'0'), '',
-        (weekRange ? '发起: ' + weekRange : '') + (nwDateRange ? '  验证: ' + nwDateRange : ''));
+    html += card('目标验证周', 'Y' + s.iso_year + '-W' + String(s.iso_week).padStart(2,'0'), '',
+        (nwDateRange ? '验证: ' + nwDateRange : '') + (weekRange ? '  发起: ' + weekRange : ''));
 
     // 实际准确率
     const accVal = s.accuracy != null ? parseFloat(s.accuracy) : null;
@@ -2280,21 +2350,24 @@ function debounceV20VerifySearch() {
 
 async function loadV20VerifyWeeks() {
     try {
-        const resp = await fetch('/api/weekly_prediction/weeks?limit=20');
+        const resp = await fetch('/api/prediction/unified_weeks');
         const json = await resp.json();
         if (!json.success) return;
         const sel = document.getElementById('v20VerifyWeekSelect');
         sel.innerHTML = '';
         for (let i = 0; i < json.data.length; i++) {
             const w = json.data[i];
-            const weekRange = w.predict_date ? getWeekRange(w.predict_date) : '';
+            const weekRange = isoWeekRange(w.iso_year, w.iso_week);
+            const v20Cnt = parseInt(w.v20_cnt) || 0;
+            const v20Verified = parseInt(w.v20_verified) || 0;
+            const v20Correct = parseInt(w.v20_correct) || 0;
+            const v20Acc = v20Verified > 0 ? ' 准确率' + (v20Correct / v20Verified * 100).toFixed(1) + '%' : '';
             const opt = document.createElement('option');
             opt.value = w.iso_year + '-' + w.iso_week;
-            opt.textContent = 'Y' + w.iso_year + '-W' + String(w.iso_week).padStart(2,'0') +
-                (weekRange ? ' (' + weekRange + ')' : '') +
-                ' ' + w.stock_count + '只' +
-                (w.accuracy != null ? ' 准确率' + w.accuracy + '%' : '');
-            if (i === 1) opt.selected = true;
+            opt.textContent = '目标周 Y' + w.iso_year + '-W' + String(w.iso_week).padStart(2,'0') +
+                ' (' + weekRange + ')' +
+                ' V20:' + v20Cnt + '条' + v20Acc;
+            if (i === 0) opt.selected = true;
             sel.appendChild(opt);
         }
         loadV20VerifyList();
@@ -2345,8 +2418,8 @@ function renderV20VerifySummary(s) {
     const pending = parseInt(s.pending) || 0;
     const accuracy = s.accuracy != null ? s.accuracy + '%' : '-';
 
-    html += card('预测周', 'Y' + s.iso_year + '-W' + String(s.iso_week).padStart(2,'0'), '',
-        (s.predict_date ? getWeekRange(s.predict_date) : '') + ' 信号数: ' + total + '只');
+    html += card('目标验证周', 'Y' + s.iso_year + '-W' + String(s.iso_week).padStart(2,'0'), '',
+        isoWeekRange(s.iso_year, s.iso_week) + ' 信号数: ' + total + '只');
 
     const accVal = s.accuracy != null ? parseFloat(s.accuracy) : null;
     const accCls = accVal !== null && accVal >= 50 ? 'up' : 'down';
@@ -2471,21 +2544,24 @@ function debounceV30VerifySearch() {
 
 async function loadV30VerifyWeeks() {
     try {
-        const resp = await fetch('/api/weekly_prediction/weeks?limit=20');
+        const resp = await fetch('/api/prediction/unified_weeks');
         const json = await resp.json();
         if (!json.success) return;
         const sel = document.getElementById('v30VerifyWeekSelect');
         sel.innerHTML = '';
         for (let i = 0; i < json.data.length; i++) {
             const w = json.data[i];
-            const weekRange = w.predict_date ? getWeekRange(w.predict_date) : '';
+            const weekRange = isoWeekRange(w.iso_year, w.iso_week);
+            const v30Cnt = parseInt(w.v30_cnt) || 0;
+            const v30Verified = parseInt(w.v30_verified) || 0;
+            const v30Correct = parseInt(w.v30_correct) || 0;
+            const v30Acc = v30Verified > 0 ? ' 准确率' + (v30Correct / v30Verified * 100).toFixed(1) + '%' : '';
             const opt = document.createElement('option');
             opt.value = w.iso_year + '-' + w.iso_week;
-            opt.textContent = 'Y' + w.iso_year + '-W' + String(w.iso_week).padStart(2,'0') +
-                (weekRange ? ' (' + weekRange + ')' : '') +
-                ' ' + w.stock_count + '只' +
-                (w.accuracy != null ? ' 准确率' + w.accuracy + '%' : '');
-            if (i === 1) opt.selected = true;
+            opt.textContent = '目标周 Y' + w.iso_year + '-W' + String(w.iso_week).padStart(2,'0') +
+                ' (' + weekRange + ')' +
+                ' V30:' + v30Cnt + '条' + v30Acc;
+            if (i === 0) opt.selected = true;
             sel.appendChild(opt);
         }
         loadV30VerifyList();
@@ -2536,8 +2612,8 @@ function renderV30VerifySummary(s) {
     const pending = parseInt(s.pending) || 0;
     const accuracy = s.accuracy != null ? s.accuracy + '%' : '-';
 
-    html += card('预测周', 'Y' + s.iso_year + '-W' + String(s.iso_week).padStart(2,'0'), '',
-        (s.predict_date ? getWeekRange(s.predict_date) : '') + ' 信号数: ' + total + '只');
+    html += card('目标验证周', 'Y' + s.iso_year + '-W' + String(s.iso_week).padStart(2,'0'), '',
+        isoWeekRange(s.iso_year, s.iso_week) + ' 信号数: ' + total + '只');
 
     const accVal = s.accuracy != null ? parseFloat(s.accuracy) : null;
     const accCls = accVal !== null && accVal >= 50 ? 'up' : 'down';
@@ -2641,6 +2717,214 @@ function goV30VerifyPage(p) {
     if (p < 1 || p > totalPages) return;
     v30VerifyCurrentPage = p;
     loadV30VerifyList();
+}
+
+// ═══════════════════════════════════════════════════════════
+// 多模型叠加验证
+// ═══════════════════════════════════════════════════════════
+let unifiedLoaded = false;
+let unifiedPage = 0;
+let unifiedPageSize = 100;
+let _unifiedSearchTimer = null;
+
+function debounceUnifiedSearch() {
+    clearTimeout(_unifiedSearchTimer);
+    _unifiedSearchTimer = setTimeout(function(){ unifiedPage=0; loadUnifiedList(); }, 400);
+}
+
+async function loadUnifiedWeeks() {
+    try {
+        const resp = await fetch('/api/prediction/unified_weeks');
+        const json = await resp.json();
+        if (!json.success) return;
+        const sel = document.getElementById('unifiedWeekSelect');
+        sel.innerHTML = '';
+        json.data.forEach(function(w, i) {
+            var nwAcc = w.nw_verified > 0 ? (w.nw_correct / w.nw_verified * 100).toFixed(1) + '%' : '待验证';
+            var v20Acc = w.v20_verified > 0 ? (w.v20_correct / w.v20_verified * 100).toFixed(1) + '%' : '-';
+            var v30Acc = w.v30_verified > 0 ? (w.v30_correct / w.v30_verified * 100).toFixed(1) + '%' : '-';
+            // 用ISO year/week计算目标周的周一~周五
+            var weekRange = isoWeekRange(w.iso_year, w.iso_week);
+            var opt = document.createElement('option');
+            opt.value = w.iso_year + '-' + w.iso_week;
+            opt.textContent = '目标周 Y' + w.iso_year + '-W' + String(w.iso_week).padStart(2, '0') +
+                ' (' + weekRange + ')' +
+                ' ' + w.total + '条 V11:' + nwAcc + ' V20:' + w.v20_cnt + '条' + v20Acc + ' V30:' + w.v30_cnt + '条' + v30Acc;
+            sel.appendChild(opt);
+        });
+        loadUnifiedList();
+    } catch(e) {}
+}
+
+function isoWeekRange(isoYear, isoWeek) {
+    // 计算ISO周的周一日期
+    var jan4 = new Date(isoYear, 0, 4);
+    var dayOfWeek = jan4.getDay() || 7; // 1=Mon..7=Sun
+    var mon = new Date(jan4.getTime() + ((isoWeek - 1) * 7 + 1 - dayOfWeek) * 86400000);
+    var fri = new Date(mon.getTime() + 4 * 86400000);
+    var fmt = function(dt) { return String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0'); };
+    return fmt(mon) + '~' + fmt(fri);
+}
+
+async function loadUnifiedList() {
+    var sel = document.getElementById('unifiedWeekSelect').value;
+    if (!sel) return;
+    var parts = sel.split('-');
+    var year = parts[0], week = parts[1];
+    var params = 'iso_year=' + year + '&iso_week=' + week;
+    params += '&limit=' + unifiedPageSize + '&offset=' + (unifiedPage * unifiedPageSize);
+
+    var nwDir = document.getElementById('unifiedNwDir').value;
+    var v20Dir = document.getElementById('unifiedV20Dir').value;
+    var v30Dir = document.getElementById('unifiedV30Dir').value;
+    var nwRes = document.getElementById('unifiedNwResult').value;
+    var v20Res = document.getElementById('unifiedV20Result').value;
+    var v30Res = document.getElementById('unifiedV30Result').value;
+    var combo = document.getElementById('unifiedCombo').value;
+    var conf = document.getElementById('unifiedConfidence').value;
+    var kw = document.getElementById('unifiedSearch').value.trim();
+
+    if (nwDir) params += '&nw_dir=' + nwDir;
+    if (v20Dir) params += '&v20_dir=' + v20Dir;
+    if (v30Dir) params += '&v30_dir=' + v30Dir;
+    if (nwRes) params += '&nw_result=' + nwRes;
+    if (v20Res) params += '&v20_result=' + v20Res;
+    if (v30Res) params += '&v30_result=' + v30Res;
+    if (combo) params += '&combo=' + combo;
+    if (conf) params += '&confidence=' + conf;
+    if (kw) params += '&keyword=' + encodeURIComponent(kw);
+
+    document.getElementById('unifiedListInfo').textContent = '加载中...';
+    try {
+        var resp = await fetch('/api/prediction/unified_verification?' + params);
+        var json = await resp.json();
+        if (!json.success) { document.getElementById('unifiedListInfo').textContent = '加载失败'; return; }
+        renderUnifiedSummary(json.summary);
+        renderUnifiedTable(json.data);
+        renderUnifiedPagination(json.total);
+        document.getElementById('unifiedListInfo').textContent = '共 ' + json.total + ' 条';
+    } catch(e) {
+        document.getElementById('unifiedListInfo').textContent = '请求失败';
+    }
+}
+
+function renderUnifiedSummary(s) {
+    if (!s) return;
+    var h = '';
+    var nwTotal = (s.nw_correct||0) + (s.nw_wrong||0);
+    var nwAcc = nwTotal > 0 ? ((s.nw_correct||0) / nwTotal * 100).toFixed(1) : '-';
+    h += '<div class="summary-item"><div class="summary-value">' + nwAcc + '%</div><div class="summary-label2">V11准确率(' + nwTotal + '条)</div></div>';
+    h += '<div class="summary-item"><div class="summary-value">' + (s.nw_avg_chg != null ? Number(s.nw_avg_chg).toFixed(2) + '%' : '-') + '</div><div class="summary-label2">V11平均涨跌</div></div>';
+
+    var v20Total = (s.v20_correct||0) + (s.v20_wrong||0);
+    var v20Acc = v20Total > 0 ? ((s.v20_correct||0) / v20Total * 100).toFixed(1) : '-';
+    h += '<div class="summary-item"><div class="summary-value" style="color:#009688">' + v20Acc + '%</div><div class="summary-label2">V20准确率(' + (s.v20_total||0) + '条)</div></div>';
+    h += '<div class="summary-item"><div class="summary-value" style="color:#009688">' + (s.v20_avg_chg != null ? Number(s.v20_avg_chg).toFixed(2) + '%' : '-') + '</div><div class="summary-label2">V20平均涨跌</div></div>';
+
+    var v30Total = (s.v30_correct||0) + (s.v30_wrong||0);
+    var v30Acc = v30Total > 0 ? ((s.v30_correct||0) / v30Total * 100).toFixed(1) : '-';
+    h += '<div class="summary-item"><div class="summary-value" style="color:#795548">' + v30Acc + '%</div><div class="summary-label2">V30准确率(' + (s.v30_total||0) + '条)</div></div>';
+    h += '<div class="summary-item"><div class="summary-value" style="color:#795548">' + (s.v30_avg_chg != null ? Number(s.v30_avg_chg).toFixed(2) + '%' : '-') + '</div><div class="summary-label2">V30平均涨跌</div></div>';
+
+    h += '<div class="summary-item"><div class="summary-value">' + (s.total||0) + '</div><div class="summary-label2">筛选结果数</div></div>';
+    document.getElementById('unifiedSummaryRow').innerHTML = h;
+}
+
+function _dirTag(dir, model) {
+    if (!dir) return '<span style="color:#ccc">-</span>';
+    var colors = {nw:'#667eea', v20:'#009688', v30:'#795548'};
+    var c = colors[model] || '#667eea';
+    if (dir === 'UP') return '<span style="color:#e74c3c;font-weight:600">↑涨</span>';
+    return '<span style="color:#2ecc71;font-weight:600">↓跌</span>';
+}
+function _resultTag(v) {
+    if (v === 1 || v === '1') return '<span style="color:#667eea;font-weight:700">✓</span>';
+    if (v === 0 || v === '0') return '<span style="color:#e74c3c;font-weight:700">✗</span>';
+    return '<span style="color:#ccc">-</span>';
+}
+function _chgCell(v) {
+    if (v == null || v === '') return '<td style="color:#ccc">-</td>';
+    var n = Number(v);
+    var c = n > 0 ? 'color:#e74c3c' : n < 0 ? 'color:#2ecc71' : '';
+    return '<td style="' + c + ';font-weight:600">' + n.toFixed(2) + '%</td>';
+}
+
+function renderUnifiedTable(rows) {
+    if (!rows || !rows.length) {
+        document.getElementById('unifiedTableWrap').innerHTML = '<div style="text-align:center;padding:30px;color:#8e8e93">无数据</div>';
+        return;
+    }
+    var h = '<div style="overflow-x:auto;max-height:600px;overflow-y:auto"><table class="pred-table">';
+    // 双行表头：第一行分组，第二行字段
+    h += '<thead>';
+    h += '<tr>';
+    h += '<th rowspan="2" style="vertical-align:middle">代码</th>';
+    h += '<th rowspan="2" style="vertical-align:middle">名称</th>';
+    h += '<th rowspan="2" style="vertical-align:middle">目标周</th>';
+    h += '<th colspan="5" style="text-align:center;color:#667eea;border-bottom:2px solid rgba(102,126,234,0.3)">V11 下周预测</th>';
+    h += '<th colspan="4" style="text-align:center;color:#009688;border-bottom:2px solid rgba(0,150,136,0.3)">V20 量价</th>';
+    h += '<th colspan="5" style="text-align:center;color:#795548;border-bottom:2px solid rgba(121,85,72,0.3)">V30 情绪</th>';
+    h += '<th rowspan="2" style="vertical-align:middle">叠加</th>';
+    h += '</tr><tr>';
+    h += '<th style="color:#667eea">方向</th><th style="color:#667eea">置信</th><th style="color:#667eea">预测涨幅</th><th style="color:#667eea">实际涨跌</th><th style="color:#667eea">✓</th>';
+    h += '<th style="color:#009688">方向</th><th style="color:#009688">置信</th><th style="color:#009688">实际5d</th><th style="color:#009688">✓</th>';
+    h += '<th style="color:#795548">方向</th><th style="color:#795548">置信</th><th style="color:#795548">评分</th><th style="color:#795548">实际5d</th><th style="color:#795548">✓</th>';
+    h += '</tr></thead><tbody>';
+    rows.forEach(function(r) {
+        // 行背景色：三模型全涨高亮
+        var allUp = r.nw_pred_direction==='UP' && r.v20_pred_direction==='UP' && r.v30_pred_direction==='UP';
+        var rowStyle = allUp ? ' style="background:rgba(231,76,60,0.04)"' : '';
+        h += '<tr' + rowStyle + '>';
+        h += '<td><a href="/stock_detail?code=' + encodeURIComponent(r.stock_code) + '" target="_blank" style="color:#667eea;text-decoration:none">' + r.stock_code + '</a></td>';
+        h += '<td style="font-weight:600">' + (r.stock_name||'') + '</td>';
+        var twLabel = (r.nw_iso_year && r.nw_iso_week) ? 'W' + String(r.nw_iso_week).padStart(2,'0') + ' ' + isoWeekRange(r.nw_iso_year, r.nw_iso_week) : (r.predict_date ? r.predict_date.substring(0, 10) : '-');
+        h += '<td style="font-size:11px;color:#8e8e93;white-space:nowrap">' + twLabel + '</td>';
+        // V11
+        h += '<td>' + _dirTag(r.nw_pred_direction, 'nw') + '</td>';
+        h += '<td>' + (r.nw_confidence||'-') + '</td>';
+        h += _chgCell(r.nw_pred_chg);
+        if (r.nw_actual_weekly_chg != null && r.nw_actual_weekly_chg !== '') {
+            h += _chgCell(r.nw_actual_weekly_chg);
+        } else if (r.nw_pred_direction) {
+            h += '<td style="font-size:10px;color:#bbb" title="V11预测下周涨跌，需等下周结束后验证">待验证</td>';
+        } else {
+            h += '<td style="color:#ccc">-</td>';
+        }
+        h += '<td>' + _resultTag(r.nw_is_correct) + '</td>';
+        // V20
+        h += '<td>' + _dirTag(r.v20_pred_direction, 'v20') + '</td>';
+        h += '<td>' + (r.v20_confidence||'-') + '</td>';
+        h += _chgCell(r.v20_actual_5d_chg);
+        h += '<td>' + _resultTag(r.v20_is_correct) + '</td>';
+        // V30
+        h += '<td>' + _dirTag(r.v30_pred_direction, 'v30') + '</td>';
+        h += '<td>' + (r.v30_confidence||'-') + '</td>';
+        h += '<td>' + (r.v30_composite_score != null ? Number(r.v30_composite_score).toFixed(2) : '-') + '</td>';
+        h += _chgCell(r.v30_actual_5d_chg);
+        h += '<td>' + _resultTag(r.v30_is_correct) + '</td>';
+        // 叠加标签
+        var tags = [];
+        if (r.nw_pred_direction === 'UP') tags.push('V11↑');
+        if (r.v20_pred_direction === 'UP') tags.push('V20↑');
+        if (r.v30_pred_direction === 'UP') tags.push('V30↑');
+        if (r.nw_pred_direction === 'DOWN') tags.push('V11↓');
+        if (r.v30_pred_direction === 'DOWN') tags.push('V30↓');
+        var tagColor = tags.length >= 3 ? '#e74c3c' : tags.length >= 2 ? '#e67e22' : '#8e8e93';
+        h += '<td style="font-size:10px;color:' + tagColor + ';font-weight:600">' + tags.join(' ') + '</td>';
+        h += '</tr>';
+    });
+    h += '</tbody></table></div>';
+    document.getElementById('unifiedTableWrap').innerHTML = h;
+}
+
+function renderUnifiedPagination(total) {
+    var totalPages = Math.ceil(total / unifiedPageSize);
+    if (totalPages <= 1) { document.getElementById('unifiedPagination').innerHTML = ''; return; }
+    var h = '';
+    for (var i = 0; i < totalPages && i < 20; i++) {
+        h += '<button class="page-btn' + (i === unifiedPage ? ' active' : '') + '" onclick="unifiedPage=' + i + ';loadUnifiedList()">' + (i + 1) + '</button>';
+    }
+    document.getElementById('unifiedPagination').innerHTML = h;
 }
 
 </script>

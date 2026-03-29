@@ -184,8 +184,9 @@ def fill_missing_fund_flow_from_kline(stock_codes: list[str], trade_date: str = 
                      small_net, small_net_pct)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
-                    close_price=VALUES(close_price), change_pct=VALUES(change_pct),
-                    main_net_5day=VALUES(main_net_5day)
+                    close_price=COALESCE(VALUES(close_price), close_price),
+                    change_pct=COALESCE(VALUES(change_pct), change_pct),
+                    main_net_5day=COALESCE(VALUES(main_net_5day), main_net_5day)
             """
             cur.executemany(sql, insert_rows)
             conn.commit()

@@ -352,6 +352,10 @@ async def _fetch_article_content(url: str, session: AsyncSession) -> str:
         return content
 
     except Exception as e:
+        err_str = str(e)
+        # Cloudflare 反爬错误（521/522/523）应抛出，让调用方重试
+        if any(f'52{c}' in err_str for c in '123'):
+            raise
         logger.debug("[正文抓取] %s 失败: %s", url, e)
         return ""
 

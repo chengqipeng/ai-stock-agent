@@ -134,6 +134,11 @@ async def _execute_job(manual: bool = False):
         _job_status["total_news"] = 0
         _job_status["done_stocks"] = 0
         _job_status["failed_stocks"] = 0
+        _job_status["phase"] = "news_fetch"
+        _job_status["phase_label"] = "新闻抓取"
+        _job_status["type_counts"] = {}
+        _job_status["big_order_count"] = 0
+        _job_status["big_order_status"] = "pending"
 
         now = datetime.now(_CST)
         today_str = now.strftime("%Y-%m-%d")
@@ -151,6 +156,8 @@ async def _execute_job(manual: bool = False):
         total_news = 0
         success_count = 0
         failed_count = 0
+        type_counts = {"news": 0, "notice": 0, "industry": 0, "report": 0,
+                       "event": 0, "ranking": 0, "forecast": 0}
 
         try:
             async with AsyncSession(impersonate=IMPERSONATE) as session:
@@ -164,11 +171,13 @@ async def _execute_job(manual: bool = False):
                             if items:
                                 batch_upsert_news(code, items)
                                 stock_news_count += len(items)
+                                type_counts[news_type] = type_counts.get(news_type, 0) + len(items)
 
                         total_news += stock_news_count
                         success_count += 1
                         _job_status["done_stocks"] = i + 1
                         _job_status["total_news"] = total_news
+                        _job_status["type_counts"] = dict(type_counts)
 
                         if stock_news_count > 0:
                             logger.info("[新闻调度] [%d/%d] %s(%s) 写入 %d 条",
@@ -190,18 +199,26 @@ async def _execute_job(manual: bool = False):
 
             # ── 大单追踪数据拉取 ──
             big_order_count = 0
+            _job_status["phase"] = "big_order"
+            _job_status["phase_label"] = "大单追踪"
             try:
                 if not has_big_orders(today_str):
+                    _job_status["big_order_status"] = "fetching"
                     logger.info("[新闻调度] 开始拉取大单追踪数据...")
                     big_order_rows = await fetch_fund_flow_all_pages("ddzz", max_pages=5)
                     if big_order_rows:
                         big_order_count = batch_insert_big_orders(today_str, big_order_rows)
+                        _job_status["big_order_count"] = big_order_count
+                        _job_status["big_order_status"] = "done"
                         logger.info("[新闻调度] 大单追踪写入 %d 条", big_order_count)
                     else:
+                        _job_status["big_order_status"] = "empty"
                         logger.warning("[新闻调度] 大单追踪数据为空")
                 else:
+                    _job_status["big_order_status"] = "skipped"
                     logger.info("[新闻调度] 今日大单追踪数据已存在，跳过")
             except Exception as e:
+                _job_status["big_order_status"] = "failed"
                 logger.error("[新闻调度] 大单追踪拉取失败: %s", e, exc_info=True)
 
             finished_at = datetime.now(_CST)

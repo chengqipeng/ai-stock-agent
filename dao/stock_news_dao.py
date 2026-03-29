@@ -67,18 +67,25 @@ def create_news_table(cursor=None):
         )
     except Exception:
         pass  # 索引已存在
+    if own:
+        # 先提交 DDL / ALTER，避免长事务
+        conn.commit()
     # 迁移：已有 content 的记录标记为 done，无 content 且有 url 的标记为 pending
     try:
         cursor.execute(
             f"UPDATE {TABLE_NAME} SET content_status = 'done' "
             f"WHERE content IS NOT NULL AND content != '' AND "
-            f"(content_status IS NULL OR content_status = 'pending')"
+            f"(content_status IS NULL OR content_status = 'pending') "
+            f"LIMIT 5000"
         )
+        if own:
+            conn.commit()
         cursor.execute(
             f"UPDATE {TABLE_NAME} SET content_status = 'skip' "
             f"WHERE (content IS NULL OR content = '') AND "
             f"(url IS NULL OR url = '' OR url NOT LIKE '%%10jqka.com.cn%%') AND "
-            f"content_status IS NULL"
+            f"content_status IS NULL "
+            f"LIMIT 5000"
         )
     except Exception:
         pass
@@ -250,6 +257,7 @@ def mark_as_fetching(record_ids: list[int]):
     conn = get_connection()
     cursor = conn.cursor()
     try:
+        cursor.execute("SET SESSION innodb_lock_wait_timeout = 5")
         placeholders = ",".join(["%s"] * len(record_ids))
         cursor.execute(
             f"UPDATE {TABLE_NAME} SET content_status = 'fetching' "
@@ -259,7 +267,10 @@ def mark_as_fetching(record_ids: list[int]):
         conn.commit()
     except Exception as e:
         conn.rollback()
-        logger.error("批量标记 fetching 失败: %s", e)
+        if '1205' in str(e):
+            logger.warning("批量标记 fetching 锁等待超时，跳过本批次")
+        else:
+            logger.error("批量标记 fetching 失败: %s", e)
     finally:
         cursor.close()
         conn.close()
@@ -308,10 +319,15 @@ def get_news_content_summary() -> dict:
 
 
 def reset_stale_fetching(timeout_minutes: int = 30):
-    """将超时的 fetching 状态重置为 pending（防止 worker 崩溃后卡死）"""
+    """将超时的 fetching 状态重置为 pending（防止 worker 崩溃后卡死）
+
+    使用较短的锁等待超时（5秒），避免与正在写入正文的 worker 事务互相阻塞。
+    """
     conn = get_connection()
     cursor = conn.cursor()
     try:
+        # 设置会话级短锁等待，避免长时间阻塞
+        cursor.execute("SET SESSION innodb_lock_wait_timeout = 5")
         cursor.execute(
             f"UPDATE {TABLE_NAME} SET content_status = 'pending' "
             f"WHERE content_status = 'fetching' "
@@ -324,7 +340,11 @@ def reset_stale_fetching(timeout_minutes: int = 30):
             logger.info("[内容Worker] 重置 %d 条超时 fetching 记录", affected)
     except Exception as e:
         conn.rollback()
-        logger.error("重置超时 fetching 失败: %s", e)
+        # 锁超时是预期内的，降级为 warning
+        if '1205' in str(e):
+            logger.debug("[内容Worker] 重置超时 fetching 锁等待超时，下次重试")
+        else:
+            logger.error("重置超时 fetching 失败: %s", e)
     finally:
         cursor.close()
         conn.close()

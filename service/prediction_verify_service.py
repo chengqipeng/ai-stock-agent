@@ -356,8 +356,8 @@ def _get_v20_unverified_predictions(limit: int = 2000) -> list[dict]:
 def verify_v20_pending() -> dict:
     """验证所有待验证的V20量价超跌反弹预测。
 
-    对每条有 v20_pred_direction 的预测，从 predict_date 起取后续交易日K线，
-    优先用5日，不足5日时用已有天数（至少1天）计算实际涨跌幅。
+    与V11口径统一：使用目标ISO周（nw_iso_year/nw_iso_week，即下一周）的
+    实际涨跌幅作为验证基准，而非从predict_date起的5个交易日。
 
     Returns:
         {'verified': N, 'correct': N, 'wrong': N, 'skipped': N, 'type': 'v20'}
@@ -371,22 +371,61 @@ def verify_v20_pending() -> dict:
     cur = conn.cursor()
 
     try:
+        # 按目标周分组（与V11统一口径）
         stock_codes = list({p['stock_code'] for p in predictions})
-        predict_dates = {p['stock_code']: str(p['predict_date']) for p in predictions}
-        min_date = min(predict_dates.values())
 
-        kline_map = defaultdict(list)
+        # 获取每条预测的目标周（nw_iso_year/nw_iso_week）
+        code_week_map = {}
+        for p in predictions:
+            code_week_map[p['stock_code']] = (p['iso_year'], p['iso_week'])
+
+        # 批量获取 nw_iso_year/nw_iso_week
+        target_weeks = {}
         batch_size = 200
         for i in range(0, len(stock_codes), batch_size):
             batch = stock_codes[i:i + batch_size]
             ph = ','.join(['%s'] * len(batch))
+            # 取每只股票对应预测周的 nw_iso_year/nw_iso_week
+            for code in batch:
+                iy, iw = code_week_map[code]
+                cur.execute("""
+                    SELECT nw_iso_year, nw_iso_week FROM stock_weekly_prediction_history
+                    WHERE stock_code = %s AND iso_year = %s AND iso_week = %s
+                    LIMIT 1
+                """, (code, iy, iw))
+                row = cur.fetchone()
+                if row and row['nw_iso_year'] and row['nw_iso_week']:
+                    target_weeks[code] = (row['nw_iso_year'], row['nw_iso_week'])
+                else:
+                    # 没有 nw_iso 字段，回退到 iso_week+1
+                    nw = iw + 1
+                    ny = iy
+                    if nw > 52:
+                        nw = 1
+                        ny += 1
+                    target_weeks[code] = (ny, nw)
+
+        # 收集所有需要的目标周日期范围
+        week_ranges = {}
+        for tw in set(target_weeks.values()):
+            week_ranges[tw] = _get_week_date_range(tw[0], tw[1])
+
+        # 批量获取K线数据
+        all_date_ranges = list(week_ranges.values())
+        global_min = min(r[0] for r in all_date_ranges)
+        global_max = max(r[1] for r in all_date_ranges)
+
+        kline_map = defaultdict(list)
+        for i in range(0, len(stock_codes), batch_size):
+            batch = stock_codes[i:i + batch_size]
+            ph = ','.join(['%s'] * len(batch))
             cur.execute(f"""
-                SELECT stock_code, `date`, close_price, change_percent
+                SELECT stock_code, `date`, change_percent
                 FROM stock_kline
                 WHERE stock_code IN ({ph})
-                  AND `date` >= %s
+                  AND `date` >= %s AND `date` <= %s
                 ORDER BY stock_code, `date`
-            """, batch + [min_date])
+            """, batch + [global_min, global_max])
             for row in cur.fetchall():
                 kline_map[row['stock_code']].append(row)
 
@@ -397,21 +436,26 @@ def verify_v20_pending() -> dict:
 
         for p in predictions:
             code = p['stock_code']
-            pred_date = str(p['predict_date'])
-            klines = kline_map.get(code, [])
-
-            future_klines = [k for k in klines if str(k['date']) > pred_date]
-
-            if len(future_klines) < 1:
+            tw = target_weeks.get(code)
+            if not tw:
                 skipped += 1
                 continue
 
-            pcts = []
-            for k in future_klines[:5]:
-                cp = k.get('change_percent')
-                if cp is not None:
-                    pcts.append(float(cp))
+            date_range = week_ranges.get(tw)
+            if not date_range:
+                skipped += 1
+                continue
 
+            target_start, target_end = date_range
+            klines = [k for k in kline_map.get(code, [])
+                      if target_start <= str(k['date']) <= target_end]
+
+            if len(klines) < 3:
+                skipped += 1
+                continue
+
+            pcts = [float(k['change_percent']) for k in klines
+                    if k.get('change_percent') is not None]
             if not pcts:
                 skipped += 1
                 continue
@@ -487,8 +531,8 @@ def _get_v30_unverified_predictions(limit: int = 2000) -> list[dict]:
 def verify_v30_pending() -> dict:
     """验证所有待验证的V30情绪预测。
 
-    对每条有 v30_pred_direction 的预测，从 predict_date 起取后续交易日K线，
-    优先用5日，不足5日时用已有天数（至少1天）计算实际涨跌幅。
+    与V11口径统一：使用目标ISO周（nw_iso_year/nw_iso_week，即下一周）的
+    实际涨跌幅作为验证基准，而非从predict_date起的5个交易日。
 
     Returns:
         {'verified': N, 'correct': N, 'wrong': N, 'skipped': N, 'type': 'v30'}
@@ -503,21 +547,53 @@ def verify_v30_pending() -> dict:
 
     try:
         stock_codes = list({p['stock_code'] for p in predictions})
-        predict_dates = {p['stock_code']: str(p['predict_date']) for p in predictions}
-        min_date = min(predict_dates.values())
 
-        kline_map = defaultdict(list)
+        # 获取每条预测的目标周
+        code_week_map = {}
+        for p in predictions:
+            code_week_map[p['stock_code']] = (p['iso_year'], p['iso_week'])
+
+        target_weeks = {}
         batch_size = 200
+        for code in stock_codes:
+            iy, iw = code_week_map[code]
+            cur.execute("""
+                SELECT nw_iso_year, nw_iso_week FROM stock_weekly_prediction_history
+                WHERE stock_code = %s AND iso_year = %s AND iso_week = %s
+                LIMIT 1
+            """, (code, iy, iw))
+            row = cur.fetchone()
+            if row and row['nw_iso_year'] and row['nw_iso_week']:
+                target_weeks[code] = (row['nw_iso_year'], row['nw_iso_week'])
+            else:
+                nw = iw + 1
+                ny = iy
+                if nw > 52:
+                    nw = 1
+                    ny += 1
+                target_weeks[code] = (ny, nw)
+
+        # 收集目标周日期范围
+        week_ranges = {}
+        for tw in set(target_weeks.values()):
+            week_ranges[tw] = _get_week_date_range(tw[0], tw[1])
+
+        all_date_ranges = list(week_ranges.values())
+        global_min = min(r[0] for r in all_date_ranges)
+        global_max = max(r[1] for r in all_date_ranges)
+
+        # 批量获取K线
+        kline_map = defaultdict(list)
         for i in range(0, len(stock_codes), batch_size):
             batch = stock_codes[i:i + batch_size]
             ph = ','.join(['%s'] * len(batch))
             cur.execute(f"""
-                SELECT stock_code, `date`, close_price, change_percent
+                SELECT stock_code, `date`, change_percent
                 FROM stock_kline
                 WHERE stock_code IN ({ph})
-                  AND `date` >= %s
+                  AND `date` >= %s AND `date` <= %s
                 ORDER BY stock_code, `date`
-            """, batch + [min_date])
+            """, batch + [global_min, global_max])
             for row in cur.fetchall():
                 kline_map[row['stock_code']].append(row)
 
@@ -528,21 +604,26 @@ def verify_v30_pending() -> dict:
 
         for p in predictions:
             code = p['stock_code']
-            pred_date = str(p['predict_date'])
-            klines = kline_map.get(code, [])
-
-            future_klines = [k for k in klines if str(k['date']) > pred_date]
-
-            if len(future_klines) < 1:
+            tw = target_weeks.get(code)
+            if not tw:
                 skipped += 1
                 continue
 
-            pcts = []
-            for k in future_klines[:5]:
-                cp = k.get('change_percent')
-                if cp is not None:
-                    pcts.append(float(cp))
+            date_range = week_ranges.get(tw)
+            if not date_range:
+                skipped += 1
+                continue
 
+            target_start, target_end = date_range
+            klines = [k for k in kline_map.get(code, [])
+                      if target_start <= str(k['date']) <= target_end]
+
+            if len(klines) < 3:
+                skipped += 1
+                continue
+
+            pcts = [float(k['change_percent']) for k in klines
+                    if k.get('change_percent') is not None]
             if not pcts:
                 skipped += 1
                 continue

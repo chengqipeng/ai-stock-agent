@@ -699,46 +699,42 @@ def get_prediction_verification(iso_year: int = None, iso_week: int = None,
                                 sort_by: str = 'stock_code',
                                 sort_dir: str = 'asc',
                                 limit: int = 50, offset: int = 0) -> tuple[list[dict], int, dict]:
-    """获取上一周预测 vs 本周实际结果的验证数据。
+    """获取本周预测验证数据：预测方向 vs 实际结果。
 
-    如果不指定 iso_year/iso_week，自动取 history 表中最新周的前一周。
+    iso_year/iso_week 为目标周（即要验证的那一周），与多模型叠加逻辑一致。
+    本周预测的目标周就是 iso_year/iso_week 本身（预测当周涨跌）。
+    如果不指定，自动取最近有验证数据的目标周。
+
     返回 (rows, total_count, summary)。
-
-    每行包含:
-      - 上周预测信息 (pred_direction, confidence, strategy, pred_weekly_chg 等)
-      - 本周实际涨跌幅 (actual_weekly_chg)
-      - 实际方向 (actual_direction)
-      - 是否正确 (is_correct)
-      - 下周预测信息 (nw_pred_direction 等) 及其验证
     """
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
     try:
-        # 确定要验证的预测周（上一周）
+        _stock_filter = (
+            "(h.stock_code LIKE '6%%.SH' OR h.stock_code LIKE '0%%.SZ' OR h.stock_code LIKE '3%%.SZ')"
+            " AND h.stock_code NOT LIKE '399%%'"
+            " AND h.stock_code != '000001.SH'"
+        )
+
+        # 确定目标周：使用 nw_iso_year/nw_iso_week 对齐，与多模型叠加一致
         if not iso_year or not iso_week:
-            # 取 history 表中最新的 iso_year, iso_week
-            cur.execute("""
-                SELECT DISTINCT iso_year, iso_week
+            cur.execute(f"""
+                SELECT DISTINCT nw_iso_year, nw_iso_week
                 FROM stock_weekly_prediction_history
-                WHERE (stock_code LIKE '6%%.SH' OR stock_code LIKE '0%%.SZ' OR stock_code LIKE '3%%.SZ')
-                  AND stock_code NOT LIKE '399%%'
-                  AND stock_code != '000001.SH'
-                ORDER BY iso_year DESC, iso_week DESC
+                WHERE {_stock_filter}
+                  AND nw_iso_year IS NOT NULL AND nw_iso_week IS NOT NULL
+                ORDER BY nw_iso_year DESC, nw_iso_week DESC
                 LIMIT 2
             """)
             weeks = cur.fetchall()
-            if len(weeks) < 2:
+            if not weeks:
                 return [], 0, {}
-            # weeks[0] = 本周(最新), weeks[1] = 上一周
-            iso_year = weeks[1]['iso_year']
-            iso_week = weeks[1]['iso_week']
+            # 取第一个目标周（最新的目标周）
+            iso_year = weeks[0]['nw_iso_year']
+            iso_week = weeks[0]['nw_iso_week']
 
-        # 计算"本周"（预测目标周）的 iso_year/iso_week
-        # 上周预测的 nw_* 指向的就是本周
-        # 上周的 pred_direction 预测的是上周自身
-        # 我们需要：上周的预测记录 + 上周的实际结果（已回填或从K线计算）
-
-        # 构建查询条件
+        # 本周预测验证：目标周 = iso_year/iso_week（预测当周涨跌）
+        # 所以直接用 iso_year/iso_week 匹配
         where_parts = [
             "h.iso_year = %s",
             "h.iso_week = %s",
@@ -846,11 +842,9 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
                                    limit: int = 50, offset: int = 0) -> tuple[list[dict], int, dict]:
     """获取"下周预测"验证数据。
 
-    直接使用 W 周记录上的 nw_actual_direction / nw_actual_weekly_chg / nw_is_correct，
-    不再依赖 W+1 周的 history 记录（解决很多股票在 W+1 无记录导致无法验证的问题）。
-
-    iso_year/iso_week 指的是做出预测的那一周（W）。
-    如果不指定，自动取倒数第二周。
+    iso_year/iso_week 为目标周（即预测要验证的那一周），与多模型叠加逻辑一致。
+    使用 nw_iso_year/nw_iso_week 匹配目标周。
+    例如选择 W14，则查找 nw_iso_year/nw_iso_week = W14 的记录（即 W13 发起的预测）。
 
     返回 (rows, total_count, summary)。
     """
@@ -865,24 +859,24 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
 
         if not iso_year or not iso_week:
             cur.execute(f"""
-                SELECT DISTINCT iso_year, iso_week
+                SELECT DISTINCT nw_iso_year, nw_iso_week
                 FROM stock_weekly_prediction_history
                 WHERE {_stock_filter}
                   AND nw_pred_direction IS NOT NULL AND nw_pred_direction != ''
-                ORDER BY iso_year DESC, iso_week DESC
-                LIMIT 3
+                  AND nw_iso_year IS NOT NULL AND nw_iso_week IS NOT NULL
+                ORDER BY nw_iso_year DESC, nw_iso_week DESC
+                LIMIT 1
             """)
-            weeks = cur.fetchall()
-            if len(weeks) < 2:
+            row = cur.fetchone()
+            if not row:
                 return [], 0, {}
-            # weeks[0]=最新预测周(目标周可能未结束), weeks[1]=上一个预测周
-            iso_year = weeks[1]['iso_year']
-            iso_week = weeks[1]['iso_week']
+            iso_year = row['nw_iso_year']
+            iso_week = row['nw_iso_week']
 
-        # 构建查询：直接查 W 周记录
+        # 按目标周筛选（nw_iso_year/nw_iso_week = 预测验证的那一周）
         where_parts = [
-            "h.iso_year = %s",
-            "h.iso_week = %s",
+            "h.nw_iso_year = %s",
+            "h.nw_iso_week = %s",
             "(h.stock_code LIKE '6%%.SH' OR h.stock_code LIKE '0%%.SZ' OR h.stock_code LIKE '3%%.SZ')",
             "h.stock_code NOT LIKE '399%%'",
             "h.stock_code != '000001.SH'",
@@ -999,17 +993,25 @@ def get_v20_prediction_verification(iso_year: int = None, iso_week: int = None,
                                     limit: int = 50, offset: int = 0):
     """获取V20量价超跌反弹预测验证数据。
 
+    iso_year/iso_week 为目标周（即预测要验证的那一周），与多模型叠加逻辑一致。
+    使用 nw_iso_year/nw_iso_week 匹配目标周。
+
     返回 (rows, total_count, summary)。
     """
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
     try:
         from_sql = "FROM stock_weekly_prediction_history h"
-        where_parts = ["h.v20_pred_direction IS NOT NULL", "h.v20_pred_direction != ''"]
+        where_parts = [
+            "h.v20_pred_direction IS NOT NULL",
+            "h.v20_pred_direction != ''",
+            "h.nw_iso_year IS NOT NULL",
+            "h.nw_iso_week IS NOT NULL",
+        ]
         params = []
 
         if iso_year and iso_week:
-            where_parts.append("h.iso_year = %s AND h.iso_week = %s")
+            where_parts.append("h.nw_iso_year = %s AND h.nw_iso_week = %s")
             params += [iso_year, iso_week]
 
         if keywords:
@@ -1150,6 +1152,9 @@ def get_v30_prediction_verification(iso_year: int = None, iso_week: int = None,
                                     limit: int = 50, offset: int = 0) -> tuple[list[dict], int, dict]:
     """获取V30情绪因子5日预测验证数据。
 
+    iso_year/iso_week 为目标周（即预测要验证的那一周），与多模型叠加逻辑一致。
+    使用 nw_iso_year/nw_iso_week 匹配目标周。
+
     返回 (rows, total_count, summary)。
     """
     conn = get_connection(use_dict_cursor=True)
@@ -1163,22 +1168,23 @@ def get_v30_prediction_verification(iso_year: int = None, iso_week: int = None,
 
         if not iso_year or not iso_week:
             cur.execute(f"""
-                SELECT DISTINCT iso_year, iso_week
+                SELECT DISTINCT nw_iso_year, nw_iso_week
                 FROM stock_weekly_prediction_history
                 WHERE {_stock_filter}
                   AND v30_pred_direction IS NOT NULL
-                ORDER BY iso_year DESC, iso_week DESC
-                LIMIT 3
+                  AND nw_iso_year IS NOT NULL AND nw_iso_week IS NOT NULL
+                ORDER BY nw_iso_year DESC, nw_iso_week DESC
+                LIMIT 1
             """)
-            weeks = cur.fetchall()
-            if len(weeks) < 2:
+            row = cur.fetchone()
+            if not row:
                 return [], 0, {}
-            iso_year = weeks[1]['iso_year']
-            iso_week = weeks[1]['iso_week']
+            iso_year = row['nw_iso_year']
+            iso_week = row['nw_iso_week']
 
         where_parts = [
-            "h.iso_year = %s",
-            "h.iso_week = %s",
+            "h.nw_iso_year = %s",
+            "h.nw_iso_week = %s",
             "(h.stock_code LIKE '6%%.SH' OR h.stock_code LIKE '0%%.SZ' OR h.stock_code LIKE '3%%.SZ')",
             "h.stock_code NOT LIKE '399%%'",
             "h.stock_code != '000001.SH'",

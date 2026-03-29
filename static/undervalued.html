@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>低估值筛选 - AI Stock Agent</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif;background:linear-gradient(135deg,#e8ecf4 0%,#d5dbe8 25%,#c9d6f0 50%,#ddd5ee 75%,#e8ecf4 100%);background-attachment:fixed;min-height:100vh;color:#1d1d1f;font-size:13px}
+.header{background:rgba(102,126,234,0.75);backdrop-filter:blur(20px);color:white;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.header h1{font-size:15px;font-weight:600}
+.header a{color:rgba(255,255,255,0.9);text-decoration:none;font-size:12px}
+.header a:hover{color:white}
+.container{max-width:1500px;margin:12px auto;padding:0 12px;display:grid;grid-template-columns:260px 1fr;gap:10px}
+.card{background:rgba(255,255,255,0.65);backdrop-filter:blur(24px);border-radius:10px;padding:14px 16px;border:1px solid rgba(255,255,255,0.5);box-shadow:0 2px 12px rgba(0,0,0,0.04);margin-bottom:10px}
+.card-t{font-size:13px;font-weight:700;color:#1d1d1f;margin-bottom:10px}
+.btn{padding:6px 16px;border:none;border-radius:8px;cursor:pointer;font-weight:600;color:white;font-size:12px;transition:all .15s}
+.btn-primary{background:rgba(102,126,234,0.85)}.btn-primary:hover{background:rgba(102,126,234,1)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.hist-item{padding:8px 10px;border:1px solid rgba(0,0,0,0.06);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:12px;transition:all .15s;background:rgba(255,255,255,0.4)}
+.hist-item:hover{border-color:rgba(102,126,234,0.3);background:rgba(102,126,234,0.06)}
+.hist-item.active{border-color:rgba(102,126,234,0.5);background:rgba(102,126,234,0.1)}
+.hist-date{font-weight:700;color:#667eea}.hist-info{color:#8e8e93;font-size:11px;margin-top:2px}
+.dt{width:100%;border-collapse:separate;border-spacing:0;font-size:12px}
+.dt th{padding:6px 8px;text-align:left;font-weight:600;color:#48484a;border-bottom:2px solid rgba(102,126,234,0.15);white-space:nowrap;font-size:11px;position:sticky;top:0;background:rgba(255,255,255,0.95);z-index:2}
+.dt td{padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.04);white-space:nowrap}
+.dt tbody tr:hover{background:rgba(102,126,234,0.04)}
+.cp{color:#e74c3c}.cn{color:#2ecc71}
+.tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600}
+.tag-up{background:rgba(231,76,60,0.12);color:#e74c3c}.tag-dn{background:rgba(46,204,113,0.12);color:#2ecc71}
+.tag-sc{background:rgba(102,126,234,0.12);color:#667eea}
+.loading{text-align:center;padding:40px;color:#8e8e93}
+.params{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.params label{font-size:11px;color:#636366;font-weight:600}
+.params input{width:70px;padding:4px 8px;border:1px solid rgba(0,0,0,0.1);border-radius:6px;font-size:12px;background:rgba(255,255,255,0.6)}
+@media(max-width:800px){.container{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🔍 低估值科技/制造股筛选</h1>
+  <a href="/">首页</a> <a href="/stock_detail">个股详情</a> <a href="/weekly_prediction">周预测</a>
+</div>
+<div class="container">
+  <div>
+    <div class="card">
+      <div class="card-t">⚙️ 筛选参数</div>
+      <div class="params">
+        <label>市值下限(亿)</label><input id="mcapMin" type="number" value="80">
+        <label>上限</label><input id="mcapMax" type="number" value="500">
+        <label>TOP N</label><input id="topN" type="number" value="20">
+      </div>
+      <button class="btn btn-primary" id="genBtn" onclick="generate()" style="width:100%">📊 生成今日筛选</button>
+      <div id="genStatus" style="font-size:11px;color:#8e8e93;margin-top:6px"></div>
+    </div>
+    <div class="card">
+      <div class="card-t">📅 历史记录</div>
+      <div id="histList" style="max-height:500px;overflow-y:auto"><div class="loading">加载中...</div></div>
+    </div>
+  </div>
+  <div>
+    <div class="card" id="resultCard">
+      <div class="card-t" id="resultTitle">📋 筛选结果</div>
+      <div id="resultBody"><div class="loading">点击左侧「生成今日筛选」或选择历史记录</div></div>
+    </div>
+  </div>
+</div>
+<script>
+var _activeId=null;
+function F(v,d){d=d||2;return v==null?'-':Number(v).toFixed(d)}
+function CC(v){return v==null?'':(v>0?'cp':v<0?'cn':'')}
+
+function loadHistory(){
+  fetch('/api/undervalued/history?limit=30').then(r=>r.json()).then(j=>{
+    if(!j.success)return;
+    var h='';
+    j.data.forEach(function(r){
+      h+='<div class="hist-item'+(r.id===_activeId?' active':'')+'" onclick="loadDetail('+r.id+')">';
+      h+='<div class="hist-date">'+r.pick_date+'</div>';
+      h+='<div class="hist-info">筛选池 '+r.total_screened+' → 入选 '+r.total_picked+' | 市值 '+r.mcap_min+'-'+r.mcap_max+'亿</div>';
+      h+='</div>';
+    });
+    document.getElementById('histList').innerHTML=h||'<div style="color:#8e8e93;font-size:12px">暂无历史记录</div>';
+  }).catch(function(){});
+}
+
+function loadDetail(id){
+  _activeId=id;
+  loadHistory();
+  document.getElementById('resultBody').innerHTML='<div class="loading">加载中...</div>';
+  fetch('/api/undervalued/detail?id='+id).then(r=>r.json()).then(j=>{
+    if(!j.success){document.getElementById('resultBody').innerHTML='<div class="loading">'+j.error+'</div>';return}
+    renderPicks(j.data.picks, j.data.pick_date, j.data.total_screened);
+  });
+}
+
+function generate(){
+  var btn=document.getElementById('genBtn');
+  var st=document.getElementById('genStatus');
+  btn.disabled=true;st.textContent='筛选中，请稍候...';
+  var min=document.getElementById('mcapMin').value||80;
+  var max=document.getElementById('mcapMax').value||500;
+  var n=document.getElementById('topN').value||20;
+  fetch('/api/undervalued/generate?mcap_min='+min+'&mcap_max='+max+'&top_n='+n,{method:'POST'})
+    .then(r=>r.json()).then(j=>{
+      btn.disabled=false;
+      if(!j.success){st.textContent='筛选失败: '+(j.error||'');return}
+      st.textContent='筛选完成: 池 '+j.data.total_screened+' → 入选 '+j.data.total_picked;
+      renderPicks(j.data.picks, j.data.pick_date, j.data.total_screened);
+      loadHistory();
+    }).catch(function(e){btn.disabled=false;st.textContent='请求失败: '+e.message});
+}
+
+function renderPicks(picks, pickDate, totalScreened){
+  if(!picks||!picks.length){
+    document.getElementById('resultBody').innerHTML='<div class="loading">无符合条件的股票</div>';return;
+  }
+  document.getElementById('resultTitle').textContent='📋 '+pickDate+' 筛选结果（池 '+totalScreened+' → TOP '+picks.length+'）';
+  var h='<div style="overflow-x:auto"><table class="dt"><thead><tr>';
+  h+='<th>#</th><th>代码</th><th>名称</th><th>行业</th><th>市值亿</th><th>PE</th><th>PB</th><th>ROE%</th>';
+  h+='<th>毛利%</th><th>净利率%</th><th>营收YoY</th><th>利润YoY</th><th>负债%</th><th>现金流</th><th>120日</th><th>评分</th><th>预测</th>';
+  h+='</tr></thead><tbody>';
+  picks.forEach(function(c,i){
+    var pred=c.pred==='UP'?'<span class="tag tag-up">↑'+c.conf+'</span>':c.pred==='DOWN'?'<span class="tag tag-dn">↓'+c.conf+'</span>':'-';
+    h+='<tr>';
+    h+='<td>'+(i+1)+'</td>';
+    h+='<td><a href="/stock_detail?code='+encodeURIComponent(c.code)+'" target="_blank" style="color:#667eea;text-decoration:none;font-weight:600">'+c.code+'</a></td>';
+    h+='<td style="font-weight:600">'+c.name+'</td>';
+    h+='<td style="font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="'+c.sector+'">'+c.sector+'</td>';
+    h+='<td>'+F(c.mcap,0)+'</td>';
+    h+='<td class="'+(c.pe&&c.pe<15?'cp':'')+'">'+F(c.pe,1)+'</td>';
+    h+='<td class="'+(c.pb&&c.pb<1.5?'cp':'')+'">'+F(c.pb,2)+'</td>';
+    h+='<td class="'+(c.roe&&c.roe>15?'cp':'')+'">'+F(c.roe,1)+'</td>';
+    h+='<td>'+F(c.gm,1)+'</td>';
+    h+='<td>'+F(c.nm,1)+'</td>';
+    h+='<td class="'+CC(c.ry)+'">'+F(c.ry,1)+'%</td>';
+    h+='<td class="'+CC(c.py)+'">'+F(c.py,1)+'%</td>';
+    h+='<td>'+F(c.debt,1)+'</td>';
+    h+='<td class="'+CC(c.ocf)+'">'+F(c.ocf)+'</td>';
+    h+='<td class="'+CC(c.c120)+'">'+F(c.c120,1)+'%</td>';
+    h+='<td><span class="tag tag-sc">'+c.sc+'</span></td>';
+    h+='<td>'+pred+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+
+  // 汇总统计
+  var avgPe=0,avgRoe=0,upCnt=0,dnCnt=0;
+  picks.forEach(function(c){
+    if(c.pe)avgPe+=c.pe;if(c.roe)avgRoe+=c.roe;
+    if(c.pred==='UP')upCnt++;if(c.pred==='DOWN')dnCnt++;
+  });
+  avgPe=avgPe/picks.length;avgRoe=avgRoe/picks.length;
+  h+='<div style="margin-top:10px;font-size:11px;color:#636366">';
+  h+='平均PE: '+avgPe.toFixed(1)+' | 平均ROE: '+avgRoe.toFixed(1)+'%';
+  h+=' | 预测看涨: '+upCnt+' | 看跌: '+dnCnt;
+  h+='</div>';
+
+  document.getElementById('resultBody').innerHTML=h;
+}
+
+loadHistory();
+</script>
+</body>
+</html>

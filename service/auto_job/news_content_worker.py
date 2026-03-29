@@ -51,22 +51,35 @@ async def _process_record(record: dict, session: AsyncSession) -> bool:
     url = record.get("url", "")
 
     if not url:
-        update_content_status(record_id, "skip")
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, update_content_status, record_id, "skip")
         return False
 
-    try:
-        content = await _fetch_article_content(url, session)
-        if content and len(content.strip()) > 10:
-            update_content_status(record_id, "done", content)
-            return True
-        else:
-            # 内容为空但请求没报错 → 标记 skip（页面无正文或已下线）
-            update_content_status(record_id, "skip")
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            content = await _fetch_article_content(url, session)
+            loop = asyncio.get_event_loop()
+            if content and len(content.strip()) > 10:
+                await loop.run_in_executor(None, update_content_status, record_id, "done", content)
+                return True
+            else:
+                await loop.run_in_executor(None, update_content_status, record_id, "skip")
+                return False
+        except Exception as e:
+            err_str = str(e)
+            is_cf = any(f'52{c}' in err_str for c in '123')
+            if is_cf and attempt < max_retries:
+                wait = 3 * attempt
+                logger.debug("[内容Worker] id=%d Cloudflare 521，%d秒后重试(%d/%d)",
+                             record_id, wait, attempt, max_retries)
+                await asyncio.sleep(wait)
+                continue
+            logger.debug("[内容Worker] id=%d url=%s 拉取失败: %s", record_id, url, e)
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, update_content_status, record_id, "failed")
             return False
-    except Exception as e:
-        logger.debug("[内容Worker] id=%d url=%s 拉取失败: %s", record_id, url, e)
-        update_content_status(record_id, "failed")
-        return False
+    return False
 
 
 async def _worker_loop(worker_id: int, queue: asyncio.Queue, session: AsyncSession):
@@ -96,7 +109,8 @@ async def _worker_loop(worker_id: int, queue: asyncio.Queue, session: AsyncSessi
 async def _run_batch(batch: list[dict], session: AsyncSession):
     """处理一批记录：先标记 fetching，然后用多 worker 并发拉取"""
     record_ids = [r["id"] for r in batch]
-    mark_as_fetching(record_ids)
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, mark_as_fetching, record_ids)
 
     queue: asyncio.Queue = asyncio.Queue()
     for record in batch:
@@ -119,21 +133,25 @@ async def _content_worker_main():
     logger.info("[内容Worker] 应用就绪，内容拉取 Worker 启动（%d 并发）", _WORKER_COUNT)
 
     _worker_status["running"] = True
-    create_news_table()
 
-    # 启动时重置超时的 fetching 记录
-    reset_stale_fetching(timeout_minutes=30)
+    # 让出控制权，确保其他协程（HTTP服务等）能正常启动
+    await asyncio.sleep(1)
+
+    loop = asyncio.get_event_loop()
+
+    # 同步 DB 操作放到线程池，避免阻塞事件循环
+    await loop.run_in_executor(None, create_news_table)
+    await loop.run_in_executor(None, lambda: reset_stale_fetching(timeout_minutes=30))
 
     while True:
         try:
-            # 每轮取一批 pending 记录
-            batch = get_pending_content_records(limit=20)
+            # 同步 DB 查询放到线程池
+            batch = await loop.run_in_executor(None, lambda: get_pending_content_records(limit=20))
             if not batch:
-                # 无待处理记录，休眠后再查
                 _worker_status["pending_count"] = 0
+                logger.debug("[内容Worker] 无待处理记录，60秒后重新检查")
                 await asyncio.sleep(60)
-                # 定期重置卡住的 fetching
-                reset_stale_fetching(timeout_minutes=30)
+                await loop.run_in_executor(None, lambda: reset_stale_fetching(timeout_minutes=30))
                 continue
 
             _worker_status["pending_count"] = len(batch)

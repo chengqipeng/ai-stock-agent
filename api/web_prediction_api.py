@@ -102,8 +102,8 @@ async def prediction_accuracy(
 
 @router.get("/api/weekly_prediction/verification")
 async def prediction_verification(
-    iso_year: int = Query(None, description="ISO年"),
-    iso_week: int = Query(None, description="ISO周"),
+    iso_year: int = Query(None, description="目标周ISO年"),
+    iso_week: int = Query(None, description="目标周ISO周"),
     direction: str = Query(None, description="预测方向: UP/DOWN"),
     result: str = Query(None, description="验证结果: correct/wrong/pending"),
     keyword: str = Query(None, description="股票代码或名称"),
@@ -112,7 +112,7 @@ async def prediction_verification(
     limit: int = Query(50),
     offset: int = Query(0),
 ):
-    """获取预测验证数据：上一周预测 vs 实际结果"""
+    """获取本周预测验证数据：按目标周查询，与多模型叠加逻辑一致"""
     try:
         keywords = None
         if keyword:
@@ -143,8 +143,8 @@ async def prediction_verification(
 
 @router.get("/api/weekly_prediction/nw_verification")
 async def nw_prediction_verification(
-    iso_year: int = Query(None, description="预测发生的ISO年"),
-    iso_week: int = Query(None, description="预测发生的ISO周"),
+    iso_year: int = Query(None, description="目标周ISO年"),
+    iso_week: int = Query(None, description="目标周ISO周"),
     direction: str = Query(None, description="下周预测方向: UP/DOWN"),
     result: str = Query(None, description="验证结果: correct/wrong/pending"),
     keyword: str = Query(None, description="股票代码或名称"),
@@ -153,7 +153,7 @@ async def nw_prediction_verification(
     limit: int = Query(50),
     offset: int = Query(0),
 ):
-    """获取下周预测验证数据：W周的nw_pred_direction vs W+1周实际结果"""
+    """获取下周预测验证数据：按目标周（nw_iso_week）查询，与多模型叠加逻辑一致"""
     try:
         keywords = None
         if keyword:
@@ -183,8 +183,8 @@ async def nw_prediction_verification(
 
 @router.get("/api/weekly_prediction/v20_verification")
 async def v20_prediction_verification(
-    iso_year: int = Query(None, description="ISO年"),
-    iso_week: int = Query(None, description="ISO周"),
+    iso_year: int = Query(None, description="目标周ISO年"),
+    iso_week: int = Query(None, description="目标周ISO周"),
     direction: str = Query(None, description="预测方向: UP"),
     result: str = Query(None, description="验证结果: correct/wrong/pending"),
     keyword: str = Query(None, description="股票代码或名称"),
@@ -224,8 +224,8 @@ async def v20_prediction_verification(
 
 @router.get("/api/weekly_prediction/v30_verification")
 async def v30_prediction_verification(
-    iso_year: int = Query(None, description="ISO年"),
-    iso_week: int = Query(None, description="ISO周"),
+    iso_year: int = Query(None, description="目标周ISO年"),
+    iso_week: int = Query(None, description="目标周ISO周"),
     direction: str = Query(None, description="预测方向: UP"),
     result: str = Query(None, description="验证结果: correct/wrong/pending"),
     keyword: str = Query(None, description="股票代码或名称"),
@@ -544,3 +544,240 @@ async def deepseek_stats():
     except Exception as e:
         logger.error("查询DeepSeek周预测统计失败: %s", e, exc_info=True)
         return {"success": False, "error": str(e)}
+
+
+# ═══════════════════════════════════════════════════════════
+# 多模型统一验证 API
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/api/prediction/unified_verification")
+async def unified_verification(
+    iso_year: int = Query(None),
+    iso_week: int = Query(None),
+    keyword: str = Query(None, description="股票代码或名称"),
+    nw_dir: str = Query(None, description="NW下周预测方向: UP/DOWN/any"),
+    v20_dir: str = Query(None, description="V20方向: UP/any/none"),
+    v30_dir: str = Query(None, description="V30方向: UP/DOWN/any/none"),
+    nw_result: str = Query(None, description="NW验证: correct/wrong/pending"),
+    v20_result: str = Query(None, description="V20验证: correct/wrong/pending"),
+    v30_result: str = Query(None, description="V30验证: correct/wrong/pending"),
+    combo: str = Query(None, description="组合筛选: all_up/nw_v30_up/nw_v20_up"),
+    confidence: str = Query(None, description="置信度筛选: all_high/nw_high/v20_high/v30_high"),
+    sort_by: str = Query("stock_code"),
+    sort_dir: str = Query("asc"),
+    limit: int = Query(100),
+    offset: int = Query(0),
+):
+    """多模型统一验证：按目标周（nw_iso_week）对齐 V11 + V20 + V30
+
+    前端传入的 iso_year/iso_week 是目标周（即预测要验证的那一周），
+    后端用 nw_iso_year/nw_iso_week 匹配，确保三个模型对齐到同一周。
+    """
+    from dao import get_connection
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+    try:
+        # 默认取最近的目标周
+        if iso_year is None or iso_week is None:
+            cur.execute("""
+                SELECT nw_iso_year, nw_iso_week FROM stock_weekly_prediction_history
+                WHERE nw_pred_direction IS NOT NULL AND nw_pred_direction != ''
+                  AND nw_iso_year IS NOT NULL AND nw_iso_week IS NOT NULL
+                ORDER BY nw_iso_year DESC, nw_iso_week DESC LIMIT 1
+            """)
+            r = cur.fetchone()
+            if r:
+                iso_year, iso_week = r['nw_iso_year'], r['nw_iso_week']
+            else:
+                return {"success": True, "data": [], "total": 0, "summary": {}}
+
+        # 按目标周筛选（nw_iso_year/nw_iso_week = 预测验证的那一周）
+        wheres = ["h.nw_iso_year = %s", "h.nw_iso_week = %s",
+                  "h.nw_pred_direction IS NOT NULL", "h.nw_pred_direction != ''"]
+        params = [iso_year, iso_week]
+
+        if keyword:
+            terms = re.split(r'[,，、;；\s]+', keyword.strip())
+            terms = [t for t in terms if t]
+            if terms:
+                kw_conds = []
+                for t in terms:
+                    kw_conds.append("(h.stock_code LIKE %s OR h.stock_name LIKE %s)")
+                    params.extend([f'%{t}%', f'%{t}%'])
+                wheres.append("(" + " OR ".join(kw_conds) + ")")
+
+        if nw_dir and nw_dir != 'any':
+            wheres.append("h.nw_pred_direction = %s")
+            params.append(nw_dir)
+        if v20_dir:
+            if v20_dir == 'none':
+                wheres.append("(h.v20_pred_direction IS NULL OR h.v20_pred_direction = '')")
+            elif v20_dir != 'any':
+                wheres.append("h.v20_pred_direction = %s")
+                params.append(v20_dir)
+            else:
+                wheres.append("h.v20_pred_direction IS NOT NULL AND h.v20_pred_direction != ''")
+        if v30_dir:
+            if v30_dir == 'none':
+                wheres.append("(h.v30_pred_direction IS NULL OR h.v30_pred_direction = '')")
+            elif v30_dir != 'any':
+                wheres.append("h.v30_pred_direction = %s")
+                params.append(v30_dir)
+            else:
+                wheres.append("h.v30_pred_direction IS NOT NULL AND h.v30_pred_direction != ''")
+
+        if nw_result == 'correct':
+            wheres.append("h.nw_is_correct = 1")
+        elif nw_result == 'wrong':
+            wheres.append("h.nw_is_correct = 0")
+        elif nw_result == 'pending':
+            wheres.append("h.nw_is_correct IS NULL")
+
+        if v20_result == 'correct':
+            wheres.append("h.v20_is_correct = 1")
+        elif v20_result == 'wrong':
+            wheres.append("h.v20_is_correct = 0")
+        elif v20_result == 'pending':
+            wheres.append("h.v20_is_correct IS NULL AND h.v20_pred_direction IS NOT NULL AND h.v20_pred_direction != ''")
+
+        if v30_result == 'correct':
+            wheres.append("h.v30_is_correct = 1")
+        elif v30_result == 'wrong':
+            wheres.append("h.v30_is_correct = 0")
+        elif v30_result == 'pending':
+            wheres.append("h.v30_is_correct IS NULL AND h.v30_pred_direction IS NOT NULL AND h.v30_pred_direction != ''")
+
+        if combo == 'all_up':
+            wheres.append("h.nw_pred_direction = 'UP'")
+            wheres.append("h.v20_pred_direction = 'UP'")
+            wheres.append("h.v30_pred_direction = 'UP'")
+        elif combo == 'nw_v30_up':
+            wheres.append("h.nw_pred_direction = 'UP'")
+            wheres.append("h.v30_pred_direction = 'UP'")
+        elif combo == 'nw_v20_up':
+            wheres.append("h.nw_pred_direction = 'UP'")
+            wheres.append("h.v20_pred_direction = 'UP'")
+
+        where_sql = " AND ".join(wheres)
+
+        # 排序
+        allowed_sorts = {
+            'stock_code': 'h.stock_code', 'stock_name': 'h.stock_name',
+            'nw_actual_weekly_chg': 'h.nw_actual_weekly_chg',
+            'v20_actual_5d_chg': 'h.v20_actual_5d_chg',
+            'v30_actual_5d_chg': 'h.v30_actual_5d_chg',
+            'nw_confidence': 'h.nw_confidence',
+            'v30_composite_score': 'h.v30_composite_score',
+        }
+        order_col = allowed_sorts.get(sort_by, 'h.stock_code')
+        order_dir = 'DESC' if sort_dir.lower() == 'desc' else 'ASC'
+
+        # 总数
+        cur.execute(f"SELECT COUNT(*) as cnt FROM stock_weekly_prediction_history h WHERE {where_sql}", params)
+        total = cur.fetchone()['cnt']
+
+        # 数据 — 返回目标周信息供前端显示
+        cur.execute(f"""
+            SELECT h.stock_code, h.stock_name, h.predict_date,
+                   h.nw_iso_year, h.nw_iso_week,
+                   h.nw_pred_direction, h.nw_confidence, h.nw_strategy,
+                   h.nw_composite_score, h.nw_pred_chg,
+                   h.nw_actual_direction, h.nw_actual_weekly_chg, h.nw_is_correct,
+                   h.v20_pred_direction, h.v20_confidence, h.v20_rule_name,
+                   h.v20_actual_direction, h.v20_actual_5d_chg, h.v20_is_correct,
+                   h.v30_pred_direction, h.v30_confidence, h.v30_strategy,
+                   h.v30_composite_score,
+                   h.v30_actual_direction, h.v30_actual_5d_chg, h.v30_is_correct
+            FROM stock_weekly_prediction_history h
+            WHERE {where_sql}
+            ORDER BY {order_col} {order_dir}
+            LIMIT %s OFFSET %s
+        """, params + [limit, offset])
+        rows = cur.fetchall()
+
+        # 序列化
+        for r in rows:
+            for k, v in list(r.items()):
+                if v is not None and not isinstance(v, (str, int, float, bool)):
+                    r[k] = str(v)
+
+        # 汇总统计
+        cur.execute(f"""
+            SELECT COUNT(*) as total,
+                   SUM(h.nw_is_correct = 1) as nw_correct,
+                   SUM(h.nw_is_correct = 0) as nw_wrong,
+                   SUM(h.nw_is_correct IS NULL) as nw_pending,
+                   AVG(h.nw_actual_weekly_chg) as nw_avg_chg,
+                   SUM(h.v20_pred_direction IS NOT NULL AND h.v20_pred_direction != '') as v20_total,
+                   SUM(h.v20_is_correct = 1) as v20_correct,
+                   SUM(h.v20_is_correct = 0) as v20_wrong,
+                   AVG(CASE WHEN h.v20_pred_direction IS NOT NULL AND h.v20_pred_direction != '' THEN h.v20_actual_5d_chg END) as v20_avg_chg,
+                   SUM(h.v30_pred_direction IS NOT NULL AND h.v30_pred_direction != '') as v30_total,
+                   SUM(h.v30_is_correct = 1) as v30_correct,
+                   SUM(h.v30_is_correct = 0) as v30_wrong,
+                   AVG(CASE WHEN h.v30_pred_direction IS NOT NULL AND h.v30_pred_direction != '' THEN h.v30_actual_5d_chg END) as v30_avg_chg
+            FROM stock_weekly_prediction_history h
+            WHERE {where_sql}
+        """, params)
+        sm = cur.fetchone()
+        summary = {}
+        for k, v in sm.items():
+            summary[k] = float(v) if v is not None and not isinstance(v, (str, int, bool)) else v
+
+        return {"success": True, "data": rows, "total": total, "summary": summary,
+                "target_year": iso_year, "target_week": iso_week}
+    except Exception as e:
+        logger.error("统一验证查询失败: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+    finally:
+        cur.close()
+        conn.close()
+
+
+@router.get("/api/prediction/unified_weeks")
+async def unified_weeks():
+    """获取目标周列表（按 nw_iso_year/nw_iso_week 分组，含各模型统计）
+
+    返回的 iso_year/iso_week 是目标周（预测要验证的那一周），
+    前端选择后传给 unified_verification 查询。
+    """
+    from dao import get_connection
+    conn = get_connection(use_dict_cursor=True)
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT nw_iso_year as iso_year, nw_iso_week as iso_week,
+                   COUNT(*) as total,
+                   MIN(predict_date) as min_date,
+                   MAX(predict_date) as max_date,
+                   SUM(nw_pred_direction = 'UP') as nw_up,
+                   SUM(nw_pred_direction = 'DOWN') as nw_down,
+                   SUM(nw_is_correct = 1) as nw_correct,
+                   SUM(nw_is_correct IS NOT NULL) as nw_verified,
+                   SUM(v20_pred_direction IS NOT NULL AND v20_pred_direction != '') as v20_cnt,
+                   SUM(v20_is_correct = 1) as v20_correct,
+                   SUM(v20_is_correct IS NOT NULL) as v20_verified,
+                   SUM(v30_pred_direction IS NOT NULL AND v30_pred_direction != '') as v30_cnt,
+                   SUM(v30_is_correct = 1) as v30_correct,
+                   SUM(v30_is_correct IS NOT NULL) as v30_verified
+            FROM stock_weekly_prediction_history
+            WHERE nw_pred_direction IS NOT NULL AND nw_pred_direction != ''
+              AND nw_iso_year IS NOT NULL AND nw_iso_week IS NOT NULL
+            GROUP BY nw_iso_year, nw_iso_week
+            ORDER BY nw_iso_year DESC, nw_iso_week DESC
+            LIMIT 20
+        """)
+        rows = cur.fetchall()
+        for r in rows:
+            for k, v in list(r.items()):
+                if v is not None and not isinstance(v, (str, int, bool)):
+                    try:
+                        r[k] = int(v)
+                    except (ValueError, TypeError):
+                        r[k] = str(v)
+        return {"success": True, "data": rows}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        cur.close()
+        conn.close()

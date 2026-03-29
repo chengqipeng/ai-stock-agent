@@ -87,6 +87,8 @@ from service.auto_job.monthly_prediction_scheduler import _execute_job as _month
 from service.auto_job.stock_news_scheduler import start_news_scheduler, get_news_job_status
 from service.auto_job.stock_news_scheduler import _execute_job as _news_execute_job
 from service.auto_job.news_content_worker import start_news_content_worker, get_content_worker_status
+from service.auto_job.cross_validation_scheduler import start_cross_validation_scheduler, get_cross_validation_job_status
+from service.auto_job.cross_validation_scheduler import _execute_job as _cross_validation_execute_job
 from service.auto_job.scheduler_orchestrator import is_auto_job_enabled
 
 GRADE_SCORE_MAP = {
@@ -173,6 +175,12 @@ async def lifespan(application: FastAPI):
         except Exception as e:
             logger.error("[lifespan] 启动新闻正文Worker异常: %s", e, exc_info=True)
 
+        try:
+            await start_cross_validation_scheduler()
+            logger.info("[lifespan] 数据交叉验证调度器已激活")
+        except Exception as e:
+            logger.error("[lifespan] 启动数据交叉验证调度器异常: %s", e, exc_info=True)
+
         # 关键：app_ready 必须在 try 之外，确保一定会被 set
         app_ready.set()
         logger.info("[lifespan] 应用启动完成，就绪信号已触发")
@@ -200,6 +208,14 @@ app.include_router(weekly_prediction_router)
 from api.web_stock_detail_api import router as stock_detail_router
 app.include_router(stock_detail_router)
 
+# 挂载低估值筛选路由
+from api.web_undervalued_api import router as undervalued_router
+app.include_router(undervalued_router)
+
+# 挂载数据交叉验证路由
+from api.web_cross_validation_api import router as cross_validation_router
+app.include_router(cross_validation_router)
+
 @app.get("/.well-known/appspecific/com.chrome.devtools.json")
 async def chrome_devtools():
     return {}
@@ -210,6 +226,17 @@ class BatchRequest(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     with open("static/index.html", "r", encoding="utf-8") as f:
+        content = f.read()
+    return HTMLResponse(content=content, headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+    })
+
+
+@app.get("/batch_analysis", response_class=HTMLResponse)
+async def batch_analysis_page():
+    with open("static/batch_analysis.html", "r", encoding="utf-8") as f:
         content = f.read()
     return HTMLResponse(content=content, headers={
         "Cache-Control": "no-cache, no-store, must-revalidate",
@@ -507,6 +534,22 @@ async def trigger_news_job():
         return {"success": False, "message": "新闻抓取任务正在执行中"}
     asyncio.create_task(_news_execute_job(manual=True))
     return {"success": True, "message": "新闻抓取任务已触发"}
+
+
+# ── 数据交叉验证调度 ──
+
+@app.get("/api/cross_validation_job_status")
+async def cross_validation_job_status():
+    return {"success": True, "data": get_cross_validation_job_status()}
+
+
+@app.post("/api/trigger_cross_validation_job")
+async def trigger_cross_validation_job():
+    status = get_cross_validation_job_status()
+    if status.get("running"):
+        return {"success": False, "message": "交叉验证任务正在执行中"}
+    asyncio.create_task(_cross_validation_execute_job(manual=True))
+    return {"success": True, "message": "交叉验证任务已触发"}
 
 
 @app.get("/api/news_content_worker_status")

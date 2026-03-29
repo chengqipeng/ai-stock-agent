@@ -19,6 +19,8 @@ _MYSQL_CONFIG = {
     "database": "stock_db",
     "charset": "utf8mb4",
     "autocommit": False,
+    "read_timeout": 300,
+    "write_timeout": 300,
 }
 
 # ── 连接池（全局单例） ──
@@ -32,6 +34,7 @@ _pool = PooledDB(
     maxcached=5,
     maxconnections=10,
     blocking=True,
+    ping=1,
     **_MYSQL_CONFIG,
 )
 
@@ -42,6 +45,7 @@ _pool_dict = PooledDB(
     maxcached=3,
     maxconnections=5,
     blocking=True,
+    ping=1,
     cursorclass=DictCursor,
     **_MYSQL_CONFIG,
 )
