@@ -47,7 +47,14 @@ async def fetch_sina_kline(stock_info: StockInfo, limit: int = 60) -> list[dict]
         async with session.get(_SINA_KLINE_URL, params=params, headers=_HEADERS,
                                timeout=aiohttp.ClientTimeout(total=15)) as resp:
             text = await resp.text()
-            raw_list = json.loads(text)
+            if not text or not text.strip():
+                logger.debug("[sina_kline] %s 返回空响应", symbol)
+                return []
+            try:
+                raw_list = json.loads(text)
+            except json.JSONDecodeError:
+                logger.debug("[sina_kline] %s JSON解析失败, 响应前100字符: %s", symbol, text[:100])
+                return []
 
     result = []
     prev_close = None

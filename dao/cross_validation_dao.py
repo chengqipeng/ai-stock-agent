@@ -84,33 +84,51 @@ def batch_insert_validation_details(rows: list[dict]):
 
 
 def upsert_validation_summary(row: dict):
-    """插入或更新验证汇总"""
-    conn = get_connection()
-    cursor = conn.cursor()
-    try:
-        sql = ("INSERT INTO data_cross_validation_summary "
-               "(run_date, category, total_checks, match_count, mismatch_count, "
-               "missing_count, match_rate, sample_stocks, detail, started_at, "
-               "finished_at, duration_seconds) "
-               "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
-               "ON DUPLICATE KEY UPDATE "
-               "total_checks=VALUES(total_checks), match_count=VALUES(match_count), "
-               "mismatch_count=VALUES(mismatch_count), missing_count=VALUES(missing_count), "
-               "match_rate=VALUES(match_rate), sample_stocks=VALUES(sample_stocks), "
-               "detail=VALUES(detail), started_at=VALUES(started_at), "
-               "finished_at=VALUES(finished_at), duration_seconds=VALUES(duration_seconds)")
-        cursor.execute(sql, (
-            row["run_date"], row["category"], row.get("total_checks", 0),
-            row.get("match_count", 0), row.get("mismatch_count", 0),
-            row.get("missing_count", 0), row.get("match_rate"),
-            row.get("sample_stocks", 0), row.get("detail"),
-            row.get("started_at"), row.get("finished_at"),
-            row.get("duration_seconds"),
-        ))
-        conn.commit()
-    finally:
-        cursor.close()
-        conn.close()
+    """插入或更新验证汇总（含重试，防止远程连接断开）"""
+    import time
+
+    sql = ("INSERT INTO data_cross_validation_summary "
+           "(run_date, category, total_checks, match_count, mismatch_count, "
+           "missing_count, match_rate, sample_stocks, detail, started_at, "
+           "finished_at, duration_seconds) "
+           "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+           "ON DUPLICATE KEY UPDATE "
+           "total_checks=VALUES(total_checks), match_count=VALUES(match_count), "
+           "mismatch_count=VALUES(mismatch_count), missing_count=VALUES(missing_count), "
+           "match_rate=VALUES(match_rate), sample_stocks=VALUES(sample_stocks), "
+           "detail=VALUES(detail), started_at=VALUES(started_at), "
+           "finished_at=VALUES(finished_at), duration_seconds=VALUES(duration_seconds)")
+    params = (
+        row["run_date"], row["category"], row.get("total_checks", 0),
+        row.get("match_count", 0), row.get("mismatch_count", 0),
+        row.get("missing_count", 0), row.get("match_rate"),
+        row.get("sample_stocks", 0), row.get("detail"),
+        row.get("started_at"), row.get("finished_at"),
+        row.get("duration_seconds"),
+    )
+
+    last_err = None
+    for attempt in range(3):
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(sql, params)
+            conn.commit()
+            return
+        except Exception as e:
+            last_err = e
+            logger.warning("[upsert_validation_summary] 第%d次执行失败: %s", attempt + 1, e)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            if attempt < 2:
+                time.sleep(1)
+        finally:
+            cursor.close()
+            conn.close()
+
+    raise last_err
 
 
 def get_latest_summary(run_date: str = None) -> list[dict]:

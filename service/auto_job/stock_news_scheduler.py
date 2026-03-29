@@ -169,7 +169,8 @@ async def _execute_job(manual: bool = False):
                        "event": 0, "ranking": 0, "forecast": 0}
 
         try:
-            async with AsyncSession(impersonate=IMPERSONATE) as session:
+            session = AsyncSession(impersonate=IMPERSONATE)
+            try:
                 for i, stock in enumerate(stocks):
                     code = stock["code"]
                     name = stock.get("name", code)
@@ -182,7 +183,10 @@ async def _execute_job(manual: bool = False):
                         continue
 
                     try:
-                        result = await fetch_stock_news(code, session=session, fetch_content=False)
+                        result = await asyncio.wait_for(
+                            fetch_stock_news(code, session=session, fetch_content=False),
+                            timeout=30,
+                        )
                         stock_news_count = 0
                         for news_type, items in result.items():
                             if items:
@@ -206,8 +210,22 @@ async def _execute_job(manual: bool = False):
                     except Exception as e:
                         failed_count += 1
                         _job_status["failed_stocks"] = failed_count
-                        logger.error("[新闻调度] %s(%s) 抓取失败: %s", name, code, e)
+                        err_msg = str(e)[:100]
+                        logger.error("[新闻调度] %s(%s) 抓取失败: %s", name, code, err_msg)
+                        # 连续失败超过10次，重建session（可能被封或session异常）
+                        if failed_count > 0 and failed_count % 10 == 0:
+                            logger.warning("[新闻调度] 连续失败%d次，重建session", failed_count)
+                            try:
+                                await session.close()
+                            except Exception:
+                                pass
+                            session = AsyncSession(impersonate=IMPERSONATE)
                         await asyncio.sleep(2)
+            finally:
+                try:
+                    await session.close()
+                except Exception:
+                    pass
 
             _job_status["last_run_date"] = today_str
             _job_status["last_run_time"] = datetime.now(_CST).strftime("%Y-%m-%d %H:%M:%S")

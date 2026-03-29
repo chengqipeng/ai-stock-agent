@@ -228,6 +228,10 @@ app.include_router(undervalued_router)
 from api.web_cross_validation_api import router as cross_validation_router
 app.include_router(cross_validation_router)
 
+# 挂载算法逻辑详解路由
+from api.web_algorithm_detail_api import router as algorithm_detail_router
+app.include_router(algorithm_detail_router)
+
 @app.get("/.well-known/appspecific/com.chrome.devtools.json")
 async def chrome_devtools():
     return {}
