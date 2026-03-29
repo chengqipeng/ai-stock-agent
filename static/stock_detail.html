@@ -311,7 +311,7 @@ function rFinance(){
   var latestIsFc=latest.is_forecast;
   if(latestIsFc){h+='<div style="padding:8px 12px;background:rgba(255,152,0,0.1);border-radius:6px;font-size:12px;color:#e67e22;margin-bottom:8px">📈 最新数据为<b>业绩预告</b>（'+(latest.report_period_name||'')+'），正式财报发布后将自动覆盖</div>'}
   if(!Object.keys(ld).length){h+='<div style="padding:8px;background:rgba(255,152,0,0.1);border-radius:6px;font-size:11px;color:#e67e22;margin-bottom:8px">⚠️ 财报data字段为空对象</div>'}
-  else{var _testRev=FV(ld,['营业总收入(元)','营业总收入','TOTALOPERATEREVE']);
+  else if(!latestIsFc){var _testRev=FV(ld,['营业总收入(元)','营业总收入','TOTALOPERATEREVE']);
     if(_testRev==null){var _ks=Object.keys(ld).slice(0,15).join(', ');
       h+='<div style="padding:8px;background:rgba(255,152,0,0.1);border-radius:6px;font-size:11px;color:#e67e22;margin-bottom:8px">⚠️ 财报数据字段未匹配，实际key: '+_ks+'</div>'}}
 
