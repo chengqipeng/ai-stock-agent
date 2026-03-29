@@ -2,11 +2,33 @@
 周预测 DAO — 管理 stock_weekly_prediction 和 stock_weekly_prediction_history 表
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from dao import get_connection
 
 logger = logging.getLogger(__name__)
+
+
+def _is_target_week_finished(iso_year: int, iso_week: int) -> bool:
+    """判断目标周是否已结束（周五已过）。"""
+    if not iso_year or not iso_week:
+        return False
+    try:
+        mon = datetime.strptime(f'{iso_year}-W{iso_week:02d}-1', '%G-W%V-%u')
+        fri = mon + timedelta(days=4)
+        return datetime.now().date() > fri.date()
+    except (ValueError, TypeError):
+        return False
+
+
+def _mask_unfinished_actual(rows: list[dict], actual_fields: list[str],
+                            iso_year: int, iso_week: int):
+    """如果目标周尚未结束，将 actual 字段强制置为 None（防止显示错误回填数据）。"""
+    if _is_target_week_finished(iso_year, iso_week):
+        return
+    for r in rows:
+        for f in actual_fields:
+            r[f] = None
 
 # ═══════════════════════════════════════════════════════════
 # 建表 DDL
@@ -236,8 +258,15 @@ _PREDICTION_COLUMNS = [
     'v30_actual_direction', 'v30_actual_5d_chg', 'v30_is_correct',
 ]
 
-# 不参与 ON DUPLICATE KEY UPDATE 的列（主键/唯一键）
-_SKIP_UPDATE_COLS = {'stock_code'}
+# 不参与 ON DUPLICATE KEY UPDATE 的列（主键/唯一键 + 回填的实际结果字段）
+_SKIP_UPDATE_COLS = {
+    'stock_code',
+    # 回填的实际结果字段：这些由验证服务单独回填，预测时不应覆盖
+    'actual_direction', 'actual_weekly_chg', 'is_correct',
+    'nw_actual_direction', 'nw_actual_weekly_chg', 'nw_is_correct',
+    'v20_actual_direction', 'v20_actual_5d_chg', 'v20_is_correct',
+    'v30_actual_direction', 'v30_actual_5d_chg', 'v30_is_correct',
+}
 
 
 def _build_upsert_sql(table: str) -> str:
@@ -744,16 +773,20 @@ def get_prediction_verification(iso_year: int = None, iso_week: int = None,
         ]
         params = [iso_year, iso_week]
 
+        # 目标周未结束时，忽略结果筛选（DB中可能有脏数据）
+        _week_finished = _is_target_week_finished(iso_year, iso_week)
+
         if direction_filter:
             where_parts.append("h.pred_direction = %s")
             params.append(direction_filter)
 
-        if result_filter == 'correct':
-            where_parts.append("h.is_correct = 1")
-        elif result_filter == 'wrong':
-            where_parts.append("h.is_correct = 0")
-        elif result_filter == 'pending':
-            where_parts.append("h.is_correct IS NULL")
+        if _week_finished:
+            if result_filter == 'correct':
+                where_parts.append("h.is_correct = 1")
+            elif result_filter == 'wrong':
+                where_parts.append("h.is_correct = 0")
+            elif result_filter == 'pending':
+                where_parts.append("h.is_correct IS NULL")
 
         search_terms = keywords or ([keyword] if keyword else None)
         if search_terms:
@@ -797,6 +830,10 @@ def get_prediction_verification(iso_year: int = None, iso_week: int = None,
         """, params + [limit, offset])
         rows = cur.fetchall()
 
+        # 如果目标周尚未结束，屏蔽 actual 字段
+        _tw_actual_fields = ['actual_direction', 'actual_weekly_chg', 'is_correct']
+        _mask_unfinished_actual(rows, _tw_actual_fields, iso_year, iso_week)
+
         # 汇总统计
         cur.execute(f"""
             SELECT
@@ -825,6 +862,21 @@ def get_prediction_verification(iso_year: int = None, iso_week: int = None,
         summary = cur.fetchone() or {}
         summary['iso_year'] = iso_year
         summary['iso_week'] = iso_week
+
+        # 目标周未结束时，汇总中的 actual 统计也要屏蔽
+        if not _is_target_week_finished(iso_year, iso_week):
+            total_cnt = summary.get('total') or 0
+            summary['correct'] = 0
+            summary['wrong'] = 0
+            summary['pending'] = total_cnt
+            summary['accuracy'] = None
+            summary['high_correct'] = 0
+            summary['high_total'] = 0
+            summary['med_correct'] = 0
+            summary['med_total'] = 0
+            summary['low_correct'] = 0
+            summary['low_total'] = 0
+            summary['avg_actual_chg'] = None
 
         return rows, total, summary
     finally:
@@ -885,16 +937,20 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
         ]
         params = [iso_year, iso_week]
 
+        # 目标周未结束时，忽略结果筛选（DB中可能有脏数据）
+        _week_finished = _is_target_week_finished(iso_year, iso_week)
+
         if direction_filter:
             where_parts.append("h.nw_pred_direction = %s")
             params.append(direction_filter)
 
-        if result_filter == 'correct':
-            where_parts.append("h.nw_is_correct = 1")
-        elif result_filter == 'wrong':
-            where_parts.append("h.nw_is_correct = 0")
-        elif result_filter == 'pending':
-            where_parts.append("h.nw_is_correct IS NULL")
+        if _week_finished:
+            if result_filter == 'correct':
+                where_parts.append("h.nw_is_correct = 1")
+            elif result_filter == 'wrong':
+                where_parts.append("h.nw_is_correct = 0")
+            elif result_filter == 'pending':
+                where_parts.append("h.nw_is_correct IS NULL")
 
         search_terms = keywords or ([keyword] if keyword else None)
         if search_terms:
@@ -948,6 +1004,10 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
         """, params + [limit, offset])
         rows = cur.fetchall()
 
+        # 如果目标周尚未结束，屏蔽 actual 字段
+        _nw_actual_fields = ['nw_actual_direction', 'nw_actual_chg', 'nw_is_correct']
+        _mask_unfinished_actual(rows, _nw_actual_fields, iso_year, iso_week)
+
         # 汇总统计
         cur.execute(f"""
             SELECT
@@ -976,6 +1036,19 @@ def get_nw_prediction_verification(iso_year: int = None, iso_week: int = None,
         summary = cur.fetchone() or {}
         summary['iso_year'] = iso_year
         summary['iso_week'] = iso_week
+
+        # 目标周未结束时，汇总中的 actual 统计也要屏蔽
+        if not _is_target_week_finished(iso_year, iso_week):
+            total_cnt = summary.get('total') or 0
+            summary['correct'] = 0
+            summary['wrong'] = 0
+            summary['pending'] = total_cnt
+            summary['accuracy'] = None
+            summary['high_correct'] = 0
+            summary['high_total'] = 0
+            summary['ref_correct'] = 0
+            summary['ref_total'] = 0
+            summary['avg_actual_chg'] = None
 
         return rows, total, summary
     finally:
@@ -1025,12 +1098,15 @@ def get_v20_prediction_verification(iso_year: int = None, iso_week: int = None,
             where_parts.append("h.v20_pred_direction = %s")
             params.append(direction_filter)
 
-        if result_filter == 'correct':
-            where_parts.append("h.v20_is_correct = 1")
-        elif result_filter == 'wrong':
-            where_parts.append("h.v20_is_correct = 0")
-        elif result_filter == 'pending':
-            where_parts.append("h.v20_is_correct IS NULL")
+        # 目标周未结束时，忽略结果筛选（DB中可能有脏数据）
+        _week_finished = _is_target_week_finished(iso_year, iso_week)
+        if _week_finished:
+            if result_filter == 'correct':
+                where_parts.append("h.v20_is_correct = 1")
+            elif result_filter == 'wrong':
+                where_parts.append("h.v20_is_correct = 0")
+            elif result_filter == 'pending':
+                where_parts.append("h.v20_is_correct IS NULL")
 
         where_sql = "WHERE " + " AND ".join(where_parts) if where_parts else ""
 
@@ -1061,6 +1137,10 @@ def get_v20_prediction_verification(iso_year: int = None, iso_week: int = None,
         """, params + [limit, offset])
         rows = cur.fetchall()
 
+        # 如果目标周尚未结束，屏蔽 actual 字段（防止显示错误回填数据）
+        _v20_actual_fields = ['v20_actual_direction', 'v20_actual_5d_chg', 'v20_is_correct']
+        _mask_unfinished_actual(rows, _v20_actual_fields, iso_year, iso_week)
+
         cur.execute(f"""
             SELECT
                 COUNT(*) as total,
@@ -1082,6 +1162,19 @@ def get_v20_prediction_verification(iso_year: int = None, iso_week: int = None,
         summary = cur.fetchone() or {}
         summary['iso_year'] = iso_year
         summary['iso_week'] = iso_week
+
+        # 目标周未结束时，汇总中的 actual 统计也要屏蔽
+        if not _is_target_week_finished(iso_year, iso_week):
+            total_cnt = summary.get('total') or 0
+            summary['correct'] = 0
+            summary['wrong'] = 0
+            summary['pending'] = total_cnt
+            summary['accuracy'] = None
+            summary['high_correct'] = 0
+            summary['high_total'] = 0
+            summary['med_correct'] = 0
+            summary['med_total'] = 0
+            summary['avg_actual_chg'] = None
 
         return rows, total, summary
     finally:
@@ -1197,12 +1290,15 @@ def get_v30_prediction_verification(iso_year: int = None, iso_week: int = None,
             where_parts.append("h.v30_pred_direction = %s")
             params.append(direction_filter)
 
-        if result_filter == 'correct':
-            where_parts.append("h.v30_is_correct = 1")
-        elif result_filter == 'wrong':
-            where_parts.append("h.v30_is_correct = 0")
-        elif result_filter == 'pending':
-            where_parts.append("h.v30_is_correct IS NULL")
+        # 目标周未结束时，忽略结果筛选（DB中可能有脏数据）
+        _week_finished = _is_target_week_finished(iso_year, iso_week)
+        if _week_finished:
+            if result_filter == 'correct':
+                where_parts.append("h.v30_is_correct = 1")
+            elif result_filter == 'wrong':
+                where_parts.append("h.v30_is_correct = 0")
+            elif result_filter == 'pending':
+                where_parts.append("h.v30_is_correct IS NULL")
 
         search_terms = keywords or ([keyword] if keyword else None)
         if search_terms:
@@ -1245,6 +1341,10 @@ def get_v30_prediction_verification(iso_year: int = None, iso_week: int = None,
         """, params + [limit, offset])
         rows = cur.fetchall()
 
+        # 如果目标周尚未结束，屏蔽 actual 字段（防止显示错误回填数据）
+        _v30_actual_fields = ['v30_actual_direction', 'v30_actual_5d_chg', 'v30_is_correct']
+        _mask_unfinished_actual(rows, _v30_actual_fields, iso_year, iso_week)
+
         cur.execute(f"""
             SELECT
                 COUNT(*) as total,
@@ -1268,6 +1368,21 @@ def get_v30_prediction_verification(iso_year: int = None, iso_week: int = None,
         summary = cur.fetchone() or {}
         summary['iso_year'] = iso_year
         summary['iso_week'] = iso_week
+
+        # 目标周未结束时，汇总中的 actual 统计也要屏蔽
+        if not _is_target_week_finished(iso_year, iso_week):
+            total_cnt = summary.get('total') or 0
+            summary['correct'] = 0
+            summary['wrong'] = 0
+            summary['pending'] = total_cnt
+            summary['accuracy'] = None
+            summary['high_correct'] = 0
+            summary['high_total'] = 0
+            summary['med_correct'] = 0
+            summary['med_total'] = 0
+            summary['low_correct'] = 0
+            summary['low_total'] = 0
+            summary['avg_actual_chg'] = None
 
         return rows, total, summary
     finally:

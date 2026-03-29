@@ -89,6 +89,13 @@ def verify_week_predictions(iso_year: int, iso_week: int) -> dict:
         # 2. 计算该周日期范围
         start_date, end_date = _get_week_date_range(iso_year, iso_week)
 
+        # 检查该周是否已结束（周五已过）
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        if end_date >= today_str:
+            return {'iso_year': iso_year, 'iso_week': iso_week,
+                    'verified': 0, 'correct': 0, 'wrong': 0, 'skipped': len(stock_codes),
+                    'message': f'目标周 Y{iso_year}-W{iso_week:02d} 尚未结束({end_date})，跳过验证'}
+
         # 3. 批量获取 K 线数据
         kline_map = defaultdict(list)
         batch_size = 200
@@ -243,6 +250,14 @@ def verify_nw_week_predictions(iso_year: int, iso_week: int) -> dict:
         nw_year = predictions[0]['nw_iso_year']
         nw_week = predictions[0]['nw_iso_week']
         target_start, target_end = _get_week_date_range(nw_year, nw_week)
+
+        # 检查目标周是否已结束（周五已过）
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        if target_end >= today_str:
+            return {'iso_year': iso_year, 'iso_week': iso_week,
+                    'verified': 0, 'correct': 0, 'wrong': 0, 'skipped': len(predictions),
+                    'message': f'目标周 Y{nw_year}-W{nw_week:02d} 尚未结束({target_end})，跳过验证',
+                    'type': 'nw'}
 
         stock_codes = [p['stock_code'] for p in predictions]
         pred_map = {p['stock_code']: p['nw_pred_direction'] for p in predictions}
@@ -410,8 +425,17 @@ def verify_v20_pending() -> dict:
         for tw in set(target_weeks.values()):
             week_ranges[tw] = _get_week_date_range(tw[0], tw[1])
 
+        # 过滤掉目标周尚未结束的（周五还没过）
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        finished_weeks = {tw: dr for tw, dr in week_ranges.items() if dr[1] < today_str}
+        if not finished_weeks:
+            logger.info("V20: 所有目标周尚未结束，跳过验证")
+            return {'verified': 0, 'correct': 0, 'wrong': 0,
+                    'skipped': len(predictions), 'type': 'v20',
+                    'message': '目标周尚未结束'}
+
         # 批量获取K线数据
-        all_date_ranges = list(week_ranges.values())
+        all_date_ranges = list(finished_weeks.values())
         global_min = min(r[0] for r in all_date_ranges)
         global_max = max(r[1] for r in all_date_ranges)
 
@@ -441,8 +465,9 @@ def verify_v20_pending() -> dict:
                 skipped += 1
                 continue
 
-            date_range = week_ranges.get(tw)
+            date_range = finished_weeks.get(tw)
             if not date_range:
+                # 目标周尚未结束
                 skipped += 1
                 continue
 
@@ -450,7 +475,7 @@ def verify_v20_pending() -> dict:
             klines = [k for k in kline_map.get(code, [])
                       if target_start <= str(k['date']) <= target_end]
 
-            if len(klines) < 3:
+            if len(klines) < 4:
                 skipped += 1
                 continue
 
@@ -578,7 +603,16 @@ def verify_v30_pending() -> dict:
         for tw in set(target_weeks.values()):
             week_ranges[tw] = _get_week_date_range(tw[0], tw[1])
 
-        all_date_ranges = list(week_ranges.values())
+        # 过滤掉目标周尚未结束的（周五还没过）
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        finished_weeks = {tw: dr for tw, dr in week_ranges.items() if dr[1] < today_str}
+        if not finished_weeks:
+            logger.info("V30: 所有目标周尚未结束，跳过验证")
+            return {'verified': 0, 'correct': 0, 'wrong': 0,
+                    'skipped': len(predictions), 'type': 'v30',
+                    'message': '目标周尚未结束'}
+
+        all_date_ranges = list(finished_weeks.values())
         global_min = min(r[0] for r in all_date_ranges)
         global_max = max(r[1] for r in all_date_ranges)
 
@@ -609,8 +643,9 @@ def verify_v30_pending() -> dict:
                 skipped += 1
                 continue
 
-            date_range = week_ranges.get(tw)
+            date_range = finished_weeks.get(tw)
             if not date_range:
+                # 目标周尚未结束
                 skipped += 1
                 continue
 
@@ -618,7 +653,7 @@ def verify_v30_pending() -> dict:
             klines = [k for k in kline_map.get(code, [])
                       if target_start <= str(k['date']) <= target_end]
 
-            if len(klines) < 3:
+            if len(klines) < 4:
                 skipped += 1
                 continue
 
@@ -672,9 +707,58 @@ def verify_v30_pending() -> dict:
         conn.close()
 
 
+def _cleanup_premature_verification():
+    """清理目标周尚未结束但已被错误回填的 V20/V30/NW 实际结果。
+
+    找出 nw_iso_week 对应的目标周周五还没过的记录，
+    将其 v20/v30/nw 的 actual 字段重置为 NULL。
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        today_str = datetime.now().strftime('%Y-%m-%d')
+
+        # 找出所有目标周
+        cur.execute("""
+            SELECT DISTINCT nw_iso_year, nw_iso_week
+            FROM stock_weekly_prediction_history
+            WHERE nw_iso_year IS NOT NULL AND nw_iso_week IS NOT NULL
+              AND (v20_is_correct IS NOT NULL OR v30_is_correct IS NOT NULL
+                   OR nw_is_correct IS NOT NULL)
+        """)
+        rows = cur.fetchall()
+
+        cleared_count = 0
+        for row in rows:
+            nw_y, nw_w = row[0], row[1]
+            _, fri_str = _get_week_date_range(nw_y, nw_w)
+            if fri_str >= today_str:
+                # 目标周尚未结束，清理错误回填的数据
+                cur.execute("""
+                    UPDATE stock_weekly_prediction_history
+                    SET v20_actual_direction = NULL, v20_actual_5d_chg = NULL, v20_is_correct = NULL,
+                        v30_actual_direction = NULL, v30_actual_5d_chg = NULL, v30_is_correct = NULL,
+                        nw_actual_direction = NULL, nw_actual_weekly_chg = NULL, nw_is_correct = NULL
+                    WHERE nw_iso_year = %s AND nw_iso_week = %s
+                      AND (v20_is_correct IS NOT NULL OR v30_is_correct IS NOT NULL
+                           OR nw_is_correct IS NOT NULL)
+                """, (nw_y, nw_w))
+                cleared_count += cur.rowcount
+
+        if cleared_count > 0:
+            conn.commit()
+            logger.info("清理了 %d 条目标周未结束的错误验证数据", cleared_count)
+    except Exception as e:
+        logger.error("清理错误验证数据失败: %s", e, exc_info=True)
+    finally:
+        cur.close()
+        conn.close()
+
+
 def verify_all_pending_weeks() -> list[dict]:
     """验证所有有待验证预测的历史周，包括下周预测的目标周。
 
+    0. 清理目标周尚未结束但已被错误回填的 V20/V30 实际结果
     1. 回填本周预测的 actual_direction（仅跳过K线不足4天的最新周）
     2. 回填下周预测目标周的 actual_direction（确保 nw 验证可用）
 
@@ -682,6 +766,9 @@ def verify_all_pending_weeks() -> list[dict]:
         [{'iso_year': ..., 'iso_week': ..., 'verified': N, ...}, ...]
     """
     results = []
+
+    # ── 0. 清理目标周尚未结束但已被错误回填的实际结果 ──
+    _cleanup_premature_verification()
 
     # ── 1. 本周预测验证 ──
     weeks = _get_unverified_weeks(limit=20)

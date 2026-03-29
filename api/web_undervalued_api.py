@@ -95,11 +95,10 @@ def _run_screening(mcap_min: float = 80, mcap_max: float = 500,
         cur.execute('SELECT stock_code, close_price FROM stock_kline WHERE date = %s', (md,))
         pmap = {r['stock_code']: r['close_price'] for r in cur.fetchall()}
 
-        # 预测
+        # 股票名称 + 概念板块（从 weekly_prediction 表获取）
         cur.execute(
-            'SELECT stock_code, stock_name, finance_score, fund_flow_signal, '
-            'big_net_sum, main_net_5day, board_momentum, pred_direction, '
-            'confidence, concept_boards FROM stock_weekly_prediction')
+            'SELECT stock_code, stock_name, concept_boards '
+            'FROM stock_weekly_prediction')
         predmap = {r['stock_code']: r for r in cur.fetchall()}
 
         # 概念板块
@@ -205,10 +204,6 @@ def _run_screening(mcap_min: float = 80, mcap_max: float = 500,
                 'cr': round(cr, 1) if cr else None,
                 'ocf': round(ocf, 2) if ocf else None,
                 'c120': c120, 'sc': sc, 'sector': sector,
-                'pred': pr.get('pred_direction'),
-                'conf': pr.get('confidence'),
-                'fund': round(pr.get('fund_flow_signal') or 0, 2),
-                'bnet': round(pr.get('big_net_sum') or 0, 0),
             })
 
         total = len(cands)

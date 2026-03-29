@@ -574,6 +574,7 @@ async def unified_verification(
     后端用 nw_iso_year/nw_iso_week 匹配，确保三个模型对齐到同一周。
     """
     from dao import get_connection
+    from dao.stock_weekly_prediction_dao import _is_target_week_finished, _mask_unfinished_actual
     conn = get_connection(use_dict_cursor=True)
     cur = conn.cursor()
     try:
@@ -626,26 +627,29 @@ async def unified_verification(
             else:
                 wheres.append("h.v30_pred_direction IS NOT NULL AND h.v30_pred_direction != ''")
 
-        if nw_result == 'correct':
-            wheres.append("h.nw_is_correct = 1")
-        elif nw_result == 'wrong':
-            wheres.append("h.nw_is_correct = 0")
-        elif nw_result == 'pending':
-            wheres.append("h.nw_is_correct IS NULL")
+        # 目标周未结束时，忽略结果筛选（DB中可能有脏数据）
+        _week_finished = _is_target_week_finished(iso_year, iso_week)
+        if _week_finished:
+            if nw_result == 'correct':
+                wheres.append("h.nw_is_correct = 1")
+            elif nw_result == 'wrong':
+                wheres.append("h.nw_is_correct = 0")
+            elif nw_result == 'pending':
+                wheres.append("h.nw_is_correct IS NULL")
 
-        if v20_result == 'correct':
-            wheres.append("h.v20_is_correct = 1")
-        elif v20_result == 'wrong':
-            wheres.append("h.v20_is_correct = 0")
-        elif v20_result == 'pending':
-            wheres.append("h.v20_is_correct IS NULL AND h.v20_pred_direction IS NOT NULL AND h.v20_pred_direction != ''")
+            if v20_result == 'correct':
+                wheres.append("h.v20_is_correct = 1")
+            elif v20_result == 'wrong':
+                wheres.append("h.v20_is_correct = 0")
+            elif v20_result == 'pending':
+                wheres.append("h.v20_is_correct IS NULL AND h.v20_pred_direction IS NOT NULL AND h.v20_pred_direction != ''")
 
-        if v30_result == 'correct':
-            wheres.append("h.v30_is_correct = 1")
-        elif v30_result == 'wrong':
-            wheres.append("h.v30_is_correct = 0")
-        elif v30_result == 'pending':
-            wheres.append("h.v30_is_correct IS NULL AND h.v30_pred_direction IS NOT NULL AND h.v30_pred_direction != ''")
+            if v30_result == 'correct':
+                wheres.append("h.v30_is_correct = 1")
+            elif v30_result == 'wrong':
+                wheres.append("h.v30_is_correct = 0")
+            elif v30_result == 'pending':
+                wheres.append("h.v30_is_correct IS NULL AND h.v30_pred_direction IS NOT NULL AND h.v30_pred_direction != ''")
 
         if combo == 'all_up':
             wheres.append("h.nw_pred_direction = 'UP'")
@@ -657,6 +661,17 @@ async def unified_verification(
         elif combo == 'nw_v20_up':
             wheres.append("h.nw_pred_direction = 'UP'")
             wheres.append("h.v20_pred_direction = 'UP'")
+
+        if confidence == 'all_high':
+            wheres.append("h.nw_confidence = 'high'")
+            wheres.append("h.v20_confidence = 'high'")
+            wheres.append("h.v30_confidence IN ('high', 'medium')")
+        elif confidence == 'nw_high':
+            wheres.append("h.nw_confidence = 'high'")
+        elif confidence == 'v20_high':
+            wheres.append("h.v20_confidence = 'high'")
+        elif confidence == 'v30_high':
+            wheres.append("h.v30_confidence IN ('high', 'medium')")
 
         where_sql = " AND ".join(wheres)
 
@@ -695,6 +710,15 @@ async def unified_verification(
         """, params + [limit, offset])
         rows = cur.fetchall()
 
+        # 如果目标周尚未结束，屏蔽 actual 字段（防止显示错误回填数据）
+        if not _is_target_week_finished(iso_year, iso_week):
+            _all_actual = [
+                'nw_actual_direction', 'nw_actual_weekly_chg', 'nw_is_correct',
+                'v20_actual_direction', 'v20_actual_5d_chg', 'v20_is_correct',
+                'v30_actual_direction', 'v30_actual_5d_chg', 'v30_is_correct',
+            ]
+            _mask_unfinished_actual(rows, _all_actual, iso_year, iso_week)
+
         # 序列化
         for r in rows:
             for k, v in list(r.items()):
@@ -723,6 +747,19 @@ async def unified_verification(
         summary = {}
         for k, v in sm.items():
             summary[k] = float(v) if v is not None and not isinstance(v, (str, int, bool)) else v
+
+        # 目标周未结束时，汇总中的 actual 统计也要屏蔽
+        if not _is_target_week_finished(iso_year, iso_week):
+            summary['nw_correct'] = 0
+            summary['nw_wrong'] = 0
+            summary['nw_pending'] = summary.get('total', 0)
+            summary['nw_avg_chg'] = None
+            summary['v20_correct'] = 0
+            summary['v20_wrong'] = 0
+            summary['v20_avg_chg'] = None
+            summary['v30_correct'] = 0
+            summary['v30_wrong'] = 0
+            summary['v30_avg_chg'] = None
 
         return {"success": True, "data": rows, "total": total, "summary": summary,
                 "target_year": iso_year, "target_week": iso_week}

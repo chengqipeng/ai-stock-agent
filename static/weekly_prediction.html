@@ -2810,23 +2810,61 @@ async function loadUnifiedList() {
 
 function renderUnifiedSummary(s) {
     if (!s) return;
-    var h = '';
     var nwTotal = (s.nw_correct||0) + (s.nw_wrong||0);
     var nwAcc = nwTotal > 0 ? ((s.nw_correct||0) / nwTotal * 100).toFixed(1) : '-';
-    h += '<div class="summary-item"><div class="summary-value">' + nwAcc + '%</div><div class="summary-label2">V11准确率(' + nwTotal + '条)</div></div>';
-    h += '<div class="summary-item"><div class="summary-value">' + (s.nw_avg_chg != null ? Number(s.nw_avg_chg).toFixed(2) + '%' : '-') + '</div><div class="summary-label2">V11平均涨跌</div></div>';
-
+    var nwPend = s.nw_pending || 0;
     var v20Total = (s.v20_correct||0) + (s.v20_wrong||0);
     var v20Acc = v20Total > 0 ? ((s.v20_correct||0) / v20Total * 100).toFixed(1) : '-';
-    h += '<div class="summary-item"><div class="summary-value" style="color:#009688">' + v20Acc + '%</div><div class="summary-label2">V20准确率(' + (s.v20_total||0) + '条)</div></div>';
-    h += '<div class="summary-item"><div class="summary-value" style="color:#009688">' + (s.v20_avg_chg != null ? Number(s.v20_avg_chg).toFixed(2) + '%' : '-') + '</div><div class="summary-label2">V20平均涨跌</div></div>';
-
     var v30Total = (s.v30_correct||0) + (s.v30_wrong||0);
     var v30Acc = v30Total > 0 ? ((s.v30_correct||0) / v30Total * 100).toFixed(1) : '-';
-    h += '<div class="summary-item"><div class="summary-value" style="color:#795548">' + v30Acc + '%</div><div class="summary-label2">V30准确率(' + (s.v30_total||0) + '条)</div></div>';
-    h += '<div class="summary-item"><div class="summary-value" style="color:#795548">' + (s.v30_avg_chg != null ? Number(s.v30_avg_chg).toFixed(2) + '%' : '-') + '</div><div class="summary-label2">V30平均涨跌</div></div>';
-
-    h += '<div class="summary-item"><div class="summary-value">' + (s.total||0) + '</div><div class="summary-label2">筛选结果数</div></div>';
+    function _chgFmt(v) {
+        if (v == null) return '-';
+        var n = Number(v);
+        var c = n > 0 ? 'color:#e74c3c' : n < 0 ? 'color:#2ecc71' : '';
+        return '<span style="' + c + ';font-weight:600">' + n.toFixed(2) + '%</span>';
+    }
+    function _accColor(v) {
+        if (v === '-') return '';
+        var n = parseFloat(v);
+        return n >= 60 ? 'color:#34c759' : n >= 45 ? 'color:#f0ad4e' : 'color:#e74c3c';
+    }
+    var h = '<table class="pred-table" style="margin-bottom:8px"><thead><tr>';
+    h += '<th>模型</th><th>预测数</th><th>已验证</th><th>正确</th><th>错误</th><th>待验证</th><th>准确率</th><th>平均涨跌</th>';
+    h += '</tr></thead><tbody>';
+    // V11
+    h += '<tr>';
+    h += '<td style="font-weight:700;color:#667eea">V11</td>';
+    h += '<td>' + (s.total||0) + '</td>';
+    h += '<td>' + nwTotal + '</td>';
+    h += '<td style="color:#34c759">' + (s.nw_correct||0) + '</td>';
+    h += '<td style="color:#e74c3c">' + (s.nw_wrong||0) + '</td>';
+    h += '<td style="color:#8e8e93">' + nwPend + '</td>';
+    h += '<td style="font-weight:700;' + _accColor(nwAcc) + '">' + nwAcc + '%</td>';
+    h += '<td>' + _chgFmt(s.nw_avg_chg) + '</td>';
+    h += '</tr>';
+    // V20
+    h += '<tr style="background:rgba(0,150,136,0.03)">';
+    h += '<td style="font-weight:700;color:#009688">V20</td>';
+    h += '<td>' + (s.v20_total||0) + '</td>';
+    h += '<td>' + v20Total + '</td>';
+    h += '<td style="color:#34c759">' + (s.v20_correct||0) + '</td>';
+    h += '<td style="color:#e74c3c">' + (s.v20_wrong||0) + '</td>';
+    h += '<td style="color:#8e8e93">' + ((s.v20_total||0) - v20Total) + '</td>';
+    h += '<td style="font-weight:700;' + _accColor(v20Acc) + '">' + v20Acc + '%</td>';
+    h += '<td>' + _chgFmt(s.v20_avg_chg) + '</td>';
+    h += '</tr>';
+    // V30
+    h += '<tr style="background:rgba(121,85,72,0.03)">';
+    h += '<td style="font-weight:700;color:#795548">V30</td>';
+    h += '<td>' + (s.v30_total||0) + '</td>';
+    h += '<td>' + v30Total + '</td>';
+    h += '<td style="color:#34c759">' + (s.v30_correct||0) + '</td>';
+    h += '<td style="color:#e74c3c">' + (s.v30_wrong||0) + '</td>';
+    h += '<td style="color:#8e8e93">' + ((s.v30_total||0) - v30Total) + '</td>';
+    h += '<td style="font-weight:700;' + _accColor(v30Acc) + '">' + v30Acc + '%</td>';
+    h += '<td>' + _chgFmt(s.v30_avg_chg) + '</td>';
+    h += '</tr>';
+    h += '</tbody></table>';
     document.getElementById('unifiedSummaryRow').innerHTML = h;
 }
 

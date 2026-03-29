@@ -125,7 +125,12 @@ _job_status = {
 _persisted = _load_persisted_status()
 if _persisted.get("last_run_date"):
     _job_status["last_run_date"] = _persisted["last_run_date"]
+    _job_status["last_run_time"] = _persisted.get("last_run_time")
     _job_status["last_success"] = _persisted.get("last_success")
+    _job_status["total"] = _persisted.get("total", 0)
+    _job_status["success"] = _persisted.get("success", 0)
+    _job_status["failed"] = _persisted.get("failed", 0)
+    _job_status["skipped"] = _persisted.get("skipped", 0)
 
 
 def get_fund_flow_job_status():

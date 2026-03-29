@@ -64,11 +64,14 @@ def _load_persisted_status() -> dict:
 def _save_persisted_status(status: dict):
     try:
         _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        # 只持久化需要跨重启保留的字段，不保存 running 等运行时状态
         payload = {
             "last_run_date": status.get("last_run_date"),
             "last_run_time": status.get("last_run_time"),
             "last_success": status.get("last_success"),
+            "kline_count": status.get("kline_count", 0),
+            "index_realtime_count": status.get("index_realtime_count", 0),
+            "ranking_count": status.get("ranking_count", 0),
+            "us_stock_kline_count": status.get("us_stock_kline_count", 0),
         }
         _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:

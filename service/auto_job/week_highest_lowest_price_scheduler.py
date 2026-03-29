@@ -64,6 +64,9 @@ def _save_persisted_status(status: dict):
             "last_run_time": status.get("last_run_time"),
             "last_run_date": status.get("last_run_date"),
             "last_success": status.get("last_success"),
+            "price_total": status.get("price_total", 0),
+            "price_success": status.get("price_success", 0),
+            "price_failed": status.get("price_failed", 0),
         }
         _PRICE_STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
@@ -77,7 +80,7 @@ _job_status = {
     "last_run_time": _persisted.get("last_run_time"),
     "last_run_date": _persisted.get("last_run_date"),
     "last_success": _persisted.get("last_success"),
-    "price_total": 0,
+    "price_total": _persisted.get("price_total", 0),
     "price_success": 0,
     "price_failed": 0,
     "running": False,            # 是否正在执行

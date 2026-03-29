@@ -75,6 +75,12 @@ def _save_persisted_status(status: dict):
             "last_run_time": status.get("last_run_time"),
             "last_run_date": status.get("last_run_date"),
             "last_success": status.get("last_success"),
+            "kline_total": status.get("kline_total", 0),
+            "kline_success": status.get("kline_success", 0),
+            "kline_failed": status.get("kline_failed", 0),
+            "finance_total": status.get("finance_total", 0),
+            "finance_success": status.get("finance_success", 0),
+            "finance_failed": status.get("finance_failed", 0),
         }
         _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
@@ -99,14 +105,14 @@ _job_status = {
     "last_run_time": _persisted.get("last_run_time"),
     "last_run_date": _persisted.get("last_run_date"),
     "last_success": _persisted.get("last_success"),
-    "kline_total": 0,
-    "kline_success": 0,
-    "kline_failed": 0,
-    "finance_total": 0,
-    "finance_success": 0,
-    "finance_failed": 0,
-    "running": False,            # 是否正在执行
-    "error": None,               # 异常信息
+    "kline_total": _persisted.get("kline_total", 0),
+    "kline_success": _persisted.get("kline_success", 0),
+    "kline_failed": _persisted.get("kline_failed", 0),
+    "finance_total": _persisted.get("finance_total", 0),
+    "finance_success": _persisted.get("finance_success", 0),
+    "finance_failed": _persisted.get("finance_failed", 0),
+    "running": False,
+    "error": None,
 }
 
 

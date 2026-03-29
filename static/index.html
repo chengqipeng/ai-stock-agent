@@ -31,8 +31,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
 .nav-card .icon{font-size:20px;margin-bottom:4px}
 .nav-card .title{font-size:12px;font-weight:700;margin-bottom:2px}
 .nav-card .desc{font-size:10px;color:#8e8e93;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.sched-grid{display:grid;grid-template-columns:1fr;gap:8px}
-.job-banner{background:rgba(255,255,255,0.55);backdrop-filter:blur(16px);border-radius:8px;padding:8px 12px;font-size:11px;color:#48484a;display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:8px;min-height:36px;position:relative;border:1px solid rgba(0,0,0,0.05)}
+.job-grid{display:flex;flex-wrap:wrap;gap:8px}
+.job-wrap{background:rgba(255,255,255,0.55);backdrop-filter:blur(16px);border-radius:8px;font-size:11px;color:#48484a;position:relative;border:1px solid rgba(0,0,0,0.05);overflow:hidden;min-width:280px;flex:1 1 280px;max-width:100%}.job-row{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:8px;padding:8px 12px;min-height:36px}
 .job-banner .job-icon{font-size:13px;text-align:center}
 .job-banner .job-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .job-banner .job-actions{display:flex;gap:4px;align-items:center;flex-shrink:0}
@@ -41,8 +41,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
 .job-banner a{padding:3px 8px;background:rgba(102,126,234,0.06);border-radius:5px;color:#667eea;font-size:10px;text-decoration:none;white-space:nowrap}
 .job-banner a:hover{background:rgba(102,126,234,0.14)}
 .group-label{grid-column:1/-1;font-size:11px;font-weight:700;color:#667eea;padding:8px 4px 4px;margin:0}.cv-card{background:rgba(255,255,255,0.55);border-radius:8px;padding:10px 12px;border:1px solid rgba(0,0,0,0.04)}
-@media(min-width:700px){.sched-grid{grid-template-columns:1fr 1fr}}
-@media(min-width:1100px){.sched-grid{grid-template-columns:1fr 1fr 1fr}}
+.job-detail{font-size:10px;color:#6e6e73;line-height:1.6;padding:0 12px 8px;display:none}
+
 </style>
 </head>
 <body>
@@ -165,20 +165,25 @@ var _groupOrder=['fetch','compute','validate'];
 function initBanners(){
   var g=document.getElementById('schedGrid'),h='';
   _groupOrder.forEach(function(gk){
-    h+='<div class="group-label">'+_groupLabels[gk]+'</div>';
+    h+='<div style="margin-bottom:12px">';
+    h+='<div style="font-size:11px;font-weight:700;color:#667eea;padding:4px 4px 6px">'+_groupLabels[gk]+'</div>';
+    h+='<div class="job-grid">';
     _jobs.forEach(function(j){
       if(j.group!==gk)return;
-      h+='<div class="job-banner" id="b_'+j.id+'">';
-      h+='<span class="job-icon" id="i_'+j.id+'">⏳</span>';
-      h+='<span class="job-text" id="t_'+j.id+'">'+j.label+' 加载中<span class="job-dots"></span></span>';
+      h+='<div class="job-wrap" id="b_'+j.id+'">';
+      h+='<div class="job-row">';
+      h+='<span class="job-icon" id="i_'+j.id+'">&#x23F3;</span>';
+      h+='<span class="job-text" id="t_'+j.id+'">'+j.label+' &#x52A0;&#x8F7D;&#x4E2D;<span class="job-dots"></span></span>';
       h+='<div class="job-actions">';
       h+='<span class="job-elapsed" id="e_'+j.id+'"></span>';
-      h+='<button onclick="triggerJob(\''+j.id+'\')">▶</button>';
-      h+='<a href="/scheduler_logs?job_name='+encodeURIComponent(j.log)+'">📋</a>';
-      h+='</div>';
+      h+='<button onclick="triggerJob(\''+j.id+'\')">&#x25B6;</button>';
+      h+='<a href="/scheduler_logs?job_name='+encodeURIComponent(j.log)+'">&#x1F4CB;</a>';
+      h+='</div></div>';
+      h+='<div class="job-detail" id="d_'+j.id+'"></div>';
       h+='<div class="job-progress-bar"><div class="job-progress-fill" id="p_'+j.id+'" style="width:0%"></div></div>';
       h+='</div>';
     });
+    h+='</div></div>';
   });
   g.innerHTML=h;
 }
@@ -199,21 +204,19 @@ async function pollJob(j){
     var r=await fetch(j.api),d=(await r.json()).data;if(!d)return;
     var b=document.getElementById('b_'+j.id),ic=document.getElementById('i_'+j.id),tx=document.getElementById('t_'+j.id);
     setBR(b,d.running);
-    // 确保详情容器存在
     var det=document.getElementById('d_'+j.id);
-    if(!det){det=document.createElement('div');det.id='d_'+j.id;det.style.cssText='font-size:10px;opacity:0.85;margin-top:2px;line-height:1.5;display:none';tx.parentNode.insertBefore(det,tx.nextSibling)}
-    // 获取维度明细
     var dims=j.dims?j.dims(d):[];
     if(d.error&&!d.running){
-      ic.textContent='❌';tx.textContent=j.label+' 异常: '+(d.error||'').substring(0,50);b.style.background='rgba(217,83,79,0.1)';det.style.display='none';
+      ic.textContent='❌';tx.textContent=j.label+' 异常: '+(d.error||'').substring(0,50);b.style.background='rgba(217,83,79,0.1)';
+      if(det)det.style.display='none';
     }else if(d.running){
       var tot=d.categories_total||d.total_stocks||d.total||d.predict_total||0;
       var dn=d.categories_done||d.done_stocks||d.done||d.predict_done||0;
       var pct=tot>0?Math.round(dn/tot*100):0;
       ic.textContent='🔄';var msg=j.label+' '+pct+'%  '+dn+'/'+tot;
-      if(d.current_category)msg='  '+j.label+' · '+d.current_category;
+      if(d.current_category)msg=j.label+' · '+d.current_category+(tot>0?' '+pct+'%':'');
       tx.textContent=msg;
-      if(dims.length>0){det.innerHTML=dims.join('<br>');det.style.display='block'}else det.style.display='none';
+      if(det){if(dims.length>0){det.innerHTML=dims.join('<br>');det.style.display='block'}else det.style.display='none'}
       updProg('p_'+j.id,'e_'+j.id,dn,tot,d.start_time);
     }else if(d.last_run_time){
       var today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});
@@ -221,15 +224,15 @@ async function pollJob(j){
       var isT=rd===today||d.last_run_date===today;
       if(isT&&d.last_success){
         ic.textContent='✅';tx.textContent=d.last_run_time.substring(5)+' '+j.label+' 完成';b.style.background='rgba(92,184,92,0.08)';
-        if(dims.length>0){det.innerHTML=dims.join('<br>');det.style.display='block'}else det.style.display='none';
       }else if(isT){
         ic.textContent='⚠️';tx.textContent=d.last_run_time.substring(5)+' '+j.label+' 部分失败';b.style.background='rgba(240,173,78,0.08)';
-        if(dims.length>0){det.innerHTML=dims.join('<br>');det.style.display='block'}else det.style.display='none';
       }else{
-        ic.textContent='⏳';tx.textContent=j.label+' 等待调度  上次:'+d.last_run_time.substring(5);b.style.background='';det.style.display='none';
+        ic.textContent='⏳';tx.textContent=j.label+' 等待调度  上次:'+d.last_run_time.substring(5);b.style.background='';
       }
+      if(det){if(dims.length>0){det.innerHTML=dims.join('<br>');det.style.display='block'}else det.style.display='none'}
     }else{
-      ic.textContent='⏳';tx.textContent=j.label+' 等待调度';b.style.background='';det.style.display='none';
+      ic.textContent='⏳';tx.textContent=j.label+' 等待调度';b.style.background='';
+      if(det)det.style.display='none';
     }
   }catch(e){}
 }

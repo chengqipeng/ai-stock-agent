@@ -52,6 +52,12 @@ def _save_persisted_status(status: dict):
             "last_run_time": status.get("last_run_time"),
             "last_success": status.get("last_success"),
             "total_news": status.get("total_news", 0),
+            "total_stocks": status.get("total_stocks", 0),
+            "done_stocks": status.get("done_stocks", 0),
+            "failed_stocks": status.get("failed_stocks", 0),
+            "type_counts": status.get("type_counts", {}),
+            "big_order_count": status.get("big_order_count", 0),
+            "big_order_status": status.get("big_order_status", ""),
         }
         _STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:

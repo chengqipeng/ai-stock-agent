@@ -118,10 +118,9 @@ function renderPicks(picks, pickDate, totalScreened){
   document.getElementById('resultTitle').textContent='📋 '+pickDate+' 筛选结果（池 '+totalScreened+' → TOP '+picks.length+'）';
   var h='<div style="overflow-x:auto"><table class="dt"><thead><tr>';
   h+='<th>#</th><th>代码</th><th>名称</th><th>行业</th><th>市值亿</th><th>PE</th><th>PB</th><th>ROE%</th>';
-  h+='<th>毛利%</th><th>净利率%</th><th>营收YoY</th><th>利润YoY</th><th>负债%</th><th>现金流</th><th>120日</th><th>评分</th><th>预测</th>';
+  h+='<th>毛利%</th><th>净利率%</th><th>营收YoY</th><th>利润YoY</th><th>负债%</th><th>现金流</th><th>120日</th><th>评分</th>';
   h+='</tr></thead><tbody>';
   picks.forEach(function(c,i){
-    var pred=c.pred==='UP'?'<span class="tag tag-up">↑'+c.conf+'</span>':c.pred==='DOWN'?'<span class="tag tag-dn">↓'+c.conf+'</span>':'-';
     h+='<tr>';
     h+='<td>'+(i+1)+'</td>';
     h+='<td><a href="/stock_detail?code='+encodeURIComponent(c.code)+'" target="_blank" style="color:#667eea;text-decoration:none;font-weight:600">'+c.code+'</a></td>';
@@ -139,21 +138,18 @@ function renderPicks(picks, pickDate, totalScreened){
     h+='<td class="'+CC(c.ocf)+'">'+F(c.ocf)+'</td>';
     h+='<td class="'+CC(c.c120)+'">'+F(c.c120,1)+'%</td>';
     h+='<td><span class="tag tag-sc">'+c.sc+'</span></td>';
-    h+='<td>'+pred+'</td>';
     h+='</tr>';
   });
   h+='</tbody></table></div>';
 
   // 汇总统计
-  var avgPe=0,avgRoe=0,upCnt=0,dnCnt=0;
+  var avgPe=0,avgRoe=0;
   picks.forEach(function(c){
     if(c.pe)avgPe+=c.pe;if(c.roe)avgRoe+=c.roe;
-    if(c.pred==='UP')upCnt++;if(c.pred==='DOWN')dnCnt++;
   });
   avgPe=avgPe/picks.length;avgRoe=avgRoe/picks.length;
   h+='<div style="margin-top:10px;font-size:11px;color:#636366">';
   h+='平均PE: '+avgPe.toFixed(1)+' | 平均ROE: '+avgRoe.toFixed(1)+'%';
-  h+=' | 预测看涨: '+upCnt+' | 看跌: '+dnCnt;
   h+='</div>';
 
   document.getElementById('resultBody').innerHTML=h;
