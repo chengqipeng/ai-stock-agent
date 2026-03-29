@@ -315,21 +315,25 @@ function rFinance(){
     if(_testRev==null){var _ks=Object.keys(ld).slice(0,15).join(', ');
       h+='<div style="padding:8px;background:rgba(255,152,0,0.1);border-radius:6px;font-size:11px;color:#e67e22;margin-bottom:8px">⚠️ 财报数据字段未匹配，实际key: '+_ks+'</div>'}}
 
-  h+='<div class="card"><div class="card-t">📊 最新财报详细分析 — '+(latest.report_period_name||latest.report_date)+'</div>';
+  h+='<div class="card"><div class="card-t">📊 最新财报详细分析 — '+(latest.report_period_name||latest.report_date)+(latestIsFc?' <span style="display:inline-block;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(255,152,0,0.15);color:#e67e22;vertical-align:middle">预告</span>':'')+'</div>';
   h+='<div class="two-col"><div>';
   h+='<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:#667eea;margin-bottom:6px">💰 盈利能力</div><div class="mg">';
   var rev=FV(ld,['营业总收入(元)','营业总收入','TOTALOPERATEREVE']);
   var prof=FV(ld,['归母净利润(元)','归属净利润(元)','PARENTNETPROFIT']);
+  var dProf=FV(ld,['扣非净利润(元)','扣非净利润','KCFJCXSYJLR']);
   var gm=FV(ld,['毛利率(%)','毛利率','XSMLL']),nm2=FV(ld,['净利率(%)','净利率','XSJLL']),roe2=FV(ld,['净资产收益率(加权)(%)','净资产收益率(加权)','ROEJQ']),eps=FV(ld,['基本每股收益(元)','基本每股收益','EPSJB']);
+  var dEps=FV(ld,['扣非每股收益(元)','扣非每股收益','KCFJCXSYJLR_EPSJB']);
   h+=MI('营业收入',rev!=null?FA(PA(rev)):'-','');h+=MI('净利润',prof!=null?FA(PA(prof)):'-',CC(PA(prof)));
-  h+=MI('毛利率',FP(gm),'');h+=MI('净利率',FP(nm2),'');h+=MI('ROE',FP(roe2),'');h+=MI('每股收益',F(eps),'');
+  h+=MI('扣非净利润',dProf!=null?FA(PA(dProf)):'-',CC(PA(dProf)));
+  h+=MI('毛利率',FP(gm),'');h+=MI('净利率',FP(nm2),'');h+=MI('ROE',FP(roe2),'');h+=MI('每股收益',F(eps),'');h+=MI('扣非每股收益',F(dEps),'');
   h+='</div></div>';
   h+='<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:#e67e22;margin-bottom:6px">📈 成长能力</div><div class="mg">';
   var rY=FV(ld,['营业总收入同比增长(%)','营业总收入同比增长','TOTALOPERATEREVETZ']);
   var pY=FV(ld,['归属净利润同比增长(%)','归属净利润同比增长','PARENTNETPROFITTZ']);
+  var dpY=FV(ld,['扣非净利润同比增长(%)','扣非净利润同比增长','KCFJCXSYJLR_TZ']);
   var rQ=FV(ld,['营业总收入环比增长(%)','营业总收入环比增长','YYZSRGDHBZC']);
   var pQ=FV(ld,['归属净利润环比增长(%)','归属净利润环比增长','NETPROFITRPHBZC']);
-  h+=MI('营收同比',FP(rY),CC(rY));h+=MI('净利同比',FP(pY),CC(pY));h+=MI('营收环比',FP(rQ),CC(rQ));h+=MI('净利环比',FP(pQ),CC(pQ));
+  h+=MI('营收同比',FP(rY),CC(rY));h+=MI('净利同比',FP(pY),CC(pY));h+=MI('扣非净利同比',FP(dpY),CC(dpY));h+=MI('营收环比',FP(rQ),CC(rQ));h+=MI('净利环比',FP(pQ),CC(pQ));
   h+='</div></div>';
   h+='</div><div>';
   h+='<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:#2ecc71;margin-bottom:6px">⚙️ 运营能力</div><div class="mg">';
@@ -342,16 +346,21 @@ function rFinance(){
   h+=MI('总资产周转率',F(FV(ld,['总资产周转率(次)','总资产周转率','TOAZZL']))+'次','');h+=MI('存货周转率',F(FV(ld,['存货周转率(次)','存货周转率','CHZZL']))+'次','');
   h+='</div></div></div></div></div>';
   h+='<div class="card"><div class="card-t">📊 历史财报趋势 ('+fin.length+'期)</div><div style="overflow-x:auto">';
-  h+='<table class="dt"><thead><tr><th>报告期</th><th>类型</th><th>营业收入</th><th>营收同比</th><th>净利润</th><th>净利同比</th><th>毛利率</th><th>净利率</th><th>ROE</th><th>每股收益</th></tr></thead><tbody>';
+  h+='<table class="dt"><thead><tr><th>报告期</th><th>类型</th><th>营业收入</th><th>营收同比</th><th>净利润</th><th>净利同比</th><th>扣非净利润</th><th>扣非同比</th><th>毛利率</th><th>ROE</th><th>每股收益</th><th>扣非EPS</th></tr></thead><tbody>';
   fin.forEach(function(f){var d=f.data||{};
     var isFc=f.is_forecast;
     var rev2=FV(d,['营业总收入(元)','营业总收入','TOTALOPERATEREVE']),prof2=FV(d,['归母净利润(元)','归属净利润(元)','PARENTNETPROFIT']);
+    var dProf2=FV(d,['扣非净利润(元)','扣非净利润','KCFJCXSYJLR']);
     var rY2=FV(d,['营业总收入同比增长(%)','营业总收入同比增长','TOTALOPERATEREVETZ']),pY2=FV(d,['归属净利润同比增长(%)','归属净利润同比增长','PARENTNETPROFITTZ']);
-    var gm2=FV(d,['毛利率(%)','毛利率','XSMLL']),nm3=FV(d,['净利率(%)','净利率','XSJLL']),roe3=FV(d,['净资产收益率(加权)(%)','净资产收益率(加权)','ROEJQ']),eps2=FV(d,['基本每股收益(元)','基本每股收益','EPSJB']);
+    var dpY2=FV(d,['扣非净利润同比增长(%)','扣非净利润同比增长','KCFJCXSYJLR_TZ']);
+    var gm2=FV(d,['毛利率(%)','毛利率','XSMLL']),roe3=FV(d,['净资产收益率(加权)(%)','净资产收益率(加权)','ROEJQ']),eps2=FV(d,['基本每股收益(元)','基本每股收益','EPSJB']);
+    var dEps2=FV(d,['扣非每股收益(元)','扣非每股收益','KCFJCXSYJLR_EPSJB']);
     var rowStyle=isFc?' style="background:rgba(255,152,0,0.06)"':'';
-    var typeTag=isFc?'<span style="color:#f0ad4e;font-weight:600;font-size:10px">预告</span>':'<span style="color:#34c759;font-size:10px">正式</span>';
+    var typeTag=isFc?'<span style="display:inline-block;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(255,152,0,0.15);color:#e67e22">预告</span>':'<span style="display:inline-block;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(52,199,89,0.12);color:#34c759">正式</span>';
     h+='<tr'+rowStyle+'><td>'+(f.report_period_name||f.report_date)+'</td><td>'+typeTag+'</td><td>'+(rev2!=null?FA(PA(rev2)):'-')+'</td><td class="'+CC(rY2)+'">'+FP(rY2)+'</td>';
-    h+='<td>'+(prof2!=null?FA(PA(prof2)):'-')+'</td><td class="'+CC(pY2)+'">'+FP(pY2)+'</td><td>'+FP(gm2)+'</td><td>'+FP(nm3)+'</td><td>'+FP(roe3)+'</td><td>'+F(eps2)+'</td></tr>'});
+    h+='<td>'+(prof2!=null?FA(PA(prof2)):'-')+'</td><td class="'+CC(pY2)+'">'+FP(pY2)+'</td>';
+    h+='<td>'+(dProf2!=null?FA(PA(dProf2)):'-')+'</td><td class="'+CC(dpY2)+'">'+FP(dpY2)+'</td>';
+    h+='<td>'+FP(gm2)+'</td><td>'+FP(roe3)+'</td><td>'+F(eps2)+'</td><td>'+F(dEps2)+'</td></tr>'});
   h+='</tbody></table></div></div>';
   if(fin.length>=2){
     h+='<div class="card"><div class="card-t">📈 财报趋势分析</div><div style="font-size:12px;line-height:1.8;color:#333;padding:8px">';
@@ -359,8 +368,10 @@ function rFinance(){
     var r0=d0['营业总收入同比增长(%)'],r1=d1['营业总收入同比增长(%)'];
     var p0=d0['归属净利润同比增长(%)'],p1=d1['归属净利润同比增长(%)'];
     var gm0=d0['毛利率(%)'],gm1=d1['毛利率(%)'];
+    var dp0=FV(d0,['扣非净利润同比增长(%)','扣非净利润同比增长','KCFJCXSYJLR_TZ']),dp1=FV(d1,['扣非净利润同比增长(%)','扣非净利润同比增长','KCFJCXSYJLR_TZ']);
     if(r0!=null&&r1!=null){var rT=r0>r1?'<span class="cp">营收增速加快 ↑</span>':r0<r1?'<span class="cn">营收增速放缓 ↓</span>':'营收增速持平';h+='<div>• 营收同比: 最新 '+FP(r0)+' vs 上期 '+FP(r1)+' → '+rT+'</div>'}
     if(p0!=null&&p1!=null){var pT2=p0>p1?'<span class="cp">利润增速加快 ↑</span>':p0<p1?'<span class="cn">利润增速放缓 ↓</span>':'利润增速持平';h+='<div>• 净利同比: 最新 '+FP(p0)+' vs 上期 '+FP(p1)+' → '+pT2+'</div>'}
+    if(dp0!=null&&dp1!=null){var dpT=dp0>dp1?'<span class="cp">扣非增速加快 ↑</span>':dp0<dp1?'<span class="cn">扣非增速放缓 ↓</span>':'扣非增速持平';h+='<div>• 扣非同比: 最新 '+FP(dp0)+' vs 上期 '+FP(dp1)+' → '+dpT+'</div>'}
     if(gm0!=null&&gm1!=null){var gmT=gm0>gm1?'<span class="cp">毛利率提升 ↑</span>':gm0<gm1?'<span class="cn">毛利率下降 ↓</span>':'毛利率持平';h+='<div>• 毛利率: 最新 '+FP(gm0)+' vs 上期 '+FP(gm1)+' → '+gmT+'</div>'}
     h+='</div></div>'}
   h+=rOverseas();
