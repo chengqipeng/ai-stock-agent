@@ -16,7 +16,7 @@ from chinese_calendar import is_workday
 from curl_cffi.requests import AsyncSession
 
 from common.constants.stocks_data import MAIN_STOCK
-from dao.stock_news_dao import create_news_table, batch_upsert_news
+from dao.stock_news_dao import create_news_table, batch_upsert_news, get_today_fetched_stocks
 from dao.scheduler_log_dao import insert_log, update_log
 from service.jqka10.stock_news_10jqka import fetch_stock_news, IMPERSONATE
 from service.auto_job.kline_data_scheduler import app_ready
@@ -153,7 +153,13 @@ async def _execute_job(manual: bool = False):
 
         stocks = _build_stock_list()
         _job_status["total_stocks"] = len(stocks)
-        logger.info("[新闻调度] 开始抓取 %d 只股票的新闻公告", len(stocks))
+
+        # 加载今天已成功拉取的股票，支持断点续传
+        already_done = get_today_fetched_stocks(today_str)
+        skipped_count = 0
+
+        logger.info("[新闻调度] 开始抓取 %d 只股票的新闻公告（已完成 %d 只可跳过）",
+                    len(stocks), len(already_done))
 
         log_id = insert_log("stock_news", started_at)
         total_news = 0
@@ -167,6 +173,14 @@ async def _execute_job(manual: bool = False):
                 for i, stock in enumerate(stocks):
                     code = stock["code"]
                     name = stock.get("name", code)
+
+                    # 今天已成功拉取过则跳过
+                    if code in already_done:
+                        skipped_count += 1
+                        success_count += 1
+                        _job_status["done_stocks"] = i + 1
+                        continue
+
                     try:
                         result = await fetch_stock_news(code, session=session, fetch_content=False)
                         stock_news_count = 0
@@ -206,6 +220,7 @@ async def _execute_job(manual: bool = False):
                 "total_stocks": len(stocks),
                 "success": success_count,
                 "failed": failed_count,
+                "skipped": skipped_count,
                 "total_news": total_news,
             }, ensure_ascii=False)
 
@@ -213,8 +228,8 @@ async def _execute_job(manual: bool = False):
             update_log(log_id, status, len(stocks), success_count, failed_count, 0, detail)
 
             _save_persisted_status(_job_status)
-            logger.info("[新闻调度] 完成: %d只股票, %d条新闻, %d失败, 耗时%ds",
-                        len(stocks), total_news, failed_count, duration)
+            logger.info("[新闻调度] 完成: %d只股票, %d条新闻, %d跳过, %d失败, 耗时%ds",
+                        len(stocks), total_news, skipped_count, failed_count, duration)
 
         except Exception as e:
             _job_status["error"] = str(e)

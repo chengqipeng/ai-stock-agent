@@ -160,6 +160,36 @@ def batch_upsert_news(stock_code: str, news_list: list[dict]):
     return count
 
 
+# ─────────────────── 个股拉取状态 ───────────────────
+
+def get_today_fetched_stocks(today_str: str) -> set[str]:
+    """批量查询今天已成功写入过资讯数据的股票代码集合。
+
+    判断标准：该股票在 stock_news 表中存在 updated_at 为今天的记录。
+    一次查询返回所有已完成的股票，供调度器做跳过判断。
+
+    Args:
+        today_str: 今天的日期字符串，格式 "YYYY-MM-DD"
+
+    Returns:
+        set[str]: 今天已成功拉取的股票代码集合
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            f"SELECT DISTINCT stock_code FROM {TABLE_NAME} "
+            f"WHERE updated_at >= %s AND updated_at < DATE_ADD(%s, INTERVAL 1 DAY)",
+            (today_str, today_str),
+        )
+        return {row[0] for row in cursor.fetchall()}
+    except Exception:
+        return set()
+    finally:
+        cursor.close()
+        conn.close()
+
+
 # ─────────────────── 查询 ───────────────────
 
 def get_news_by_stock(stock_code: str, news_type: str = None, limit: int = 50) -> list[dict]:
