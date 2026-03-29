@@ -41,7 +41,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
 .job-banner a{padding:3px 8px;background:rgba(102,126,234,0.06);border-radius:5px;color:#667eea;font-size:10px;text-decoration:none;white-space:nowrap}
 .job-banner a:hover{background:rgba(102,126,234,0.14)}
 .group-label{grid-column:1/-1;font-size:11px;font-weight:700;color:#667eea;padding:8px 4px 4px;margin:0}.cv-card{background:rgba(255,255,255,0.55);border-radius:8px;padding:10px 12px;border:1px solid rgba(0,0,0,0.04)}
-.job-detail{font-size:10px;color:#6e6e73;line-height:1.6;padding:0 12px 8px;display:none}
+.job-detail{font-size:10px;color:#6e6e73;line-height:1.6;padding:0 12px 8px}
 
 </style>
 </head>
@@ -213,7 +213,7 @@ async function pollJob(j){
       var tot=d.categories_total||d.total_stocks||d.total||d.predict_total||0;
       var dn=d.categories_done||d.done_stocks||d.done||d.predict_done||0;
       var pct=tot>0?Math.round(dn/tot*100):0;
-      ic.textContent='🔄';var msg=j.label+' '+pct+'%  '+dn+'/'+tot;
+      ic.textContent='🔄';var msg=tot>0?(j.label+' '+pct+'%  '+dn+'/'+tot):(d.error||j.label+' 准备中...');
       if(d.current_category)msg=j.label+' · '+d.current_category+(tot>0?' '+pct+'%':'');
       tx.textContent=msg;
       if(det){if(dims.length>0){det.innerHTML=dims.join('<br>');det.style.display='block'}else det.style.display='none'}
@@ -232,7 +232,7 @@ async function pollJob(j){
       if(det){if(dims.length>0){det.innerHTML=dims.join('<br>');det.style.display='block'}else det.style.display='none'}
     }else{
       ic.textContent='⏳';tx.textContent=j.label+' 等待调度';b.style.background='';
-      if(det)det.style.display='none';
+      if(det){if(dims.length>0){det.innerHTML=dims.join('<br>');det.style.display='block'}else det.style.display='none'}
     }
   }catch(e){}
 }

@@ -221,11 +221,11 @@ async def stock_detail_overview(stock_code: str = Query(..., description="股票
         except Exception:
             result["big_orders"] = []
 
-        # 7. 财报数据（最近8期）
+        # 7. 财报数据（最近12期，含业绩预告）
         cur.execute(
             "SELECT report_date, report_period_name, data_json "
             "FROM stock_finance WHERE stock_code = %s "
-            "ORDER BY report_date DESC LIMIT 8",
+            "ORDER BY report_date DESC LIMIT 12",
             (stock_code,),
         )
         finance_rows = cur.fetchall()
@@ -236,6 +236,8 @@ async def stock_detail_overview(stock_code: str = Query(..., description="股票
                 except Exception:
                     row["data"] = {}
                 del row["data_json"]
+            # 标记是否为业绩预告
+            row["is_forecast"] = bool(row.get("report_period_name") and "预告" in row["report_period_name"])
         _enrich_finance_rows(finance_rows)
         result["finance"] = _serialize(finance_rows)
 

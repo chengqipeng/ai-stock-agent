@@ -308,6 +308,8 @@ function rFinance(){
   h+='</div></div>';
   if(!fin.length){h+='<div class="card"><div class="card-t">暂无财报数据</div></div>';return h+rOverseas()}
   var latest=fin[0],ld=latest.data||{};
+  var latestIsFc=latest.is_forecast;
+  if(latestIsFc){h+='<div style="padding:8px 12px;background:rgba(255,152,0,0.1);border-radius:6px;font-size:12px;color:#e67e22;margin-bottom:8px">📈 最新数据为<b>业绩预告</b>（'+(latest.report_period_name||'')+'），正式财报发布后将自动覆盖</div>'}
   if(!Object.keys(ld).length){h+='<div style="padding:8px;background:rgba(255,152,0,0.1);border-radius:6px;font-size:11px;color:#e67e22;margin-bottom:8px">⚠️ 财报data字段为空对象</div>'}
   else{var _testRev=FV(ld,['营业总收入(元)','营业总收入','TOTALOPERATEREVE']);
     if(_testRev==null){var _ks=Object.keys(ld).slice(0,15).join(', ');
@@ -340,12 +342,15 @@ function rFinance(){
   h+=MI('总资产周转率',F(FV(ld,['总资产周转率(次)','总资产周转率','TOAZZL']))+'次','');h+=MI('存货周转率',F(FV(ld,['存货周转率(次)','存货周转率','CHZZL']))+'次','');
   h+='</div></div></div></div></div>';
   h+='<div class="card"><div class="card-t">📊 历史财报趋势 ('+fin.length+'期)</div><div style="overflow-x:auto">';
-  h+='<table class="dt"><thead><tr><th>报告期</th><th>营业收入</th><th>营收同比</th><th>净利润</th><th>净利同比</th><th>毛利率</th><th>净利率</th><th>ROE</th><th>每股收益</th></tr></thead><tbody>';
+  h+='<table class="dt"><thead><tr><th>报告期</th><th>类型</th><th>营业收入</th><th>营收同比</th><th>净利润</th><th>净利同比</th><th>毛利率</th><th>净利率</th><th>ROE</th><th>每股收益</th></tr></thead><tbody>';
   fin.forEach(function(f){var d=f.data||{};
+    var isFc=f.is_forecast;
     var rev2=FV(d,['营业总收入(元)','营业总收入','TOTALOPERATEREVE']),prof2=FV(d,['归母净利润(元)','归属净利润(元)','PARENTNETPROFIT']);
     var rY2=FV(d,['营业总收入同比增长(%)','营业总收入同比增长','TOTALOPERATEREVETZ']),pY2=FV(d,['归属净利润同比增长(%)','归属净利润同比增长','PARENTNETPROFITTZ']);
     var gm2=FV(d,['毛利率(%)','毛利率','XSMLL']),nm3=FV(d,['净利率(%)','净利率','XSJLL']),roe3=FV(d,['净资产收益率(加权)(%)','净资产收益率(加权)','ROEJQ']),eps2=FV(d,['基本每股收益(元)','基本每股收益','EPSJB']);
-    h+='<tr><td>'+(f.report_period_name||f.report_date)+'</td><td>'+(rev2!=null?FA(PA(rev2)):'-')+'</td><td class="'+CC(rY2)+'">'+FP(rY2)+'</td>';
+    var rowStyle=isFc?' style="background:rgba(255,152,0,0.06)"':'';
+    var typeTag=isFc?'<span style="color:#f0ad4e;font-weight:600;font-size:10px">预告</span>':'<span style="color:#34c759;font-size:10px">正式</span>';
+    h+='<tr'+rowStyle+'><td>'+(f.report_period_name||f.report_date)+'</td><td>'+typeTag+'</td><td>'+(rev2!=null?FA(PA(rev2)):'-')+'</td><td class="'+CC(rY2)+'">'+FP(rY2)+'</td>';
     h+='<td>'+(prof2!=null?FA(PA(prof2)):'-')+'</td><td class="'+CC(pY2)+'">'+FP(pY2)+'</td><td>'+FP(gm2)+'</td><td>'+FP(nm3)+'</td><td>'+FP(roe3)+'</td><td>'+F(eps2)+'</td></tr>'});
   h+='</tbody></table></div></div>';
   if(fin.length>=2){

@@ -218,6 +218,19 @@ async def _execute_job(manual: bool = False):
                 _job_status["big_order_status"] = "failed"
                 logger.error("[新闻调度] 大单追踪拉取失败: %s", e, exc_info=True)
 
+            # ── 业绩预告同步到财报表 ──
+            forecast_count = 0
+            _job_status["phase"] = "forecast_sync"
+            _job_status["phase_label"] = "业绩预告同步"
+            try:
+                from tools.extract_forecast_to_finance import run_extraction
+                logger.info("[新闻调度] 开始同步业绩预告到财报表...")
+                forecast_count = run_extraction() or 0
+                _job_status["forecast_sync_count"] = forecast_count
+                logger.info("[新闻调度] 业绩预告同步完成: %s", forecast_count)
+            except Exception as e:
+                logger.error("[新闻调度] 业绩预告同步失败: %s", e, exc_info=True)
+
             finished_at = datetime.now(_CST)
             duration = int((finished_at - started_at).total_seconds())
             detail = json.dumps({
@@ -226,6 +239,7 @@ async def _execute_job(manual: bool = False):
                 "failed": failed_count,
                 "total_news": total_news,
                 "big_order_count": big_order_count,
+                "forecast_sync_count": forecast_count,
             }, ensure_ascii=False)
 
             status = "success" if failed_count == 0 else "partial"

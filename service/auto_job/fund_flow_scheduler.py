@@ -135,7 +135,10 @@ if _persisted.get("last_run_date"):
 
 
 def get_fund_flow_job_status():
-    return dict(_job_status)
+    status = dict(_job_status)
+    if status.get("running"):
+        status["done"] = status.get("success", 0) + status.get("failed", 0)
+    return status
 
 
 def _build_stock_list():

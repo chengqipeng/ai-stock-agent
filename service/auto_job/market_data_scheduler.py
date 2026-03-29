@@ -75,7 +75,15 @@ _job_status = {
 
 
 def get_market_data_job_status() -> dict:
-    return dict(_job_status)
+    status = dict(_job_status)
+    if status.get("running"):
+        td_done = status.get("time_data_success", 0) + status.get("time_data_failed", 0)
+        ob_done = status.get("order_book_success", 0) + status.get("order_book_failed", 0)
+        td_total = status.get("time_data_total", 0)
+        ob_total = status.get("order_book_total", 0)
+        status["total"] = td_total + ob_total
+        status["done"] = td_done + ob_done
+    return status
 
 
 # ─────────── 股票列表 ───────────

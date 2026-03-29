@@ -90,14 +90,15 @@ _job_status = {
     "last_run_time": _persisted.get("last_run_time"),
     "last_run_date": _persisted.get("last_run_date"),
     "last_success": _persisted.get("last_success"),
-    "kline_total": _persisted.get("kline_total", 0),
-    "kline_success": _persisted.get("kline_success", 0),
-    "kline_failed": _persisted.get("kline_failed", 0),
-    "finance_total": _persisted.get("finance_total", 0),
-    "finance_success": _persisted.get("finance_success", 0),
-    "finance_failed": _persisted.get("finance_failed", 0),
-    "running": False,
-    "error": None,
+    "kline_total": 0,
+    "kline_success": 0,
+    "kline_failed": 0,
+    "finance_total": 0,
+    "finance_success": 0,
+    "finance_failed": 0,
+    "running": False,            # 是否正在执行
+    "error": None,               # 异常信息
+    "start_time": None,          # 开始时间 ISO 格式
 }
 
 
@@ -113,6 +114,13 @@ def get_job_status() -> dict:
         status["finance_total"] = fc.get("total", 0)
         status["finance_success"] = fc.get("success", 0)
         status["finance_failed"] = fc.get("failed", 0)
+        # 通用进度字段（供前端 pollJob 读取）
+        kt = kc.get("total", 0)
+        ft = fc.get("total", 0)
+        kd = kc.get("success", 0) + kc.get("failed", 0)
+        fd = fc.get("success", 0) + fc.get("failed", 0)
+        status["total"] = kt + ft
+        status["done"] = kd + fd
     # 不暴露内部引用
     status.pop("_kline_counter", None)
     status.pop("_finance_counter", None)

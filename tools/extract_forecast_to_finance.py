@@ -235,7 +235,7 @@ def run_extraction(batch_size: int = 500, dry_run: bool = False):
     page_size = 10000
     while True:
         cur.execute("""
-            SELECT id, stock_code, title
+            SELECT id, stock_code, title, content
             FROM stock_news
             WHERE news_type = 'forecast' AND id > %s
             ORDER BY id
@@ -276,8 +276,9 @@ def run_extraction(batch_size: int = 500, dry_run: bool = False):
         code = f['stock_code']
         title = f['title'] or ''
 
-        # 从 title 解析报告期和净利润（title 格式统一，包含所有关键信息）
-        forecast = parse_forecast_content(title, title)
+        # 从 title + content 解析报告期、净利润、每股收益、扣非净利润等
+        content = f.get('content') or ''
+        forecast = parse_forecast_content(title, content or title)
         if not forecast or not forecast.get('report_date'):
             skipped_parse_fail += 1
             continue
@@ -311,12 +312,12 @@ def run_extraction(batch_size: int = 500, dry_run: bool = False):
         logger.info("[DRY RUN] 不写入数据库")
         for code, rd, pn, dj in to_insert[:5]:
             logger.info("  %s %s %s: %s", code, rd, pn, dj[:100])
-        return
+        return 0
 
     # 4. 写入数据库
     if not to_insert:
         logger.info("无需写入")
-        return
+        return 0
 
     conn = get_connection()
     cur = conn.cursor()
@@ -359,9 +360,11 @@ def run_extraction(batch_size: int = 500, dry_run: bool = False):
             logger.info("  写入 %d/%d", inserted, len(to_insert))
 
         logger.info("写入完成: %d 条预告数据", inserted)
+        return inserted
     except Exception as e:
         conn.rollback()
         logger.error("写入失败: %s", e, exc_info=True)
+        return 0
     finally:
         cur.close()
         conn.close()

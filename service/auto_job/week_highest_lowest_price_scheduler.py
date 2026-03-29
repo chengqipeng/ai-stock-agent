@@ -95,6 +95,9 @@ def get_price_job_status() -> dict:
         status["price_total"] = pc.get("total", 0)
         status["price_success"] = pc.get("success", 0)
         status["price_failed"] = pc.get("failed", 0)
+        # 通用进度字段
+        status["total"] = pc.get("total", 0)
+        status["done"] = pc.get("success", 0) + pc.get("failed", 0)
     status.pop("_price_counter", None)
     status.pop("start_time", None)
     return status
