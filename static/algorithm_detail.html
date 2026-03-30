@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>算法逻辑详解 — AI Stock Agent</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif;background:linear-gradient(135deg,#e8ecf4 0%,#d5dbe8 25%,#c9d6f0 50%,#ddd5ee 75%,#e8ecf4 100%);background-attachment:fixed;min-height:100vh;color:#1d1d1f;font-size:13px;line-height:1.7}
+.header{background:rgba(102,126,234,0.75);backdrop-filter:blur(20px);color:white;padding:10px 20px;display:flex;align-items:center;gap:16px}
+.header h1{font-size:16px;font-weight:700}
+.header a{color:rgba(255,255,255,0.8);text-decoration:none;font-size:12px}
+.header a:hover{color:white}
+.container{max-width:960px;margin:16px auto;padding:0 16px}
+.card{background:rgba(255,255,255,0.7);backdrop-filter:blur(20px);border-radius:12px;padding:20px 24px;border:1px solid rgba(255,255,255,0.5);box-shadow:0 2px 12px rgba(0,0,0,0.04);margin-bottom:16px}
+.card h2{font-size:15px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card h3{font-size:13px;font-weight:700;color:#48484a;margin:14px 0 6px;padding-top:10px;border-top:1px solid rgba(0,0,0,0.06)}
+.card h3:first-of-type{border-top:none;padding-top:0}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600}
+.tag-v11{background:rgba(102,126,234,0.12);color:#667eea}
+.tag-v20{background:rgba(52,199,89,0.12);color:#34c759}
+.tag-v30{background:rgba(255,149,0,0.12);color:#ff9500}
+.tag-consensus{background:rgba(175,82,222,0.12);color:#af52de}
+.tag-high{background:rgba(52,199,89,0.15);color:#248a3d}
+.tag-med{background:rgba(255,204,0,0.18);color:#a68a00}
+.tag-low{background:rgba(217,83,79,0.12);color:#d9534f}
+.tag-deny{background:rgba(217,83,79,0.18);color:#c0392b}
+.rule-box{background:rgba(0,0,0,0.03);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:12px;border-left:3px solid rgba(102,126,234,0.4)}
+.rule-box.deny{border-left-color:rgba(217,83,79,0.5)}
+.rule-box.confirm{border-left-color:rgba(52,199,89,0.5)}
+.rule-box code{background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px;font-size:11px;font-family:'SF Mono',Menlo,monospace}
+table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0}
+th,td{padding:6px 10px;text-align:left;border-bottom:1px solid rgba(0,0,0,0.06)}
+th{font-weight:700;color:#48484a;font-size:11px;text-transform:uppercase;letter-spacing:0.3px}
+td{color:#1d1d1f}
+.num{font-family:'SF Mono',Menlo,monospace;font-size:11px}
+.flow-chart{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0}
+.flow-step{background:rgba(102,126,234,0.08);border:1px solid rgba(102,126,234,0.2);border-radius:8px;padding:8px 12px;font-size:11px;text-align:center;min-width:100px}
+.flow-arrow{color:#667eea;font-size:16px;font-weight:700}
+.metric{display:inline-block;background:rgba(0,0,0,0.04);border-radius:6px;padding:4px 10px;margin:2px 4px;font-size:11px}
+.metric b{font-size:13px}
+.section-nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.section-nav a{padding:6px 14px;background:rgba(255,255,255,0.6);border:1px solid rgba(0,0,0,0.08);border-radius:8px;text-decoration:none;color:#48484a;font-size:12px;font-weight:600;transition:all .2s}
+.section-nav a:hover{background:rgba(102,126,234,0.1);border-color:rgba(102,126,234,0.3);color:#667eea}
+</style>
+</head>
+<body>
+<div class="header">
+  <a href="/">← 返回</a>
+  <h1>🧠 算法逻辑详解</h1>
+  <span style="font-size:11px;opacity:.7">V11 / V20 / V30 规则引擎 + 正交共识</span>
+</div>
+<div class="container">
+
+<div class="section-nav">
+  <a href="#overview">总览</a>
+  <a href="#v11">V11 方向判断</a>
+  <a href="#v20">V20 资金确认</a>
+  <a href="#v30">V30 结构确认</a>
+  <a href="#consensus">正交共识</a>
+  <a href="#validation">验证结果</a>
+</div>
+
+<!-- ═══════════════ 总览 ═══════════════ -->
+<div class="card" id="overview">
+  <h2>📐 三模型正交架构</h2>
+  <p>三个模型各负责一个独立维度，共识时形成多角度交叉验证，而非同一判断的重复。</p>
+
+  <div class="flow-chart">
+    <div class="flow-step" style="border-color:rgba(102,126,234,0.4)">
+      <div style="font-size:16px">📊</div>
+      <div><b>V11 方向判断</b></div>
+      <div style="font-size:10px;color:#8e8e93">价格动量 + 大盘环境</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step" style="border-color:rgba(52,199,89,0.4)">
+      <div style="font-size:16px">💰</div>
+      <div><b>V20 资金确认</b></div>
+      <div style="font-size:10px;color:#8e8e93">资金流出程度</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step" style="border-color:rgba(255,149,0,0.4)">
+      <div style="font-size:16px">📍</div>
+      <div><b>V30 结构确认</b></div>
+      <div style="font-size:10px;color:#8e8e93">60日价格位置</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step" style="border-color:rgba(175,82,222,0.4)">
+      <div style="font-size:16px">🎯</div>
+      <div><b>正交共识</b></div>
+      <div style="font-size:10px;color:#8e8e93">三维度交叉验证</div>
+    </div>
+  </div>
+
+  <h3>为什么需要正交化？</h3>
+  <p>原始三模型（V11/V20/V30）共享同一个底层维度——"股票跌了多少"。三模型同时看好一只股票，不是三个独立专家都认可，而是同一个判断被重复了三次。</p>
+  <p>实盘验证：原始三模型同时高置信的72只股票，准确率仅30.6%，比V11单独的46.5%还低。原因是V20/V30的高置信条件把选股范围缩窄到了"跌得最惨的"——这些股票本周平均跌7.89%，是其他股票的1.7倍。</p>
+
+  <h3>正交化后的效果</h3>
+  <table>
+    <tr><th>方案</th><th>high准确率</th><th>数量</th><th>验证方法</th></tr>
+    <tr><td>V11原始high</td><td class="num">56.3%</td><td class="num">1356</td><td>300股×39周全量</td></tr>
+    <tr><td>V11+deny过滤(方案B)</td><td class="num">57.3%</td><td class="num">1214</td><td>300股×39周全量</td></tr>
+    <tr><td><b>正交共识high</b></td><td class="num"><b>59.7%</b></td><td class="num"><b>377</b></td><td>300股×39周全量</td></tr>
+    <tr><td><b>正交共识high(前向验证)</b></td><td class="num"><b>58.6%</b></td><td class="num"><b>331</b></td><td>前20周训练→后19周测试</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════ V11 ═══════════════ -->
+<div class="card" id="v11">
+  <h2><span class="tag tag-v11">V11</span> 方向判断引擎（下周预测）</h2>
+  <p>V11是方向判断的主引擎，基于本周涨跌幅+大盘环境+交易所，用多层规则匹配预测下周方向。</p>
+  <p>验证基础：5233只A股 × 29周交叉验证。</p>
+
+  <h3>规则匹配层级（按优先级）</h3>
+  <table>
+    <tr><th>层级</th><th>名称</th><th>说明</th><th>CV准确率</th><th>样本占比</th></tr>
+    <tr><td>层1</td><td>backbone 骨干</td><td>V5已验证核心规则（R1/R3/R5/R6/R7）</td><td class="num">71~90%</td><td class="num">~65%</td></tr>
+    <tr><td>层2.5</td><td>bull 尾日效应</td><td>大盘涨+尾日跌/冲高回落（仅UP信号）</td><td class="num">69~79%</td><td class="num">~3%</td></tr>
+    <tr><td>层2</td><td>extension 扩展</td><td>覆盖V5空白场景的多因子规则</td><td class="num">70%</td><td class="num">~22%</td></tr>
+    <tr><td>层2.5b</td><td>bull_marginal 边际</td><td>大盘涨场景的边际规则</td><td class="num">61~67%</td><td class="num">~2%</td></tr>
+    <tr><td>层4</td><td>fallback 兜底</td><td>严格条件的通用超跌/过热规则</td><td class="num">68~72%</td><td class="num">~8%</td></tr>
+  </table>
+
+  <h3>核心规则示例</h3>
+  <div class="rule-box">
+    <b>V5_R1: 大盘深跌+个股跌→涨</b> <span class="tag tag-v11">backbone</span><br>
+    条件：<code>this_chg &lt; -2</code> 且 <code>mkt_chg &lt; -3</code><br>
+    逻辑：大盘深跌时个股超跌，下周均值回归反弹。CV准确率 89.5%。
+  </div>
+  <div class="rule-box">
+    <b>V5_R5c: 深证+微跌+跌>2%→涨</b> <span class="tag tag-v11">backbone</span><br>
+    条件：<code>suffix=SZ</code> 且 <code>-1 ≤ mkt_chg &lt; 0</code> 且 <code>this_chg &lt; -2</code><br>
+    逻辑：大盘微跌时深证个股超跌反弹。CV准确率 84.8%。
+  </div>
+  <div class="rule-box">
+    <b>BULL_UP1: 大盘尾日跌>1%+个股跌>2%+低位→涨</b> <span class="tag tag-v11">bull</span><br>
+    条件：<code>mkt_chg ≥ 0</code> 且 <code>mkt_last_day &lt; -1</code> 且 <code>this_chg &lt; -2</code> 且 <code>pos60 &lt; 0.3</code><br>
+    逻辑：大盘周涨但尾日跌，个股低位超跌，下周反弹。CV准确率 78.9%。
+  </div>
+  <div class="rule-box deny">
+    <b>V5_R6c: 深证+大盘跌+涨+连涨3天→跌</b> <span class="tag tag-v11">backbone</span><br>
+    条件：<code>suffix=SZ</code> 且 <code>-3 ≤ mkt_chg &lt; -1</code> 且 <code>this_chg &gt; 2</code> 且 <code>cu ≥ 3</code><br>
+    逻辑：大盘跌但个股逆势连涨，过热回调。CV准确率 73.5%。
+  </div>
+
+  <h3>置信度计算</h3>
+  <div class="rule-box">
+    <b>基础置信度</b>：tier=1 → high，tier=2 → reference<br>
+    <b>资金/板块修正</b>：板块动量、大单净流入、板块一致性 → 加减分<br>
+    <b>deny过滤(方案B)</b>：<code>vol_ratio &lt; 0.7</code> 且 <code>big_net_pct &lt; 0</code> → 降一级<br>
+    <span style="font-size:11px;color:#8e8e93">deny过滤经39周×300股验证：high准确率 56.3%→57.3%，下跌市 31.9%→36.2%</span>
+  </div>
+
+  <h3>输入特征</h3>
+  <table>
+    <tr><th>特征</th><th>说明</th><th>来源</th></tr>
+    <tr><td><code>this_chg</code></td><td>本周复合涨跌幅(%)</td><td>本周日K线</td></tr>
+    <tr><td><code>mkt_chg</code></td><td>大盘本周涨跌幅(%)</td><td>000001.SH/399001.SZ</td></tr>
+    <tr><td><code>pos60</code></td><td>60日价格位置(0~1)</td><td>历史K线</td></tr>
+    <tr><td><code>cd/cu</code></td><td>连跌/连涨天数</td><td>本周日K线</td></tr>
+    <tr><td><code>vol_ratio</code></td><td>量比(本周均量/20日均量)</td><td>成交量</td></tr>
+    <tr><td><code>big_net_pct_avg</code></td><td>大单净流入占比均值(%)</td><td>资金流向</td></tr>
+    <tr><td><code>board_momentum</code></td><td>所属板块动量</td><td>概念板块K线</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════ V20 ═══════════════ -->
+<div class="card" id="v20">
+  <h2><span class="tag tag-v20">V20</span> 资金面确认（正交化后）</h2>
+  <p>V20不独立预测方向，而是回答"资金面是否支持V11的方向判断"。</p>
+
+  <h3>设计原理</h3>
+  <p>大样本发现（1950样本×39周）：资金大幅流出的超跌股票反弹概率最高（61.8%），资金流入的反而最低（49.3%）。</p>
+  <p>这符合A股"恐慌性抛售后反弹"的逻辑：大幅流出 = 恐慌抛售已充分释放，卖压衰竭；资金流入 = 可能是主力对倒出货，不是真正抄底。</p>
+
+  <h3>确认逻辑（V11预测UP时）</h3>
+  <div class="rule-box confirm">
+    <span class="tag tag-high">high确认</span> <code>big_net_pct &lt; -5%</code><br>
+    恐慌性抛售已充分释放，卖压衰竭，反弹概率高。
+  </div>
+  <div class="rule-box">
+    <span class="tag tag-med">medium</span> <code>-5% ≤ big_net_pct &lt; -2%</code><br>
+    资金流出中等，部分释放。
+  </div>
+  <div class="rule-box deny">
+    <span class="tag tag-deny">deny否决</span> <code>big_net_pct &gt; -1%</code><br>
+    抛压未充分释放（资金流入或微流出），反弹概率低。
+  </div>
+
+  <h3>确认逻辑（V11预测DOWN时）</h3>
+  <div class="rule-box confirm">
+    <span class="tag tag-high">high确认</span> <code>big_net_pct &lt; -5%</code> — 资金持续撤离，确认继续跌
+  </div>
+  <div class="rule-box deny">
+    <span class="tag tag-deny">deny否决</span> <code>big_net_pct &gt; 0%</code> — 资金流入，有人接盘，否定继续跌
+  </div>
+
+  <h3>与V11的正交性</h3>
+  <table>
+    <tr><th>维度</th><th>V11看什么</th><th>V20看什么</th><th>独立性</th></tr>
+    <tr><td>价格</td><td>本周涨跌幅(this_chg)</td><td>不使用</td><td>✅</td></tr>
+    <tr><td>大盘</td><td>大盘涨跌(mkt_chg)</td><td>不使用</td><td>✅</td></tr>
+    <tr><td>资金</td><td>不直接使用</td><td>大单净流入(big_net_pct)</td><td>✅</td></tr>
+  </table>
+
+  <h3>区分力验证（39周大样本）</h3>
+  <table>
+    <tr><th>V20判定</th><th>V11准确率</th><th>样本数</th><th>说明</th></tr>
+    <tr><td><span class="tag tag-high">confirm</span></td><td class="num">55.4%</td><td class="num">1179</td><td>资金面支持</td></tr>
+    <tr><td>neutral</td><td class="num">59.6%</td><td class="num">837</td><td>资金面中性</td></tr>
+    <tr><td><span class="tag tag-deny">deny</span></td><td class="num">51.3%</td><td class="num">501</td><td>资金面反对</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════ V30 ═══════════════ -->
+<div class="card" id="v30">
+  <h2><span class="tag tag-v30">V30</span> 结构面确认（正交化后）</h2>
+  <p>V30不独立预测方向，而是回答"价格结构是否支持V11的方向判断"。</p>
+
+  <h3>设计原理</h3>
+  <p>60日价格位置（price_pos_60）度量股票在近60个交易日高低点中的相对位置。极低位（pos&lt;0.03）的股票反弹概率62.7%，高位（pos&gt;0.55）的只有50.4%。</p>
+  <p>这个维度独立于V11（V11看本周涨跌幅）和V20（V20看资金流）：同样本周跌5%的两只股票，一只在60日低位一只在60日高位，结构面完全不同。</p>
+
+  <h3>确认逻辑（V11预测UP时）</h3>
+  <div class="rule-box confirm">
+    <span class="tag tag-high">high确认</span> <code>price_pos &lt; 0.20</code><br>
+    极低位，下跌空间已充分释放，反弹空间大。
+  </div>
+  <div class="rule-box">
+    <span class="tag tag-med">medium</span> <code>0.20 ≤ price_pos &lt; 0.40</code><br>
+    低位，有一定反弹空间。
+  </div>
+  <div class="rule-box deny">
+    <span class="tag tag-deny">deny否决</span> <code>price_pos &gt; 0.55</code><br>
+    高位，涨幅空间有限，反弹概率低。
+  </div>
+
+  <h3>确认逻辑（V11预测DOWN时）</h3>
+  <div class="rule-box confirm">
+    <span class="tag tag-high">high确认</span> <code>price_pos &gt; 0.55</code> — 高位确认有下跌空间
+  </div>
+  <div class="rule-box deny">
+    <span class="tag tag-deny">deny否决</span> <code>price_pos &lt; 0.20</code> — 极低位否定继续跌
+  </div>
+
+  <h3>区分力验证（39周大样本）</h3>
+  <table>
+    <tr><th>V30判定</th><th>V11准确率</th><th>样本数</th><th>说明</th></tr>
+    <tr><td><span class="tag tag-high">confirm</span></td><td class="num">57.0%</td><td class="num">1801</td><td>结构面支持</td></tr>
+    <tr><td>neutral</td><td class="num">57.2%</td><td class="num">311</td><td>结构面中性</td></tr>
+    <tr><td><span class="tag tag-deny">deny</span></td><td class="num">50.6%</td><td class="num">405</td><td>结构面反对</td></tr>
+  </table>
+</div>
+
+<div class="card" id="consensus">
+  <h2><span class="tag tag-consensus">正交共识</span> 三维度交叉验证</h2>
+  <p>V11给出方向判断后，V20和V30分别从资金面和结构面进行独立确认或否决。</p>
+  <h3>共识规则</h3>
+  <div class="rule-box confirm"><span class="tag tag-high">consensus high</span><br>V11 high/reference + V20 high + V30 high — 三个维度全部确认</div>
+  <div class="rule-box"><span class="tag tag-med">consensus medium</span><br>V11确认 + V20/V30至少两个medium以上 + 无deny</div>
+  <div class="rule-box deny"><span class="tag tag-low">consensus low</span><br>V20或V30任一deny — 即使V11高置信也降级</div>
+  <h3>deny否决机制</h3>
+  <p>核心价值：当某个维度明确反对时，即使其他维度都支持，也降低置信度。</p>
+  <table>
+    <tr><th>场景</th><th>V11</th><th>V20</th><th>V30</th><th>共识</th><th>说明</th></tr>
+    <tr><td>理想反弹</td><td>UP high</td><td>恐慌释放</td><td>极低位</td><td><b>high</b></td><td>三维度一致</td></tr>
+    <tr><td>资金否决</td><td>UP high</td><td><span class="tag tag-deny">deny</span></td><td>低位</td><td>low</td><td>抛压未释放</td></tr>
+    <tr><td>结构否决</td><td>UP high</td><td>恐慌释放</td><td><span class="tag tag-deny">deny</span></td><td>low</td><td>高位无空间</td></tr>
+  </table>
+  <h3>交叉验证效果（39周大样本）</h3>
+  <table>
+    <tr><th>组合</th><th>准确率</th><th>样本数</th></tr>
+    <tr><td>V20+V30都confirm</td><td class="num">57.4%</td><td class="num">869</td></tr>
+    <tr><td>V20或V30 deny</td><td class="num">52.1%</td><td class="num">839</td></tr>
+    <tr><td>差异</td><td class="num"><b>+5.3pp</b></td><td></td></tr>
+  </table>
+</div>
+
+<div class="card" id="validation">
+  <h2>📊 大样本验证结果</h2>
+  <p>300只随机采样A股 x 39周（2025-06 ~ 2026-03），V11规则引擎生成预测，对比各方案。</p>
+  <h3>汇总对比</h3>
+  <table>
+    <tr><th>方案</th><th>high准确率</th><th>high数量</th><th>h+m准确率</th><th>h+m数量</th></tr>
+    <tr><td>V11原始</td><td class="num">56.3%</td><td class="num">1356</td><td class="num">56.0%</td><td class="num">2517</td></tr>
+    <tr><td>V11+deny过滤(B)</td><td class="num">57.3%</td><td class="num">1214</td><td class="num">56.0%</td><td class="num">2172</td></tr>
+    <tr><td><b>正交共识</b></td><td class="num"><b>59.7%</b></td><td class="num"><b>377</b></td><td class="num"><b>56.8%</b></td><td class="num"><b>1348</b></td></tr>
+  </table>
+  <h3>前向验证（防过拟合）</h3>
+  <p>前20周训练逻辑，后19周完全未见数据测试：</p>
+  <table>
+    <tr><th>方案</th><th>训练期(W22-W43)</th><th>测试期(W44-W12)</th><th>提升</th></tr>
+    <tr><td>V11原始high</td><td class="num">62.8% (667)</td><td class="num">50.1% (689)</td><td>基准</td></tr>
+    <tr><td>V11+deny(B)</td><td class="num">62.5% (656)</td><td class="num">51.3% (558)</td><td class="num">+1.2pp</td></tr>
+    <tr><td><b>正交共识</b></td><td class="num">67.4% (46)</td><td class="num"><b>58.6% (331)</b></td><td class="num"><b>+8.5pp</b></td></tr>
+  </table>
+  <h3>置信度校准</h3>
+  <table>
+    <tr><th>方案</th><th>high</th><th>medium</th><th>low</th></tr>
+    <tr><td>V11原始</td><td class="num">56.3% (1356)</td><td class="num">55.6% (1161)</td><td class="num">63.3% (30)</td></tr>
+    <tr><td>V11+deny(B)</td><td class="num">57.3% (1214)</td><td class="num">54.4% (958)</td><td class="num">56.3% (375)</td></tr>
+    <tr><td><b>正交共识</b></td><td class="num"><b>59.7% (377)</b></td><td class="num">55.7% (971)</td><td class="num">55.2% (1199)</td></tr>
+  </table>
+  <h3>过拟合检验</h3>
+  <div class="rule-box">
+    <b>✅ 阈值敏感性</b>：big_net_pct阈值从-3到-8，准确率平滑递增，无突变。<br>
+    <b>✅ 前向验证</b>：训练期67.4% → 测试期58.6%，衰减合理（9pp），未崩溃。<br>
+    <b>✅ 逻辑一致性</b>：资金大幅流出=恐慌释放、低位=空间大，符合A股市场微观结构。<br>
+    <b>⚠️ 数据局限</b>：仅39周数据，需持续监控实盘表现。
+  </div>
+</div>
+<div style="text-align:center;padding:20px;font-size:11px;color:#8e8e93">AI Stock Agent — 算法逻辑详解 v1.0</div>
+</div>
+</body>
+</html>
